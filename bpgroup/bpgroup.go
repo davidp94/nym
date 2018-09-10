@@ -9,10 +9,10 @@ import (
 
 // todo: consider dynamically allowing different curves?
 type BpGroup struct {
-	gen1 *BLS381.ECP
-	gen2 *BLS381.ECP2
-	ord  *BLS381.BIG
-	rng  *amcl.RAND
+	Gen1 *BLS381.ECP
+	Gen2 *BLS381.ECP2
+	Ord  *BLS381.BIG
+	Rng  *amcl.RAND
 }
 
 func New() *BpGroup {
@@ -28,10 +28,10 @@ func New() *BpGroup {
 	rng.Seed(n, raw)
 
 	b := BpGroup{
-		gen1: BLS381.ECP_generator(),
-		gen2: BLS381.ECP2_generator(),
-		ord:  BLS381.NewBIGints(BLS381.CURVE_Order),
-		rng:  rng,
+		Gen1: BLS381.ECP_generator(),
+		Gen2: BLS381.ECP2_generator(),
+		Ord:  BLS381.NewBIGints(BLS381.CURVE_Order),
+		Rng:  rng,
 	}
 	return &b
 }
