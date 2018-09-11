@@ -37,18 +37,26 @@ func Setup(q int) (*bpgroup.BpGroup, []*BLS381.ECP) {
 func Keygen(G *bpgroup.BpGroup, hs []*BLS381.ECP) ([]*BLS381.BIG, []*BLS381.ECP2) {
 	q := len(hs)
 
-	sk := []*BLS381.BIG{}
-	vk := []*BLS381.ECP2{G.Gen2}
+	sk := make([]*BLS381.BIG, q+1)
+	vk := make([]*BLS381.ECP2, q+2)
+	vk[0] = G.Gen2
 
 	// todo: benchmark the keygen on high number of attributes and see if it is worth to parallelize it with goroutines
 	// while it might not be hugely beneficial right now, it may be useful for threshold signatures
+	var wg sync.WaitGroup
+	wg.Add(q + 1)
+
 	for i := 0; i < q+1; i++ {
-		x := BLS381.Randomnum(G.Ord, G.Rng)
-		y := BLS381.G2mul(G.Gen2, x)
-		sk = append(sk, x)
-		vk = append(vk, y)
+		sk[i] = BLS381.Randomnum(G.Ord, G.Rng) // we can't easily parallelize it due to shared resource and little performance gain
 	}
 
+	for i := 0; i < q+1; i++ {
+		go func(i int) {
+			vk[i+1] = BLS381.G2mul(G.Gen2, sk[i])
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
 	return sk, vk
 }
 
