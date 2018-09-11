@@ -110,3 +110,40 @@ func Randomize(G *bpgroup.BpGroup, sig Signature) Signature {
 	t := BLS381.Randomnum(G.Ord, G.Rng)
 	return Signature{BLS381.G1mul(sig.sig1, t), BLS381.G1mul(sig.sig2, t)}
 }
+
+// todo: special case for threshold
+func AggregateVerificationKeys(G *bpgroup.BpGroup, vks [][]*BLS381.ECP2) []*BLS381.ECP2 {
+	avk := []*BLS381.ECP2{vks[0][0]} // the first element is always gen of G2
+	// and since it is a pointer to constant element, it can be shared among multiple instances
+
+	// again, consider parallelization for both loops?
+	for i := 1; i < len(vks[0]); i++ {
+		tmp := BLS381.NewECP2()
+		tmp.Copy(vks[0][i])
+		avk = append(avk, tmp)
+	}
+
+	for i := 1; i < len(vks); i++ { // we already copied values from first set of keys
+		for j := 1; j < len(avk); j++ { // we ignore first element (the generator)
+			avk[j].Add(vks[i][j])
+		}
+	}
+
+	return avk
+}
+
+// todo: special case for threshold
+func AggregateSignatures(G *bpgroup.BpGroup, sigs []Signature) Signature {
+	// in principle there's no need to copy sig1 as it's the same among all signatures and we can reuse one of the pointers
+	sig2Cp := BLS381.NewECP()
+	sig2Cp.Copy(sigs[0].sig2)
+
+	for i := 1; i < len(sigs); i++ {
+		sig2Cp.Add(sigs[i].sig2)
+	}
+
+	return Signature{
+		sig1: sigs[0].sig1,
+		sig2: sig2Cp,
+	}
+}
