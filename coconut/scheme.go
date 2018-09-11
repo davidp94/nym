@@ -5,6 +5,7 @@ package coconut
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
@@ -98,11 +99,23 @@ func Verify(G *bpgroup.BpGroup, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig S
 		tmp := BLS381.G2mul(vk[i+2], public_m[i]) // (Yi * ai)
 		K.Add(tmp)                                // K = X0 + (Y1 * a1) + ...
 	}
-	// need to affine K?
 
-	// todo: evaluate both pairings in parallel using goroutines
-	Gt1 := G.Pair(sig.sig1, K)
-	Gt2 := G.Pair(sig.sig2, vk[0])
+	var wg sync.WaitGroup
+	wg.Add(2)
+	var Gt1 *BLS381.FP12
+	var Gt2 *BLS381.FP12
+
+	go func() {
+		Gt1 = G.Pair(sig.sig1, K)
+		wg.Done()
+	}()
+	go func() {
+		Gt2 = G.Pair(sig.sig2, vk[0])
+		wg.Done()
+	}()
+	wg.Wait()
+	// Gt1 := G.Pair(sig.sig1, K)
+	// Gt2 := G.Pair(sig.sig2, vk[0])
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
