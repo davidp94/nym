@@ -105,3 +105,8 @@ func Verify(G *bpgroup.BpGroup, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig S
 	Gt2 := G.Pair(sig.sig2, vk[0])
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
+
+func Randomize(G *bpgroup.BpGroup, sig Signature) Signature {
+	t := BLS381.Randomnum(G.Ord, G.Rng)
+	return Signature{BLS381.G1mul(sig.sig1, t), BLS381.G1mul(sig.sig2, t)}
+}

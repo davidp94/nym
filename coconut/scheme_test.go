@@ -21,6 +21,7 @@ func TestSchemeSign(t *testing.T) {
 
 }
 
+// todo: add tests for multiple attributes
 func TestSchemeVerify(t *testing.T) {
 	G, hs := coconut.Setup(1)
 	sk, vk := coconut.Keygen(G, hs)
@@ -34,7 +35,7 @@ func TestSchemeVerify(t *testing.T) {
 
 	isValid := coconut.Verify(G, vk, []*BLS381.BIG{mBig}, sig)
 	if !isValid {
-		t.Error("Does not correctly verify valid signature")
+		t.Error("Does not correctly verify a valid signature")
 	}
 
 	m2 := "Malicious Hello World!"
@@ -56,7 +57,21 @@ func TestSchemeVerify(t *testing.T) {
 }
 
 func TestSchemeRandomize(t *testing.T) {
+	G, hs := coconut.Setup(1)
+	sk, vk := coconut.Keygen(G, hs)
 
+	m := "Hello World!"
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
+	if err != nil {
+		t.Error(err)
+	}
+	sig := coconut.Sign(G, sk, []*BLS381.BIG{mBig})
+	randSig := coconut.Randomize(G, sig)
+
+	isValid := coconut.Verify(G, vk, []*BLS381.BIG{mBig}, randSig)
+	if !isValid {
+		t.Error("Does not correctly verify a valid randomized signature")
+	}
 }
 
 func TestSchemeKeyAggregation(t *testing.T) {
