@@ -41,8 +41,6 @@ func Keygen(G *bpgroup.BpGroup, hs []*BLS381.ECP) ([]*BLS381.BIG, []*BLS381.ECP2
 	vk := make([]*BLS381.ECP2, q+2)
 	vk[0] = G.Gen2
 
-	// todo: benchmark the keygen on high number of attributes and see if it is worth to parallelize it with goroutines
-	// while it might not be hugely beneficial right now, it may be useful for threshold signatures
 	var wg sync.WaitGroup
 	wg.Add(q + 1)
 
@@ -78,7 +76,7 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 
 // at this iteration, only public attributes are considered
 func Sign(G *bpgroup.BpGroup, sk []*BLS381.BIG, public_m []*BLS381.BIG) Signature {
-	// todo: also consider parallelization
+	// todo: also consider parallelization - need to check overhead of Modmul whether it is worth (for comparison G1mul or G2mul are rather expensive operations)
 	// todo later on: decide on concrete generation of h
 	// todo: deal with case when len(sk) != len(public_m) + 1 - throw some error
 
@@ -101,14 +99,23 @@ func Verify(G *bpgroup.BpGroup, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig S
 	// h := getBaseFromAttributes(public_m)
 
 	// ensure G.Gen2 == vk[0] ?
+
 	K := BLS381.NewECP2()
 	K.Copy(vk[1]) // K = X0
+	tmp := make([]*BLS381.ECP2, len(public_m))
+	var wg sync.WaitGroup
+	wg.Add(len(public_m))
 	for i := 0; i < len(public_m); i++ {
-		tmp := BLS381.G2mul(vk[i+2], public_m[i]) // (Yi * ai)
-		K.Add(tmp)                                // K = X0 + (Y1 * a1) + ...
+		go func(i int) {
+			tmp[i] = BLS381.G2mul(vk[i+2], public_m[i]) // (Yi * ai)
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	for i := 0; i < len(public_m); i++ {
+		K.Add(tmp[i]) // K = X0 + (Y1 * a1) + ...
 	}
 
-	var wg sync.WaitGroup
 	wg.Add(2)
 	var Gt1 *BLS381.FP12
 	var Gt2 *BLS381.FP12
