@@ -16,15 +16,16 @@ func TestSchemeKeygen(t *testing.T) {
 }
 
 func TestSchemeSign(t *testing.T) {
-	G, hs := Setup(1)
-	sk, _ := Keygen(G, hs)
+	params := Setup(1)
+	G := params.G
+	sk, _ := Keygen(params)
 
 	m := "Hello World!"
 	mBig, err := HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(G, sk, []*BLS381.BIG{mBig})
+	sig := Sign(params, sk, []*BLS381.BIG{mBig})
 
 	t1 := BLS381.NewBIGcopy(sk[0])
 	t1 = t1.Plus(BLS381.Modmul(mBig, sk[1], G.Ord))
@@ -52,14 +53,15 @@ func TestSchemeSign(t *testing.T) {
 		t.Error(err)
 	}
 
-	G2, hs2 := Setup(3)
-	skMultiple, _ := Keygen(G2, hs2)
-	sigMultiple := Sign(G2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	params2 := Setup(3)
+	G2 := params2.G
+	skMultiple, _ := Keygen(params2)
+	sigMultiple := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
 
 	t2 := BLS381.NewBIGcopy(skMultiple[0])
-	t2 = t2.Plus(BLS381.Modmul(attr1Big, skMultiple[1], G.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr2Big, skMultiple[2], G.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr3Big, skMultiple[3], G.Ord))
+	t2 = t2.Plus(BLS381.Modmul(attr1Big, skMultiple[1], G2.Ord))
+	t2 = t2.Plus(BLS381.Modmul(attr2Big, skMultiple[2], G2.Ord))
+	t2 = t2.Plus(BLS381.Modmul(attr3Big, skMultiple[3], G2.Ord))
 	sigTest2 := BLS381.G1mul(sigMultiple.sig1, t2)
 
 	if !sigTest2.Equals(sigMultiple.sig2) {
@@ -69,17 +71,17 @@ func TestSchemeSign(t *testing.T) {
 }
 
 func TestSchemeVerify(t *testing.T) {
-	G, hs := Setup(1)
-	sk, vk := Keygen(G, hs)
+	params := Setup(1)
+	sk, vk := Keygen(params)
 
 	m := "Hello World!"
 	mBig, err := HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(G, sk, []*BLS381.BIG{mBig})
+	sig := Sign(params, sk, []*BLS381.BIG{mBig})
 
-	isValid := Verify(G, vk, []*BLS381.BIG{mBig}, sig)
+	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, sig)
 	if !isValid {
 		t.Error("Does not correctly verify a valid signature")
 	}
@@ -90,13 +92,13 @@ func TestSchemeVerify(t *testing.T) {
 		t.Error(err)
 	}
 
-	sig2 := Sign(G, sk, []*BLS381.BIG{mBig2})
-	isValid2 := Verify(G, vk, []*BLS381.BIG{mBig}, sig2)
+	sig2 := Sign(params, sk, []*BLS381.BIG{mBig2})
+	isValid2 := Verify(params, vk, []*BLS381.BIG{mBig}, sig2)
 	if isValid2 {
 		t.Error("Verifies signature of invalid message (Given sig)")
 	}
 
-	isValid3 := Verify(G, vk, []*BLS381.BIG{mBig2}, sig)
+	isValid3 := Verify(params, vk, []*BLS381.BIG{mBig2}, sig)
 	if isValid3 {
 		t.Error("Verifies invalid signature on different message (Given msg)")
 	}
@@ -119,11 +121,11 @@ func TestSchemeVerify(t *testing.T) {
 		t.Error(err)
 	}
 
-	G2, hs2 := Setup(3)
-	skMultiple, vkMultiple := Keygen(G2, hs2)
-	sigMultiple := Sign(G2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	params2 := Setup(3)
+	skMultiple, vkMultiple := Keygen(params2)
+	sigMultiple := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
 
-	isValid4 := Verify(G2, vkMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big}, sigMultiple)
+	isValid4 := Verify(params2, vkMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big}, sigMultiple)
 
 	if !isValid4 {
 		t.Error("Does not verify signature with multiple public attributes")
@@ -131,36 +133,36 @@ func TestSchemeVerify(t *testing.T) {
 }
 
 func TestSchemeRandomize(t *testing.T) {
-	G, hs := Setup(1)
-	sk, vk := Keygen(G, hs)
+	params := Setup(1)
+	sk, vk := Keygen(params)
 
 	m := "Hello World!"
 	mBig, err := HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(G, sk, []*BLS381.BIG{mBig})
-	randSig := Randomize(G, sig)
+	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	randSig := Randomize(params, sig)
 
-	isValid := Verify(G, vk, []*BLS381.BIG{mBig}, randSig)
+	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, randSig)
 	if !isValid {
 		t.Error("Does not correctly verify a valid randomized signature")
 	}
 }
 
 func TestSchemeKeyAggregation(t *testing.T) {
-	G, hs := Setup(1)
-	sk, vk := Keygen(G, hs)
+	params := Setup(1)
+	sk, vk := Keygen(params)
 
 	m := "Hello World!"
 	mBig, err := HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(G, sk, []*BLS381.BIG{mBig})
-	avk := AggregateVerificationKeys(G, [][]*BLS381.ECP2{vk})
+	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	avk := AggregateVerificationKeys(params, [][]*BLS381.ECP2{vk})
 
-	isValid := Verify(G, avk, []*BLS381.BIG{mBig}, sig)
+	isValid := Verify(params, avk, []*BLS381.BIG{mBig}, sig)
 	if !isValid {
 		t.Error("Does not correctly verify an aggregation of a single set of keys")
 	}
@@ -168,36 +170,36 @@ func TestSchemeKeyAggregation(t *testing.T) {
 
 // todo: add more tests for multiple attributes
 func TestSchemeAggregateVerification(t *testing.T) {
-	G, hs := Setup(1)
-	sk, vk := Keygen(G, hs)
+	params := Setup(1)
+	sk, vk := Keygen(params)
 
 	m := "Hello World!"
 	mBig, err := HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(G, sk, []*BLS381.BIG{mBig})
-	aSig := AggregateSignatures(G, []Signature{sig})
+	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	aSig := AggregateSignatures(params, []*Signature{sig})
 
-	isValid := Verify(G, vk, []*BLS381.BIG{mBig}, aSig)
+	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, aSig)
 	if !isValid {
 		t.Error("Does not correctly verify an aggregation of a single signature")
 	}
 
-	signatures := []Signature{}
+	signatures := []*Signature{}
 	vks := [][]*BLS381.ECP2{}
 
 	messagesToSign := 3
 	for i := 0; i < messagesToSign; i++ {
-		sk, vk := Keygen(G, hs)
+		sk, vk := Keygen(params)
 		vks = append(vks, vk)
-		signatures = append(signatures, Sign(G, sk, []*BLS381.BIG{mBig}))
+		signatures = append(signatures, Sign(params, sk, []*BLS381.BIG{mBig}))
 	}
 
-	avk := AggregateVerificationKeys(G, vks)
-	aSig = AggregateSignatures(G, signatures)
+	avk := AggregateVerificationKeys(params, vks)
+	aSig = AggregateSignatures(params, signatures)
 
-	isValid2 := Verify(G, avk, []*BLS381.BIG{mBig}, aSig)
+	isValid2 := Verify(params, avk, []*BLS381.BIG{mBig}, aSig)
 	if !isValid2 {
 		t.Error("Does not correctly verify aggregation of signatures from 3 different entities")
 	}
@@ -208,14 +210,14 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		t.Error(err)
 	}
 
-	msk, mvk := Keygen(G, hs)
+	msk, mvk := Keygen(params)
 	vks = append(vks, mvk)
-	signatures = append(signatures, Sign(G, msk, []*BLS381.BIG{mBig2}))
+	signatures = append(signatures, Sign(params, msk, []*BLS381.BIG{mBig2}))
 
-	avk2 := AggregateVerificationKeys(G, vks)
-	aSig2 := AggregateSignatures(G, signatures)
+	avk2 := AggregateVerificationKeys(params, vks)
+	aSig2 := AggregateSignatures(params, signatures)
 
-	isValid3 := Verify(G, avk2, []*BLS381.BIG{mBig}, aSig2)
+	isValid3 := Verify(params, avk2, []*BLS381.BIG{mBig}, aSig2)
 	if isValid3 {
 		t.Error("Does not fail if one signature is on different message")
 	}

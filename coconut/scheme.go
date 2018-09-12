@@ -18,24 +18,30 @@ type Signature struct {
 	sig2 *BLS381.ECP
 }
 
-// q is the number of attributes embedded in the credential
-func Setup(q int) (*bpgroup.BpGroup, []*BLS381.ECP) {
-	hs := []*BLS381.ECP{}
+type Params struct {
+	G  *bpgroup.BpGroup
+	hs []*BLS381.ECP
+}
+
+// q is the maximum number of attributes that can be embedded in the credential
+func Setup(q int) *Params {
+	hs := make([]*BLS381.ECP, q)
 	for i := 0; i < q; i++ {
-		hn, err := hashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		hi, err := hashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
 		if err != nil {
 			panic(err)
 		}
-		hs = append(hs, hn)
+		hs[i] = hi
 	}
 	G := bpgroup.New()
-	return G, hs
+	return &Params{G, hs}
 }
 
 // todo: to be replaced by generation of keys threshold signature (by a TTP)
 // right now it is keygen as if performed by a single isolated entity
-func Keygen(G *bpgroup.BpGroup, hs []*BLS381.ECP) ([]*BLS381.BIG, []*BLS381.ECP2) {
-	q := len(hs)
+func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
+	q := len(params.hs) // todo: verify
+	G := params.G
 
 	sk := make([]*BLS381.BIG, q+1)
 	vk := make([]*BLS381.ECP2, q+2)
@@ -75,11 +81,11 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 }
 
 // at this iteration, only public attributes are considered
-func Sign(G *bpgroup.BpGroup, sk []*BLS381.BIG, public_m []*BLS381.BIG) Signature {
+func Sign(params *Params, sk []*BLS381.BIG, public_m []*BLS381.BIG) *Signature {
 	// todo: also consider parallelization - need to check overhead of Modmul whether it is worth (for comparison G1mul or G2mul are rather expensive operations)
 	// todo later on: decide on concrete generation of h
 	// todo: deal with case when len(sk) != len(public_m) + 1 - throw some error
-
+	G := params.G
 	h := getBaseFromAttributes(public_m)
 	// for some reason in js version i used DBIG? check why
 	// also took copy and then mod of all BIGs
@@ -90,14 +96,14 @@ func Sign(G *bpgroup.BpGroup, sk []*BLS381.BIG, public_m []*BLS381.BIG) Signatur
 	}
 	sig := BLS381.G1mul(h, K) // sig = h^(x0 + (x1 * a1) + ... )
 
-	return Signature{h, sig}
+	return &Signature{h, sig}
 }
 
 // similarly to Sign, this iteration only considers public attributes
-func Verify(G *bpgroup.BpGroup, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig Signature) bool {
+func Verify(params *Params, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig *Signature) bool {
 	// todo: same concerns as with Sign
 	// h := getBaseFromAttributes(public_m)
-
+	G := params.G
 	// ensure G.Gen2 == vk[0] ?
 
 	K := BLS381.NewECP2()
@@ -134,13 +140,26 @@ func Verify(G *bpgroup.BpGroup, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig S
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
-func Randomize(G *bpgroup.BpGroup, sig Signature) Signature {
+func Randomize(params *Params, sig *Signature) *Signature {
+	G := params.G
+	var wg sync.WaitGroup
+	var rSig Signature
 	t := BLS381.Randomnum(G.Ord, G.Rng)
-	return Signature{BLS381.G1mul(sig.sig1, t), BLS381.G1mul(sig.sig2, t)}
+	wg.Add(2)
+	go func() {
+		rSig.sig1 = BLS381.G1mul(sig.sig1, t)
+		wg.Done()
+	}()
+	go func() {
+		rSig.sig2 = BLS381.G1mul(sig.sig2, t)
+		wg.Done()
+	}()
+	wg.Wait()
+	return &rSig
 }
 
 // todo: special case for threshold
-func AggregateVerificationKeys(G *bpgroup.BpGroup, vks [][]*BLS381.ECP2) []*BLS381.ECP2 {
+func AggregateVerificationKeys(params *Params, vks [][]*BLS381.ECP2) []*BLS381.ECP2 {
 	avk := []*BLS381.ECP2{vks[0][0]} // the first element is always gen of G2
 	// and since it is a pointer to constant element, it can be shared among multiple instances
 
@@ -161,7 +180,7 @@ func AggregateVerificationKeys(G *bpgroup.BpGroup, vks [][]*BLS381.ECP2) []*BLS3
 }
 
 // todo: special case for threshold
-func AggregateSignatures(G *bpgroup.BpGroup, sigs []Signature) Signature {
+func AggregateSignatures(params *Params, sigs []*Signature) *Signature {
 	// in principle there's no need to copy sig1 as it's the same among all signatures and we can reuse one of the pointers
 	sig2Cp := BLS381.NewECP()
 	sig2Cp.Copy(sigs[0].sig2)
@@ -170,7 +189,7 @@ func AggregateSignatures(G *bpgroup.BpGroup, sigs []Signature) Signature {
 		sig2Cp.Add(sigs[i].sig2)
 	}
 
-	return Signature{
+	return &Signature{
 		sig1: sigs[0].sig1,
 		sig2: sig2Cp,
 	}
