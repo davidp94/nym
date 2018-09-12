@@ -66,10 +66,11 @@ func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
 
 // this is a very temporary solution that will be modified once private attributes are introduced
 // the sole point of it is to have some deterministic attribute dependant h value
+// below solution is unlikely to work between multiple languages implementations
 func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 	s := ""
 	for i := 0; i < len(public_m); i++ {
-		pubBytes := make([]byte, 48)
+		pubBytes := make([]byte, int(BLS381.MODBYTES))
 		public_m[i].ToBytes(pubBytes)
 		s += string(pubBytes)
 	}

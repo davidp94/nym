@@ -65,3 +65,21 @@ func hashStringToG1(sha int, m string) (*BLS381.ECP, error) {
 
 	return BLS381.ECP_mapit(hash), nil
 }
+
+// temporary solution to get some string representation of G1; can't use toString method on ECP object since it's unexported
+// ideally amcl people will change that at some point
+// below solution is unlikely to work between multiple languages implementations
+func stringFromG1(E *BLS381.ECP) string {
+	// todo: need to double the size?
+	bytes := make([]byte, int(BLS381.MODBYTES))
+	E.ToBytes(bytes, false)
+	return string(bytes)
+}
+
+// same rationale as G1
+func stringFromG2(E *BLS381.ECP2) string {
+	// todo: need to increase the size?
+	bytes := make([]byte, int(BLS381.MODBYTES))
+	E.ToBytes(bytes)
+	return string(bytes)
+}

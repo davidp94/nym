@@ -7,8 +7,8 @@ import (
 
 // todo: rename field names?
 type ElGamalEncryption struct {
-	a *BLS381.ECP
-	b *BLS381.ECP
+	A *BLS381.ECP
+	B *BLS381.ECP
 }
 
 func Keygen(G *bpgroup.BpGroup) (*BLS381.BIG, *BLS381.ECP) {
@@ -30,7 +30,7 @@ func Encrypt(G *bpgroup.BpGroup, gamma *BLS381.ECP, m *BLS381.BIG, h *BLS381.ECP
 // returns decrypted message h^m
 func Decrypt(G *bpgroup.BpGroup, d *BLS381.BIG, enc *ElGamalEncryption) *BLS381.ECP {
 	dec := BLS381.NewECP()
-	dec.Copy(enc.b)
-	dec.Sub(BLS381.G1mul(enc.a, d))
+	dec.Copy(enc.B)
+	dec.Sub(BLS381.G1mul(enc.A, d))
 	return dec
 }

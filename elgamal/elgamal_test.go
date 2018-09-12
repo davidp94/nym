@@ -26,14 +26,14 @@ func TestElGamalEncryption(t *testing.T) {
 
 	enc, k := Encrypt(G, gamma, m, h)
 
-	if !enc.a.Equals(BLS381.G1mul(G.Gen1, k)) {
+	if !enc.A.Equals(BLS381.G1mul(G.Gen1, k)) {
 		t.Error("a != g1^k")
 	}
 
 	tmp := BLS381.G1mul(gamma, k) // b = (k * gamma)
 	tmp.Add(BLS381.G1mul(h, m))   // b = (k * gamma) + (m * h)
 
-	if !enc.b.Equals(tmp) {
+	if !enc.B.Equals(tmp) {
 		t.Error("b != (k * gamma) + (m * h)")
 	}
 }
