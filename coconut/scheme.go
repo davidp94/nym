@@ -5,6 +5,7 @@ package coconut
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
@@ -66,15 +67,12 @@ func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
 
 // this is a very temporary solution that will be modified once private attributes are introduced
 // the sole point of it is to have some deterministic attribute dependant h value
-// below solution is unlikely to work between multiple languages implementations
 func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
-	s := ""
-	for i := 0; i < len(public_m); i++ {
-		pubBytes := make([]byte, int(BLS381.MODBYTES))
-		public_m[i].ToBytes(pubBytes)
-		s += string(pubBytes)
+	s := make([]string, len(public_m))
+	for i := range public_m {
+		s[i] = public_m[i].ToString()
 	}
-	h, err := hashStringToG1(amcl.SHA256, s)
+	h, err := hashStringToG1(amcl.SHA256, strings.Join(s, ","))
 	if err != nil {
 		panic(err)
 	}

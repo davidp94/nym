@@ -23,10 +23,10 @@ type SignerProof struct {
 // todo: update once tostring is exposed
 func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS381.ECP) *BLS381.BIG {
 	// first part is G1Gen,G2Gen,...
-	cs := stringFromG1(G1Gen) + "," + stringFromG2(G2Gen)
+	cs := G1Gen.ToString() + "," + G2Gen.ToString()
 	for _, slice := range slices {
 		for _, item := range slice {
-			cs += ("," + stringFromG1(item))
+			cs += ("," + item.ToString())
 		}
 	}
 	c, err := HashStringToBig(amcl.SHA256, cs)
@@ -59,7 +59,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGa
 		wm[i] = BLS381.Randomnum(G.Ord, G.Rng)
 	}
 
-	h, err := hashStringToG1(amcl.SHA256, stringFromG1(cm))
+	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		panic(err)
 	}
@@ -114,7 +114,7 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGamal
 	if len(encs) != len(proof.rk) {
 		return false
 	}
-	h, err := hashStringToG1(amcl.SHA256, stringFromG1(cm))
+	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		panic(err)
 	}
