@@ -1,13 +1,13 @@
-package coconut
+package proofs
 
 import (
 	"testing"
 
-	"github.com/milagro-crypto/amcl/version3/go/amcl"
-
-	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
-
+	"github.com/jstuczyn/CoconutGo/coconut"
+	"github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/elgamal"
+	"github.com/milagro-crypto/amcl/version3/go/amcl"
+	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
 func TestConstructSignerProof(t *testing.T) {
@@ -16,20 +16,20 @@ func TestConstructSignerProof(t *testing.T) {
 
 // todo: add more tests for edge cases regarding number of different types of attributes
 func TestVerifySignerProofSinglePrivate(t *testing.T) {
-	params := Setup(1)
+	params := scheme.Setup(1)
 	priv := []string{"Bar"}
 
 	privBig := make([]*BLS381.BIG, len(priv))
 	for i := range priv {
-		privBig[i], _ = HashStringToBig(amcl.SHA256, priv[i])
+		privBig[i], _ = coconut.HashStringToBig(amcl.SHA256, priv[i])
 	}
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], privBig[i]))
 	}
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		t.Error(err)
 	}
@@ -56,20 +56,20 @@ func TestVerifySignerProofSinglePrivate(t *testing.T) {
 }
 
 func TestVerifySignerProofMultiplePrivate(t *testing.T) {
-	params := Setup(3)
+	params := scheme.Setup(3)
 	priv := []string{"Foo", "Bar", "Baz"}
 
 	privBig := make([]*BLS381.BIG, len(priv))
 	for i := range priv {
-		privBig[i], _ = HashStringToBig(amcl.SHA256, priv[i])
+		privBig[i], _ = coconut.HashStringToBig(amcl.SHA256, priv[i])
 	}
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], privBig[i]))
 	}
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		t.Error(err)
 	}
@@ -95,18 +95,18 @@ func TestVerifySignerProofMultiplePrivate(t *testing.T) {
 }
 
 func TestVerifySignerProofSinglePublic(t *testing.T) {
-	params := Setup(1)
+	params := scheme.Setup(1)
 	pub := []string{"Foo"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
 	for i := range pub {
-		pubBig[i], _ = HashStringToBig(amcl.SHA256, pub[i])
+		pubBig[i], _ = coconut.HashStringToBig(amcl.SHA256, pub[i])
 	}
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range pub {
-		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], pubBig[i]))
 	}
 
 	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
@@ -121,18 +121,18 @@ func TestVerifySignerProofSinglePublic(t *testing.T) {
 }
 
 func TestVerifySignerProofMultiplePublic(t *testing.T) {
-	params := Setup(3)
+	params := scheme.Setup(3)
 	pub := []string{"Foo", "Bar", "Baz"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
 	for i := range pub {
-		pubBig[i], _ = HashStringToBig(amcl.SHA256, pub[i])
+		pubBig[i], _ = coconut.HashStringToBig(amcl.SHA256, pub[i])
 	}
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range pub {
-		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], pubBig[i]))
 	}
 
 	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
@@ -147,26 +147,26 @@ func TestVerifySignerProofMultiplePublic(t *testing.T) {
 }
 
 func TestVerifySignerProofSingleMixed(t *testing.T) {
-	params := Setup(2)
+	params := scheme.Setup(2)
 	pub := []string{"Foo"}
 	priv := []string{"Bar"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
 	privBig := make([]*BLS381.BIG, len(priv))
 	for i := range pub {
-		pubBig[i], _ = HashStringToBig(amcl.SHA256, pub[i])
+		pubBig[i], _ = coconut.HashStringToBig(amcl.SHA256, pub[i])
 	}
 	for i := range priv {
-		privBig[i], _ = HashStringToBig(amcl.SHA256, priv[i])
+		privBig[i], _ = coconut.HashStringToBig(amcl.SHA256, priv[i])
 	}
 	attributes := append(privBig, pubBig...)
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
 	}
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		t.Error(err)
 	}
@@ -192,26 +192,26 @@ func TestVerifySignerProofSingleMixed(t *testing.T) {
 }
 
 func TestVerifySignerProofMultipleMixed(t *testing.T) {
-	params := Setup(6)
+	params := scheme.Setup(6)
 	pub := []string{"Foo", "Bar", "Baz"}
 	priv := []string{"Foo2", "Bar2", "Baz2"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
 	privBig := make([]*BLS381.BIG, len(priv))
 	for i := range pub {
-		pubBig[i], _ = HashStringToBig(amcl.SHA256, pub[i])
+		pubBig[i], _ = coconut.HashStringToBig(amcl.SHA256, pub[i])
 	}
 	for i := range priv {
-		privBig[i], _ = HashStringToBig(amcl.SHA256, priv[i])
+		privBig[i], _ = coconut.HashStringToBig(amcl.SHA256, priv[i])
 	}
 	attributes := append(privBig, pubBig...)
 
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
 	}
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		t.Error(err)
 	}

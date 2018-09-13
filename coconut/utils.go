@@ -57,11 +57,10 @@ func HashStringToBig(sha int, m string) (*BLS381.BIG, error) {
 	return BLS381.FromBytes(hash), nil
 }
 
-func hashStringToG1(sha int, m string) (*BLS381.ECP, error) {
+func HashStringToG1(sha int, m string) (*BLS381.ECP, error) {
 	hash, err := hashString(sha, m)
 	if err != nil {
 		return nil, err
 	}
-
 	return BLS381.ECP_mapit(hash), nil
 }

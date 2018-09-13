@@ -1,8 +1,9 @@
-package coconut
+package scheme
 
 import (
 	"testing"
 
+	"github.com/jstuczyn/CoconutGo/coconut"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
@@ -21,7 +22,7 @@ func TestSchemeSign(t *testing.T) {
 	sk, _ := Keygen(params)
 
 	m := "Hello World!"
-	mBig, err := HashStringToBig(amcl.SHA256, m)
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -36,19 +37,19 @@ func TestSchemeSign(t *testing.T) {
 	}
 
 	attr1 := "Attribute 1"
-	attr1Big, err1 := HashStringToBig(amcl.SHA256, attr1)
+	attr1Big, err1 := coconut.HashStringToBig(amcl.SHA256, attr1)
 	if err1 != nil {
 		t.Error(err)
 	}
 	attr2 := "Attribute 2"
 
-	attr2Big, err2 := HashStringToBig(amcl.SHA256, attr2)
+	attr2Big, err2 := coconut.HashStringToBig(amcl.SHA256, attr2)
 	if err2 != nil {
 		t.Error(err)
 	}
 
 	attr3 := "Attribute 3"
-	attr3Big, err3 := HashStringToBig(amcl.SHA256, attr3)
+	attr3Big, err3 := coconut.HashStringToBig(amcl.SHA256, attr3)
 	if err3 != nil {
 		t.Error(err)
 	}
@@ -75,7 +76,7 @@ func TestSchemeVerify(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
-	mBig, err := HashStringToBig(amcl.SHA256, m)
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -87,7 +88,7 @@ func TestSchemeVerify(t *testing.T) {
 	}
 
 	m2 := "Malicious Hello World!"
-	mBig2, err2 := HashStringToBig(amcl.SHA256, m2)
+	mBig2, err2 := coconut.HashStringToBig(amcl.SHA256, m2)
 	if err2 != nil {
 		t.Error(err)
 	}
@@ -104,19 +105,19 @@ func TestSchemeVerify(t *testing.T) {
 	}
 
 	attr1 := "Attribute 1"
-	attr1Big, err1 := HashStringToBig(amcl.SHA256, attr1)
+	attr1Big, err1 := coconut.HashStringToBig(amcl.SHA256, attr1)
 	if err1 != nil {
 		t.Error(err)
 	}
 	attr2 := "Attribute 2"
 
-	attr2Big, err2 := HashStringToBig(amcl.SHA256, attr2)
+	attr2Big, err2 := coconut.HashStringToBig(amcl.SHA256, attr2)
 	if err2 != nil {
 		t.Error(err)
 	}
 
 	attr3 := "Attribute 3"
-	attr3Big, err3 := HashStringToBig(amcl.SHA256, attr3)
+	attr3Big, err3 := coconut.HashStringToBig(amcl.SHA256, attr3)
 	if err3 != nil {
 		t.Error(err)
 	}
@@ -137,7 +138,7 @@ func TestSchemeRandomize(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
-	mBig, err := HashStringToBig(amcl.SHA256, m)
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -155,7 +156,7 @@ func TestSchemeKeyAggregation(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
-	mBig, err := HashStringToBig(amcl.SHA256, m)
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -174,7 +175,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
-	mBig, err := HashStringToBig(amcl.SHA256, m)
+	mBig, err := coconut.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
@@ -205,7 +206,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	}
 
 	m2 := "Malicious Hello World!"
-	mBig2, err2 := HashStringToBig(amcl.SHA256, m2)
+	mBig2, err2 := coconut.HashStringToBig(amcl.SHA256, m2)
 	if err2 != nil {
 		t.Error(err)
 	}

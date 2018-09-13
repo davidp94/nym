@@ -1,7 +1,7 @@
 // currently this version does not include threshold credentials or blind signatures
 // those will be added in further iteration
 
-package coconut
+package scheme
 
 import (
 	"fmt"
@@ -9,9 +9,9 @@ import (
 	"sync"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
+	"github.com/jstuczyn/CoconutGo/coconut"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
-	// "github.com/milagro-crypto/amcl/version3/go/amcl/BN254"
 )
 
 type Signature struct {
@@ -21,14 +21,14 @@ type Signature struct {
 
 type Params struct {
 	G  *bpgroup.BpGroup
-	hs []*BLS381.ECP
+	Hs []*BLS381.ECP
 }
 
 // q is the maximum number of attributes that can be embedded in the credential
 func Setup(q int) *Params {
 	hs := make([]*BLS381.ECP, q)
 	for i := 0; i < q; i++ {
-		hi, err := hashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		hi, err := coconut.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
 		if err != nil {
 			panic(err)
 		}
@@ -41,7 +41,7 @@ func Setup(q int) *Params {
 // todo: to be replaced by generation of keys threshold signature (by a TTP)
 // right now it is keygen as if performed by a single isolated entity
 func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
-	q := len(params.hs) // todo: verify
+	q := len(params.Hs) // todo: verify
 	G := params.G
 
 	sk := make([]*BLS381.BIG, q+1)
@@ -72,7 +72,7 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 	for i := range public_m {
 		s[i] = public_m[i].ToString()
 	}
-	h, err := hashStringToG1(amcl.SHA256, strings.Join(s, ","))
+	h, err := coconut.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
 	if err != nil {
 		panic(err)
 	}

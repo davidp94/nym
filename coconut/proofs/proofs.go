@@ -1,13 +1,14 @@
-package coconut
+package proofs
 
 //  todo: consider renaming all functions
 
 import (
 	"errors"
 
-	"github.com/milagro-crypto/amcl/version3/go/amcl"
-
+	"github.com/jstuczyn/CoconutGo/coconut"
+	"github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/elgamal"
+	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
@@ -29,7 +30,7 @@ func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS38
 			cs += ("," + item.ToString())
 		}
 	}
-	c, err := HashStringToBig(amcl.SHA256, cs)
+	c, err := coconut.HashStringToBig(amcl.SHA256, cs)
 	if err != nil {
 		panic(err)
 	}
@@ -37,13 +38,13 @@ func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS38
 }
 
 // todo: as before add concurrency once basic version is functional
-func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, k []*BLS381.BIG, r *BLS381.BIG, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*SignerProof, error) {
+func ConstructSignerProof(params *scheme.Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, k []*BLS381.BIG, r *BLS381.BIG, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*SignerProof, error) {
 	attributes := append(private_m, public_m...)
 	G := params.G
 	if len(encs) != len(k) || len(encs) != len(private_m) {
 		return nil, errors.New("Invalid ciphertexts provided")
 	}
-	if len(attributes) > len(params.hs) {
+	if len(attributes) > len(params.Hs) {
 		return nil, errors.New("More than specified attributes provided")
 	}
 
@@ -59,7 +60,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 		wm[i] = BLS381.Randomnum(G.Ord, G.Rng)
 	}
 
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		panic(err)
 	}
@@ -79,10 +80,10 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 
 	Cw = BLS381.G1mul(G.Gen1, wr)
 	for i := range attributes {
-		Cw.Add(BLS381.G1mul(params.hs[i], wm[i]))
+		Cw.Add(BLS381.G1mul(params.Hs[i], wm[i]))
 	}
 
-	c := constructChallenge(G.Gen1, G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.hs, Aw, Bw})
+	c := constructChallenge(G.Gen1, G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.Hs, Aw, Bw})
 
 	// responses
 	rr := wr.Minus(BLS381.Modmul(c, r, G.Ord))
@@ -110,11 +111,11 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 }
 
 // todo: as before add concurrency once basic version is functional
-func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, proof *SignerProof) bool {
+func VerifySignerProof(params *scheme.Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, proof *SignerProof) bool {
 	if len(encs) != len(proof.rk) {
 		return false
 	}
-	h, err := hashStringToG1(amcl.SHA256, cm.ToString())
+	h, err := coconut.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		panic(err)
 	}
@@ -137,10 +138,10 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 	Cw = BLS381.G1mul(cm, proof.c)
 	Cw.Add(BLS381.G1mul(params.G.Gen1, proof.rr))
 	for i := range proof.rm {
-		Cw.Add(BLS381.G1mul(params.hs[i], proof.rm[i]))
+		Cw.Add(BLS381.G1mul(params.Hs[i], proof.rm[i]))
 	}
 
-	return BLS381.Comp(proof.c, constructChallenge(params.G.Gen1, params.G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.hs, Aw, Bw})) == 0
+	return BLS381.Comp(proof.c, constructChallenge(params.G.Gen1, params.G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.Hs, Aw, Bw})) == 0
 }
 
 // todo verifier proofs
