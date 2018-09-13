@@ -1,15 +1,17 @@
 // currently this version does not include threshold credentials or blind signatures
 // those will be added in further iteration
 
-package scheme
+package coconut
 
 import (
 	"fmt"
 	"strings"
 	"sync"
 
+	"github.com/jstuczyn/CoconutGo/elgamal"
+
 	"github.com/jstuczyn/CoconutGo/bpgroup"
-	"github.com/jstuczyn/CoconutGo/coconut"
+	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
@@ -24,11 +26,17 @@ type Params struct {
 	Hs []*BLS381.ECP
 }
 
+type BlindSignMats struct {
+	cm    *BLS381.ECP
+	enc   *elgamal.ElGamalEncryption
+	proof *SignerProof
+}
+
 // q is the maximum number of attributes that can be embedded in the credential
 func Setup(q int) *Params {
 	hs := make([]*BLS381.ECP, q)
 	for i := 0; i < q; i++ {
-		hi, err := coconut.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
 		if err != nil {
 			panic(err)
 		}
@@ -72,7 +80,7 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 	for i := range public_m {
 		s[i] = public_m[i].ToString()
 	}
-	h, err := coconut.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
+	h, err := utils.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
 	if err != nil {
 		panic(err)
 	}
@@ -96,6 +104,11 @@ func Sign(params *Params, sk []*BLS381.BIG, public_m []*BLS381.BIG) *Signature {
 	sig := BLS381.G1mul(h, K) // sig = h^(x0 + (x1 * a1) + ... )
 
 	return &Signature{h, sig}
+}
+
+func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*BlindSignMats, error) {
+
+	return nil, nil
 }
 
 // similarly to Sign, this iteration only considers public attributes
