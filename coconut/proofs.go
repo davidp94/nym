@@ -37,7 +37,7 @@ func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS38
 }
 
 // todo: as before add concurrency once basic version is functional
-func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGamalEncryption, cm *BLS381.ECP, k []*BLS381.BIG, r *BLS381.BIG, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*SignerProof, error) {
+func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, k []*BLS381.BIG, r *BLS381.BIG, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*SignerProof, error) {
 	attributes := append(private_m, public_m...)
 	G := params.G
 	if len(encs) != len(k) || len(encs) != len(private_m) {
@@ -110,7 +110,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGa
 }
 
 // todo: as before add concurrency once basic version is functional
-func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGamalEncryption, cm *BLS381.ECP, proof *SignerProof) bool {
+func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGamalEncryption, cm *BLS381.ECP, proof *SignerProof) bool {
 	if len(encs) != len(proof.rk) {
 		return false
 	}
@@ -140,9 +140,7 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []elgamal.ElGamal
 		Cw.Add(BLS381.G1mul(params.hs[i], proof.rm[i]))
 	}
 
-	// todo: need to wait until amcl people expose BIG comparison method
-	// return BLS381.Comp(proof.c, constructChallenge(G.Gen1, G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.hs, Aw, Bw})) == 0
-	return false // to make it compile
+	return BLS381.Comp(proof.c, constructChallenge(params.G.Gen1, params.G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.hs, Aw, Bw})) == 0
 }
 
 // todo verifier proofs
