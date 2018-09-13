@@ -1,17 +1,22 @@
-// currently this version does not include threshold credentials or blind signatures
+// currently this version does not include threshold credentials
 // those will be added in further iteration
 
+// todos:
+// modify sk to be in form of (x, [ys])
+// modify vk to be in form of (g2, x, [ys])
+// introduce 'assertions' in older functions
+// threshold
 package coconut
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
 
-	"github.com/jstuczyn/CoconutGo/elgamal"
-
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
@@ -21,6 +26,11 @@ type Signature struct {
 	sig2 *BLS381.ECP
 }
 
+type BlindedSignature struct {
+	sig1      *BLS381.ECP
+	sig2Tilda *elgamal.ElGamalEncryption
+}
+
 type Params struct {
 	G  *bpgroup.BpGroup
 	Hs []*BLS381.ECP
@@ -28,8 +38,14 @@ type Params struct {
 
 type BlindSignMats struct {
 	cm    *BLS381.ECP
-	enc   *elgamal.ElGamalEncryption
+	enc   []*elgamal.ElGamalEncryption
 	proof *SignerProof
+}
+
+type BlindShowMats struct {
+	kappa *BLS381.ECP2
+	nu    *BLS381.ECP
+	proof *VerifierProof
 }
 
 // q is the maximum number of attributes that can be embedded in the credential
@@ -107,8 +123,94 @@ func Sign(params *Params, sk []*BLS381.BIG, public_m []*BLS381.BIG) *Signature {
 }
 
 func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*BlindSignMats, error) {
+	G := params.G
+	if len(private_m) == 0 {
+		return nil, errors.New("No private attributes to sign")
+	}
+	attributes := append(private_m, public_m...)
+	if len(attributes) > len(params.Hs) {
+		return nil, errors.New("Too many attributes to sign")
+	}
 
-	return nil, nil
+	r := BLS381.Randomnum(G.Ord, G.Rng)
+	cm := BLS381.G1mul(params.G.Gen1, r)
+	for i := range attributes {
+		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
+	}
+	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+	if err != nil {
+		return nil, err
+	}
+
+	encs := make([]*elgamal.ElGamalEncryption, len(private_m))
+	ks := make([]*BLS381.BIG, len(private_m))
+	for i := range private_m {
+		c, k := elgamal.Encrypt(G, gamma, private_m[i], h)
+		encs[i] = c
+		ks[i] = k
+	}
+
+	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, public_m, private_m)
+	if err != nil {
+		return nil, err
+	}
+	return &BlindSignMats{
+		cm:    cm,
+		enc:   encs,
+		proof: signerProof,
+	}, nil
+}
+
+// todo: update for threshold credentials
+func BlindSign(params *Params, sk []*BLS381.BIG, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
+	if len(blindSignMats.enc)+len(public_m) > len(params.Hs) {
+		return nil, errors.New("Too many attributes to sign")
+	}
+	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
+		return nil, errors.New("Failed to verify the proof")
+	}
+	h, err := utils.HashStringToG1(amcl.SHA256, blindSignMats.cm.ToString())
+	if err != nil {
+		return nil, err
+	}
+
+	t1 := make([]*BLS381.ECP, len(public_m))
+	for i := range public_m {
+		t1[i] = BLS381.G1mul(h, public_m[i])
+	}
+
+	t2 := BLS381.G1mul(blindSignMats.enc[0].A, sk[1])
+	for i := 1; i < len(blindSignMats.enc); i++ {
+		t2.Add(BLS381.G1mul(blindSignMats.enc[i].A, sk[i+1]))
+	}
+
+	t3 := BLS381.G1mul(h, sk[0])
+	tmpSlice := make([]*BLS381.ECP, len(blindSignMats.enc))
+	for i := range blindSignMats.enc {
+		tmpSlice[i] = blindSignMats.enc[i].B
+	}
+	tmpSlice = append(tmpSlice, t1...)
+
+	// tmpslice: all B + t1
+	for i := 1; i < len(sk); i++ {
+		t3.Add(BLS381.G1mul(tmpSlice[i-1], sk[i]))
+	}
+
+	return &BlindedSignature{
+		sig1: h,
+		sig2Tilda: &elgamal.ElGamalEncryption{
+			A: t2,
+			B: t3,
+		},
+	}, nil
+}
+
+func Unblind(params *Params, blindedSignature *BlindedSignature, d *BLS381.BIG) *Signature {
+	sig2 := elgamal.Decrypt(params.G, d, blindedSignature.sig2Tilda)
+	return &Signature{
+		sig1: blindedSignature.sig1,
+		sig2: sig2,
+	}
 }
 
 // similarly to Sign, this iteration only considers public attributes
@@ -149,6 +251,58 @@ func Verify(params *Params, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig *Sign
 	wg.Wait()
 	// Gt1 := G.Pair(sig.sig1, K)
 	// Gt2 := G.Pair(sig.sig2, vk[0])
+	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
+}
+
+// CURRENTLY IGNORES PROOFS OF KAPPA AND NU
+func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
+	G := params.G
+	if len(private_m) == 0 || len(private_m) > (len(vk)-2) {
+		return nil, errors.New("Not enough private attributes provided")
+	}
+
+	t := BLS381.Randomnum(G.Ord, G.Rng)
+	kappa := BLS381.G2mul(vk[0], t)
+	kappa.Add(vk[1])
+	for i := range private_m {
+		kappa.Add(BLS381.G2mul(vk[i+2], private_m[i]))
+	}
+	nu := BLS381.G1mul(sig.sig1, t)
+
+	// todo
+	verifierProof := &VerifierProof{}
+	return &BlindShowMats{
+		kappa: kappa,
+		nu:    nu,
+		proof: verifierProof,
+	}, nil
+}
+
+// CURRENTLY IGNORES PROOFS OF KAPPA AND NU
+func BlindVerify(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *BlindShowMats, public_m []*BLS381.BIG) bool {
+	// todo: length assertion for proof
+	// once proofs are introduced, will be taken directly from the proof
+	privateLen := len(vk) - 2 - len(public_m)
+	var aggr *BLS381.ECP2
+	if len(public_m) == 0 {
+		aggr = BLS381.NewECP2() // new point is at infinity
+	} else {
+		aggr = BLS381.G2mul(vk[2+privateLen], public_m[0]) // guaranteed to have at least 1 element
+		for i := 1; i < len(public_m); i++ {
+			aggr.Add(BLS381.G2mul(vk[i+2+privateLen], public_m[i]))
+		}
+	}
+	t1 := BLS381.NewECP2()
+	t1.Copy(showMats.kappa)
+	t1.Add(aggr)
+
+	t2 := BLS381.NewECP()
+	t2.Copy(sig.sig2)
+	t2.Add(showMats.nu)
+
+	Gt1 := params.G.Pair(sig.sig1, t1)
+	Gt2 := params.G.Pair(t2, vk[0])
+
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 

@@ -185,6 +185,7 @@ func TestVerifySignerProofSingleMixed(t *testing.T) {
 	}
 }
 
+// todo: dont ignore errs
 func TestVerifySignerProofMultipleMixed(t *testing.T) {
 	params := Setup(6)
 	pub := []string{"Foo", "Bar", "Baz"}

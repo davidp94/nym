@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
@@ -221,5 +222,120 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	isValid3 := Verify(params, avk2, []*BLS381.BIG{mBig}, aSig2)
 	if isValid3 {
 		t.Error("Does not fail if one signature is on different message")
+	}
+}
+
+func TestSchemeBlindVerifyOnlyPublic(t *testing.T) {
+	params := Setup(6)
+	_, gamma := elgamal.Keygen(params.G)
+
+	pub := []string{"Foo", "Bar", "Baz"}
+	var err error
+
+	pubBig := make([]*BLS381.BIG, len(pub))
+	privBig := []*BLS381.BIG{}
+	for i := range pub {
+		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, pub[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	_, err = PrepareBlindSign(params, gamma, pubBig, privBig)
+	if err == nil {
+		t.Error("PrepareBlindSign did not throw an error when there were no private attributes to sign")
+	}
+
+}
+
+func TestSchemeBlindVerifyOnlyPrivate(t *testing.T) {
+	params := Setup(3)
+	sk, vk := Keygen(params)
+	d, gamma := elgamal.Keygen(params.G)
+
+	priv := []string{"Foo2", "Bar2", "Baz2"}
+	var err error
+
+	pubBig := []*BLS381.BIG{}
+	privBig := make([]*BLS381.BIG, len(priv))
+
+	for i := range priv {
+		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	blindedSignature, err2 := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err2 != nil {
+		t.Error(err2)
+	}
+
+	sig := Unblind(params, blindedSignature, d)
+
+	blindShowMats, err3 := ShowBlindSignature(params, vk, sig, privBig)
+	if err3 != nil {
+		t.Error(err3)
+	}
+
+	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {
+		t.Error("Failed to verify blind signature on multiple private and no public attributes")
+	}
+	if !Verify(params, vk, append(privBig, pubBig...), sig) {
+		t.Error("Failed to verify blind signature on multiple private and no public attributes after revealing all private attributes")
+	}
+}
+
+func TestSchemeBlindVerifyMixedAttributes(t *testing.T) {
+	params := Setup(6)
+	sk, vk := Keygen(params)
+	d, gamma := elgamal.Keygen(params.G)
+
+	pub := []string{"Foo", "Bar", "Baz"}
+	priv := []string{"Foo2", "Bar2", "Baz2"}
+	var err error
+
+	pubBig := make([]*BLS381.BIG, len(pub))
+	privBig := make([]*BLS381.BIG, len(priv))
+	for i := range pub {
+		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, pub[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	for i := range priv {
+		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	blindedSignature, err2 := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err2 != nil {
+		t.Error(err2)
+	}
+
+	sig := Unblind(params, blindedSignature, d)
+
+	blindShowMats, err3 := ShowBlindSignature(params, vk, sig, privBig)
+	if err3 != nil {
+		t.Error(err3)
+	}
+
+	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {
+		t.Error("Failed to verify blind signature on multiple private and public attributes")
+	}
+	if !Verify(params, vk, append(privBig, pubBig...), sig) {
+		t.Error("Failed to verify blind signature on multiple private and public attributes after revealing all private attributes")
 	}
 }

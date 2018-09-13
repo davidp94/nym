@@ -19,6 +19,10 @@ type SignerProof struct {
 	rm []*BLS381.BIG
 }
 
+// todo
+type VerifierProof struct {
+}
+
 // generate challenge as in python implementation, apart from how strings are obtained from G1 and G2 elems
 // todo: update once tostring is exposed
 func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS381.ECP) *BLS381.BIG {
