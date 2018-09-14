@@ -4,6 +4,7 @@ package coconut
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
@@ -23,16 +24,16 @@ type SignerProof struct {
 type VerifierProof struct {
 }
 
-// generate challenge as in python implementation, apart from how strings are obtained from G1 and G2 elems
-// todo: update once tostring is exposed
-func constructChallenge(G1Gen *BLS381.ECP, G2Gen *BLS381.ECP2, slices [][]*BLS381.ECP) *BLS381.BIG {
-	// first part is G1Gen,G2Gen,...
-	cs := G1Gen.ToString() + "," + G2Gen.ToString()
-	for _, slice := range slices {
-		for _, item := range slice {
-			cs += ("," + item.ToString())
-		}
+type Printable interface {
+	ToString() string
+}
+
+func constructChallenge(elems []Printable) *BLS381.BIG {
+	csa := make([]string, len(elems))
+	for i := range elems {
+		csa[i] = elems[i].ToString()
 	}
+	cs := strings.Join(csa, ",")
 	c, err := utils.HashStringToBig(amcl.SHA256, cs)
 	if err != nil {
 		panic(err)
@@ -48,7 +49,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 		return nil, errors.New("Invalid ciphertexts provided")
 	}
 	if len(attributes) > len(params.Hs) {
-		return nil, errors.New("More than specified attributes provided")
+		return nil, errors.New("More than specified number of attributes provided")
 	}
 
 	// witnesses creation
@@ -86,7 +87,27 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 		Cw.Add(BLS381.G1mul(params.Hs[i], wm[i]))
 	}
 
-	c := constructChallenge(G.Gen1, G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.Hs, Aw, Bw})
+	ca := make([]Printable, 5+len(params.Hs)+len(Aw)+len(Bw)) // 5 are: Gen1, Gen2, cm, h and Cw,
+	// todo: find a way to simplify the below?
+	i := 0
+	for _, item := range []Printable{G.Gen1, G.Gen2, cm, h, Cw} {
+		ca[i] = item
+		i++
+	}
+	for _, item := range params.Hs {
+		ca[i] = item
+		i++
+	}
+	for _, item := range Aw {
+		ca[i] = item
+		i++
+	}
+	for _, item := range Bw {
+		ca[i] = item
+		i++
+	}
+
+	c := constructChallenge(ca)
 
 	// responses
 	rr := wr.Minus(BLS381.Modmul(c, r, G.Ord))
@@ -144,7 +165,25 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 		Cw.Add(BLS381.G1mul(params.Hs[i], proof.rm[i]))
 	}
 
-	return BLS381.Comp(proof.c, constructChallenge(params.G.Gen1, params.G.Gen2, [][]*BLS381.ECP{{cm, h, Cw}, params.Hs, Aw, Bw})) == 0
-}
+	ca := make([]Printable, 5+len(params.Hs)+len(Aw)+len(Bw)) // 5 are both gens, cm, h and Cw,
+	// todo: find a way to simplify the below?
+	i := 0
+	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, cm, h, Cw} {
+		ca[i] = item
+		i++
+	}
+	for _, item := range params.Hs {
+		ca[i] = item
+		i++
+	}
+	for _, item := range Aw {
+		ca[i] = item
+		i++
+	}
+	for _, item := range Bw {
+		ca[i] = item
+		i++
+	}
 
-// todo verifier proofs
+	return BLS381.Comp(proof.c, constructChallenge(ca)) == 0
+}
