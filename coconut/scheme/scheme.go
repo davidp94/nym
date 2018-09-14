@@ -46,7 +46,7 @@ type BlindedSignature struct {
 
 type Params struct {
 	G  *bpgroup.BpGroup
-	Hs []*BLS381.ECP
+	hs []*BLS381.ECP
 }
 
 type BlindSignMats struct {
@@ -78,7 +78,7 @@ func Setup(q int) *Params {
 // todo: to be replaced by generation of keys threshold signature (by a TTP)
 // right now it is keygen as if performed by a single isolated entity
 func Keygen(params *Params) (*SecretKey, *VerificationKey) {
-	q := len(params.Hs) // todo: verify
+	q := len(params.hs) // todo: verify
 	G := params.G
 
 	x := BLS381.Randomnum(G.Ord, G.Rng)
@@ -105,6 +105,12 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey) {
 	wg.Wait()
 	return sk, vk
 }
+
+// t - treshold parameter
+// n - total number of authorities
+// func TTPKeygen(params *Params, t int, n int) {
+// 	q := len(params.Hs)
+// }
 
 // generates the base h from public attributes; only used for sign (NOT blind sign)
 func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
@@ -143,14 +149,14 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 		return nil, errors.New("No private attributes to sign")
 	}
 	attributes := append(private_m, public_m...)
-	if len(attributes) > len(params.Hs) {
+	if len(attributes) > len(params.hs) {
 		return nil, errors.New("Too many attributes to sign")
 	}
 
 	r := BLS381.Randomnum(G.Ord, G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
@@ -178,7 +184,7 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 
 // todo: update for threshold credentials
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
-	if len(blindSignMats.enc)+len(public_m) > len(params.Hs) {
+	if len(blindSignMats.enc)+len(public_m) > len(params.hs) {
 		return nil, errors.New("Too many attributes to sign")
 	}
 	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {

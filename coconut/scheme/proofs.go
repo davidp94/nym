@@ -51,7 +51,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 	if len(encs) != len(k) || len(encs) != len(private_m) {
 		return nil, errors.New("Invalid ciphertexts provided")
 	}
-	if len(attributes) > len(params.Hs) {
+	if len(attributes) > len(params.hs) {
 		return nil, errors.New("More than specified number of attributes provided")
 	}
 
@@ -87,17 +87,17 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 
 	Cw = BLS381.G1mul(G.Gen1, wr)
 	for i := range attributes {
-		Cw.Add(BLS381.G1mul(params.Hs[i], wm[i]))
+		Cw.Add(BLS381.G1mul(params.hs[i], wm[i]))
 	}
 
-	ca := make([]Printable, 5+len(params.Hs)+len(Aw)+len(Bw)) // 5 are: Gen1, Gen2, cm, h and Cw,
+	ca := make([]Printable, 5+len(params.hs)+len(Aw)+len(Bw)) // 5 are: Gen1, Gen2, cm, h and Cw,
 	// todo: find a way to simplify the below? - perhaps a function to copy some slice into given part of target slice
 	i := 0
 	for _, item := range []Printable{G.Gen1, G.Gen2, cm, h, Cw} {
 		ca[i] = item
 		i++
 	}
-	for _, item := range params.Hs {
+	for _, item := range params.hs {
 		ca[i] = item
 		i++
 	}
@@ -165,17 +165,17 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 	Cw = BLS381.G1mul(cm, proof.c)
 	Cw.Add(BLS381.G1mul(params.G.Gen1, proof.rr))
 	for i := range proof.rm {
-		Cw.Add(BLS381.G1mul(params.Hs[i], proof.rm[i]))
+		Cw.Add(BLS381.G1mul(params.hs[i], proof.rm[i]))
 	}
 
-	ca := make([]Printable, 5+len(params.Hs)+len(Aw)+len(Bw)) // 5 are both gens, cm, h and Cw,
+	ca := make([]Printable, 5+len(params.hs)+len(Aw)+len(Bw)) // 5 are both gens, cm, h and Cw,
 	// todo: find a way to simplify the below?
 	i := 0
 	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, cm, h, Cw} {
 		ca[i] = item
 		i++
 	}
-	for _, item := range params.Hs {
+	for _, item := range params.hs {
 		ca[i] = item
 		i++
 	}
@@ -209,13 +209,13 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	}
 	Bw := BLS381.G1mul(sig.sig1, wt)
 
-	ca := make([]Printable, 5+len(params.Hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
+	ca := make([]Printable, 5+len(params.hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
 	i := 0
 	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk.alpha, Aw, Bw} {
 		ca[i] = item
 		i++
 	}
-	for _, item := range params.Hs {
+	for _, item := range params.hs {
 		ca[i] = item
 		i++
 	}
@@ -258,13 +258,13 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 	Bw := BLS381.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)
 	Bw.Add(BLS381.G1mul(sig.sig1, showMats.proof.rt)) // Bw = (c * nu) + (rt * h)
 
-	ca := make([]Printable, 5+len(params.Hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
+	ca := make([]Printable, 5+len(params.hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
 	i := 0
 	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk.alpha, Aw, Bw} {
 		ca[i] = item
 		i++
 	}
-	for _, item := range params.Hs {
+	for _, item := range params.hs {
 		ca[i] = item
 		i++
 	}

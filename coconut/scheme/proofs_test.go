@@ -21,7 +21,7 @@ func TestVerifySignerProofSinglePrivate(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.Hs[i], privBig[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
@@ -61,7 +61,7 @@ func TestVerifySignerProofMultiplePrivate(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.Hs[i], privBig[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
@@ -100,7 +100,7 @@ func TestVerifySignerProofSinglePublic(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range pub {
-		cm.Add(BLS381.G1mul(params.Hs[i], pubBig[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
 	}
 
 	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
@@ -126,7 +126,7 @@ func TestVerifySignerProofMultiplePublic(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range pub {
-		cm.Add(BLS381.G1mul(params.Hs[i], pubBig[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
 	}
 
 	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
@@ -158,7 +158,7 @@ func TestVerifySignerProofSingleMixed(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
@@ -204,7 +204,7 @@ func TestVerifySignerProofMultipleMixed(t *testing.T) {
 	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
 	cm := BLS381.G1mul(params.G.Gen1, r)
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.Hs[i], attributes[i]))
+		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
