@@ -22,6 +22,9 @@ type SignerProof struct {
 
 // todo
 type VerifierProof struct {
+	c  *BLS381.BIG
+	rm []*BLS381.BIG
+	rt *BLS381.BIG
 }
 
 type Printable interface {
@@ -66,7 +69,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	// witnesses commitments
@@ -88,7 +91,7 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 	}
 
 	ca := make([]Printable, 5+len(params.Hs)+len(Aw)+len(Bw)) // 5 are: Gen1, Gen2, cm, h and Cw,
-	// todo: find a way to simplify the below?
+	// todo: find a way to simplify the below? - perhaps a function to copy some slice into given part of target slice
 	i := 0
 	for _, item := range []Printable{G.Gen1, G.Gen2, cm, h, Cw} {
 		ca[i] = item
@@ -186,4 +189,96 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 	}
 
 	return BLS381.Comp(proof.c, constructChallenge(ca)) == 0
+}
+
+func ConstructVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, private_m []*BLS381.BIG, t *BLS381.BIG) (*VerifierProof, error) {
+	G := params.G
+
+	// witnesses
+	wm := make([]*BLS381.BIG, len(private_m))
+	for i := 0; i < len(private_m); i++ {
+		wm[i] = BLS381.Randomnum(G.Ord, G.Rng)
+	}
+	wt := BLS381.Randomnum(G.Ord, G.Rng)
+
+	// witnesses commitments
+	Aw := BLS381.G2mul(G.Gen2, wt) // Aw = (wt * g2)
+	Aw.Add(vk[1])                  // Aw = (wt * g2) + alpha
+	for i := range private_m {
+		Aw.Add(BLS381.G2mul(vk[i+2], wm[i])) // Aw = (wt * g2) + alpha + (wm[i] * beta[i])
+	}
+	Bw := BLS381.G1mul(sig.sig1, wt)
+
+	ca := make([]Printable, 5+len(params.Hs)+len(vk)-2) // 5 are both gens, alpha, Aw and Bw
+	i := 0
+	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk[1], Aw, Bw} {
+		ca[i] = item
+		i++
+	}
+	for _, item := range params.Hs {
+		ca[i] = item
+		i++
+	}
+	for j, item := range vk {
+		// todo: will be replaced once vk is converted into independent struct
+		if j <= 1 {
+			continue
+		}
+		ca[i] = item
+		i++
+	}
+	// challenge
+	c := constructChallenge(ca)
+
+	//responses
+	rm := make([]*BLS381.BIG, len(private_m))
+	for i := range private_m {
+		rm[i] = wm[i].Minus(BLS381.Modmul(c, private_m[i], G.Ord))
+		rm[i].Mod(G.Ord)
+	}
+
+	rt := wt.Minus(BLS381.Modmul(c, t, G.Ord))
+	// todo: add order to each result to ensure positive results?
+	rt.Mod(G.Ord)
+
+	return &VerifierProof{
+		c:  c,
+		rm: rm,
+		rt: rt,
+	}, nil
+}
+
+func VerifyVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *BlindShowMats) bool {
+	Aw := BLS381.G2mul(showMats.kappa, showMats.proof.c) // Aw = (c * kappa)
+	Aw.Add(BLS381.G2mul(vk[0], showMats.proof.rt))       // Aw = (c * kappa) + (rt * g2)
+
+	Aw.Add(vk[1])                                                              // Aw = (c * kappa) + (rt * g2) + (alpha)
+	Aw.Add(BLS381.G2mul(vk[1], BLS381.Modneg(showMats.proof.c, params.G.Ord))) // Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c)
+
+	for i := range showMats.proof.rm {
+		Aw.Add(BLS381.G2mul(vk[i+2], showMats.proof.rm[i])) // Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[i] * beta[i])
+	}
+
+	Bw := BLS381.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)
+	Bw.Add(BLS381.G1mul(sig.sig1, showMats.proof.rt)) // Bw = (c * nu) + (rt * h)
+
+	ca := make([]Printable, 5+len(params.Hs)+len(vk)-2) // 5 are both gens, alpha, Aw and Bw
+	i := 0
+	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk[1], Aw, Bw} {
+		ca[i] = item
+		i++
+	}
+	for _, item := range params.Hs {
+		ca[i] = item
+		i++
+	}
+	for j, item := range vk {
+		// todo: will be replaced once vk is converted into independent struct
+		if j <= 1 {
+			continue
+		}
+		ca[i] = item
+		i++
+	}
+	return BLS381.Comp(showMats.proof.c, constructChallenge(ca)) == 0
 }

@@ -230,3 +230,90 @@ func TestVerifySignerProofMultipleMixed(t *testing.T) {
 		t.Error("The signer proof is invalid for three public and three private attribute")
 	}
 }
+
+func TestVerifyVerifierProofMultiplePrivate(t *testing.T) {
+	params := Setup(3)
+	sk, vk := Keygen(params)
+	d, gamma := elgamal.Keygen(params.G)
+
+	priv := []string{"Foo2", "Bar2", "Baz2"}
+	var err error
+
+	pubBig := []*BLS381.BIG{}
+	privBig := make([]*BLS381.BIG, len(priv))
+
+	for i := range priv {
+		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	sig := Unblind(params, blindedSignature, d)
+
+	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !VerifyVerifierProof(params, vk, sig, blindShowMats) {
+		t.Error("The verifier proof is invalid for three private attribute (no public)")
+	}
+}
+
+func TestVerifyVerifierProofMultipleMixed(t *testing.T) {
+	params := Setup(6)
+	sk, vk := Keygen(params)
+	d, gamma := elgamal.Keygen(params.G)
+
+	pub := []string{"Foo", "Bar", "Baz"}
+	priv := []string{"Foo2", "Bar2", "Baz2"}
+
+	var err error
+
+	pubBig := make([]*BLS381.BIG, len(pub))
+	privBig := make([]*BLS381.BIG, len(priv))
+	for i := range pub {
+		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, pub[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	for i := range priv {
+		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
+		if err != nil {
+			t.Error(err)
+		}
+	}
+
+	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	sig := Unblind(params, blindedSignature, d)
+
+	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if !VerifyVerifierProof(params, vk, sig, blindShowMats) {
+		t.Error("The verifier proof is invalid for three public and three private attribute")
+	}
+}

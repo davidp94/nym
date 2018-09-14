@@ -258,7 +258,7 @@ func Verify(params *Params, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig *Sign
 func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
 	G := params.G
 	if len(private_m) == 0 || len(private_m) > (len(vk)-2) {
-		return nil, errors.New("Not enough private attributes provided")
+		return nil, errors.New("Invalid number of private attributes provided")
 	}
 
 	t := BLS381.Randomnum(G.Ord, G.Rng)
@@ -269,8 +269,10 @@ func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, priva
 	}
 	nu := BLS381.G1mul(sig.sig1, t)
 
-	// todo
-	verifierProof := &VerifierProof{}
+	verifierProof, err := ConstructVerifierProof(params, vk, sig, private_m, t)
+	if err != nil {
+		return nil, err
+	}
 	return &BlindShowMats{
 		kappa: kappa,
 		nu:    nu,
@@ -282,7 +284,14 @@ func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, priva
 func BlindVerify(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *BlindShowMats, public_m []*BLS381.BIG) bool {
 	// todo: length assertion for proof
 	// once proofs are introduced, will be taken directly from the proof
-	privateLen := len(vk) - 2 - len(public_m)
+	privateLen := len(showMats.proof.rm)
+	if len(public_m)+privateLen > len(vk)-2 {
+		return false
+	}
+	if !VerifyVerifierProof(params, vk, sig, showMats) {
+		return false
+	}
+
 	var aggr *BLS381.ECP2
 	if len(public_m) == 0 {
 		aggr = BLS381.NewECP2() // new point is at infinity
