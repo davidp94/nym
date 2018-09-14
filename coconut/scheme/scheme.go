@@ -5,7 +5,9 @@
 // modify sk to be in form of (x, [ys])
 // modify vk to be in form of (g2, x, [ys])
 // introduce 'assertions' in older functions
+// tests for combined aggregation of keys, signatures, randomization for blind signatures
 // threshold
+
 package coconut
 
 import (
@@ -20,6 +22,17 @@ import (
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
+
+type SecretKey struct {
+	x *BLS381.BIG
+	y []*BLS381.BIG
+}
+
+type VerificationKey struct {
+	g2    *BLS381.ECP2
+	alpha *BLS381.ECP2
+	beta  []*BLS381.ECP2
+}
 
 type Signature struct {
 	sig1 *BLS381.ECP
@@ -64,24 +77,28 @@ func Setup(q int) *Params {
 
 // todo: to be replaced by generation of keys threshold signature (by a TTP)
 // right now it is keygen as if performed by a single isolated entity
-func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
+func Keygen(params *Params) (*SecretKey, *VerificationKey) {
 	q := len(params.Hs) // todo: verify
 	G := params.G
 
-	sk := make([]*BLS381.BIG, q+1)
-	vk := make([]*BLS381.ECP2, q+2)
-	vk[0] = G.Gen2
+	x := BLS381.Randomnum(G.Ord, G.Rng)
+	y := make([]*BLS381.BIG, q)
+	sk := &SecretKey{x: x, y: y}
 
-	var wg sync.WaitGroup
-	wg.Add(q + 1)
-
-	for i := 0; i < q+1; i++ {
-		sk[i] = BLS381.Randomnum(G.Ord, G.Rng) // we can't easily parallelize it due to shared resource and little performance gain
+	for i := 0; i < q; i++ {
+		y[i] = BLS381.Randomnum(G.Ord, G.Rng) // we can't easily parallelize it due to shared resource and little performance gain
 	}
 
-	for i := 0; i < q+1; i++ {
+	alpha := BLS381.G2mul(G.Gen2, x)
+	beta := make([]*BLS381.ECP2, q)
+	vk := &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+
+	var wg sync.WaitGroup
+	wg.Add(q)
+
+	for i := 0; i < q; i++ {
 		go func(i int) {
-			vk[i+1] = BLS381.G2mul(G.Gen2, sk[i])
+			beta[i] = BLS381.G2mul(G.Gen2, y[i])
 			wg.Done()
 		}(i)
 	}
@@ -89,8 +106,7 @@ func Keygen(params *Params) ([]*BLS381.BIG, []*BLS381.ECP2) {
 	return sk, vk
 }
 
-// this is a very temporary solution that will be modified once private attributes are introduced
-// the sole point of it is to have some deterministic attribute dependant h value
+// generates the base h from public attributes; only used for sign (NOT blind sign)
 func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 	s := make([]string, len(public_m))
 	for i := range public_m {
@@ -103,23 +119,22 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 	return h
 }
 
-// at this iteration, only public attributes are considered
-func Sign(params *Params, sk []*BLS381.BIG, public_m []*BLS381.BIG) *Signature {
-	// todo: also consider parallelization - need to check overhead of Modmul whether it is worth (for comparison G1mul or G2mul are rather expensive operations)
-	// todo later on: decide on concrete generation of h
-	// todo: deal with case when len(sk) != len(public_m) + 1 - throw some error
+// creates a credential on only public attributes
+func Sign(params *Params, sk *SecretKey, public_m []*BLS381.BIG) (*Signature, error) {
+	if len(public_m) != len(sk.y) {
+		return nil, errors.New("Invalid attributes/secret key provided")
+	}
 	G := params.G
 	h := getBaseFromAttributes(public_m)
-	// for some reason in js version i used DBIG? check why
-	// also took copy and then mod of all BIGs
-	K := BLS381.NewBIGcopy(sk[0]) // K = x0
-	for i := 0; i < len(public_m); i++ {
-		tmp := BLS381.Modmul(sk[i+1], public_m[i], G.Ord) // (xi * ai)
-		K = K.Plus(tmp)                                   // K = x0 + (x1 * a1) + ...
-	}
-	sig := BLS381.G1mul(h, K) // sig = h^(x0 + (x1 * a1) + ... )
 
-	return &Signature{h, sig}
+	K := BLS381.NewBIGcopy(sk.x) // K = x
+	for i := 0; i < len(public_m); i++ {
+		tmp := BLS381.Modmul(sk.y[i], public_m[i], G.Ord) // (yi * ai)
+		K = K.Plus(tmp)                                   // K = x + (y1 * a1) + ...
+	}
+	sig := BLS381.G1mul(h, K) // sig = h^(x + (y1 * a1) + ... )
+
+	return &Signature{h, sig}, nil
 }
 
 func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*BlindSignMats, error) {
@@ -162,7 +177,7 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 }
 
 // todo: update for threshold credentials
-func BlindSign(params *Params, sk []*BLS381.BIG, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
+func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
 	if len(blindSignMats.enc)+len(public_m) > len(params.Hs) {
 		return nil, errors.New("Too many attributes to sign")
 	}
@@ -179,12 +194,12 @@ func BlindSign(params *Params, sk []*BLS381.BIG, blindSignMats *BlindSignMats, g
 		t1[i] = BLS381.G1mul(h, public_m[i])
 	}
 
-	t2 := BLS381.G1mul(blindSignMats.enc[0].A, sk[1])
+	t2 := BLS381.G1mul(blindSignMats.enc[0].A, sk.y[0])
 	for i := 1; i < len(blindSignMats.enc); i++ {
-		t2.Add(BLS381.G1mul(blindSignMats.enc[i].A, sk[i+1]))
+		t2.Add(BLS381.G1mul(blindSignMats.enc[i].A, sk.y[i]))
 	}
 
-	t3 := BLS381.G1mul(h, sk[0])
+	t3 := BLS381.G1mul(h, sk.x)
 	tmpSlice := make([]*BLS381.ECP, len(blindSignMats.enc))
 	for i := range blindSignMats.enc {
 		tmpSlice[i] = blindSignMats.enc[i].B
@@ -192,8 +207,8 @@ func BlindSign(params *Params, sk []*BLS381.BIG, blindSignMats *BlindSignMats, g
 	tmpSlice = append(tmpSlice, t1...)
 
 	// tmpslice: all B + t1
-	for i := 1; i < len(sk); i++ {
-		t3.Add(BLS381.G1mul(tmpSlice[i-1], sk[i]))
+	for i := range sk.y {
+		t3.Add(BLS381.G1mul(tmpSlice[i], sk.y[i]))
 	}
 
 	return &BlindedSignature{
@@ -213,27 +228,28 @@ func Unblind(params *Params, blindedSignature *BlindedSignature, d *BLS381.BIG) 
 	}
 }
 
-// similarly to Sign, this iteration only considers public attributes
-func Verify(params *Params, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig *Signature) bool {
-	// todo: same concerns as with Sign
-	// h := getBaseFromAttributes(public_m)
+// works on public attributes or when all private attributes have been revealed
+func Verify(params *Params, vk *VerificationKey, public_m []*BLS381.BIG, sig *Signature) bool {
+	if len(public_m) != len(vk.beta) {
+		return false
+	}
 	G := params.G
-	// ensure G.Gen2 == vk[0] ?
 
 	K := BLS381.NewECP2()
-	K.Copy(vk[1]) // K = X0
+	K.Copy(vk.alpha) // K = X
 	tmp := make([]*BLS381.ECP2, len(public_m))
+
 	var wg sync.WaitGroup
 	wg.Add(len(public_m))
 	for i := 0; i < len(public_m); i++ {
 		go func(i int) {
-			tmp[i] = BLS381.G2mul(vk[i+2], public_m[i]) // (Yi * ai)
+			tmp[i] = BLS381.G2mul(vk.beta[i], public_m[i]) // (Yi * ai)
 			wg.Done()
 		}(i)
 	}
 	wg.Wait()
 	for i := 0; i < len(public_m); i++ {
-		K.Add(tmp[i]) // K = X0 + (Y1 * a1) + ...
+		K.Add(tmp[i]) // K = X + (Y1 * a1) + ...
 	}
 
 	wg.Add(2)
@@ -245,27 +261,25 @@ func Verify(params *Params, vk []*BLS381.ECP2, public_m []*BLS381.BIG, sig *Sign
 		wg.Done()
 	}()
 	go func() {
-		Gt2 = G.Pair(sig.sig2, vk[0])
+		Gt2 = G.Pair(sig.sig2, vk.g2)
 		wg.Done()
 	}()
 	wg.Wait()
-	// Gt1 := G.Pair(sig.sig1, K)
-	// Gt2 := G.Pair(sig.sig2, vk[0])
+
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
-// CURRENTLY IGNORES PROOFS OF KAPPA AND NU
-func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
+func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
 	G := params.G
-	if len(private_m) == 0 || len(private_m) > (len(vk)-2) {
+	if len(private_m) == 0 || len(private_m) > len(vk.beta) {
 		return nil, errors.New("Invalid number of private attributes provided")
 	}
 
 	t := BLS381.Randomnum(G.Ord, G.Rng)
-	kappa := BLS381.G2mul(vk[0], t)
-	kappa.Add(vk[1])
+	kappa := BLS381.G2mul(vk.g2, t)
+	kappa.Add(vk.alpha)
 	for i := range private_m {
-		kappa.Add(BLS381.G2mul(vk[i+2], private_m[i]))
+		kappa.Add(BLS381.G2mul(vk.beta[i], private_m[i]))
 	}
 	nu := BLS381.G1mul(sig.sig1, t)
 
@@ -280,12 +294,9 @@ func ShowBlindSignature(params *Params, vk []*BLS381.ECP2, sig *Signature, priva
 	}, nil
 }
 
-// CURRENTLY IGNORES PROOFS OF KAPPA AND NU
-func BlindVerify(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *BlindShowMats, public_m []*BLS381.BIG) bool {
-	// todo: length assertion for proof
-	// once proofs are introduced, will be taken directly from the proof
+func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, public_m []*BLS381.BIG) bool {
 	privateLen := len(showMats.proof.rm)
-	if len(public_m)+privateLen > len(vk)-2 {
+	if len(public_m)+privateLen > len(vk.beta) {
 		return false
 	}
 	if !VerifyVerifierProof(params, vk, sig, showMats) {
@@ -296,9 +307,9 @@ func BlindVerify(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *Bl
 	if len(public_m) == 0 {
 		aggr = BLS381.NewECP2() // new point is at infinity
 	} else {
-		aggr = BLS381.G2mul(vk[2+privateLen], public_m[0]) // guaranteed to have at least 1 element
+		aggr = BLS381.G2mul(vk.beta[privateLen], public_m[0]) // guaranteed to have at least 1 element
 		for i := 1; i < len(public_m); i++ {
-			aggr.Add(BLS381.G2mul(vk[i+2+privateLen], public_m[i]))
+			aggr.Add(BLS381.G2mul(vk.beta[i+privateLen], public_m[i]))
 		}
 	}
 	t1 := BLS381.NewECP2()
@@ -310,7 +321,7 @@ func BlindVerify(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *Bl
 	t2.Add(showMats.nu)
 
 	Gt1 := params.G.Pair(sig.sig1, t1)
-	Gt2 := params.G.Pair(t2, vk[0])
+	Gt2 := params.G.Pair(t2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
@@ -334,24 +345,31 @@ func Randomize(params *Params, sig *Signature) *Signature {
 }
 
 // todo: special case for threshold
-func AggregateVerificationKeys(params *Params, vks [][]*BLS381.ECP2) []*BLS381.ECP2 {
-	avk := []*BLS381.ECP2{vks[0][0]} // the first element is always gen of G2
-	// and since it is a pointer to constant element, it can be shared among multiple instances
+func AggregateVerificationKeys(params *Params, vks []*VerificationKey) *VerificationKey {
+	alpha := BLS381.NewECP2()
+	alpha.Copy(vks[0].alpha)
+	for i := 1; i < len(vks); i++ {
+		alpha.Add(vks[i].alpha)
+	}
 
-	// again, consider parallelization for both loops?
-	for i := 1; i < len(vks[0]); i++ {
-		tmp := BLS381.NewECP2()
-		tmp.Copy(vks[0][i])
-		avk = append(avk, tmp)
+	beta := make([]*BLS381.ECP2, len(vks[0].beta))
+
+	for i := 0; i < len(vks[0].beta); i++ {
+		beta[i] = BLS381.NewECP2()
+		beta[i].Copy(vks[0].beta[i])
 	}
 
 	for i := 1; i < len(vks); i++ { // we already copied values from first set of keys
-		for j := 1; j < len(avk); j++ { // we ignore first element (the generator)
-			avk[j].Add(vks[i][j])
+		for j := 0; j < len(beta); j++ {
+			beta[j].Add(vks[i].beta[j])
 		}
 	}
 
-	return avk
+	return &VerificationKey{
+		g2:    vks[0].g2,
+		alpha: alpha,
+		beta:  beta,
+	}
 }
 
 // todo: special case for threshold

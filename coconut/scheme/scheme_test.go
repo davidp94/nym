@@ -23,14 +23,18 @@ func TestSchemeSign(t *testing.T) {
 	sk, _ := Keygen(params)
 
 	m := "Hello World!"
+	var err error
 	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
+	if err != nil {
+		t.Error(err)
+	}
 
-	t1 := BLS381.NewBIGcopy(sk[0])
-	t1 = t1.Plus(BLS381.Modmul(mBig, sk[1], G.Ord))
+	t1 := BLS381.NewBIGcopy(sk.x)
+	t1 = t1.Plus(BLS381.Modmul(mBig, sk.y[0], G.Ord))
 	sigTest := BLS381.G1mul(sig.sig1, t1)
 
 	if !sigTest.Equals(sig.sig2) {
@@ -38,32 +42,35 @@ func TestSchemeSign(t *testing.T) {
 	}
 
 	attr1 := "Attribute 1"
-	attr1Big, err1 := utils.HashStringToBig(amcl.SHA256, attr1)
-	if err1 != nil {
+	attr1Big, err := utils.HashStringToBig(amcl.SHA256, attr1)
+	if err != nil {
 		t.Error(err)
 	}
 	attr2 := "Attribute 2"
 
-	attr2Big, err2 := utils.HashStringToBig(amcl.SHA256, attr2)
-	if err2 != nil {
+	attr2Big, err := utils.HashStringToBig(amcl.SHA256, attr2)
+	if err != nil {
 		t.Error(err)
 	}
 
 	attr3 := "Attribute 3"
-	attr3Big, err3 := utils.HashStringToBig(amcl.SHA256, attr3)
-	if err3 != nil {
+	attr3Big, err := utils.HashStringToBig(amcl.SHA256, attr3)
+	if err != nil {
 		t.Error(err)
 	}
 
 	params2 := Setup(3)
 	G2 := params2.G
 	skMultiple, _ := Keygen(params2)
-	sigMultiple := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	sigMultiple, err := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	if err != nil {
+		t.Error(err)
+	}
 
-	t2 := BLS381.NewBIGcopy(skMultiple[0])
-	t2 = t2.Plus(BLS381.Modmul(attr1Big, skMultiple[1], G2.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr2Big, skMultiple[2], G2.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr3Big, skMultiple[3], G2.Ord))
+	t2 := BLS381.NewBIGcopy(skMultiple.x)
+	t2 = t2.Plus(BLS381.Modmul(attr1Big, skMultiple.y[0], G2.Ord))
+	t2 = t2.Plus(BLS381.Modmul(attr2Big, skMultiple.y[1], G2.Ord))
+	t2 = t2.Plus(BLS381.Modmul(attr3Big, skMultiple.y[2], G2.Ord))
 	sigTest2 := BLS381.G1mul(sigMultiple.sig1, t2)
 
 	if !sigTest2.Equals(sigMultiple.sig2) {
@@ -77,11 +84,15 @@ func TestSchemeVerify(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
+	var err error
 	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
+	if err != nil {
+		t.Error(err)
+	}
 
 	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, sig)
 	if !isValid {
@@ -89,12 +100,15 @@ func TestSchemeVerify(t *testing.T) {
 	}
 
 	m2 := "Malicious Hello World!"
-	mBig2, err2 := utils.HashStringToBig(amcl.SHA256, m2)
-	if err2 != nil {
+	mBig2, err := utils.HashStringToBig(amcl.SHA256, m2)
+	if err != nil {
 		t.Error(err)
 	}
 
-	sig2 := Sign(params, sk, []*BLS381.BIG{mBig2})
+	sig2, err := Sign(params, sk, []*BLS381.BIG{mBig2})
+	if err != nil {
+		t.Error(err)
+	}
 	isValid2 := Verify(params, vk, []*BLS381.BIG{mBig}, sig2)
 	if isValid2 {
 		t.Error("Verifies signature of invalid message (Given sig)")
@@ -106,26 +120,29 @@ func TestSchemeVerify(t *testing.T) {
 	}
 
 	attr1 := "Attribute 1"
-	attr1Big, err1 := utils.HashStringToBig(amcl.SHA256, attr1)
-	if err1 != nil {
+	attr1Big, err := utils.HashStringToBig(amcl.SHA256, attr1)
+	if err != nil {
 		t.Error(err)
 	}
 	attr2 := "Attribute 2"
 
-	attr2Big, err2 := utils.HashStringToBig(amcl.SHA256, attr2)
-	if err2 != nil {
+	attr2Big, err := utils.HashStringToBig(amcl.SHA256, attr2)
+	if err != nil {
 		t.Error(err)
 	}
 
 	attr3 := "Attribute 3"
-	attr3Big, err3 := utils.HashStringToBig(amcl.SHA256, attr3)
-	if err3 != nil {
+	attr3Big, err := utils.HashStringToBig(amcl.SHA256, attr3)
+	if err != nil {
 		t.Error(err)
 	}
 
 	params2 := Setup(3)
 	skMultiple, vkMultiple := Keygen(params2)
-	sigMultiple := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	sigMultiple, err := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
+	if err != nil {
+		t.Error(err)
+	}
 
 	isValid4 := Verify(params2, vkMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big}, sigMultiple)
 
@@ -139,11 +156,16 @@ func TestSchemeRandomize(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
+	var err error
 	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
+	if err != nil {
+		t.Error(err)
+	}
+
 	randSig := Randomize(params, sig)
 
 	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, randSig)
@@ -161,8 +183,11 @@ func TestSchemeKeyAggregation(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(params, sk, []*BLS381.BIG{mBig})
-	avk := AggregateVerificationKeys(params, [][]*BLS381.ECP2{vk})
+	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
+	if err != nil {
+		t.Error(err)
+	}
+	avk := AggregateVerificationKeys(params, []*VerificationKey{vk})
 
 	isValid := Verify(params, avk, []*BLS381.BIG{mBig}, sig)
 	if !isValid {
@@ -176,11 +201,15 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	sk, vk := Keygen(params)
 
 	m := "Hello World!"
+	var err error
 	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
 	if err != nil {
 		t.Error(err)
 	}
-	sig := Sign(params, sk, []*BLS381.BIG{mBig})
+	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
+	if err != nil {
+		t.Error(err)
+	}
 	aSig := AggregateSignatures(params, []*Signature{sig})
 
 	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, aSig)
@@ -189,13 +218,17 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	}
 
 	signatures := []*Signature{}
-	vks := [][]*BLS381.ECP2{}
+	vks := []*VerificationKey{}
 
 	messagesToSign := 3
 	for i := 0; i < messagesToSign; i++ {
 		sk, vk := Keygen(params)
 		vks = append(vks, vk)
-		signatures = append(signatures, Sign(params, sk, []*BLS381.BIG{mBig}))
+		sige, err := Sign(params, sk, []*BLS381.BIG{mBig})
+		if err != nil {
+			t.Error(err)
+		}
+		signatures = append(signatures, sige)
 	}
 
 	avk := AggregateVerificationKeys(params, vks)
@@ -207,14 +240,18 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	}
 
 	m2 := "Malicious Hello World!"
-	mBig2, err2 := utils.HashStringToBig(amcl.SHA256, m2)
-	if err2 != nil {
+	mBig2, err := utils.HashStringToBig(amcl.SHA256, m2)
+	if err != nil {
 		t.Error(err)
 	}
 
 	msk, mvk := Keygen(params)
 	vks = append(vks, mvk)
-	signatures = append(signatures, Sign(params, msk, []*BLS381.BIG{mBig2}))
+	sige, err := Sign(params, msk, []*BLS381.BIG{mBig2})
+	if err != nil {
+		t.Error(err)
+	}
+	signatures = append(signatures, sige)
 
 	avk2 := AggregateVerificationKeys(params, vks)
 	aSig2 := AggregateSignatures(params, signatures)
@@ -271,16 +308,16 @@ func TestSchemeBlindVerifyOnlyPrivate(t *testing.T) {
 		t.Error(err)
 	}
 
-	blindedSignature, err2 := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-	if err2 != nil {
-		t.Error(err2)
+	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err != nil {
+		t.Error(err)
 	}
 
 	sig := Unblind(params, blindedSignature, d)
 
-	blindShowMats, err3 := ShowBlindSignature(params, vk, sig, privBig)
-	if err3 != nil {
-		t.Error(err3)
+	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+	if err != nil {
+		t.Error(err)
 	}
 
 	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {
@@ -320,16 +357,16 @@ func TestSchemeBlindVerifyMixedAttributes(t *testing.T) {
 		t.Error(err)
 	}
 
-	blindedSignature, err2 := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-	if err2 != nil {
-		t.Error(err2)
+	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+	if err != nil {
+		t.Error(err)
 	}
 
 	sig := Unblind(params, blindedSignature, d)
 
-	blindShowMats, err3 := ShowBlindSignature(params, vk, sig, privBig)
-	if err3 != nil {
-		t.Error(err3)
+	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+	if err != nil {
+		t.Error(err)
 	}
 
 	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {

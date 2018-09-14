@@ -191,7 +191,7 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 	return BLS381.Comp(proof.c, constructChallenge(ca)) == 0
 }
 
-func ConstructVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, private_m []*BLS381.BIG, t *BLS381.BIG) (*VerifierProof, error) {
+func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG, t *BLS381.BIG) (*VerifierProof, error) {
 	G := params.G
 
 	// witnesses
@@ -203,15 +203,15 @@ func ConstructVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, p
 
 	// witnesses commitments
 	Aw := BLS381.G2mul(G.Gen2, wt) // Aw = (wt * g2)
-	Aw.Add(vk[1])                  // Aw = (wt * g2) + alpha
+	Aw.Add(vk.alpha)               // Aw = (wt * g2) + alpha
 	for i := range private_m {
-		Aw.Add(BLS381.G2mul(vk[i+2], wm[i])) // Aw = (wt * g2) + alpha + (wm[i] * beta[i])
+		Aw.Add(BLS381.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[i] * beta[i])
 	}
 	Bw := BLS381.G1mul(sig.sig1, wt)
 
-	ca := make([]Printable, 5+len(params.Hs)+len(vk)-2) // 5 are both gens, alpha, Aw and Bw
+	ca := make([]Printable, 5+len(params.Hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
 	i := 0
-	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk[1], Aw, Bw} {
+	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk.alpha, Aw, Bw} {
 		ca[i] = item
 		i++
 	}
@@ -219,11 +219,7 @@ func ConstructVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, p
 		ca[i] = item
 		i++
 	}
-	for j, item := range vk {
-		// todo: will be replaced once vk is converted into independent struct
-		if j <= 1 {
-			continue
-		}
+	for _, item := range vk.beta {
 		ca[i] = item
 		i++
 	}
@@ -248,23 +244,23 @@ func ConstructVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, p
 	}, nil
 }
 
-func VerifyVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, showMats *BlindShowMats) bool {
+func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats) bool {
 	Aw := BLS381.G2mul(showMats.kappa, showMats.proof.c) // Aw = (c * kappa)
-	Aw.Add(BLS381.G2mul(vk[0], showMats.proof.rt))       // Aw = (c * kappa) + (rt * g2)
+	Aw.Add(BLS381.G2mul(vk.g2, showMats.proof.rt))       // Aw = (c * kappa) + (rt * g2)
 
-	Aw.Add(vk[1])                                                              // Aw = (c * kappa) + (rt * g2) + (alpha)
-	Aw.Add(BLS381.G2mul(vk[1], BLS381.Modneg(showMats.proof.c, params.G.Ord))) // Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c)
+	Aw.Add(vk.alpha)                                                              // Aw = (c * kappa) + (rt * g2) + (alpha)
+	Aw.Add(BLS381.G2mul(vk.alpha, BLS381.Modneg(showMats.proof.c, params.G.Ord))) // Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c)
 
 	for i := range showMats.proof.rm {
-		Aw.Add(BLS381.G2mul(vk[i+2], showMats.proof.rm[i])) // Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[i] * beta[i])
+		Aw.Add(BLS381.G2mul(vk.beta[i], showMats.proof.rm[i])) // Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[i] * beta[i])
 	}
 
 	Bw := BLS381.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)
 	Bw.Add(BLS381.G1mul(sig.sig1, showMats.proof.rt)) // Bw = (c * nu) + (rt * h)
 
-	ca := make([]Printable, 5+len(params.Hs)+len(vk)-2) // 5 are both gens, alpha, Aw and Bw
+	ca := make([]Printable, 5+len(params.Hs)+len(vk.beta)) // 5 are both gens, alpha, Aw and Bw
 	i := 0
-	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk[1], Aw, Bw} {
+	for _, item := range []Printable{params.G.Gen1, params.G.Gen2, vk.alpha, Aw, Bw} {
 		ca[i] = item
 		i++
 	}
@@ -272,11 +268,7 @@ func VerifyVerifierProof(params *Params, vk []*BLS381.ECP2, sig *Signature, show
 		ca[i] = item
 		i++
 	}
-	for j, item := range vk {
-		// todo: will be replaced once vk is converted into independent struct
-		if j <= 1 {
-			continue
-		}
+	for _, item := range vk.beta {
 		ca[i] = item
 		i++
 	}
