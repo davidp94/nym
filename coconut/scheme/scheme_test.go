@@ -12,8 +12,12 @@ import (
 )
 
 func TestSchemeSetup(t *testing.T) {
-	// test lenghts etc
+	_, err := Setup(0)
+	assert.Equal(t, ErrSetupParams, err, "Should not allow generating params for less than 1 attribute")
 
+	params, err := Setup(10)
+	assert.Nil(t, err)
+	assert.Equal(t, 10, len(params.hs))
 }
 
 func TestSchemeKeygen(t *testing.T) {
@@ -34,13 +38,14 @@ func TestSchemeSign(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(test.q)
+		params, err := Setup(test.q)
+		assert.Nil(t, err)
+
 		G := params.G
 		sk, _ := Keygen(params)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
-			var err error
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
@@ -75,12 +80,13 @@ func TestSchemeVerify(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(len(test.attrs))
+		params, err := Setup(len(test.attrs))
+		assert.Nil(t, err)
+
 		sk, vk := Keygen(params)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
-			var err error
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
@@ -91,7 +97,6 @@ func TestSchemeVerify(t *testing.T) {
 		if len(test.maliciousAttrs) > 0 {
 			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
 			for i := range test.maliciousAttrs {
-				var err error
 				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
 				assert.Nil(t, err)
 			}
@@ -115,7 +120,9 @@ func TestSchemeRandomize(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(len(test.attrs))
+		params, err := Setup(len(test.attrs))
+		assert.Nil(t, err)
+
 		sk, vk := Keygen(params)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
@@ -143,12 +150,13 @@ func TestSchemeKeyAggregation(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(len(test.attrs))
+		params, err := Setup(len(test.attrs))
+		assert.Nil(t, err)
+
 		sk, vk := Keygen(params)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
-			var err error
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
@@ -178,7 +186,9 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(len(test.attrs))
+		params, err := Setup(len(test.attrs))
+		assert.Nil(t, err)
+
 		sks := make([]*SecretKey, test.authorities)
 		vks := make([]*VerificationKey, test.authorities)
 		for i := 0; i < test.authorities; i++ {
@@ -189,14 +199,12 @@ func TestSchemeAggregateVerification(t *testing.T) {
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
-			var err error
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
 
 		signatures := make([]*Signature, test.authorities)
 		for i := 0; i < test.authorities; i++ {
-			var err error
 			signatures[i], err = Sign(params, sks[i], attrsBig)
 			assert.Nil(t, err)
 		}
@@ -217,14 +225,12 @@ func TestSchemeAggregateVerification(t *testing.T) {
 
 			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
 			for i := range test.maliciousAttrs {
-				var err error
 				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
 				assert.Nil(t, err)
 			}
 
 			mSignatures := make([]*Signature, test.maliciousAuth)
 			for i := 0; i < test.maliciousAuth; i++ {
-				var err error
 				mSignatures[i], err = Sign(params, msks[i], mAttrsBig)
 				assert.Nil(t, err)
 			}
@@ -262,14 +268,15 @@ func TestSchemeBlindVerify(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		params := Setup(test.q)
+		params, err := Setup(test.q)
+		assert.Nil(t, err)
+
 		sk, vk := Keygen(params)
 		d, gamma := elgamal.Keygen(params.G)
 
 		pubBig := make([]*BLS381.BIG, len(test.pub))
 		privBig := make([]*BLS381.BIG, len(test.priv))
 
-		var err error
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)

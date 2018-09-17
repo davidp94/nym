@@ -62,6 +62,7 @@ type BlindShowMats struct {
 }
 
 var (
+	ErrSetupParams             = errors.New("Can't generate params for less than 1 attribute")
 	ErrSignParams              = errors.New("Invalid attributes/secret key provided")
 	ErrPrepareBlindSignParams  = errors.New("Too many attributes to sign")
 	ErrPrepareBlindSignPrivate = errors.New("No private attributes to sign")
@@ -71,7 +72,10 @@ var (
 )
 
 // q is the maximum number of attributes that can be embedded in the credential
-func Setup(q int) *Params {
+func Setup(q int) (*Params, error) {
+	if q < 1 {
+		return nil, ErrSetupParams
+	}
 	hs := make([]*BLS381.ECP, q)
 	for i := 0; i < q; i++ {
 		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
@@ -81,7 +85,7 @@ func Setup(q int) *Params {
 		hs[i] = hi
 	}
 	G := bpgroup.New()
-	return &Params{G, hs}
+	return &Params{G, hs}, nil
 }
 
 // todo: to be replaced by generation of keys threshold signature (by a TTP)

@@ -3,6 +3,8 @@ package coconut
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
@@ -10,7 +12,9 @@ import (
 )
 
 func TestVerifySignerProofSinglePrivate(t *testing.T) {
-	params := Setup(1)
+	params, err := Setup(1)
+	assert.Nil(t, err)
+
 	priv := []string{"Bar"}
 
 	privBig := make([]*BLS381.BIG, len(priv))
@@ -50,7 +54,9 @@ func TestVerifySignerProofSinglePrivate(t *testing.T) {
 }
 
 func TestVerifySignerProofMultiplePrivate(t *testing.T) {
-	params := Setup(3)
+	params, err := Setup(3)
+	assert.Nil(t, err)
+
 	priv := []string{"Foo", "Bar", "Baz"}
 
 	privBig := make([]*BLS381.BIG, len(priv))
@@ -89,7 +95,9 @@ func TestVerifySignerProofMultiplePrivate(t *testing.T) {
 }
 
 func TestVerifySignerProofSinglePublic(t *testing.T) {
-	params := Setup(1)
+	params, err := Setup(1)
+	assert.Nil(t, err)
+
 	pub := []string{"Foo"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
@@ -115,7 +123,9 @@ func TestVerifySignerProofSinglePublic(t *testing.T) {
 }
 
 func TestVerifySignerProofMultiplePublic(t *testing.T) {
-	params := Setup(3)
+	params, err := Setup(3)
+	assert.Nil(t, err)
+
 	pub := []string{"Foo", "Bar", "Baz"}
 
 	pubBig := make([]*BLS381.BIG, len(pub))
@@ -141,7 +151,9 @@ func TestVerifySignerProofMultiplePublic(t *testing.T) {
 }
 
 func TestVerifySignerProofSingleMixed(t *testing.T) {
-	params := Setup(2)
+	params, err := Setup(2)
+	assert.Nil(t, err)
+
 	pub := []string{"Foo"}
 	priv := []string{"Bar"}
 
@@ -187,7 +199,9 @@ func TestVerifySignerProofSingleMixed(t *testing.T) {
 
 // todo: dont ignore errs
 func TestVerifySignerProofMultipleMixed(t *testing.T) {
-	params := Setup(6)
+	params, err := Setup(6)
+	assert.Nil(t, err)
+
 	pub := []string{"Foo", "Bar", "Baz"}
 	priv := []string{"Foo2", "Bar2", "Baz2"}
 
@@ -232,13 +246,13 @@ func TestVerifySignerProofMultipleMixed(t *testing.T) {
 }
 
 func TestVerifyVerifierProofMultiplePrivate(t *testing.T) {
-	params := Setup(3)
+	params, err := Setup(3)
+	assert.Nil(t, err)
+
 	sk, vk := Keygen(params)
 	d, gamma := elgamal.Keygen(params.G)
 
 	priv := []string{"Foo2", "Bar2", "Baz2"}
-	var err error
-
 	pubBig := []*BLS381.BIG{}
 	privBig := make([]*BLS381.BIG, len(priv))
 
@@ -272,14 +286,14 @@ func TestVerifyVerifierProofMultiplePrivate(t *testing.T) {
 }
 
 func TestVerifyVerifierProofMultipleMixed(t *testing.T) {
-	params := Setup(6)
+	params, err := Setup(6)
+	assert.Nil(t, err)
+
 	sk, vk := Keygen(params)
 	d, gamma := elgamal.Keygen(params.G)
 
 	pub := []string{"Foo", "Bar", "Baz"}
 	priv := []string{"Foo2", "Bar2", "Baz2"}
-
-	var err error
 
 	pubBig := make([]*BLS381.BIG, len(pub))
 	privBig := make([]*BLS381.BIG, len(priv))
