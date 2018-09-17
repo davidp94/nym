@@ -249,7 +249,8 @@ func TestVerifyVerifierProofMultiplePrivate(t *testing.T) {
 	params, err := Setup(3)
 	assert.Nil(t, err)
 
-	sk, vk := Keygen(params)
+	sk, vk, err := Keygen(params)
+	assert.Nil(t, err)
 	d, gamma := elgamal.Keygen(params.G)
 
 	priv := []string{"Foo2", "Bar2", "Baz2"}
@@ -289,7 +290,8 @@ func TestVerifyVerifierProofMultipleMixed(t *testing.T) {
 	params, err := Setup(6)
 	assert.Nil(t, err)
 
-	sk, vk := Keygen(params)
+	sk, vk, err := Keygen(params)
+	assert.Nil(t, err)
 	d, gamma := elgamal.Keygen(params.G)
 
 	pub := []string{"Foo", "Bar", "Baz"}

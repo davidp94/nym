@@ -64,6 +64,8 @@ type BlindShowMats struct {
 var (
 	ErrSetupParams             = errors.New("Can't generate params for less than 1 attribute")
 	ErrSignParams              = errors.New("Invalid attributes/secret key provided")
+	ErrKeygenParams            = errors.New("Can't generate keys for less than 1 attribute")
+	ErrTTPKeygenParams         = errors.New("Invalid set of parameters provided to keygen")
 	ErrPrepareBlindSignParams  = errors.New("Too many attributes to sign")
 	ErrPrepareBlindSignPrivate = errors.New("No private attributes to sign")
 	ErrBlindSignAttr           = errors.New("Too many attributes to sign")
@@ -88,10 +90,12 @@ func Setup(q int) (*Params, error) {
 	return &Params{G, hs}, nil
 }
 
-// todo: to be replaced by generation of keys threshold signature (by a TTP)
-// right now it is keygen as if performed by a single isolated entity
-func Keygen(params *Params) (*SecretKey, *VerificationKey) {
-	q := len(params.hs) // todo: verify
+// This keygen does not support threshold credentials, all values is secret key are purely random with no correlation
+func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
+	q := len(params.hs)
+	if q < 1 {
+		return nil, nil, ErrKeygenParams
+	}
 	G := params.G
 
 	x := BLS381.Randomnum(G.Ord, G.Rng)
@@ -116,7 +120,7 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey) {
 		}(i)
 	}
 	wg.Wait()
-	return sk, vk
+	return sk, vk, nil
 }
 
 // t - treshold parameter
@@ -125,7 +129,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	q := len(params.hs)
 	G := params.G
 	if n < t || t == 0 || q == 0 {
-		return nil, nil, ErrSignParams
+		return nil, nil, ErrTTPKeygenParams
 	}
 
 	// polynomials generation
@@ -181,7 +185,7 @@ func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
 // creates a credential on only public attributes
 func Sign(params *Params, sk *SecretKey, public_m []*BLS381.BIG) (*Signature, error) {
 	if len(public_m) != len(sk.y) {
-		return nil, errors.New("Invalid attributes/secret key provided")
+		return nil, ErrSignParams
 	}
 	G := params.G
 	h := getBaseFromAttributes(public_m)

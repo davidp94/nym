@@ -21,7 +21,20 @@ func TestSchemeSetup(t *testing.T) {
 }
 
 func TestSchemeKeygen(t *testing.T) {
-	// test lenghts etc
+	params, err := Setup(10)
+	assert.Nil(t, err)
+
+	sk, vk, err := Keygen(&Params{G: params.G, hs: nil})
+	assert.Equal(t, ErrKeygenParams, err, "Should not allow generating params for less than 1 attribute")
+
+	sk, vk, err = Keygen(params)
+	assert.Nil(t, err)
+	assert.True(t, params.G.Gen2.Equals(vk.g2))
+	assert.True(t, BLS381.G2mul(vk.g2, sk.x).Equals(vk.alpha))
+	assert.Equal(t, len(sk.y), len(vk.beta))
+	for i := range vk.beta {
+		assert.Equal(t, vk.beta[i], BLS381.G2mul(vk.g2, sk.y[i]))
+	}
 }
 
 func TestSchemeSign(t *testing.T) {
@@ -42,7 +55,8 @@ func TestSchemeSign(t *testing.T) {
 		assert.Nil(t, err)
 
 		G := params.G
-		sk, _ := Keygen(params)
+		sk, _, err := Keygen(params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
@@ -83,7 +97,8 @@ func TestSchemeVerify(t *testing.T) {
 		params, err := Setup(len(test.attrs))
 		assert.Nil(t, err)
 
-		sk, vk := Keygen(params)
+		sk, vk, err := Keygen(params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
@@ -123,7 +138,8 @@ func TestSchemeRandomize(t *testing.T) {
 		params, err := Setup(len(test.attrs))
 		assert.Nil(t, err)
 
-		sk, vk := Keygen(params)
+		sk, vk, err := Keygen(params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
@@ -153,7 +169,8 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		params, err := Setup(len(test.attrs))
 		assert.Nil(t, err)
 
-		sk, vk := Keygen(params)
+		sk, vk, err := Keygen(params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
 		for i := range test.attrs {
@@ -192,7 +209,8 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		sks := make([]*SecretKey, test.authorities)
 		vks := make([]*VerificationKey, test.authorities)
 		for i := 0; i < test.authorities; i++ {
-			sk, vk := Keygen(params)
+			sk, vk, err := Keygen(params)
+			assert.Nil(t, err)
 			sks[i] = sk
 			vks[i] = vk
 		}
@@ -218,7 +236,8 @@ func TestSchemeAggregateVerification(t *testing.T) {
 			msks := make([]*SecretKey, test.maliciousAuth)
 			mvks := make([]*VerificationKey, test.maliciousAuth)
 			for i := 0; i < test.maliciousAuth; i++ {
-				sk, vk := Keygen(params)
+				sk, vk, err := Keygen(params)
+				assert.Nil(t, err)
 				msks[i] = sk
 				mvks[i] = vk
 			}
@@ -271,7 +290,8 @@ func TestSchemeBlindVerify(t *testing.T) {
 		params, err := Setup(test.q)
 		assert.Nil(t, err)
 
-		sk, vk := Keygen(params)
+		sk, vk, err := Keygen(params)
+		assert.Nil(t, err)
 		d, gamma := elgamal.Keygen(params.G)
 
 		pubBig := make([]*BLS381.BIG, len(test.pub))
