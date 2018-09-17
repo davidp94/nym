@@ -64,3 +64,8 @@ func HashStringToG1(sha int, m string) (*BLS381.ECP, error) {
 	}
 	return BLS381.ECP_mapit(hash), nil
 }
+
+func PolyEval(coeff []*BLS381.BIG, x int) *BLS381.BIG {
+
+	return nil
+}
