@@ -61,6 +61,15 @@ type BlindShowMats struct {
 	proof *VerifierProof
 }
 
+var (
+	ErrSignParams              = errors.New("Invalid attributes/secret key provided")
+	ErrPrepareBlindSignParams  = errors.New("Too many attributes to sign")
+	ErrPrepareBlindSignPrivate = errors.New("No private attributes to sign")
+	ErrBlindSignAttr           = errors.New("Too many attributes to sign")
+	ErrBlindSignProof          = errors.New("Failed to verify the proof")
+	ErrShowBlindAttr           = errors.New("Invalid attributes provided")
+)
+
 // q is the maximum number of attributes that can be embedded in the credential
 func Setup(q int) *Params {
 	hs := make([]*BLS381.ECP, q)
@@ -108,9 +117,49 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey) {
 
 // t - treshold parameter
 // n - total number of authorities
-// func TTPKeygen(params *Params, t int, n int) {
-// 	q := len(params.Hs)
-// }
+func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, error) {
+	q := len(params.hs)
+	G := params.G
+	if n < t || t == 0 || q == 0 {
+		return nil, nil, ErrSignParams
+	}
+
+	// polynomials generation
+	v := make([]*BLS381.BIG, t)
+	for i := range v {
+		v[i] = BLS381.Randomnum(G.Ord, G.Rng)
+	}
+	w := make([][]*BLS381.BIG, q)
+	for i := range w {
+		w[i] = make([]*BLS381.BIG, t)
+		for j := range w[i] {
+			w[i][j] = BLS381.Randomnum(G.Ord, G.Rng)
+		}
+	}
+
+	// secret keys
+	sks := make([]*SecretKey, n)
+	for i := 1; i <= n; i++ {
+		x := utils.PolyEval(v, i, G.Ord)
+		ys := make([]*BLS381.BIG, q)
+		for j, wj := range w {
+			ys[j] = utils.PolyEval(wj, i, G.Ord)
+		}
+		sks[i-1] = &SecretKey{x: x, y: ys}
+	}
+
+	// verification keys
+	vks := make([]*VerificationKey, n)
+	for i := range sks {
+		alpha := BLS381.G2mul(G.Gen2, sks[i].x)
+		beta := make([]*BLS381.ECP2, q)
+		for j, yj := range sks[i].y {
+			beta[j] = BLS381.G2mul(G.Gen2, yj)
+		}
+		vks[i] = &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+	}
+	return sks, vks, nil
+}
 
 // generates the base h from public attributes; only used for sign (NOT blind sign)
 func getBaseFromAttributes(public_m []*BLS381.BIG) *BLS381.ECP {
@@ -146,11 +195,11 @@ func Sign(params *Params, sk *SecretKey, public_m []*BLS381.BIG) (*Signature, er
 func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*BlindSignMats, error) {
 	G := params.G
 	if len(private_m) == 0 {
-		return nil, errors.New("No private attributes to sign")
+		return nil, ErrPrepareBlindSignPrivate
 	}
 	attributes := append(private_m, public_m...)
 	if len(attributes) > len(params.hs) {
-		return nil, errors.New("Too many attributes to sign")
+		return nil, ErrPrepareBlindSignParams
 	}
 
 	r := BLS381.Randomnum(G.Ord, G.Rng)
@@ -185,10 +234,10 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 // todo: update for threshold credentials
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
 	if len(blindSignMats.enc)+len(public_m) > len(params.hs) {
-		return nil, errors.New("Too many attributes to sign")
+		return nil, ErrBlindSignAttr
 	}
 	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
-		return nil, errors.New("Failed to verify the proof")
+		return nil, ErrBlindSignProof
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, blindSignMats.cm.ToString())
 	if err != nil {
@@ -278,7 +327,7 @@ func Verify(params *Params, vk *VerificationKey, public_m []*BLS381.BIG, sig *Si
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
 	G := params.G
 	if len(private_m) == 0 || len(private_m) > len(vk.beta) {
-		return nil, errors.New("Invalid number of private attributes provided")
+		return nil, ErrShowBlindAttr
 	}
 
 	t := BLS381.Randomnum(G.Ord, G.Rng)

@@ -3,6 +3,8 @@ package coconut
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
@@ -10,369 +12,307 @@ import (
 )
 
 func TestSchemeSetup(t *testing.T) {
+	// test lenghts etc
 
 }
 
 func TestSchemeKeygen(t *testing.T) {
-
+	// test lenghts etc
 }
 
 func TestSchemeSign(t *testing.T) {
-	params := Setup(1)
-	G := params.G
-	sk, _ := Keygen(params)
-
-	m := "Hello World!"
-	var err error
-	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
-	if err != nil {
-		t.Error(err)
-	}
-	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
-	if err != nil {
-		t.Error(err)
+	tests := []struct {
+		q     int
+		attrs []string
+		err   error
+		msg   string
+	}{
+		{q: 1, attrs: []string{"Hello World!"}, err: nil, msg: "For single attribute sig2 should be equal to (x + m * y) * sig1"},
+		{q: 3, attrs: []string{"Foo", "Bar", "Baz"}, err: nil, msg: "For three attributes sig2 shguld be equal to (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1"},
+		{q: 2, attrs: []string{"Foo", "Bar", "Baz"}, err: ErrSignParams, msg: "Sign should fail due to invalid param combination"},
+		{q: 3, attrs: []string{"Foo", "Bar"}, err: ErrSignParams, msg: "Sign should fail due to invalid param combination"},
 	}
 
-	t1 := BLS381.NewBIGcopy(sk.x)
-	t1 = t1.Plus(BLS381.Modmul(mBig, sk.y[0], G.Ord))
-	sigTest := BLS381.G1mul(sig.sig1, t1)
+	for _, test := range tests {
+		params := Setup(test.q)
+		G := params.G
+		sk, _ := Keygen(params)
 
-	if !sigTest.Equals(sig.sig2) {
-		t.Error("For single attribute sig2 != (x + m * y) * sig1")
+		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		for i := range test.attrs {
+			var err error
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		sig, err := Sign(params, sk, attrsBig)
+		if test.err == ErrSignParams {
+			assert.Equal(t, ErrSignParams, err, test.msg)
+			return // everything beyond that point is UB
+		}
+		assert.Nil(t, err)
+
+		t1 := BLS381.NewBIGcopy(sk.x)
+		for i := range sk.y {
+			t1 = t1.Plus(BLS381.Modmul(attrsBig[i], sk.y[i], G.Ord))
+		}
+
+		sigTest := BLS381.G1mul(sig.sig1, t1)
+		assert.True(t, sigTest.Equals(sig.sig2), test.msg)
 	}
-
-	attr1 := "Attribute 1"
-	attr1Big, err := utils.HashStringToBig(amcl.SHA256, attr1)
-	if err != nil {
-		t.Error(err)
-	}
-	attr2 := "Attribute 2"
-
-	attr2Big, err := utils.HashStringToBig(amcl.SHA256, attr2)
-	if err != nil {
-		t.Error(err)
-	}
-
-	attr3 := "Attribute 3"
-	attr3Big, err := utils.HashStringToBig(amcl.SHA256, attr3)
-	if err != nil {
-		t.Error(err)
-	}
-
-	params2 := Setup(3)
-	G2 := params2.G
-	skMultiple, _ := Keygen(params2)
-	sigMultiple, err := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
-	if err != nil {
-		t.Error(err)
-	}
-
-	t2 := BLS381.NewBIGcopy(skMultiple.x)
-	t2 = t2.Plus(BLS381.Modmul(attr1Big, skMultiple.y[0], G2.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr2Big, skMultiple.y[1], G2.Ord))
-	t2 = t2.Plus(BLS381.Modmul(attr3Big, skMultiple.y[2], G2.Ord))
-	sigTest2 := BLS381.G1mul(sigMultiple.sig1, t2)
-
-	if !sigTest2.Equals(sigMultiple.sig2) {
-		t.Error("For three attributes sig2 != (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1")
-	}
-
 }
 
 func TestSchemeVerify(t *testing.T) {
-	params := Setup(1)
-	sk, vk := Keygen(params)
-
-	m := "Hello World!"
-	var err error
-	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
-	if err != nil {
-		t.Error(err)
-	}
-	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
-	if err != nil {
-		t.Error(err)
+	tests := []struct {
+		attrs          []string
+		maliciousAttrs []string
+		msg            string
+	}{
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on single public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on mulitple public attribute"},
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"}, msg: "Should not verify a signature when malicious attribute is introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, msg: "Should not verify a signature when malicious attributes are introduced"},
 	}
 
-	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, sig)
-	if !isValid {
-		t.Error("Does not correctly verify a valid signature")
-	}
-
-	m2 := "Malicious Hello World!"
-	mBig2, err := utils.HashStringToBig(amcl.SHA256, m2)
-	if err != nil {
-		t.Error(err)
-	}
-
-	sig2, err := Sign(params, sk, []*BLS381.BIG{mBig2})
-	if err != nil {
-		t.Error(err)
-	}
-	isValid2 := Verify(params, vk, []*BLS381.BIG{mBig}, sig2)
-	if isValid2 {
-		t.Error("Verifies signature of invalid message (Given sig)")
-	}
-
-	isValid3 := Verify(params, vk, []*BLS381.BIG{mBig2}, sig)
-	if isValid3 {
-		t.Error("Verifies invalid signature on different message (Given msg)")
-	}
-
-	attr1 := "Attribute 1"
-	attr1Big, err := utils.HashStringToBig(amcl.SHA256, attr1)
-	if err != nil {
-		t.Error(err)
-	}
-	attr2 := "Attribute 2"
-
-	attr2Big, err := utils.HashStringToBig(amcl.SHA256, attr2)
-	if err != nil {
-		t.Error(err)
-	}
-
-	attr3 := "Attribute 3"
-	attr3Big, err := utils.HashStringToBig(amcl.SHA256, attr3)
-	if err != nil {
-		t.Error(err)
-	}
-
-	params2 := Setup(3)
-	skMultiple, vkMultiple := Keygen(params2)
-	sigMultiple, err := Sign(params2, skMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big})
-	if err != nil {
-		t.Error(err)
-	}
-
-	isValid4 := Verify(params2, vkMultiple, []*BLS381.BIG{attr1Big, attr2Big, attr3Big}, sigMultiple)
-
-	if !isValid4 {
-		t.Error("Does not verify signature with multiple public attributes")
-	}
-}
-
-func TestSchemeRandomize(t *testing.T) {
-	params := Setup(1)
-	sk, vk := Keygen(params)
-
-	m := "Hello World!"
-	var err error
-	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
-	if err != nil {
-		t.Error(err)
-	}
-	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
-	if err != nil {
-		t.Error(err)
-	}
-
-	randSig := Randomize(params, sig)
-
-	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, randSig)
-	if !isValid {
-		t.Error("Does not correctly verify a valid randomized signature")
-	}
-}
-
-func TestSchemeKeyAggregation(t *testing.T) {
-	params := Setup(1)
-	sk, vk := Keygen(params)
-
-	m := "Hello World!"
-	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
-	if err != nil {
-		t.Error(err)
-	}
-	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
-	if err != nil {
-		t.Error(err)
-	}
-	avk := AggregateVerificationKeys(params, []*VerificationKey{vk})
-
-	isValid := Verify(params, avk, []*BLS381.BIG{mBig}, sig)
-	if !isValid {
-		t.Error("Does not correctly verify an aggregation of a single set of keys")
-	}
-}
-
-// todo: add more tests for multiple attributes
-func TestSchemeAggregateVerification(t *testing.T) {
-	params := Setup(1)
-	sk, vk := Keygen(params)
-
-	m := "Hello World!"
-	var err error
-	mBig, err := utils.HashStringToBig(amcl.SHA256, m)
-	if err != nil {
-		t.Error(err)
-	}
-	sig, err := Sign(params, sk, []*BLS381.BIG{mBig})
-	if err != nil {
-		t.Error(err)
-	}
-	aSig := AggregateSignatures(params, []*Signature{sig})
-
-	isValid := Verify(params, vk, []*BLS381.BIG{mBig}, aSig)
-	if !isValid {
-		t.Error("Does not correctly verify an aggregation of a single signature")
-	}
-
-	signatures := []*Signature{}
-	vks := []*VerificationKey{}
-
-	messagesToSign := 3
-	for i := 0; i < messagesToSign; i++ {
+	for _, test := range tests {
+		params := Setup(len(test.attrs))
 		sk, vk := Keygen(params)
-		vks = append(vks, vk)
-		sige, err := Sign(params, sk, []*BLS381.BIG{mBig})
-		if err != nil {
-			t.Error(err)
+
+		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		for i := range test.attrs {
+			var err error
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
 		}
-		signatures = append(signatures, sige)
-	}
+		sig, err := Sign(params, sk, attrsBig)
+		assert.Nil(t, err)
+		assert.True(t, Verify(params, vk, attrsBig, sig), test.msg)
 
-	avk := AggregateVerificationKeys(params, vks)
-	aSig = AggregateSignatures(params, signatures)
+		if len(test.maliciousAttrs) > 0 {
+			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
+			for i := range test.maliciousAttrs {
+				var err error
+				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
+				assert.Nil(t, err)
+			}
+			sig2, err := Sign(params, sk, mAttrsBig)
+			assert.Nil(t, err)
 
-	isValid2 := Verify(params, avk, []*BLS381.BIG{mBig}, aSig)
-	if !isValid2 {
-		t.Error("Does not correctly verify aggregation of signatures from 3 different entities")
-	}
-
-	m2 := "Malicious Hello World!"
-	mBig2, err := utils.HashStringToBig(amcl.SHA256, m2)
-	if err != nil {
-		t.Error(err)
-	}
-
-	msk, mvk := Keygen(params)
-	vks = append(vks, mvk)
-	sige, err := Sign(params, msk, []*BLS381.BIG{mBig2})
-	if err != nil {
-		t.Error(err)
-	}
-	signatures = append(signatures, sige)
-
-	avk2 := AggregateVerificationKeys(params, vks)
-	aSig2 := AggregateSignatures(params, signatures)
-
-	isValid3 := Verify(params, avk2, []*BLS381.BIG{mBig}, aSig2)
-	if isValid3 {
-		t.Error("Does not fail if one signature is on different message")
+			assert.False(t, Verify(params, vk, attrsBig, sig2), test.msg)
+			assert.False(t, Verify(params, vk, mAttrsBig, sig), test.msg)
+		}
 	}
 }
 
-func TestSchemeBlindVerifyOnlyPublic(t *testing.T) {
-	params := Setup(6)
-	_, gamma := elgamal.Keygen(params.G)
+// todo: add tests for private
+func TestSchemeRandomize(t *testing.T) {
+	tests := []struct {
+		attrs []string
+		msg   string
+	}{
+		{attrs: []string{"Hello World!"}, msg: "Should verify a randomized signature on single public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, msg: "Should verify a radomized signature on three public attribute"},
+	}
 
-	pub := []string{"Foo", "Bar", "Baz"}
-	var err error
+	for _, test := range tests {
+		params := Setup(len(test.attrs))
+		sk, vk := Keygen(params)
 
-	pubBig := make([]*BLS381.BIG, len(pub))
-	privBig := []*BLS381.BIG{}
-	for i := range pub {
-		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, pub[i])
-		if err != nil {
-			t.Error(err)
+		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		for i := range test.attrs {
+			var err error
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
 		}
-	}
+		sig, err := Sign(params, sk, attrsBig)
+		assert.Nil(t, err)
 
-	_, err = PrepareBlindSign(params, gamma, pubBig, privBig)
-	if err == nil {
-		t.Error("PrepareBlindSign did not throw an error when there were no private attributes to sign")
-	}
-
-}
-
-func TestSchemeBlindVerifyOnlyPrivate(t *testing.T) {
-	params := Setup(3)
-	sk, vk := Keygen(params)
-	d, gamma := elgamal.Keygen(params.G)
-
-	priv := []string{"Foo2", "Bar2", "Baz2"}
-	var err error
-
-	pubBig := []*BLS381.BIG{}
-	privBig := make([]*BLS381.BIG, len(priv))
-
-	for i := range priv {
-		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
-		if err != nil {
-			t.Error(err)
-		}
-	}
-
-	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-	if err != nil {
-		t.Error(err)
-	}
-
-	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-	if err != nil {
-		t.Error(err)
-	}
-
-	sig := Unblind(params, blindedSignature, d)
-
-	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
-	if err != nil {
-		t.Error(err)
-	}
-
-	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {
-		t.Error("Failed to verify blind signature on multiple private and no public attributes")
-	}
-	if !Verify(params, vk, append(privBig, pubBig...), sig) {
-		t.Error("Failed to verify blind signature on multiple private and no public attributes after revealing all private attributes")
+		randSig := Randomize(params, sig)
+		assert.True(t, Verify(params, vk, attrsBig, randSig), test.msg)
 	}
 }
 
-func TestSchemeBlindVerifyMixedAttributes(t *testing.T) {
-	params := Setup(6)
-	sk, vk := Keygen(params)
-	d, gamma := elgamal.Keygen(params.G)
+// todo: also tests for private
+func TestSchemeKeyAggregation(t *testing.T) {
+	tests := []struct {
+		attrs []string
+		msg   string
+	}{
+		{attrs: []string{"Hello World!"}, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+	}
 
-	pub := []string{"Foo", "Bar", "Baz"}
-	priv := []string{"Foo2", "Bar2", "Baz2"}
-	var err error
+	for _, test := range tests {
+		params := Setup(len(test.attrs))
+		sk, vk := Keygen(params)
 
-	pubBig := make([]*BLS381.BIG, len(pub))
-	privBig := make([]*BLS381.BIG, len(priv))
-	for i := range pub {
-		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, pub[i])
-		if err != nil {
-			t.Error(err)
+		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		for i := range test.attrs {
+			var err error
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		sig, err := Sign(params, sk, attrsBig)
+		assert.Nil(t, err)
+
+		avk := AggregateVerificationKeys(params, []*VerificationKey{vk})
+		assert.True(t, Verify(params, avk, attrsBig, sig), test.msg)
+	}
+}
+
+func TestSchemeAggregateVerification(t *testing.T) {
+	tests := []struct {
+		attrs          []string
+		authorities    int
+		maliciousAuth  int
+		maliciousAttrs []string
+		msg            string
+	}{
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+	}
+
+	for _, test := range tests {
+		params := Setup(len(test.attrs))
+		sks := make([]*SecretKey, test.authorities)
+		vks := make([]*VerificationKey, test.authorities)
+		for i := 0; i < test.authorities; i++ {
+			sk, vk := Keygen(params)
+			sks[i] = sk
+			vks[i] = vk
+		}
+
+		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		for i := range test.attrs {
+			var err error
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		signatures := make([]*Signature, test.authorities)
+		for i := 0; i < test.authorities; i++ {
+			var err error
+			signatures[i], err = Sign(params, sks[i], attrsBig)
+			assert.Nil(t, err)
+		}
+
+		aSig := AggregateSignatures(params, signatures)
+		avk := AggregateVerificationKeys(params, vks)
+
+		assert.True(t, Verify(params, avk, attrsBig, aSig), test.msg)
+
+		if test.maliciousAuth > 0 {
+			msks := make([]*SecretKey, test.maliciousAuth)
+			mvks := make([]*VerificationKey, test.maliciousAuth)
+			for i := 0; i < test.maliciousAuth; i++ {
+				sk, vk := Keygen(params)
+				msks[i] = sk
+				mvks[i] = vk
+			}
+
+			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
+			for i := range test.maliciousAttrs {
+				var err error
+				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
+				assert.Nil(t, err)
+			}
+
+			mSignatures := make([]*Signature, test.maliciousAuth)
+			for i := 0; i < test.maliciousAuth; i++ {
+				var err error
+				mSignatures[i], err = Sign(params, msks[i], mAttrsBig)
+				assert.Nil(t, err)
+			}
+
+			maSig := AggregateSignatures(params, mSignatures)
+			mavk := AggregateVerificationKeys(params, mvks)
+			maSig2 := AggregateSignatures(params, append(signatures, mSignatures...))
+			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...))
+
+			assert.False(t, Verify(params, mavk, attrsBig, maSig), test.msg)
+			assert.False(t, Verify(params, mavk2, attrsBig, maSig2), test.msg)
+
+			assert.False(t, Verify(params, avk, mAttrsBig, maSig), test.msg)
+			assert.False(t, Verify(params, mavk2, mAttrsBig, aSig), test.msg)
+
+			assert.False(t, Verify(params, avk, mAttrsBig, maSig2), test.msg)
+			assert.False(t, Verify(params, mavk2, mAttrsBig, maSig2), test.msg)
 		}
 	}
-	for i := range priv {
-		privBig[i], err = utils.HashStringToBig(amcl.SHA256, priv[i])
-		if err != nil {
-			t.Error(err)
+}
+
+func TestSchemeBlindVerify(t *testing.T) {
+	tests := []struct {
+		q    int
+		pub  []string
+		priv []string
+		err  error
+		msg  string
+	}{
+		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: ErrPrepareBlindSignPrivate, msg: "Should not allow blindly signing messages with no private attributes"},
+		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: ErrPrepareBlindSignParams, msg: "Should not allow blindly signing messages with invalid params"},
+		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil, msg: "Should blindly sign a valid set of private attributes"},
+		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil, msg: "Should blindly sign a valid set of public and private attributes"},
+		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil, msg: "Should blindly sign a valid set of public and private attributes"}, // q > len(pub) + len(priv)
+	}
+
+	for _, test := range tests {
+		params := Setup(test.q)
+		sk, vk := Keygen(params)
+		d, gamma := elgamal.Keygen(params.G)
+
+		pubBig := make([]*BLS381.BIG, len(test.pub))
+		privBig := make([]*BLS381.BIG, len(test.priv))
+
+		var err error
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
 		}
-	}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
 
-	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-	if err != nil {
-		t.Error(err)
-	}
+		}
 
-	blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-	if err != nil {
-		t.Error(err)
-	}
+		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+		if len(test.priv) == 0 {
+			assert.Equal(t, test.err, err)
+			return
+		} else if test.q < len(test.priv)+len(test.pub) {
+			assert.Equal(t, test.err, err)
+			return
+		} else {
+			assert.Nil(t, err)
+		}
 
-	sig := Unblind(params, blindedSignature, d)
+		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, BLS381.NewBIG())) // ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
+		assert.Equal(t, ErrPrepareBlindSignParams, err, test.msg)
 
-	blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
-	if err != nil {
-		t.Error(err)
-	}
+		incorrectGamma := BLS381.NewECP()
+		incorrectGamma.Copy(gamma)
+		incorrectGamma.Add(BLS381.NewECP())                                                            // adds point in infinity
+		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, BLS381.NewBIG())) // just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
+		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
 
-	if !BlindVerify(params, vk, sig, blindShowMats, pubBig) {
-		t.Error("Failed to verify blind signature on multiple private and public attributes")
-	}
-	if !Verify(params, vk, append(privBig, pubBig...), sig) {
-		t.Error("Failed to verify blind signature on multiple private and public attributes after revealing all private attributes")
+		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+		sig := Unblind(params, blindedSignature, d)
+
+		_, err = ShowBlindSignature(params, vk, sig, []*BLS381.BIG{})
+		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
+
+		_, err = ShowBlindSignature(params, vk, sig, append(privBig, BLS381.NewBIG())) // ensures len(private_m) > len(vk.beta
+		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
+
+		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+		assert.Nil(t, err)
+
+		assert.True(t, BlindVerify(params, vk, sig, blindShowMats, pubBig), test.msg)
+		assert.True(t, Verify(params, vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
 	}
 }

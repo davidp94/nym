@@ -65,7 +65,15 @@ func HashStringToG1(sha int, m string) (*BLS381.ECP, error) {
 	return BLS381.ECP_mapit(hash), nil
 }
 
-func PolyEval(coeff []*BLS381.BIG, x int) *BLS381.BIG {
-
-	return nil
+// PolyEval evaluate a polynomial defined by the slice of coefficient coeff at point x
+// All operations are performed mod o
+func PolyEval(coeff []*BLS381.BIG, x int, o *BLS381.BIG) *BLS381.BIG {
+	xBIG := BLS381.NewBIGint(x)
+	result := BLS381.NewBIG()
+	for i := range coeff {
+		iBIG := BLS381.NewBIGint(i)
+		t := xBIG.Powmod(iBIG, o)                  // x ^ i
+		result.Plus(BLS381.Modmul(coeff[i], t, o)) // coeff[i] * x ^ i + ...
+	}
+	return result
 }
