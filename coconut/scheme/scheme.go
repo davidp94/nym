@@ -404,17 +404,16 @@ func Randomize(params *Params, sig *Signature) *Signature {
 
 func AggregateVerificationKeys(params *Params, vks []*VerificationKey, threshold bool) *VerificationKey {
 	var l []*BLS381.BIG
+	var alpha *BLS381.ECP2
+	beta := make([]*BLS381.ECP2, len(vks[0].beta))
+
 	if threshold {
 		t := len(vks)
 		l = make([]*BLS381.BIG, t)
 		for i := 1; i < t+1; i++ {
 			l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
 		}
-	}
 
-	var alpha *BLS381.ECP2
-	beta := make([]*BLS381.ECP2, len(vks[0].beta))
-	if threshold {
 		alpha = BLS381.G2mul(vks[0].alpha, l[0])
 		for i := 1; i < len(vks); i++ {
 			alpha.Add(BLS381.G2mul(vks[i].alpha, l[i]))
@@ -456,18 +455,31 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, threshold
 	}
 }
 
-// todo: special case for threshold
-func AggregateSignatures(params *Params, sigs []*Signature) *Signature {
+func AggregateSignatures(params *Params, sigs []*Signature, threshold bool) *Signature {
 	// in principle there's no need to copy sig1 as it's the same among all signatures and we can reuse one of the pointers
-	sig2Cp := BLS381.NewECP()
-	sig2Cp.Copy(sigs[0].sig2)
+	var l []*BLS381.BIG
+	var sig2 *BLS381.ECP
+	if threshold {
+		t := len(sigs)
+		l = make([]*BLS381.BIG, t)
+		for i := 1; i < t+1; i++ {
+			l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		}
+		sig2 = BLS381.G1mul(sigs[0].sig2, l[0])
+		for i := 1; i < len(sigs); i++ {
+			sig2.Add(BLS381.G1mul(sigs[i].sig2, l[0]))
+		}
+	} else {
+		sig2 = BLS381.NewECP()
+		sig2.Copy(sigs[0].sig2)
 
-	for i := 1; i < len(sigs); i++ {
-		sig2Cp.Add(sigs[i].sig2)
+		for i := 1; i < len(sigs); i++ {
+			sig2.Add(sigs[i].sig2)
+		}
 	}
 
 	return &Signature{
 		sig1: sigs[0].sig1,
-		sig2: sig2Cp,
+		sig2: sig2,
 	}
 }
