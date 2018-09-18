@@ -72,8 +72,8 @@ func PolyEval(coeff []*BLS381.BIG, x int, o *BLS381.BIG) *BLS381.BIG {
 	result := BLS381.NewBIG()
 	for i := range coeff {
 		iBIG := BLS381.NewBIGint(i)
-		t := xBIG.Powmod(iBIG, o)                  // x ^ i
-		result.Plus(BLS381.Modmul(coeff[i], t, o)) // coeff[i] * x ^ i + ...
+		t := xBIG.Powmod(iBIG, o)                           // x ^ i
+		result = result.Plus(BLS381.Modmul(coeff[i], t, o)) // coeff[i] * x ^ i + ...
 	}
 	return result
 }
