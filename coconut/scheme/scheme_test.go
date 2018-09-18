@@ -20,6 +20,15 @@ func TestSchemeSetup(t *testing.T) {
 	assert.Equal(t, 10, len(params.hs))
 }
 
+func keygenTest(t *testing.T, params *Params, sk *SecretKey, vk *VerificationKey) {
+	assert.True(t, params.G.Gen2.Equals(vk.g2))
+	assert.True(t, BLS381.G2mul(vk.g2, sk.x).Equals(vk.alpha))
+	assert.Equal(t, len(sk.y), len(vk.beta))
+	for i := range vk.beta {
+		assert.Equal(t, vk.beta[i], BLS381.G2mul(vk.g2, sk.y[i]))
+	}
+}
+
 func TestSchemeKeygen(t *testing.T) {
 	params, err := Setup(10)
 	assert.Nil(t, err)
@@ -29,11 +38,28 @@ func TestSchemeKeygen(t *testing.T) {
 
 	sk, vk, err = Keygen(params)
 	assert.Nil(t, err)
-	assert.True(t, params.G.Gen2.Equals(vk.g2))
-	assert.True(t, BLS381.G2mul(vk.g2, sk.x).Equals(vk.alpha))
-	assert.Equal(t, len(sk.y), len(vk.beta))
-	for i := range vk.beta {
-		assert.Equal(t, vk.beta[i], BLS381.G2mul(vk.g2, sk.y[i]))
+
+	keygenTest(t, params, sk, vk)
+}
+
+func TestSchemeTTPKeygen(t *testing.T) {
+	params, err := Setup(10)
+	assert.Nil(t, err)
+
+	_, _, err = TTPKeygen(params, 6, 5)
+	assert.Equal(t, ErrTTPKeygenParams, err)
+
+	_, _, err = TTPKeygen(params, 0, 6)
+	assert.Equal(t, ErrTTPKeygenParams, err)
+
+	_, _, err = TTPKeygen(&Params{G: params.G, hs: nil}, 6, 6)
+	assert.Equal(t, ErrTTPKeygenParams, err)
+
+	sks, vks, err := TTPKeygen(&Params{G: params.G, hs: nil}, 6, 6)
+	assert.Equal(t, len(sks), len(vks))
+
+	for i := range sks {
+		keygenTest(t, params, sks[i], vks[i])
 	}
 }
 

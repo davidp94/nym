@@ -128,7 +128,7 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
 func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, error) {
 	q := len(params.hs)
 	G := params.G
-	if n < t || t == 0 || q == 0 {
+	if n < t || t <= 0 || q <= 0 {
 		return nil, nil, ErrTTPKeygenParams
 	}
 
@@ -202,7 +202,7 @@ func Sign(params *Params, sk *SecretKey, public_m []*BLS381.BIG) (*Signature, er
 
 func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG, private_m []*BLS381.BIG) (*BlindSignMats, error) {
 	G := params.G
-	if len(private_m) == 0 {
+	if len(private_m) <= 0 {
 		return nil, ErrPrepareBlindSignPrivate
 	}
 	attributes := append(private_m, public_m...)
@@ -334,7 +334,7 @@ func Verify(params *Params, vk *VerificationKey, public_m []*BLS381.BIG, sig *Si
 
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG) (*BlindShowMats, error) {
 	G := params.G
-	if len(private_m) == 0 || len(private_m) > len(vk.beta) {
+	if len(private_m) <= 0 || len(private_m) > len(vk.beta) {
 		return nil, ErrShowBlindAttr
 	}
 
@@ -367,7 +367,7 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 	}
 
 	var aggr *BLS381.ECP2
-	if len(public_m) == 0 {
+	if len(public_m) <= 0 {
 		aggr = BLS381.NewECP2() // new point is at infinity
 	} else {
 		aggr = BLS381.G2mul(vk.beta[privateLen], public_m[0]) // guaranteed to have at least 1 element
