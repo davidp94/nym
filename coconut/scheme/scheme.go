@@ -402,24 +402,50 @@ func Randomize(params *Params, sig *Signature) *Signature {
 	return &rSig
 }
 
-// todo: special case for threshold
-func AggregateVerificationKeys(params *Params, vks []*VerificationKey) *VerificationKey {
-	alpha := BLS381.NewECP2()
-	alpha.Copy(vks[0].alpha)
-	for i := 1; i < len(vks); i++ {
-		alpha.Add(vks[i].alpha)
+func AggregateVerificationKeys(params *Params, vks []*VerificationKey, threshold bool) *VerificationKey {
+	var l []*BLS381.BIG
+	if threshold {
+		t := len(vks)
+		l = make([]*BLS381.BIG, t)
+		for i := 1; i < t+1; i++ {
+			l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		}
 	}
 
+	var alpha *BLS381.ECP2
 	beta := make([]*BLS381.ECP2, len(vks[0].beta))
+	if threshold {
+		alpha = BLS381.G2mul(vks[0].alpha, l[0])
+		for i := 1; i < len(vks); i++ {
+			alpha.Add(BLS381.G2mul(vks[i].alpha, l[i]))
+		}
 
-	for i := 0; i < len(vks[0].beta); i++ {
-		beta[i] = BLS381.NewECP2()
-		beta[i].Copy(vks[0].beta[i])
-	}
+		for i := 0; i < len(vks[0].beta); i++ {
+			beta[i] = BLS381.G2mul(vks[0].beta[i], l[0])
+		}
 
-	for i := 1; i < len(vks); i++ { // we already copied values from first set of keys
-		for j := 0; j < len(beta); j++ {
-			beta[j].Add(vks[i].beta[j])
+		for i := 1; i < len(vks); i++ { // we already got values from first set of keys
+			for j := 0; j < len(beta); j++ {
+				beta[j].Add(BLS381.G2mul(vks[i].beta[j], l[i]))
+			}
+		}
+
+	} else {
+		alpha = BLS381.NewECP2()
+		alpha.Copy(vks[0].alpha)
+		for i := 1; i < len(vks); i++ {
+			alpha.Add(vks[i].alpha)
+		}
+
+		for i := 0; i < len(vks[0].beta); i++ {
+			beta[i] = BLS381.NewECP2()
+			beta[i].Copy(vks[0].beta[i])
+		}
+
+		for i := 1; i < len(vks); i++ { // we already copied values from first set of keys
+			for j := 0; j < len(beta); j++ {
+				beta[j].Add(vks[i].beta[j])
+			}
 		}
 	}
 

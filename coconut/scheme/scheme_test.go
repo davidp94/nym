@@ -207,7 +207,7 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		sig, err := Sign(params, sk, attrsBig)
 		assert.Nil(t, err)
 
-		avk := AggregateVerificationKeys(params, []*VerificationKey{vk})
+		avk := AggregateVerificationKeys(params, []*VerificationKey{vk}, false)
 		assert.True(t, Verify(params, avk, attrsBig, sig), test.msg)
 	}
 }
@@ -254,7 +254,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		}
 
 		aSig := AggregateSignatures(params, signatures)
-		avk := AggregateVerificationKeys(params, vks)
+		avk := AggregateVerificationKeys(params, vks, false)
 
 		assert.True(t, Verify(params, avk, attrsBig, aSig), test.msg)
 
@@ -281,9 +281,9 @@ func TestSchemeAggregateVerification(t *testing.T) {
 			}
 
 			maSig := AggregateSignatures(params, mSignatures)
-			mavk := AggregateVerificationKeys(params, mvks)
+			mavk := AggregateVerificationKeys(params, mvks, false)
 			maSig2 := AggregateSignatures(params, append(signatures, mSignatures...))
-			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...))
+			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...), false)
 
 			assert.False(t, Verify(params, mavk, attrsBig, maSig), test.msg)
 			assert.False(t, Verify(params, mavk2, attrsBig, maSig2), test.msg)
