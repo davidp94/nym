@@ -346,10 +346,8 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 	}
 	nu := BLS381.G1mul(sig.sig1, t)
 
-	verifierProof, err := ConstructVerifierProof(params, vk, sig, private_m, t)
-	if err != nil {
-		return nil, err
-	}
+	verifierProof := ConstructVerifierProof(params, vk, sig, private_m, t)
+
 	return &BlindShowMats{
 		kappa: kappa,
 		nu:    nu,

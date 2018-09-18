@@ -11,237 +11,125 @@ import (
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
-func TestVerifySignerProofSinglePrivate(t *testing.T) {
-	params, err := Setup(1)
-	assert.Nil(t, err)
-
-	priv := []string{"Bar"}
-
-	privBig := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		privBig[i], _ = utils.HashStringToBig(amcl.SHA256, priv[i])
+func TestSignerProof(t *testing.T) {
+	tests := []struct {
+		pub  []string
+		priv []string
+		msg  string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}, msg: "The proof should verify on single private attribute"},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
+		{pub: []string{"Foo"}, priv: []string{}, msg: "The proof should verify on single public attribute"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{}, msg: "The proof should verify on three public attribute"},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}, msg: "The proof should verify on single public and private attributes"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three public and private attributes"},
 	}
 
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
-	}
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
-	if err != nil {
-		t.Error(err)
-	}
+	for _, test := range tests {
+		params, err := Setup(len(test.pub) + len(test.priv))
+		assert.Nil(t, err)
 
-	_, gamma := elgamal.Keygen(params.G)
-	encs := make([]*elgamal.ElGamalEncryption, len(priv))
-	ks := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
-		encs[i] = c
-		ks[i] = k
-	}
+		pubBig := make([]*BLS381.BIG, len(test.pub))
+		privBig := make([]*BLS381.BIG, len(test.priv))
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
+		}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
+		}
 
-	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*BLS381.BIG{}, privBig)
-	if err != nil {
-		t.Error(nil)
-	}
+		attributes := append(privBig, pubBig...)
 
-	isProofValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for single private attribute (no public)")
-	}
+		r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
+		cm := BLS381.G1mul(params.G.Gen1, r)
+		for i := range attributes {
+			cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+		}
+		h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+		assert.Nil(t, err)
 
-}
+		_, gamma := elgamal.Keygen(params.G)
+		encs := make([]*elgamal.ElGamalEncryption, len(test.priv))
+		ks := make([]*BLS381.BIG, len(test.priv))
+		for i := range test.priv {
+			c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
+			encs[i] = c
+			ks[i] = k
+		}
 
-func TestVerifySignerProofMultiplePrivate(t *testing.T) {
-	params, err := Setup(3)
-	assert.Nil(t, err)
+		if len(test.priv) > 0 {
+			_, err = ConstructSignerProof(params, gamma, encs, cm, ks[1:], r, pubBig, privBig)
+			assert.Equal(t, ErrConstructSignerCiphertexts, err)
 
-	priv := []string{"Foo", "Bar", "Baz"}
+			_, err = ConstructSignerProof(params, gamma, encs[1:], cm, ks, r, pubBig, privBig)
+			assert.Equal(t, ErrConstructSignerCiphertexts, err)
 
-	privBig := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		privBig[i], _ = utils.HashStringToBig(amcl.SHA256, priv[i])
-	}
+			_, err = ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig[1:])
+			assert.Equal(t, ErrConstructSignerCiphertexts, err)
+		}
 
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range privBig {
-		cm.Add(BLS381.G1mul(params.hs[i], privBig[i]))
-	}
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
-	if err != nil {
-		t.Error(err)
-	}
+		_, err = ConstructSignerProof(&Params{G: params.G, hs: params.hs[1:]}, gamma, encs, cm, ks, r, pubBig, privBig)
+		assert.Equal(t, ErrConstructSignerAttrs, err)
 
-	_, gamma := elgamal.Keygen(params.G)
-	encs := make([]*elgamal.ElGamalEncryption, len(priv))
-	ks := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
-		encs[i] = c
-		ks[i] = k
-	}
+		_, err = ConstructSignerProof(params, gamma, encs, cm, ks, r, append(pubBig, BLS381.NewBIG()), privBig)
+		assert.Equal(t, ErrConstructSignerAttrs, err)
 
-	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*BLS381.BIG{}, privBig)
-	if err != nil {
-		t.Error(nil)
-	}
+		signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig)
+		assert.Nil(t, err)
 
-	isProofValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for three private attribute (no public)")
+		if len(test.priv) > 0 {
+			assert.False(t, VerifySignerProof(params, gamma, encs[1:], cm, signerProof), test.msg)
+			assert.False(t, VerifySignerProof(params, gamma, encs, cm, &SignerProof{c: signerProof.c, rr: signerProof.rr, rk: signerProof.rk[1:], rm: signerProof.rm}), test.msg)
+		}
+		assert.True(t, VerifySignerProof(params, gamma, encs, cm, signerProof), test.msg)
 	}
 }
 
-func TestVerifySignerProofSinglePublic(t *testing.T) {
-	params, err := Setup(1)
-	assert.Nil(t, err)
-
-	pub := []string{"Foo"}
-
-	pubBig := make([]*BLS381.BIG, len(pub))
-	for i := range pub {
-		pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, pub[i])
+func TestVerifierProof(t *testing.T) {
+	tests := []struct {
+		pub  []string
+		priv []string
+		msg  string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}, msg: "The proof should verify on single private attribute"},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}, msg: "The proof should verify on single public and private attributes"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three public and private attributes"},
 	}
 
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range pub {
-		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
-	}
+	for _, test := range tests {
+		params, err := Setup(len(test.pub) + len(test.priv))
+		assert.Nil(t, err)
 
-	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
-	if err != nil {
-		t.Error(nil)
-	}
+		pubBig := make([]*BLS381.BIG, len(test.pub))
+		privBig := make([]*BLS381.BIG, len(test.priv))
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
+		}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
+		}
 
-	isProofValid := VerifySignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for single public attribute (no private)")
-	}
-}
+		sk, vk, err := Keygen(params)
+		assert.Nil(t, err)
+		d, gamma := elgamal.Keygen(params.G)
 
-func TestVerifySignerProofMultiplePublic(t *testing.T) {
-	params, err := Setup(3)
-	assert.Nil(t, err)
+		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+		assert.Nil(t, err)
 
-	pub := []string{"Foo", "Bar", "Baz"}
+		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+		assert.Nil(t, err)
 
-	pubBig := make([]*BLS381.BIG, len(pub))
-	for i := range pub {
-		pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, pub[i])
-	}
+		sig := Unblind(params, blindedSignature, d)
 
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range pub {
-		cm.Add(BLS381.G1mul(params.hs[i], pubBig[i]))
-	}
+		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
+		assert.Nil(t, err)
 
-	signerProof, err := ConstructSignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, []*BLS381.BIG{}, r, pubBig, []*BLS381.BIG{})
-	if err != nil {
-		t.Error(nil)
-	}
-
-	isProofValid := VerifySignerProof(params, nil, []*elgamal.ElGamalEncryption{}, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for three public attribute (no private)")
-	}
-}
-
-func TestVerifySignerProofSingleMixed(t *testing.T) {
-	params, err := Setup(2)
-	assert.Nil(t, err)
-
-	pub := []string{"Foo"}
-	priv := []string{"Bar"}
-
-	pubBig := make([]*BLS381.BIG, len(pub))
-	privBig := make([]*BLS381.BIG, len(priv))
-	for i := range pub {
-		pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, pub[i])
-	}
-	for i := range priv {
-		privBig[i], _ = utils.HashStringToBig(amcl.SHA256, priv[i])
-	}
-	attributes := append(privBig, pubBig...)
-
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
-	}
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
-	if err != nil {
-		t.Error(err)
-	}
-
-	_, gamma := elgamal.Keygen(params.G)
-	encs := make([]*elgamal.ElGamalEncryption, len(priv))
-	ks := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
-		encs[i] = c
-		ks[i] = k
-	}
-
-	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig)
-	if err != nil {
-		t.Error(nil)
-	}
-
-	isProofValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for single public and single private attribute")
-	}
-}
-
-// todo: dont ignore errs
-func TestVerifySignerProofMultipleMixed(t *testing.T) {
-	params, err := Setup(6)
-	assert.Nil(t, err)
-
-	pub := []string{"Foo", "Bar", "Baz"}
-	priv := []string{"Foo2", "Bar2", "Baz2"}
-
-	pubBig := make([]*BLS381.BIG, len(pub))
-	privBig := make([]*BLS381.BIG, len(priv))
-	for i := range pub {
-		pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, pub[i])
-	}
-	for i := range priv {
-		privBig[i], _ = utils.HashStringToBig(amcl.SHA256, priv[i])
-	}
-	attributes := append(privBig, pubBig...)
-
-	r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-	cm := BLS381.G1mul(params.G.Gen1, r)
-	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
-	}
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
-	if err != nil {
-		t.Error(err)
-	}
-
-	_, gamma := elgamal.Keygen(params.G)
-	encs := make([]*elgamal.ElGamalEncryption, len(priv))
-	ks := make([]*BLS381.BIG, len(priv))
-	for i := range priv {
-		c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
-		encs[i] = c
-		ks[i] = k
-	}
-
-	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig)
-	if err != nil {
-		t.Error(nil)
-	}
-
-	isProofValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
-	if !isProofValid {
-		t.Error("The signer proof is invalid for three public and three private attribute")
+		assert.True(t, VerifyVerifierProof(params, vk, sig, blindShowMats), test.msg)
 	}
 }
 

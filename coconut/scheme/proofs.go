@@ -31,6 +31,11 @@ type Printable interface {
 	ToString() string
 }
 
+var (
+	ErrConstructSignerCiphertexts = errors.New("Invalid ciphertexts provided")
+	ErrConstructSignerAttrs       = errors.New("More than specified number of attributes provided")
+)
+
 func constructChallenge(elems []Printable) *BLS381.BIG {
 	csa := make([]string, len(elems))
 	for i := range elems {
@@ -49,10 +54,10 @@ func ConstructSignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElG
 	attributes := append(private_m, public_m...)
 	G := params.G
 	if len(encs) != len(k) || len(encs) != len(private_m) {
-		return nil, errors.New("Invalid ciphertexts provided")
+		return nil, ErrConstructSignerCiphertexts
 	}
 	if len(attributes) > len(params.hs) {
-		return nil, errors.New("More than specified number of attributes provided")
+		return nil, ErrConstructSignerAttrs
 	}
 
 	// witnesses creation
@@ -191,7 +196,7 @@ func VerifySignerProof(params *Params, gamma *BLS381.ECP, encs []*elgamal.ElGama
 	return BLS381.Comp(proof.c, constructChallenge(ca)) == 0
 }
 
-func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG, t *BLS381.BIG) (*VerifierProof, error) {
+func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, private_m []*BLS381.BIG, t *BLS381.BIG) *VerifierProof {
 	G := params.G
 
 	// witnesses
@@ -241,7 +246,7 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 		c:  c,
 		rm: rm,
 		rt: rt,
-	}, nil
+	}
 }
 
 func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats) bool {
