@@ -2,9 +2,6 @@
 // those will be added in further iteration
 
 // todos:
-// modify sk to be in form of (x, [ys])
-// modify vk to be in form of (g2, x, [ys])
-// introduce 'assertions' in older functions
 // tests for combined aggregation of keys, signatures, randomization for blind signatures
 // threshold
 
