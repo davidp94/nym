@@ -59,6 +59,10 @@ type BlindShowMats struct {
 	proof *VerifierProof
 }
 
+type ThresholdIndices struct {
+	indices []int
+}
+
 var (
 	ErrSetupParams             = errors.New("Can't generate params for less than 1 attribute")
 	ErrSignParams              = errors.New("Invalid attributes/secret key provided")
@@ -135,6 +139,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	for i := range v {
 		v[i] = BLS381.Randomnum(G.Ord, G.Rng)
 	}
+
 	w := make([][]*BLS381.BIG, q)
 	for i := range w {
 		w[i] = make([]*BLS381.BIG, t)
@@ -145,7 +150,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 
 	// secret keys
 	sks := make([]*SecretKey, n)
-	for i := 1; i <= n; i++ {
+	for i := 1; i < n+1; i++ {
 		x := utils.PolyEval(v, i, G.Ord)
 		ys := make([]*BLS381.BIG, q)
 		for j, wj := range w {
@@ -403,12 +408,12 @@ func Randomize(params *Params, sig *Signature) *Signature {
 	return &rSig
 }
 
-func AggregateVerificationKeys(params *Params, vks []*VerificationKey, threshold bool) *VerificationKey {
+func AggregateVerificationKeys(params *Params, vks []*VerificationKey, thi *ThresholdIndices) *VerificationKey {
 	var l []*BLS381.BIG
 	var alpha *BLS381.ECP2
 	beta := make([]*BLS381.ECP2, len(vks[0].beta))
 
-	if threshold {
+	if thi != nil {
 		t := len(vks)
 		l = make([]*BLS381.BIG, t)
 		for i := 1; i < t+1; i++ {
@@ -456,11 +461,11 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, threshold
 	}
 }
 
-func AggregateSignatures(params *Params, sigs []*Signature, threshold bool) *Signature {
+func AggregateSignatures(params *Params, sigs []*Signature, thi *ThresholdIndices) *Signature {
 	// in principle there's no need to copy sig1 as it's the same among all signatures and we can reuse one of the pointers
 	var l []*BLS381.BIG
 	var sig2 *BLS381.ECP
-	if threshold {
+	if thi != nil {
 		t := len(sigs)
 		l = make([]*BLS381.BIG, t)
 		for i := 1; i < t+1; i++ {
@@ -468,7 +473,7 @@ func AggregateSignatures(params *Params, sigs []*Signature, threshold bool) *Sig
 		}
 		sig2 = BLS381.G1mul(sigs[0].sig2, l[0])
 		for i := 1; i < len(sigs); i++ {
-			sig2.Add(BLS381.G1mul(sigs[i].sig2, l[0]))
+			sig2.Add(BLS381.G1mul(sigs[i].sig2, l[i]))
 		}
 	} else {
 		sig2 = BLS381.NewECP()

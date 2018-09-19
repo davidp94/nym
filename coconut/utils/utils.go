@@ -100,7 +100,4 @@ func LagrangeBasis(t int, o *BLS381.BIG, i int, x int) *BLS381.BIG {
 	}
 	denominator.Invmodp(o) // denominator = 1/denominator % o
 	return BLS381.Modmul(numerator, denominator, o)
-	// res = res.Plus(o)
-	// res.Mod(o)
-	// return res
 }

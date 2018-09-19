@@ -61,6 +61,9 @@ func TestSchemeTTPKeygen(t *testing.T) {
 	for i := range sks {
 		keygenTest(t, params, sks[i], vks[i])
 	}
+
+	// assert that for any t, l[i]sks[i] etc = same result
+
 }
 
 func TestSchemeSign(t *testing.T) {
@@ -184,13 +187,13 @@ func TestSchemeRandomize(t *testing.T) {
 func TestSchemeKeyAggregation(t *testing.T) {
 	tests := []struct {
 		attrs     []string
-		threshold bool
+		threshold *ThresholdIndices
 		msg       string
 	}{
-		{attrs: []string{"Hello World!"}, threshold: false, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: false, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
-		{attrs: []string{"Hello World!"}, threshold: true, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: true, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, threshold: nil, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: nil, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, threshold: &ThresholdIndices{[]int{1}}, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: &ThresholdIndices{[]int{1, 2, 3}}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 	}
 
 	for _, test := range tests {
@@ -221,23 +224,23 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		authorities    int
 		maliciousAuth  int
 		maliciousAttrs []string
-		threshold      bool
+		threshold      *ThresholdIndices
 		t              int
 		msg            string
 	}{
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: false, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: false, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: nil, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: nil, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: nil, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: nil, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: nil, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: nil, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
 
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: true, t: 1, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: true, t: 2, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: &ThresholdIndices{[]int{1}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: &ThresholdIndices{[]int{1}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: &ThresholdIndices{[]int{1, 2, 3}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: &ThresholdIndices{[]int{1, 2, 3}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: &ThresholdIndices{[]int{1}}, t: 1, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: &ThresholdIndices{[]int{1, 2, 3}}, t: 2, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
 	}
 
 	for _, test := range tests {
@@ -247,7 +250,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		var sks []*SecretKey
 		var vks []*VerificationKey
 
-		if !test.threshold {
+		if test.threshold == nil {
 			sks = make([]*SecretKey, test.authorities)
 			vks = make([]*VerificationKey, test.authorities)
 			for i := 0; i < test.authorities; i++ {
@@ -389,67 +392,62 @@ func TestSchemeBlindVerify(t *testing.T) {
 	}
 }
 
-func TestThresholdAuthorities(t *testing.T) {
-	// single pub (no priv) causes panic - check why
-	// choose random t authorities to verify signature
-	test := struct {
-		pub  []string
-		priv []string
-		t    int
-		n    int
-	}{
-		// pub:  []string{"foo", "bar"},
-		// priv: []string{"foo2", "bar2"},
-		pub:  []string{},
-		priv: []string{"foo2"},
-		t:    5,
-		n:    6,
-	}
+// todo:
+// func TestThresholdAuthorities(t *testing.T) {
+// 	// choose random t authorities to verify signature
+// 	test := struct {
+// 		pub  []string
+// 		priv []string
+// 		t    int
+// 		n    int
+// 	}{
+// 		pub:  []string{"foo", "bar"},
+// 		priv: []string{"foo2", "bar2"},
+// 		t:    3,
+// 		n:    6,
+// 	}
 
-	params, err := Setup(1)
-	assert.Nil(t, err)
+// 	params, err := Setup(4)
+// 	assert.Nil(t, err)
 
-	d, gamma := elgamal.Keygen(params.G)
+// 	d, gamma := elgamal.Keygen(params.G)
 
-	pubBig := make([]*BLS381.BIG, len(test.pub))
-	privBig := make([]*BLS381.BIG, len(test.priv))
+// 	pubBig := make([]*BLS381.BIG, len(test.pub))
+// 	privBig := make([]*BLS381.BIG, len(test.priv))
 
-	for i := range test.pub {
-		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-		assert.Nil(t, err)
-	}
-	for i := range test.priv {
-		privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-		assert.Nil(t, err)
-	}
+// 	for i := range test.pub {
+// 		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+// 		assert.Nil(t, err)
+// 	}
+// 	for i := range test.priv {
+// 		privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+// 		assert.Nil(t, err)
+// 	}
 
-	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-	assert.Nil(t, err)
+// 	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+// 	assert.Nil(t, err)
 
-	sks, vks, err := TTPKeygen(params, test.t, test.n)
-	assert.Nil(t, err)
+// 	sks, vks, err := TTPKeygen(params, test.t, test.n)
+// 	assert.Nil(t, err)
 
-	avk := AggregateVerificationKeys(params, vks, true)
+// 	avk := AggregateVerificationKeys(params, vks, true)
 
-	signatures := make([]*Signature, test.n)
-	for i := 0; i < test.n; i++ {
-		blindedSignature, err := BlindSign(params, sks[i], blindSignMats, gamma, pubBig)
-		assert.Nil(t, err)
-		signatures[i] = Unblind(params, blindedSignature, d)
-	}
+// 	signatures := make([]*Signature, test.n)
+// 	for i := 0; i < test.n; i++ {
+// 		blindedSignature, err := BlindSign(params, sks[i], blindSignMats, gamma, pubBig)
+// 		assert.Nil(t, err)
+// 		signatures[i] = Unblind(params, blindedSignature, d)
+// 	}
 
-	// signatures = signatures[1:]
-	// signatures = []*Signature{signatures[0]}
+// 	aSig := AggregateSignatures(params, signatures, true)
+// 	// rSig := Randomize(params, aSig)
+// 	rSig := aSig
 
-	aSig := AggregateSignatures(params, signatures[1:], true)
-	// rSig := Randomize(params, aSig)
-	rSig := aSig
+// 	blindShowMats, err := ShowBlindSignature(params, avk, rSig, privBig)
+// 	assert.Nil(t, err)
 
-	blindShowMats, err := ShowBlindSignature(params, avk, rSig, privBig)
-	assert.Nil(t, err)
+// 	isValid := BlindVerify(params, avk, rSig, blindShowMats, pubBig)
 
-	isValid := BlindVerify(params, avk, rSig, blindShowMats, pubBig)
+// 	t.Error(" VALID? :", isValid)
 
-	t.Error(" VALID? :", isValid)
-
-}
+// }
