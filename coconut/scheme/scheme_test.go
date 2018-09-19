@@ -181,14 +181,16 @@ func TestSchemeRandomize(t *testing.T) {
 	}
 }
 
-// todo: also tests for private
 func TestSchemeKeyAggregation(t *testing.T) {
 	tests := []struct {
-		attrs []string
-		msg   string
+		attrs     []string
+		threshold bool
+		msg       string
 	}{
-		{attrs: []string{"Hello World!"}, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, threshold: false, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: false, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, threshold: true, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, threshold: true, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 	}
 
 	for _, test := range tests {
@@ -207,38 +209,56 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		sig, err := Sign(params, sk, attrsBig)
 		assert.Nil(t, err)
 
-		avk := AggregateVerificationKeys(params, []*VerificationKey{vk}, false)
+		avk := AggregateVerificationKeys(params, []*VerificationKey{vk}, test.threshold)
 		assert.True(t, Verify(params, avk, attrsBig, sig), test.msg)
 	}
 }
 
+// This particular test does not test the threshold property
 func TestSchemeAggregateVerification(t *testing.T) {
 	tests := []struct {
 		attrs          []string
 		authorities    int
 		maliciousAuth  int
 		maliciousAttrs []string
+		threshold      bool
+		t              int
 		msg            string
 	}{
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: false, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: false, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: false, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, threshold: true, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, threshold: true, t: 1, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, threshold: true, t: 2, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
 	}
 
 	for _, test := range tests {
 		params, err := Setup(len(test.attrs))
 		assert.Nil(t, err)
 
-		sks := make([]*SecretKey, test.authorities)
-		vks := make([]*VerificationKey, test.authorities)
-		for i := 0; i < test.authorities; i++ {
-			sk, vk, err := Keygen(params)
+		var sks []*SecretKey
+		var vks []*VerificationKey
+
+		if !test.threshold {
+			sks = make([]*SecretKey, test.authorities)
+			vks = make([]*VerificationKey, test.authorities)
+			for i := 0; i < test.authorities; i++ {
+				sk, vk, err := Keygen(params)
+				assert.Nil(t, err)
+				sks[i] = sk
+				vks[i] = vk
+			}
+		} else {
+			sks, vks, err = TTPKeygen(params, test.t, test.authorities)
 			assert.Nil(t, err)
-			sks[i] = sk
-			vks[i] = vk
 		}
 
 		attrsBig := make([]*BLS381.BIG, len(test.attrs))
@@ -253,8 +273,8 @@ func TestSchemeAggregateVerification(t *testing.T) {
 			assert.Nil(t, err)
 		}
 
-		aSig := AggregateSignatures(params, signatures, false)
-		avk := AggregateVerificationKeys(params, vks, false)
+		aSig := AggregateSignatures(params, signatures, test.threshold)
+		avk := AggregateVerificationKeys(params, vks, test.threshold)
 
 		assert.True(t, Verify(params, avk, attrsBig, aSig), test.msg)
 
@@ -280,10 +300,10 @@ func TestSchemeAggregateVerification(t *testing.T) {
 				assert.Nil(t, err)
 			}
 
-			maSig := AggregateSignatures(params, mSignatures, false)
-			mavk := AggregateVerificationKeys(params, mvks, false)
-			maSig2 := AggregateSignatures(params, append(signatures, mSignatures...), false)
-			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...), false)
+			maSig := AggregateSignatures(params, mSignatures, test.threshold)
+			mavk := AggregateVerificationKeys(params, mvks, test.threshold)
+			maSig2 := AggregateSignatures(params, append(signatures, mSignatures...), test.threshold)
+			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...), test.threshold)
 
 			assert.False(t, Verify(params, mavk, attrsBig, maSig), test.msg)
 			assert.False(t, Verify(params, mavk2, attrsBig, maSig2), test.msg)
@@ -330,7 +350,6 @@ func TestSchemeBlindVerify(t *testing.T) {
 		for i := range test.priv {
 			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
 			assert.Nil(t, err)
-
 		}
 
 		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
@@ -368,4 +387,69 @@ func TestSchemeBlindVerify(t *testing.T) {
 		assert.True(t, BlindVerify(params, vk, sig, blindShowMats, pubBig), test.msg)
 		assert.True(t, Verify(params, vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
 	}
+}
+
+func TestThresholdAuthorities(t *testing.T) {
+	// single pub (no priv) causes panic - check why
+	// choose random t authorities to verify signature
+	test := struct {
+		pub  []string
+		priv []string
+		t    int
+		n    int
+	}{
+		// pub:  []string{"foo", "bar"},
+		// priv: []string{"foo2", "bar2"},
+		pub:  []string{},
+		priv: []string{"foo2"},
+		t:    5,
+		n:    6,
+	}
+
+	params, err := Setup(1)
+	assert.Nil(t, err)
+
+	d, gamma := elgamal.Keygen(params.G)
+
+	pubBig := make([]*BLS381.BIG, len(test.pub))
+	privBig := make([]*BLS381.BIG, len(test.priv))
+
+	for i := range test.pub {
+		pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+		assert.Nil(t, err)
+	}
+	for i := range test.priv {
+		privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+		assert.Nil(t, err)
+	}
+
+	blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
+	assert.Nil(t, err)
+
+	sks, vks, err := TTPKeygen(params, test.t, test.n)
+	assert.Nil(t, err)
+
+	avk := AggregateVerificationKeys(params, vks, true)
+
+	signatures := make([]*Signature, test.n)
+	for i := 0; i < test.n; i++ {
+		blindedSignature, err := BlindSign(params, sks[i], blindSignMats, gamma, pubBig)
+		assert.Nil(t, err)
+		signatures[i] = Unblind(params, blindedSignature, d)
+	}
+
+	// signatures = signatures[1:]
+	// signatures = []*Signature{signatures[0]}
+
+	aSig := AggregateSignatures(params, signatures[1:], true)
+	// rSig := Randomize(params, aSig)
+	rSig := aSig
+
+	blindShowMats, err := ShowBlindSignature(params, avk, rSig, privBig)
+	assert.Nil(t, err)
+
+	isValid := BlindVerify(params, avk, rSig, blindShowMats, pubBig)
+
+	t.Error(" VALID? :", isValid)
+
 }

@@ -4,6 +4,7 @@
 // todos:
 // tests for combined aggregation of keys, signatures, randomization for blind signatures
 // threshold
+// allow for q being arbitrary larger than number of signed parameters
 
 package coconut
 
