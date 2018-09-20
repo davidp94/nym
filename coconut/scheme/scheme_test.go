@@ -346,7 +346,7 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		{attrs: []string{"Hello World!"}, pp: nil, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, pp: nil, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 		{attrs: []string{"Hello World!"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 	}
 
 	for _, test := range tests {
@@ -389,11 +389,9 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, pp: nil, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
 
 		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2, msg: "Should fail to verify aggregated where malicious signatures were introduced (threshold)"},
 	}
 
 	for _, test := range tests {
@@ -458,6 +456,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 
 			maSig := AggregateSignatures(params, mSignatures, test.pp)
 			mavk := AggregateVerificationKeys(params, mvks, test.pp)
+			// todo: think of some way to test it if malicious authorities are present?
 			maSig2 := AggregateSignatures(params, append(signatures, mSignatures...), test.pp)
 			mavk2 := AggregateVerificationKeys(params, append(vks, mvks...), test.pp)
 
