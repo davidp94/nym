@@ -14,22 +14,22 @@ func TestPolyEval(t *testing.T) {
 	order := BLS381.NewBIGints(BLS381.CURVE_Order)
 	tests := []struct {
 		coeff    []*BLS381.BIG
-		x        int
+		x        *BLS381.BIG
 		o        *BLS381.BIG
 		expected *BLS381.BIG
 	}{
 		{coeff: []*BLS381.BIG{BLS381.NewBIGint(20), BLS381.NewBIGint(21), BLS381.NewBIGint(42)},
-			x:        0,
+			x:        BLS381.NewBIGint(0),
 			o:        order,
 			expected: BLS381.NewBIGint(20),
 		},
 		{coeff: []*BLS381.BIG{BLS381.NewBIGint(0), BLS381.NewBIGint(0), BLS381.NewBIGint(0)},
-			x:        4,
+			x:        BLS381.NewBIGint(4),
 			o:        order,
 			expected: BLS381.NewBIGint(0),
 		},
 		{coeff: []*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3), BLS381.NewBIGint(4), BLS381.NewBIGint(5)},
-			x:        10,
+			x:        BLS381.NewBIGint(10),
 			o:        order,
 			expected: BLS381.NewBIGint(54321),
 		},
@@ -49,12 +49,14 @@ func TestLagrangeBasis(t *testing.T) {
 		v := make([]*BLS381.BIG, k)
 		ls := make([]*BLS381.BIG, k)
 		vals := make([]*BLS381.BIG, k)
+		xs := make([]*BLS381.BIG, k)
 		for i := range v {
 			v[i] = BLS381.Randomnum(G.Ord, G.Rng)
+			xs[i] = BLS381.Randomnum(G.Ord, G.Rng) // works for any xs
 		}
 		for i := range v {
-			ls[i] = utils.LagrangeBasis(k, G.Ord, i+1, 0)
-			vals[i] = utils.PolyEval(v, i+1, G.Ord)
+			ls[i] = utils.LagrangeBasis(i, G.Ord, xs, 0)
+			vals[i] = utils.PolyEval(v, xs[i], G.Ord)
 		}
 		interpolated := BLS381.Modmul(ls[0], vals[0], G.Ord)
 		for i := 1; i < len(v); i++ {
