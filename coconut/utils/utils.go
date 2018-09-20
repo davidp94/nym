@@ -67,32 +67,30 @@ func HashStringToG1(sha int, m string) (*BLS381.ECP, error) {
 
 // PolyEval evaluate a polynomial defined by the slice of coefficient coeff at point x
 // All operations are performed mod o
-func PolyEval(coeff []*BLS381.BIG, x int, o *BLS381.BIG) *BLS381.BIG {
-	xBIG := BLS381.NewBIGint(x)
+// todo update x to bignum
+func PolyEval(coeff []*BLS381.BIG, x *BLS381.BIG, o *BLS381.BIG) *BLS381.BIG {
 	result := BLS381.NewBIG()
 	for i := range coeff {
 		iBIG := BLS381.NewBIGint(i)
-		t := xBIG.Powmod(iBIG, o)                           // x ^ i
+		t := x.Powmod(iBIG, o)                              // x ^ i
 		result = result.Plus(BLS381.Modmul(coeff[i], t, o)) // coeff[i] * x ^ i + ...
 	}
 	return result
 }
 
 // Generates the lagrange basis polynomial li(x), for a polynomial of degree t-1
-// todo: implement more computationally efficient approach that only considers point at x = 0
-func LagrangeBasis(t int, o *BLS381.BIG, i int, x int) *BLS381.BIG {
+// Takes x values from xs and calculates it for point xs[i]. It is done around point x (usually 0)
+func LagrangeBasis(i int, o *BLS381.BIG, xs []*BLS381.BIG, x int) *BLS381.BIG {
 	numerator, denominator := BLS381.NewBIGint(1), BLS381.NewBIGint(1)
 	xBIG := BLS381.NewBIGint(x)
-	iBIG := BLS381.NewBIGint(i)
-	for j := 1; j < t+1; j++ {
-		jBIG := BLS381.NewBIGint(j)
+	for j, xVal := range xs {
 		if j != i {
-			t1 := xBIG.Minus(jBIG)
+			t1 := xBIG.Minus(xVal)
 			t1 = t1.Plus(o)
 			t1.Mod(o)
 			numerator = BLS381.Modmul(numerator, t1, o)
 
-			t2 := iBIG.Minus(jBIG)
+			t2 := xs[i].Minus(xVal)
 			t2 = t2.Plus(o)
 			t2.Mod(o)
 			denominator = BLS381.Modmul(denominator, t2, o)

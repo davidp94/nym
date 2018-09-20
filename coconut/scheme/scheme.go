@@ -59,8 +59,8 @@ type BlindShowMats struct {
 	proof *VerifierProof
 }
 
-type ThresholdIndices struct {
-	indices []int
+type PolynomialPoints struct {
+	xs []*BLS381.BIG
 }
 
 var (
@@ -150,11 +150,13 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 
 	// secret keys
 	sks := make([]*SecretKey, n)
+	// we can use any is now, rather than 1,2...,n; might be useful if we have some authorities ids?
 	for i := 1; i < n+1; i++ {
-		x := utils.PolyEval(v, i, G.Ord)
+		iBIG := BLS381.NewBIGint(i)
+		x := utils.PolyEval(v, iBIG, G.Ord)
 		ys := make([]*BLS381.BIG, q)
 		for j, wj := range w {
-			ys[j] = utils.PolyEval(wj, i, G.Ord)
+			ys[j] = utils.PolyEval(wj, iBIG, G.Ord)
 		}
 		sks[i-1] = &SecretKey{x: x, y: ys}
 	}
@@ -408,16 +410,19 @@ func Randomize(params *Params, sig *Signature) *Signature {
 	return &rSig
 }
 
-func AggregateVerificationKeys(params *Params, vks []*VerificationKey, thi *ThresholdIndices) *VerificationKey {
+func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *PolynomialPoints) *VerificationKey {
 	var l []*BLS381.BIG
 	var alpha *BLS381.ECP2
 	beta := make([]*BLS381.ECP2, len(vks[0].beta))
 
-	if thi != nil {
+	if pp != nil {
 		t := len(vks)
 		l = make([]*BLS381.BIG, t)
-		for i := 1; i < t+1; i++ {
-			l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		// for i := 1; i < t+1; i++ {
+		// 	l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		// }
+		for i := 0; i < t; i++ {
+			l[i] = utils.LagrangeBasis(i, params.G.Ord, pp.xs, 0)
 		}
 
 		alpha = BLS381.G2mul(vks[0].alpha, l[0])
@@ -461,15 +466,18 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, thi *Thre
 	}
 }
 
-func AggregateSignatures(params *Params, sigs []*Signature, thi *ThresholdIndices) *Signature {
+func AggregateSignatures(params *Params, sigs []*Signature, pp *PolynomialPoints) *Signature {
 	// in principle there's no need to copy sig1 as it's the same among all signatures and we can reuse one of the pointers
 	var l []*BLS381.BIG
 	var sig2 *BLS381.ECP
-	if thi != nil {
+	if pp != nil {
 		t := len(sigs)
 		l = make([]*BLS381.BIG, t)
-		for i := 1; i < t+1; i++ {
-			l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		// for i := 1; i < t+1; i++ {
+		// 	l[i-1] = utils.LagrangeBasis(t, params.G.Ord, i, 0)
+		// }
+		for i := 0; i < t; i++ {
+			l[i] = utils.LagrangeBasis(i, params.G.Ord, pp.xs, 0)
 		}
 		sig2 = BLS381.G1mul(sigs[0].sig2, l[0])
 		for i := 1; i < len(sigs); i++ {
