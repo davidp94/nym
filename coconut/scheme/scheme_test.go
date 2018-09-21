@@ -1,6 +1,7 @@
 package coconut
 
 import (
+	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -652,5 +653,18 @@ func TestThresholdAuthorities(t *testing.T) {
 
 			assert.True(t, BlindVerify(params, avk, rSig, blindShowMats, pubBig))
 		}
+	}
+}
+
+func BenchmarkSetup(b *testing.B) {
+	qs := []int{1, 3, 5, 10, 20}
+	for _, q := range qs {
+		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				a, _ := Setup(q)
+				_ = a
+			}
+		})
+
 	}
 }

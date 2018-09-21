@@ -11,6 +11,10 @@ import (
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
+//
+// TESTS
+//
+
 func TestSignerProof(t *testing.T) {
 	tests := []struct {
 		pub  []string
@@ -132,3 +136,7 @@ func TestVerifierProof(t *testing.T) {
 		assert.True(t, VerifyVerifierProof(params, vk, sig, blindShowMats), test.msg)
 	}
 }
+
+//
+// BENCHMARKS
+//
