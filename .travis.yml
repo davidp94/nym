@@ -10,7 +10,8 @@ before_script:
   - go get github.com/stretchr/testify
 
 script: 
-  - go test -v ./... -bench=. -cpu=1,2,4 -benchtime=2s
+  - go test -v ./...
+  - go test ./... -run nothing -bench=. -cpu=1,2,4 -benchtime=2s
 
 git:
   depth: 1
