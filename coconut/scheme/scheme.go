@@ -229,10 +229,25 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 	}
 
 	r := BLS381.Randomnum(G.Ord, G.Rng)
+
 	cm := BLS381.G1mul(params.G.Gen1, r)
+
+	cmElems := make([]*BLS381.ECP, len(attributes))
+	var wg sync.WaitGroup
+	wg.Add(len(attributes))
 	for i := range attributes {
-		cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+		go func(i int) {
+			cmElems[i] = BLS381.G1mul(params.hs[i], attributes[i])
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
+	for _, elem := range cmElems {
+		cm.Add(elem)
+	}
+
+	// cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+
 	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 	if err != nil {
 		return nil, err
@@ -240,7 +255,7 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 
 	encs := make([]*elgamal.ElGamalEncryption, len(private_m))
 	ks := make([]*BLS381.BIG, len(private_m))
-	for i := range private_m {
+	for i := range private_m { // can't easily encrypt in parallel since random number generator object is shared between encryptions
 		c, k := elgamal.Encrypt(G, gamma, private_m[i], h)
 		encs[i] = c
 		ks[i] = k
@@ -257,7 +272,6 @@ func PrepareBlindSign(params *Params, gamma *BLS381.ECP, public_m []*BLS381.BIG,
 	}, nil
 }
 
-// todo: update for threshold credentials
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *BLS381.ECP, public_m []*BLS381.BIG) (*BlindedSignature, error) {
 	if len(blindSignMats.enc)+len(public_m) > len(params.hs) {
 		return nil, ErrBlindSignAttr

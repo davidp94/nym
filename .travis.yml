@@ -11,7 +11,7 @@ before_script:
 
 script: 
   - go test -v ./...
-  - go test ./... -run nothing -bench=. -cpu=1,2,4 -benchtime=2s
+  - go test ./... -timeout=60m -run nothing -bench=. -cpu=1,2,4 -benchtime=2s
 
 git:
   depth: 1

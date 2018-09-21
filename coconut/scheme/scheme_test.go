@@ -669,7 +669,7 @@ func BenchmarkSetup(b *testing.B) {
 }
 
 func BenchmarkKeygen(b *testing.B) {
-	qs := []int{1, 3, 5, 10, 20}
+	qs := []int{1, 3, 5, 10}
 	for _, q := range qs {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
@@ -684,7 +684,7 @@ func BenchmarkKeygen(b *testing.B) {
 }
 
 func BenchmarkTTPKeygen(b *testing.B) {
-	qs := []int{1, 3, 5, 10, 20}
+	qs := []int{1, 3, 5, 10}
 	ts := []int{1, 3, 5}
 	ns := []int{1, 3, 5, 10}
 	for _, q := range qs {
@@ -703,6 +703,56 @@ func BenchmarkTTPKeygen(b *testing.B) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func BenchmarkSign(b *testing.B) {
+	qs := []int{1, 3, 5, 10}
+	for _, q := range qs {
+		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(q)          // we don't want to time setup
+				pubs := make([]*BLS381.BIG, q) // generate random attributes to sign
+				for i := range pubs {
+					pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+				}
+				sk, _, _ := Keygen(params)
+				b.StartTimer()
+				sig, _ := Sign(params, sk, pubs)
+				_ = sig
+			}
+		})
+	}
+}
+
+func BenchmarkPrepareBlindSign(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	pubns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		for _, pubn := range pubns {
+			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					b.StopTimer()
+					params, _ := Setup(pubn + privn)    // we don't want to time setup
+					privs := make([]*BLS381.BIG, privn) // generate random attributes to sign
+					pubs := make([]*BLS381.BIG, pubn)   // generate random attributes to sign
+
+					for i := range privs {
+						privs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+					}
+
+					for i := range pubs {
+						pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+					}
+
+					_, gamma := elgamal.Keygen(params.G)
+					b.StartTimer()
+					blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+					_ = blindSignMats
+				}
+			})
 		}
 	}
 }
