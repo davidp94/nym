@@ -150,29 +150,40 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 		}
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(n)
 	// secret keys
 	sks := make([]*SecretKey, n)
 	// we can use any is now, rather than 1,2...,n; might be useful if we have some authorities ids?
 	for i := 1; i < n+1; i++ {
-		iBIG := BLS381.NewBIGint(i)
-		x := utils.PolyEval(v, iBIG, G.Ord)
-		ys := make([]*BLS381.BIG, q)
-		for j, wj := range w {
-			ys[j] = utils.PolyEval(wj, iBIG, G.Ord)
-		}
-		sks[i-1] = &SecretKey{x: x, y: ys}
+		go func(i int) {
+			iBIG := BLS381.NewBIGint(i)
+			x := utils.PolyEval(v, iBIG, G.Ord)
+			ys := make([]*BLS381.BIG, q)
+			for j, wj := range w {
+				ys[j] = utils.PolyEval(wj, iBIG, G.Ord)
+			}
+			sks[i-1] = &SecretKey{x: x, y: ys}
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
+	wg.Add(n) // no point in overdoing it by assigning new goroutine to each G2mul (it's unlikely we'd have enough CPU cores to make use of that)
 
 	// verification keys
 	vks := make([]*VerificationKey, n)
 	for i := range sks {
-		alpha := BLS381.G2mul(G.Gen2, sks[i].x)
-		beta := make([]*BLS381.ECP2, q)
-		for j, yj := range sks[i].y {
-			beta[j] = BLS381.G2mul(G.Gen2, yj)
-		}
-		vks[i] = &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+		go func(i int) {
+			alpha := BLS381.G2mul(G.Gen2, sks[i].x)
+			beta := make([]*BLS381.ECP2, q)
+			for j, yj := range sks[i].y {
+				beta[j] = BLS381.G2mul(G.Gen2, yj)
+			}
+			vks[i] = &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 	return sks, vks, nil
 }
 

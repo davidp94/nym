@@ -682,3 +682,27 @@ func BenchmarkKeygen(b *testing.B) {
 		})
 	}
 }
+
+func BenchmarkTTPKeygen(b *testing.B) {
+	qs := []int{1, 3, 5, 10, 20}
+	ts := []int{1, 3, 5}
+	ns := []int{1, 3, 5, 10}
+	for _, q := range qs {
+		for _, t := range ts {
+			for _, n := range ns {
+				if n < t {
+					continue
+				}
+				b.Run(fmt.Sprintf("q=%d/t=%d/n=%d", q, t, n), func(b *testing.B) {
+					for i := 0; i < b.N; i++ {
+						b.StopTimer()
+						params, _ := Setup(q) // we don't want to time setup
+						b.StartTimer()
+						sks, vks, _ := TTPKeygen(params, t, n)
+						_, _ = sks, vks
+					}
+				})
+			}
+		}
+	}
+}
