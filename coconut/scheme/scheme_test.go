@@ -661,10 +661,24 @@ func BenchmarkSetup(b *testing.B) {
 	for _, q := range qs {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				a, _ := Setup(q)
-				_ = a
+				params, _ := Setup(q)
+				_ = params
 			}
 		})
+	}
+}
 
+func BenchmarkKeygen(b *testing.B) {
+	qs := []int{1, 3, 5, 10, 20}
+	for _, q := range qs {
+		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(q) // we don't want to time setup
+				b.StartTimer()
+				sk, vk, _ := Keygen(params)
+				_, _ = sk, vk
+			}
+		})
 	}
 }

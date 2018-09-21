@@ -9,8 +9,8 @@ before_install:
 before_script:
   - go get github.com/stretchr/testify
 
-script:
-  - cd coconut/scheme; go test -run nothing -bench=. -cpu=1,2,4,8,16
+script: 
+  - go test -v ./... -bench=. -cpu=1,2,4 -benchtime=2s
 
 git:
   depth: 1

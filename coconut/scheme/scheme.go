@@ -1,10 +1,6 @@
-// currently this version does not include threshold credentials
-// those will be added in further iteration
-
 // todos:
-// tests for combined aggregation of keys, signatures, randomization for blind signatures
-// threshold
 // allow for q being arbitrary larger than number of signed parameters
+// parallelization
 
 package coconut
 
@@ -80,14 +76,20 @@ func Setup(q int) (*Params, error) {
 	if q < 1 {
 		return nil, ErrSetupParams
 	}
+	var wg sync.WaitGroup
+	wg.Add(q)
 	hs := make([]*BLS381.ECP, q)
 	for i := 0; i < q; i++ {
-		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
-		if err != nil {
-			panic(err)
-		}
-		hs[i] = hi
+		go func(i int) {
+			hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+			if err != nil {
+				panic(err)
+			}
+			hs[i] = hi
+			wg.Done()
+		}(i)
 	}
+	wg.Wait()
 	G := bpgroup.New()
 	return &Params{G, hs}, nil
 }
