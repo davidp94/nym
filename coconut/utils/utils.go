@@ -1,15 +1,35 @@
+// utils.go - set of auxiliary functions used by the Coconut scheme
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Package utils provides auxiliary functions required by the Coconut Scheme.
 package utils
 
 import (
 	"errors"
 
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
+// todo: consider making hash to BIG/G1 take a []byte argument rather than string to make it more generic
+
+// hashString takes a string message and returns its SHA256/SHA384/SHA512 hash
+// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
 func hashString(sha int, m string) ([]byte, error) {
 	b := []byte(m)
-	// below is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/22f62d8215adf5672017c11d2f6885afb00268c4/version3/go/MPIN.go#L83
 	var R []byte
 
 	if sha == amcl.SHA256 {
@@ -30,7 +50,7 @@ func hashString(sha int, m string) ([]byte, error) {
 		return []byte{}, errors.New("Nil hash result")
 	}
 
-	const RM int = int(BLS381.MODBYTES)
+	const RM int = int(Curve.MODBYTES)
 	var W [RM]byte
 	if sha >= RM {
 		for i := 0; i < RM; i++ {
@@ -47,55 +67,60 @@ func hashString(sha int, m string) ([]byte, error) {
 	return W[:], nil
 }
 
-// todo: does it need to be public?
-// is this a valid way of doing it? check edge cases with different algorithms
-func HashStringToBig(sha int, m string) (*BLS381.BIG, error) {
+// HashStringToBig takes a string message and maps it to a BIG number
+// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
+func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
+	hash, err := hashString(sha, m)
+	y := Curve.FromBytes(hash)
+	q := Curve.NewBIGints(Curve.CURVE_Order)
+	y.Mod(q)
+	if err != nil {
+		return nil, err
+	}
+	return y, nil
+}
+
+// HashStringToG1 takes a string message and maps it to a point on G1 Curve
+func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
 	hash, err := hashString(sha, m)
 	if err != nil {
 		return nil, err
 	}
-	return BLS381.FromBytes(hash), nil
+	return Curve.ECP_mapit(hash), nil
 }
 
-func HashStringToG1(sha int, m string) (*BLS381.ECP, error) {
-	hash, err := hashString(sha, m)
-	if err != nil {
-		return nil, err
-	}
-	return BLS381.ECP_mapit(hash), nil
-}
-
-// PolyEval evaluate a polynomial defined by the slice of coefficient coeff at point x
-// All operations are performed mod o
-// todo update x to bignum
-func PolyEval(coeff []*BLS381.BIG, x *BLS381.BIG, o *BLS381.BIG) *BLS381.BIG {
-	result := BLS381.NewBIG()
+// PolyEval evaluates a polynomial defined by the slice of coefficient coeff at point x.
+// All operations are performed mod o.
+// It's based on Python's implementation: https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L33.
+func PolyEval(coeff []*Curve.BIG, x *Curve.BIG, o *Curve.BIG) *Curve.BIG {
+	result := Curve.NewBIG()
 	for i := range coeff {
-		iBIG := BLS381.NewBIGint(i)
-		t := x.Powmod(iBIG, o)                              // x ^ i
-		result = result.Plus(BLS381.Modmul(coeff[i], t, o)) // coeff[i] * x ^ i + ...
+		iBIG := Curve.NewBIGint(i)
+		t := x.Powmod(iBIG, o)                             // x ^ i
+		result = result.Plus(Curve.Modmul(coeff[i], t, o)) // coeff[0] * x ^ 0 + ... + coeff[i] * x ^ i
 	}
 	return result
 }
 
-// Generates the lagrange basis polynomial li(x), for a polynomial of degree t-1
-// Takes x values from xs and calculates it for point xs[i]. It is done around point x (usually 0)
-func LagrangeBasis(i int, o *BLS381.BIG, xs []*BLS381.BIG, x int) *BLS381.BIG {
-	numerator, denominator := BLS381.NewBIGint(1), BLS381.NewBIGint(1)
-	xBIG := BLS381.NewBIGint(x)
+// LagrangeBasis generates the lagrange basis polynomial li(x), for a polynomial of degree t-1.
+// Takes x values from xs and calculates the basis for point xs[i]. It is done around at x (usually 0).
+// It's based on Python's implementation: https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L37.
+func LagrangeBasis(i int, o *Curve.BIG, xs []*Curve.BIG, x int) *Curve.BIG {
+	numerator, denominator := Curve.NewBIGint(1), Curve.NewBIGint(1)
+	xBIG := Curve.NewBIGint(x)
 	for j, xVal := range xs {
 		if j != i {
 			t1 := xBIG.Minus(xVal)
 			t1 = t1.Plus(o)
 			t1.Mod(o)
-			numerator = BLS381.Modmul(numerator, t1, o)
+			numerator = Curve.Modmul(numerator, t1, o) // numerator = ((x - xs[0]) % o) * ... * ((x - xs[j]) % o), j != i
 
 			t2 := xs[i].Minus(xVal)
 			t2 = t2.Plus(o)
 			t2.Mod(o)
-			denominator = BLS381.Modmul(denominator, t2, o)
+			denominator = Curve.Modmul(denominator, t2, o) // denominator = ((xs[i] - xs[0]) % o) * ... * ((xs[i] - xs[j]) % o), j != i
 		}
 	}
 	denominator.Invmodp(o) // denominator = 1/denominator % o
-	return BLS381.Modmul(numerator, denominator, o)
+	return Curve.Modmul(numerator, denominator, o)
 }
