@@ -1,3 +1,18 @@
+// proofs_test.go - tests for NIZK
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package coconut
 
 import (
@@ -8,7 +23,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
 //
@@ -33,8 +48,8 @@ func TestSignerProof(t *testing.T) {
 		params, err := Setup(len(test.pub) + len(test.priv))
 		assert.Nil(t, err)
 
-		pubBig := make([]*BLS381.BIG, len(test.pub))
-		privBig := make([]*BLS381.BIG, len(test.priv))
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)
@@ -46,17 +61,17 @@ func TestSignerProof(t *testing.T) {
 
 		attributes := append(privBig, pubBig...)
 
-		r := BLS381.Randomnum(params.G.Ord, params.G.Rng)
-		cm := BLS381.G1mul(params.G.Gen1, r)
+		r := Curve.Randomnum(params.G.Ord, params.G.Rng)
+		cm := Curve.G1mul(params.G.Gen1, r)
 		for i := range attributes {
-			cm.Add(BLS381.G1mul(params.hs[i], attributes[i]))
+			cm.Add(Curve.G1mul(params.hs[i], attributes[i]))
 		}
 		h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 		assert.Nil(t, err)
 
 		_, gamma := elgamal.Keygen(params.G)
 		encs := make([]*elgamal.ElGamalEncryption, len(test.priv))
-		ks := make([]*BLS381.BIG, len(test.priv))
+		ks := make([]*Curve.BIG, len(test.priv))
 		for i := range test.priv {
 			c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
 			encs[i] = c
@@ -77,7 +92,7 @@ func TestSignerProof(t *testing.T) {
 		_, err = ConstructSignerProof(&Params{G: params.G, hs: params.hs[1:]}, gamma, encs, cm, ks, r, pubBig, privBig)
 		assert.Equal(t, ErrConstructSignerAttrs, err)
 
-		_, err = ConstructSignerProof(params, gamma, encs, cm, ks, r, append(pubBig, BLS381.NewBIG()), privBig)
+		_, err = ConstructSignerProof(params, gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
 		assert.Equal(t, ErrConstructSignerAttrs, err)
 
 		signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig)
@@ -107,8 +122,8 @@ func TestVerifierProof(t *testing.T) {
 		params, err := Setup(len(test.pub) + len(test.priv))
 		assert.Nil(t, err)
 
-		pubBig := make([]*BLS381.BIG, len(test.pub))
-		privBig := make([]*BLS381.BIG, len(test.priv))
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)
@@ -138,5 +153,5 @@ func TestVerifierProof(t *testing.T) {
 }
 
 //
-// BENCHMARKS
+// BENCHMARKS (todo)
 //
