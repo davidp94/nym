@@ -30,6 +30,7 @@ import (
 // todo: Ensure Signer and Verifier are the correct terms for the proofs
 // todo: worker pool for concurrency
 // todo: make errors private
+// todo: deal with too lengthy function signatures
 
 // SignerProof (name to be confirmed) represents all the fields contained within the said proof.
 type SignerProof struct {
@@ -52,15 +53,18 @@ type Printable interface {
 }
 
 var (
-	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of proofs for corectness of ciphertexts and cm.
+	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of
+	// proofs for corectness of ciphertexts and cm.
 	ErrConstructSignerCiphertexts = errors.New("Invalid ciphertexts provided")
 
-	// ErrConstructSignerAttrs indicates that invalid attributes (either attributes to sign or params generated at setup) were provided for construction of proofs for corectness of ciphertexts and cm.
+	// ErrConstructSignerAttrs indicates that invalid attributes (either attributes to sign or params generated at setup)
+	// were provided for construction of proofs for corectness of ciphertexts and cm.
 	ErrConstructSignerAttrs = errors.New("More than specified number of attributes provided")
 )
 
 // constructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
-// It's based on the original Python implementation: https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L9.
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L9.
 func constructChallenge(elems []Printable) *Curve.BIG {
 	csa := make([]string, len(elems))
 	for i := range elems {
@@ -74,8 +78,10 @@ func constructChallenge(elems []Printable) *Curve.BIG {
 	return c
 }
 
-// ConstructSignerProof creates a non-interactive zero-knowledge proof in order to prove corectness of ciphertexts and cm.
-// It's based on the original Python implementation: https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
+// ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
+// nolint: interfacer
 func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamalEncryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	attributes := append(privM, pubM...)
 	G := params.G
@@ -166,7 +172,8 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGa
 }
 
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
-// It's based on the original Python implementation: https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
 func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamalEncryption, cm *Curve.ECP, proof *SignerProof) bool {
 	if len(encs) != len(proof.rk) {
 		return false
@@ -220,8 +227,10 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamal
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
-// It's based on the original Python implementation: https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
 func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
+
 	G := params.G
 
 	// witnesses creation
@@ -273,18 +282,22 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 }
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
-// It's based on the original Python implementation: https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L75
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L75
 func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats) bool {
 	G := params.G
 
 	Aw := Curve.G2mul(showMats.kappa, showMats.proof.c) // Aw = (c * kappa)
 	Aw.Add(Curve.G2mul(vk.g2, showMats.proof.rt))       // Aw = (c * kappa) + (rt * g2)
 
-	Aw.Add(vk.alpha)                                                            // Aw = (c * kappa) + (rt * g2) + (alpha)
-	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(showMats.proof.c, params.G.Ord))) // Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
+	// Aw = (c * kappa) + (rt * g2) + (alpha)
+	Aw.Add(vk.alpha)
+	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
+	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(showMats.proof.c, params.G.Ord)))
 
 	for i := range showMats.proof.rm {
-		Aw.Add(Curve.G2mul(vk.beta[i], showMats.proof.rm[i])) // Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
+		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
+		Aw.Add(Curve.G2mul(vk.beta[i], showMats.proof.rm[i]))
 	}
 
 	Bw := Curve.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)

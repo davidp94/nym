@@ -40,8 +40,10 @@ func TestSignerProof(t *testing.T) {
 		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
 		{pub: []string{"Foo"}, priv: []string{}, msg: "The proof should verify on single public attribute"},
 		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{}, msg: "The proof should verify on three public attribute"},
-		{pub: []string{"Foo"}, priv: []string{"Foo2"}, msg: "The proof should verify on single public and private attributes"},
-		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three public and private attributes"},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"},
+			msg: "The proof should verify on single public and private attributes"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"},
+			msg: "The proof should verify on three public and private attributes"},
 	}
 
 	for _, test := range tests {
@@ -100,7 +102,8 @@ func TestSignerProof(t *testing.T) {
 
 		if len(test.priv) > 0 {
 			assert.False(t, VerifySignerProof(params, gamma, encs[1:], cm, signerProof), test.msg)
-			assert.False(t, VerifySignerProof(params, gamma, encs, cm, &SignerProof{c: signerProof.c, rr: signerProof.rr, rk: signerProof.rk[1:], rm: signerProof.rm}), test.msg)
+			assert.False(t, VerifySignerProof(params, gamma, encs, cm,
+				&SignerProof{c: signerProof.c, rr: signerProof.rr, rk: signerProof.rk[1:], rm: signerProof.rm}), test.msg)
 		}
 		assert.True(t, VerifySignerProof(params, gamma, encs, cm, signerProof), test.msg)
 	}
@@ -114,8 +117,10 @@ func TestVerifierProof(t *testing.T) {
 	}{
 		{pub: []string{}, priv: []string{"Foo2"}, msg: "The proof should verify on single private attribute"},
 		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
-		{pub: []string{"Foo"}, priv: []string{"Foo2"}, msg: "The proof should verify on single public and private attributes"},
-		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three public and private attributes"},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"},
+			msg: "The proof should verify on single public and private attributes"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"},
+			msg: "The proof should verify on three public and private attributes"},
 	}
 
 	for _, test := range tests {

@@ -25,6 +25,7 @@ import (
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
+// nolint: lll
 func TestPolyEval(t *testing.T) {
 	order := BLS381.NewBIGints(BLS381.CURVE_Order)
 	tests := []struct {

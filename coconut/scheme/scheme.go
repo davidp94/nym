@@ -117,7 +117,8 @@ var (
 	// ErrBlindSignProof indicates that proof of corectness of ciphertext and cm was invalid
 	ErrBlindSignProof = errors.New("Failed to verify the proof")
 
-	// ErrShowBlindAttr indicates that either there were no private attributes provided or their number was larger than the verification key supports
+	// ErrShowBlindAttr indicates that either there were no private attributes provided
+	// or their number was larger than the verification key supports
 	ErrShowBlindAttr = errors.New("Invalid attributes provided")
 )
 
@@ -159,7 +160,7 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
 	sk := &SecretKey{x: x, y: y}
 
 	for i := 0; i < q; i++ {
-		y[i] = Curve.Randomnum(G.Ord, G.Rng) // we can't easily parallelize it due to shared resource and little performance gain
+		y[i] = Curve.Randomnum(G.Ord, G.Rng)
 	}
 
 	alpha := Curve.G2mul(G.Gen2, x)
@@ -221,7 +222,9 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 		}(i)
 	}
 	wg.Wait()
-	wg.Add(n) // no point in overdoing it by assigning new goroutine to each G2mul (it's unlikely we'd have enough CPU cores to make use of that)
+	// no point in overdoing it by assigning new goroutine to each G2mul
+	// (it's unlikely we'd have enough CPU cores to make use of that)
+	wg.Add(n)
 
 	// verification keys
 	vks := make([]*VerificationKey, n)
@@ -310,7 +313,8 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 
 	encs := make([]*elgamal.ElGamalEncryption, len(privM))
 	ks := make([]*Curve.BIG, len(privM))
-	for i := range privM { // can't easily encrypt in parallel since random number generator object is shared between encryptions
+	// can't easily encrypt in parallel since random number generator object is shared between encryptions
+	for i := range privM {
 		c, k := elgamal.Encrypt(G, gamma, privM[i], h)
 		encs[i] = c
 		ks[i] = k

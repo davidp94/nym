@@ -27,6 +27,6 @@
         "lll"
       ],
       "Cyclo" : 15,
-      "LineLength": 200,
+      "LineLength": 120,
       "Aggregate": true
 }

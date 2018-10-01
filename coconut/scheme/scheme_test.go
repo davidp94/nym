@@ -63,7 +63,7 @@ func TestSchemeKeygen(t *testing.T) {
 	keygenTest(t, params, sk, vk)
 }
 
-// nolint: gocyclo
+// nolint: gocyclo, dupl
 func TestSchemeTTPKeygen(t *testing.T) {
 	params, err := Setup(10)
 	assert.Nil(t, err)
@@ -125,6 +125,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys1 {
 				polys1[i] = BLS381.NewBIG()
 			}
+
 			for i := range polys1 {
 				for j := range sks21 {
 					if i == 0 { // x
@@ -156,6 +157,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys2 {
 				polys2[i] = BLS381.NewBIG()
 			}
+
 			for i := range polys2 {
 				for j := range sks22 {
 					if i == 0 { // x
@@ -195,6 +197,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys1v {
 				polys1v[i] = BLS381.NewECP2()
 			}
+
 			for i := range polys1v {
 				for j := range vks21 {
 					if i == 0 { // alpha
@@ -223,6 +226,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys2v {
 				polys2v[i] = BLS381.NewECP2()
 			}
+
 			for i := range polys2v {
 				for j := range vks22 {
 					if i == 0 { // alpha
@@ -246,10 +250,14 @@ func TestSchemeSign(t *testing.T) {
 		err   error
 		msg   string
 	}{
-		{q: 1, attrs: []string{"Hello World!"}, err: nil, msg: "For single attribute sig2 should be equal to (x + m * y) * sig1"},
-		{q: 3, attrs: []string{"Foo", "Bar", "Baz"}, err: nil, msg: "For three attributes sig2 shguld be equal to (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1"},
-		{q: 2, attrs: []string{"Foo", "Bar", "Baz"}, err: ErrSignParams, msg: "Sign should fail due to invalid param combination"},
-		{q: 3, attrs: []string{"Foo", "Bar"}, err: ErrSignParams, msg: "Sign should fail due to invalid param combination"},
+		{q: 1, attrs: []string{"Hello World!"}, err: nil,
+			msg: "For single attribute sig2 should be equal to (x + m * y) * sig1"},
+		{q: 3, attrs: []string{"Foo", "Bar", "Baz"}, err: nil,
+			msg: "For three attributes sig2 shguld be equal to (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1"},
+		{q: 2, attrs: []string{"Foo", "Bar", "Baz"}, err: ErrSignParams,
+			msg: "Sign should fail due to invalid param combination"},
+		{q: 3, attrs: []string{"Foo", "Bar"}, err: ErrSignParams,
+			msg: "Sign should fail due to invalid param combination"},
 	}
 
 	for _, test := range tests {
@@ -289,10 +297,14 @@ func TestSchemeVerify(t *testing.T) {
 		maliciousAttrs []string
 		msg            string
 	}{
-		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on single public attribute"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on multiple public attribute"},
-		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"}, msg: "Should not verify a signature when malicious attribute is introduced"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, msg: "Should not verify a signature when malicious attributes are introduced"},
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{},
+			msg: "Should verify a valid signature on single public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{},
+			msg: "Should verify a valid signature on multiple public attribute"},
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"},
+			msg: "Should not verify a signature when malicious attribute is introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"},
+			msg: "Should not verify a signature when malicious attributes are introduced"},
 	}
 
 	for _, test := range tests {
@@ -413,19 +425,37 @@ func TestSchemeAggregateVerification(t *testing.T) {
 			msg: "Should verify aggregated signature when only single signature was used for aggregation"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
 			msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, pp: nil, t: 0,
-			msg: "Should fail to verify aggregated where malicious signatures were introduced"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, pp: nil, t: 0,
-			msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2,
+			maliciousAttrs: []string{"Malicious Hello World!"},
+			pp:             nil,
+			t:              0,
+			msg:            "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2,
+			maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"},
+			pp:             nil,
+			t:              0,
+			msg:            "Should fail to verify aggregated where malicious signatures were introduced"},
 
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1,
-			msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2,
-			msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1,
-			msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2,
-			msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			t:              1,
+			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}},
+			t:              2,
+			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			t:              1,
+			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}},
+			t:              2,
+			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
 	}
 
 	for _, test := range tests {
@@ -514,11 +544,16 @@ func TestSchemeBlindVerify(t *testing.T) {
 		err  error
 		msg  string
 	}{
-		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: ErrPrepareBlindSignPrivate, msg: "Should not allow blindly signing messages with no private attributes"},
-		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: ErrPrepareBlindSignParams, msg: "Should not allow blindly signing messages with invalid params"},
-		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil, msg: "Should blindly sign a valid set of private attributes"},
-		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil, msg: "Should blindly sign a valid set of public and private attributes"},
-		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil, msg: "Should blindly sign a valid set of public and private attributes"}, // q > len(pub) + len(priv)
+		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: ErrPrepareBlindSignPrivate,
+			msg: "Should not allow blindly signing messages with no private attributes"},
+		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: ErrPrepareBlindSignParams,
+			msg: "Should not allow blindly signing messages with invalid params"},
+		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil,
+			msg: "Should blindly sign a valid set of private attributes"},
+		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
+			msg: "Should blindly sign a valid set of public and private attributes"},
+		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
+			msg: "Should blindly sign a valid set of public and private attributes"}, // q > len(pub) + len(priv)
 	}
 
 	for _, test := range tests {
@@ -552,13 +587,15 @@ func TestSchemeBlindVerify(t *testing.T) {
 			assert.Nil(t, err)
 		}
 
-		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, BLS381.NewBIG())) // ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
+		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
+		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, BLS381.NewBIG()))
 		assert.Equal(t, ErrPrepareBlindSignParams, err, test.msg)
 
 		incorrectGamma := BLS381.NewECP()
 		incorrectGamma.Copy(gamma)
-		incorrectGamma.Add(BLS381.NewECP())                                                            // adds point in infinity
-		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, BLS381.NewBIG())) // just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
+		incorrectGamma.Add(BLS381.NewECP()) // adds point in infinity
+		// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
+		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, BLS381.NewBIG()))
 		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
 
 		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)

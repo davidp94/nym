@@ -91,7 +91,8 @@ func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
 
 // PolyEval evaluates a polynomial defined by the slice of coefficient coeff at point x.
 // All operations are performed mod o.
-// It's based on Python's implementation: https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L33.
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L33.
 func PolyEval(coeff []*Curve.BIG, x *Curve.BIG, o *Curve.BIG) *Curve.BIG {
 	result := Curve.NewBIG()
 	for i := range coeff {
@@ -104,7 +105,8 @@ func PolyEval(coeff []*Curve.BIG, x *Curve.BIG, o *Curve.BIG) *Curve.BIG {
 
 // LagrangeBasis generates the lagrange basis polynomial li(x), for a polynomial of degree t-1.
 // Takes x values from xs and calculates the basis for point xs[i]. It is done around at x (usually 0).
-// It's based on Python's implementation: https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L37.
+// It's based on the original Python implementation:
+// https://github.com/asonnino/coconut/blob/master/coconut/utils.py#L37.
 func LagrangeBasis(i int, o *Curve.BIG, xs []*Curve.BIG, x int) *Curve.BIG {
 	numerator, denominator := Curve.NewBIGint(1), Curve.NewBIGint(1)
 	xBIG := Curve.NewBIGint(x)
@@ -113,12 +115,14 @@ func LagrangeBasis(i int, o *Curve.BIG, xs []*Curve.BIG, x int) *Curve.BIG {
 			t1 := xBIG.Minus(xVal)
 			t1 = t1.Plus(o)
 			t1.Mod(o)
-			numerator = Curve.Modmul(numerator, t1, o) // numerator = ((x - xs[0]) % o) * ... * ((x - xs[j]) % o), j != i
+			// numerator = ((x - xs[0]) % o) * ... * ((x - xs[j]) % o), j != i
+			numerator = Curve.Modmul(numerator, t1, o)
 
 			t2 := xs[i].Minus(xVal)
 			t2 = t2.Plus(o)
 			t2.Mod(o)
-			denominator = Curve.Modmul(denominator, t2, o) // denominator = ((xs[i] - xs[0]) % o) * ... * ((xs[i] - xs[j]) % o), j != i
+			// denominator = ((xs[i] - xs[0]) % o) * ... * ((xs[i] - xs[j]) % o), j != i
+			denominator = Curve.Modmul(denominator, t2, o)
 		}
 	}
 	denominator.Invmodp(o) // denominator = 1/denominator % o
