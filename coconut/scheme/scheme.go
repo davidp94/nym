@@ -64,7 +64,7 @@ type Signature struct {
 // BlindedSignature represents blinded version of a normal Coconut signature
 type BlindedSignature struct {
 	sig1      *Curve.ECP
-	sig2Tilda *elgamal.ElGamalEncryption
+	sig2Tilda *elgamal.Encryption
 }
 
 // Params represent public system-wide parameters.
@@ -76,7 +76,7 @@ type Params struct {
 // BlindSignMats encapsulates data created by PrepareBlindSign function.
 type BlindSignMats struct {
 	cm    *Curve.ECP
-	enc   []*elgamal.ElGamalEncryption
+	enc   []*elgamal.Encryption
 	proof *SignerProof
 }
 
@@ -312,7 +312,7 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 		return nil, err
 	}
 
-	encs := make([]*elgamal.ElGamalEncryption, len(privM))
+	encs := make([]*elgamal.Encryption, len(privM))
 	ks := make([]*Curve.BIG, len(privM))
 	// can't easily encrypt in parallel since random number generator object is shared between encryptions
 	for i := range privM {
@@ -356,12 +356,12 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	}
 	wg.Wait()
 
-	t2 := Curve.G1mul(blindSignMats.enc[0].A, sk.y[0])
+	t2 := Curve.G1mul(blindSignMats.enc[0].C1(), sk.y[0])
 	wg.Add(len(blindSignMats.enc) - 1)
 	t2Elems := make([]*Curve.ECP, len(blindSignMats.enc)-1)
 	for i := 1; i < len(blindSignMats.enc); i++ {
 		go func(i int) {
-			t2Elems[i-1] = Curve.G1mul(blindSignMats.enc[i].A, sk.y[i])
+			t2Elems[i-1] = Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i])
 			wg.Done()
 		}(i)
 	}
@@ -374,7 +374,7 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	t3 := Curve.G1mul(h, sk.x)
 	tmpSlice := make([]*Curve.ECP, len(blindSignMats.enc))
 	for i := range blindSignMats.enc {
-		tmpSlice[i] = blindSignMats.enc[i].B
+		tmpSlice[i] = blindSignMats.enc[i].C2()
 	}
 	tmpSlice = append(tmpSlice, t1...)
 
@@ -394,11 +394,8 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	}
 
 	return &BlindedSignature{
-		sig1: h,
-		sig2Tilda: &elgamal.ElGamalEncryption{
-			A: t2,
-			B: t3,
-		},
+		sig1:      h,
+		sig2Tilda: elgamal.NewEncryptionFromPoints(t2, t3),
 	}, nil
 }
 

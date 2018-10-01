@@ -80,7 +80,7 @@ func constructChallenge(elems []Printable) *Curve.BIG {
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
 // nolint: interfacer
-func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamalEncryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
+func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	attributes := append(privM, pubM...)
 	G := params.G
 	if len(encs) != len(k) || len(encs) != len(privM) {
@@ -172,7 +172,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGa
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
-func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamalEncryption, cm *Curve.ECP, proof *SignerProof) bool {
+func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, proof *SignerProof) bool {
 	if len(encs) != len(proof.rk) {
 		return false
 	}
@@ -187,14 +187,14 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamal
 	var Cw *Curve.ECP
 
 	for i := range proof.rk {
-		Aw[i] = Curve.G1mul(encs[i].A, proof.c)            // Aw[i] = (c * a[i])
-		Aw[i].Add(Curve.G1mul(params.G.Gen1, proof.rk[i])) // Aw[i] = (c * a[i]) + (rk[i] * g1)
+		Aw[i] = Curve.G1mul(encs[i].C1(), proof.c)         // Aw[i] = (c * c1[i])
+		Aw[i].Add(Curve.G1mul(params.G.Gen1, proof.rk[i])) // Aw[i] = (c * c1[i]) + (rk[i] * g1)
 	}
 
 	for i := range encs {
-		Bw[i] = Curve.G1mul(encs[i].B, proof.c)    // Bw[i] = (c * b[i])
-		Bw[i].Add(Curve.G1mul(gamma, proof.rk[i])) // Bw[i] = (c * b[i]) + (rk[i] * gamma)
-		Bw[i].Add(Curve.G1mul(h, proof.rm[i]))     // Bw[i] = (c * b[i]) + (rk[i] * gamma) + (rm[i] * h)
+		Bw[i] = Curve.G1mul(encs[i].C2(), proof.c) // Bw[i] = (c * c2[i])
+		Bw[i].Add(Curve.G1mul(gamma, proof.rk[i])) // Bw[i] = (c * c2[i]) + (rk[i] * gamma)
+		Bw[i].Add(Curve.G1mul(h, proof.rm[i]))     // Bw[i] = (c * c2[i]) + (rk[i] * gamma) + (rm[i] * h)
 	}
 
 	Cw = Curve.G1mul(cm, proof.c)                // Cw = (cm * c)

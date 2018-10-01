@@ -42,12 +42,12 @@ func TestElGamalEncryption(t *testing.T) {
 
 	enc, k := Encrypt(G, gamma, m, h)
 
-	assert.True(t, enc.A.Equals(Curve.G1mul(G.Gen1, k)), "a should be equal to g1^k")
+	assert.True(t, enc.c1.Equals(Curve.G1mul(G.Gen1, k)), "a should be equal to g1^k")
 
 	tmp := Curve.G1mul(gamma, k) // b = (k * gamma)
 	tmp.Add(Curve.G1mul(h, m))   // b = (k * gamma) + (m * h)
 
-	assert.True(t, enc.B.Equals(tmp), "b should be equal to (k * gamma) + (m * h)")
+	assert.True(t, enc.c2.Equals(tmp), "b should be equal to (k * gamma) + (m * h)")
 }
 
 func TestElGamalDecryption(t *testing.T) {

@@ -72,7 +72,7 @@ func TestSignerProof(t *testing.T) {
 		assert.Nil(t, err)
 
 		_, gamma := elgamal.Keygen(params.G)
-		encs := make([]*elgamal.ElGamalEncryption, len(test.priv))
+		encs := make([]*elgamal.Encryption, len(test.priv))
 		ks := make([]*Curve.BIG, len(test.priv))
 		for i := range test.priv {
 			c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
