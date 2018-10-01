@@ -1,0 +1,32 @@
+{
+    "Sort": ["linter", "severity", "path", "line"],
+    "DisableAll": false,
+    "Enable": [
+        "deadcode",
+        "gocyclo",
+        "gofmt",
+        "gotype",
+        "goimports",
+        "golint",
+        "gosimple",
+        "ineffassign",
+        "interfacer",
+        "misspell",
+        "unconvert",
+        "unused",
+        "vet",
+        "dupl",
+        "varcheck",
+        "maligned",
+        "errcheck",
+        "megacheck",
+        "goconst",
+        "structcheck",
+        "gosec",
+        "gochecknoglobals",
+        "lll"
+      ],
+      "Cyclo" : 15,
+      "LineLength": 200,
+      "Aggregate": true
+}
