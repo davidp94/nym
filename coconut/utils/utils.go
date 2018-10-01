@@ -24,12 +24,9 @@ import (
 	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: consider making hash to BIG/G1 take a []byte argument rather than string to make it more generic
-
-// hashString takes a string message and returns its SHA256/SHA384/SHA512 hash
+// hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
-func hashString(sha int, m string) ([]byte, error) {
-	b := []byte(m)
+func hashBytes(sha int, b []byte) ([]byte, error) {
 	var R []byte
 
 	if sha == amcl.SHA256 {
@@ -68,9 +65,15 @@ func hashString(sha int, m string) ([]byte, error) {
 }
 
 // HashStringToBig takes a string message and maps it to a BIG number
-// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
 func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
-	hash, err := hashString(sha, m)
+	b := []byte(m)
+	return HashBytesToBig(sha, b)
+}
+
+// HashBytesToBig takes a bytes message and maps it to a BIG number
+// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
+func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
+	hash, err := hashBytes(sha, b)
 	y := Curve.FromBytes(hash)
 	q := Curve.NewBIGints(Curve.CURVE_Order)
 	y.Mod(q)
@@ -82,7 +85,13 @@ func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
 
 // HashStringToG1 takes a string message and maps it to a point on G1 Curve
 func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
-	hash, err := hashString(sha, m)
+	b := []byte(m)
+	return HashBytesToG1(sha, b)
+}
+
+// HashBytesToG1 takes a bytes message and maps it to a point on G1 Curve
+func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
+	hash, err := hashBytes(sha, b)
 	if err != nil {
 		return nil, err
 	}
