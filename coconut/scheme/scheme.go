@@ -38,6 +38,7 @@ import (
 // todo: rename and restructure PolynomialPoints struct + all its uses
 // todo: comments with maths computation
 // todo: comments with python sources
+// todo: remove ShowBlindSignature and move it straight to BlindVerify?
 
 // SecretKey represents secret key of a Coconut signing authority.
 type SecretKey struct {

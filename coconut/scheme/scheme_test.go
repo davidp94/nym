@@ -26,7 +26,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: tests for q > len(attriutes)
@@ -43,10 +43,10 @@ func TestSchemeSetup(t *testing.T) {
 
 func keygenTest(t *testing.T, params *Params, sk *SecretKey, vk *VerificationKey) {
 	assert.True(t, params.G.Gen2.Equals(vk.g2))
-	assert.True(t, BLS381.G2mul(vk.g2, sk.x).Equals(vk.alpha))
+	assert.True(t, Curve.G2mul(vk.g2, sk.x).Equals(vk.alpha))
 	assert.Equal(t, len(sk.y), len(vk.beta))
 	for i := range vk.beta {
-		assert.Equal(t, vk.beta[i], BLS381.G2mul(vk.g2, sk.y[i]))
+		assert.Equal(t, vk.beta[i], Curve.G2mul(vk.g2, sk.y[i]))
 	}
 }
 
@@ -110,28 +110,28 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				sks21[i] = sks[indices1[i]-1]
 			}
 			// right now each point of sk has value of index + 1
-			indices12 := make([]*BLS381.BIG, test.t)
-			l11 := make([]*BLS381.BIG, test.t)
+			indices12 := make([]*Curve.BIG, test.t)
+			l11 := make([]*Curve.BIG, test.t)
 			for i, val := range indices1 {
-				indices12[i] = BLS381.NewBIGint(val)
+				indices12[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
 				l11[i] = utils.LagrangeBasis(i, params.G.Ord, indices12, 0)
 			}
 
 			// we can do it for all polynomials used for x and ys
-			polys1 := make([]*BLS381.BIG, q+1)
+			polys1 := make([]*Curve.BIG, q+1)
 			// initialise
 			for i := range polys1 {
-				polys1[i] = BLS381.NewBIG()
+				polys1[i] = Curve.NewBIG()
 			}
 
 			for i := range polys1 {
 				for j := range sks21 {
 					if i == 0 { // x
-						polys1[i] = polys1[i].Plus(BLS381.Modmul(l11[j], sks21[j].x, params.G.Ord))
+						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].x, params.G.Ord))
 					} else { // ys
-						polys1[i] = polys1[i].Plus(BLS381.Modmul(l11[j], sks21[j].y[i-1], params.G.Ord))
+						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].y[i-1], params.G.Ord))
 					}
 				}
 			}
@@ -144,32 +144,32 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range sks22 {
 				sks22[i] = sks[indices2[i]-1]
 			}
-			indices22 := make([]*BLS381.BIG, test.t)
-			l12 := make([]*BLS381.BIG, test.t)
+			indices22 := make([]*Curve.BIG, test.t)
+			l12 := make([]*Curve.BIG, test.t)
 			for i, val := range indices2 {
-				indices22[i] = BLS381.NewBIGint(val)
+				indices22[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
 				l12[i] = utils.LagrangeBasis(i, params.G.Ord, indices22, 0)
 			}
 
-			polys2 := make([]*BLS381.BIG, q+1)
+			polys2 := make([]*Curve.BIG, q+1)
 			for i := range polys2 {
-				polys2[i] = BLS381.NewBIG()
+				polys2[i] = Curve.NewBIG()
 			}
 
 			for i := range polys2 {
 				for j := range sks22 {
 					if i == 0 { // x
-						polys2[i] = polys2[i].Plus(BLS381.Modmul(l12[j], sks22[j].x, params.G.Ord))
+						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].x, params.G.Ord))
 					} else { // ys
-						polys2[i] = polys2[i].Plus(BLS381.Modmul(l12[j], sks22[j].y[i-1], params.G.Ord))
+						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].y[i-1], params.G.Ord))
 					}
 				}
 			}
 			for i := range polys2 {
 				polys2[i].Mod(params.G.Ord)
-				assert.Zero(t, BLS381.Comp(polys1[i], polys2[i]))
+				assert.Zero(t, Curve.Comp(polys1[i], polys2[i]))
 			}
 
 			// repeat the same procedure for vks (can't easily reuse code due to different types)
@@ -182,28 +182,28 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				vks21[i] = vks[indices1[i]-1]
 			}
 			// right now each point of sk has value of index + 1
-			indices12 = make([]*BLS381.BIG, test.t)
-			l11 = make([]*BLS381.BIG, test.t)
+			indices12 = make([]*Curve.BIG, test.t)
+			l11 = make([]*Curve.BIG, test.t)
 			for i, val := range indices1 {
-				indices12[i] = BLS381.NewBIGint(val)
+				indices12[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
 				l11[i] = utils.LagrangeBasis(i, params.G.Ord, indices12, 0)
 			}
 
 			// we can do it for all polynomials used for alpha and betas
-			polys1v := make([]*BLS381.ECP2, q+1)
+			polys1v := make([]*Curve.ECP2, q+1)
 			// initialise
 			for i := range polys1v {
-				polys1v[i] = BLS381.NewECP2()
+				polys1v[i] = Curve.NewECP2()
 			}
 
 			for i := range polys1v {
 				for j := range vks21 {
 					if i == 0 { // alpha
-						polys1v[i].Add(BLS381.G2mul(vks21[j].alpha, l11[j]))
+						polys1v[i].Add(Curve.G2mul(vks21[j].alpha, l11[j]))
 					} else { // beta
-						polys1v[i].Add(BLS381.G2mul(vks21[j].beta[i-1], l11[j]))
+						polys1v[i].Add(Curve.G2mul(vks21[j].beta[i-1], l11[j]))
 					}
 				}
 			}
@@ -213,26 +213,26 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range sks22 {
 				vks22[i] = vks[indices2[i]-1]
 			}
-			indices22 = make([]*BLS381.BIG, test.t)
-			l12 = make([]*BLS381.BIG, test.t)
+			indices22 = make([]*Curve.BIG, test.t)
+			l12 = make([]*Curve.BIG, test.t)
 			for i, val := range indices2 {
-				indices22[i] = BLS381.NewBIGint(val)
+				indices22[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
 				l12[i] = utils.LagrangeBasis(i, params.G.Ord, indices22, 0)
 			}
 
-			polys2v := make([]*BLS381.ECP2, q+1)
+			polys2v := make([]*Curve.ECP2, q+1)
 			for i := range polys2v {
-				polys2v[i] = BLS381.NewECP2()
+				polys2v[i] = Curve.NewECP2()
 			}
 
 			for i := range polys2v {
 				for j := range vks22 {
 					if i == 0 { // alpha
-						polys2v[i].Add(BLS381.G2mul(vks22[j].alpha, l12[j]))
+						polys2v[i].Add(Curve.G2mul(vks22[j].alpha, l12[j]))
 					} else { // beta
-						polys2v[i].Add(BLS381.G2mul(vks22[j].beta[i-1], l12[j]))
+						polys2v[i].Add(Curve.G2mul(vks22[j].beta[i-1], l12[j]))
 					}
 				}
 			}
@@ -268,7 +268,7 @@ func TestSchemeSign(t *testing.T) {
 		sk, _, err := Keygen(params)
 		assert.Nil(t, err)
 
-		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
@@ -281,12 +281,12 @@ func TestSchemeSign(t *testing.T) {
 		}
 		assert.Nil(t, err)
 
-		t1 := BLS381.NewBIGcopy(sk.x)
+		t1 := Curve.NewBIGcopy(sk.x)
 		for i := range sk.y {
-			t1 = t1.Plus(BLS381.Modmul(attrsBig[i], sk.y[i], G.Ord))
+			t1 = t1.Plus(Curve.Modmul(attrsBig[i], sk.y[i], G.Ord))
 		}
 
-		sigTest := BLS381.G1mul(sig.sig1, t1)
+		sigTest := Curve.G1mul(sig.sig1, t1)
 		assert.True(t, sigTest.Equals(sig.sig2), test.msg)
 	}
 }
@@ -314,7 +314,7 @@ func TestSchemeVerify(t *testing.T) {
 		sk, vk, err := Keygen(params)
 		assert.Nil(t, err)
 
-		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
@@ -324,7 +324,7 @@ func TestSchemeVerify(t *testing.T) {
 		assert.True(t, Verify(params, vk, attrsBig, sig), test.msg)
 
 		if len(test.maliciousAttrs) > 0 {
-			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
+			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
 			for i := range test.maliciousAttrs {
 				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
 				assert.Nil(t, err)
@@ -355,7 +355,7 @@ func TestSchemeRandomize(t *testing.T) {
 		sk, vk, err := Keygen(params)
 		assert.Nil(t, err)
 
-		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
 		for i := range test.attrs {
 			var err error
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
@@ -379,9 +379,9 @@ func TestSchemeKeyAggregation(t *testing.T) {
 			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, pp: nil,
 			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
-		{attrs: []string{"Hello World!"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+		{attrs: []string{"Hello World!"}, pp: &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1)}},
 			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1)}},
 			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 	}
 
@@ -392,7 +392,7 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		sk, vk, err := Keygen(params)
 		assert.Nil(t, err)
 
-		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
@@ -438,22 +438,22 @@ func TestSchemeAggregateVerification(t *testing.T) {
 
 		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0,
 			maliciousAttrs: []string{},
-			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			pp:             &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1)}},
 			t:              1,
 			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
 		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0,
 			maliciousAttrs: []string{},
-			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}},
+			pp:             &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1), Curve.NewBIGint(2), Curve.NewBIGint(3)}},
 			t:              2,
 			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0,
 			maliciousAttrs: []string{},
-			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			pp:             &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1)}},
 			t:              1,
 			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0,
 			maliciousAttrs: []string{},
-			pp:             &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}},
+			pp:             &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1), Curve.NewBIGint(2), Curve.NewBIGint(3)}},
 			t:              2,
 			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
 	}
@@ -479,7 +479,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 			assert.Nil(t, err)
 		}
 
-		attrsBig := make([]*BLS381.BIG, len(test.attrs))
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
@@ -506,7 +506,7 @@ func TestSchemeAggregateVerification(t *testing.T) {
 				mvks[i] = vk
 			}
 
-			mAttrsBig := make([]*BLS381.BIG, len(test.maliciousAttrs))
+			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
 			for i := range test.maliciousAttrs {
 				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
 				assert.Nil(t, err)
@@ -564,8 +564,8 @@ func TestSchemeBlindVerify(t *testing.T) {
 		assert.Nil(t, err)
 		d, gamma := elgamal.Keygen(params.G)
 
-		pubBig := make([]*BLS381.BIG, len(test.pub))
-		privBig := make([]*BLS381.BIG, len(test.priv))
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
 
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
@@ -588,24 +588,24 @@ func TestSchemeBlindVerify(t *testing.T) {
 		}
 
 		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
-		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, BLS381.NewBIG()))
+		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, Curve.NewBIG()))
 		assert.Equal(t, ErrPrepareBlindSignParams, err, test.msg)
 
-		incorrectGamma := BLS381.NewECP()
+		incorrectGamma := Curve.NewECP()
 		incorrectGamma.Copy(gamma)
-		incorrectGamma.Add(BLS381.NewECP()) // adds point in infinity
+		incorrectGamma.Add(Curve.NewECP()) // adds point in infinity
 		// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
-		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, BLS381.NewBIG()))
+		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, Curve.NewBIG()))
 		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
 
 		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
 		assert.Nil(t, err)
 		sig := Unblind(params, blindedSignature, d)
 
-		_, err = ShowBlindSignature(params, vk, sig, []*BLS381.BIG{})
+		_, err = ShowBlindSignature(params, vk, sig, []*Curve.BIG{})
 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
 
-		_, err = ShowBlindSignature(params, vk, sig, append(privBig, BLS381.NewBIG())) // ensures len(private_m) > len(vk.beta
+		_, err = ShowBlindSignature(params, vk, sig, append(privBig, Curve.NewBIG())) // ensures len(private_m) > len(vk.beta
 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
 
 		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
@@ -663,8 +663,8 @@ func TestThresholdAuthorities(t *testing.T) {
 
 		d, gamma := elgamal.Keygen(params.G)
 
-		pubBig := make([]*BLS381.BIG, len(test.pub))
-		privBig := make([]*BLS381.BIG, len(test.priv))
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
 
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
@@ -690,9 +690,9 @@ func TestThresholdAuthorities(t *testing.T) {
 				vks2[i] = vks[indices[i]-1]
 			}
 			// right now each point of vk has value of index + 1
-			indices12 := make([]*BLS381.BIG, test.t)
+			indices12 := make([]*Curve.BIG, test.t)
 			for i, val := range indices {
-				indices12[i] = BLS381.NewBIGint(val)
+				indices12[i] = Curve.NewBIGint(val)
 			}
 
 			avk := AggregateVerificationKeys(params, vks2, &PolynomialPoints{indices12})
@@ -711,9 +711,9 @@ func TestThresholdAuthorities(t *testing.T) {
 				sigs2[i] = signatures[indices2[i]-1]
 			}
 			// right now each point of sig has value of index + 1
-			indices22 := make([]*BLS381.BIG, test.t)
+			indices22 := make([]*Curve.BIG, test.t)
 			for i, val := range indices2 {
-				indices22[i] = BLS381.NewBIGint(val)
+				indices22[i] = Curve.NewBIGint(val)
 			}
 
 			aSig := AggregateSignatures(params, sigs2, &PolynomialPoints{indices22})
@@ -784,10 +784,10 @@ func BenchmarkSign(b *testing.B) {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				params, _ := Setup(q)          // we don't want to time setup
-				pubs := make([]*BLS381.BIG, q) // generate random attributes to sign
+				params, _ := Setup(q)         // we don't want to time setup
+				pubs := make([]*Curve.BIG, q) // generate random attributes to sign
 				for i := range pubs {
-					pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+					pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
 				}
 				sk, _, _ := Keygen(params)
 				b.StartTimer()
@@ -806,16 +806,16 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn)    // we don't want to time setup
-					privs := make([]*BLS381.BIG, privn) // generate random attributes to sign
-					pubs := make([]*BLS381.BIG, pubn)   // generate random attributes to sign
+					params, _ := Setup(pubn + privn)   // we don't want to time setup
+					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+					pubs := make([]*Curve.BIG, pubn)   // generate random attributes to sign
 
 					for i := range privs {
-						privs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+						privs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
 					}
 
 					for i := range pubs {
-						pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+						pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
 					}
 
 					_, gamma := elgamal.Keygen(params.G)
@@ -836,16 +836,16 @@ func BenchmarkBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn)    // we don't want to time setup
-					privs := make([]*BLS381.BIG, privn) // generate random attributes to sign
-					pubs := make([]*BLS381.BIG, pubn)   // generate random attributes to sign
+					params, _ := Setup(pubn + privn)   // we don't want to time setup
+					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+					pubs := make([]*Curve.BIG, pubn)   // generate random attributes to sign
 
 					for i := range privs {
-						privs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+						privs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
 					}
 
 					for i := range pubs {
-						pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+						pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
 					}
 
 					_, gamma := elgamal.Keygen(params.G)
@@ -859,4 +859,73 @@ func BenchmarkBlindSign(b *testing.B) {
 			})
 		}
 	}
+}
+
+func Example() {
+	q := 5                                // number of attributes
+	privM := []string{"Foo", "Bar", "42"} // private attributes
+	pubM := []string{"Baz", "43"}         // public attributes
+
+	// hash all of the attributes to BIG num:
+	privMBig := make([]*Curve.BIG, len(privM))
+	pubMBig := make([]*Curve.BIG, len(pubM))
+	for i := range privM {
+		privMBig[i], _ = utils.HashStringToBig(amcl.SHA256, privM[i])
+	}
+	for i := range pubM {
+		pubMBig[i], _ = utils.HashStringToBig(amcl.SHA256, pubM[i])
+	}
+
+	t := 2 // threshold parameter
+	n := 3 // number of authorities
+
+	params, _ := Setup(q)
+	d, gamma := elgamal.Keygen(params.G) // El-Gamal keypair
+
+	// Generate commitment and encryption
+	blindSignMats, _ := PrepareBlindSign(params, gamma, pubMBig, privMBig)
+
+	// Generate keys for all authorities
+	sks, vks, _ := TTPKeygen(params, t, n)
+
+	// Blindly Sign attributes by each authoritiy
+	blindSignatures := make([]*BlindedSignature, n)
+	for i := range blindSignatures {
+		blindSignatures[i], _ = BlindSign(params, sks[i], blindSignMats, gamma, pubMBig)
+	}
+
+	// Unblind all signatures
+	signatures := make([]*Signature, n)
+	for i := range blindSignatures {
+		signatures[i] = Unblind(params, blindSignatures[i], d)
+	}
+
+	// Simple slice of indices
+	pp1 := &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(1), Curve.NewBIGint(2)}}
+	pp2 := &PolynomialPoints{[]*Curve.BIG{Curve.NewBIGint(2), Curve.NewBIGint(3)}}
+
+	// Aggregate any subset of t verification keys
+	avk1 := AggregateVerificationKeys(params, vks[1:], pp2)
+	avk2 := AggregateVerificationKeys(params, vks[:len(vks)-1], pp1)
+
+	// Aggregate any subset of t credentials
+	aSig1 := AggregateSignatures(params, signatures[1:], pp2)
+	aSig2 := AggregateSignatures(params, signatures[:len(signatures)-1], pp1)
+
+	// Randomize the credentials
+	rSig1 := Randomize(params, aSig1)
+	rSig2 := Randomize(params, aSig2)
+
+	// Generate kappas and proofs of corectness
+	blindShowMats1, _ := ShowBlindSignature(params, avk1, rSig1, privMBig)
+	blindShowMats2, _ := ShowBlindSignature(params, avk2, rSig2, privMBig)
+	blindShowMats3, _ := ShowBlindSignature(params, avk1, rSig2, privMBig)
+	blindShowMats4, _ := ShowBlindSignature(params, avk2, rSig1, privMBig)
+
+	// Verify credentials
+	fmt.Println(BlindVerify(params, avk1, rSig1, blindShowMats1, pubMBig))
+	fmt.Println(BlindVerify(params, avk2, rSig2, blindShowMats2, pubMBig))
+	fmt.Println(BlindVerify(params, avk1, rSig2, blindShowMats3, pubMBig))
+	fmt.Println(BlindVerify(params, avk2, rSig1, blindShowMats4, pubMBig))
+
 }

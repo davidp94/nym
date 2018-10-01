@@ -13,8 +13,6 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-// Package coconut provides the functionalities required by the Coconut Scheme.
 package coconut
 
 import (
@@ -230,7 +228,6 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.ElGamal
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
 func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
-
 	G := params.G
 
 	// witnesses creation
