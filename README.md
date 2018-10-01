@@ -1,9 +1,35 @@
 # CoconutGo
 
-[![Build Status](https://travis-ci.com/jstuczyn/CoconutGo.svg?token=UBNxB6nYY9jZRznyS2p1&branch=master)](https://travis-ci.com/jstuczyn/CoconutGo)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/jstuczyn/CoconutGo/blob/master/LICENSE)
+[![Build Status](https://travis-ci.com/jstuczyn/CoconutGo.svg?branch=master)](https://travis-ci.com/jstuczyn/CoconutGo)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/jstuczyn/CoconutGo)
+[![Coverage Status](http://codecov.io/github/jstuczyn/CoconutGo/coverage.svg?branch=master)](http://codecov.io/github/jstuczyn/CoconutGo?branch=master)
 
-*todo: remember to update the above to remove the git token once/if the repo becomes public*
+This is a Go implementation of the Coconut selective disclosure cerendtial scheme by Sonnino et al.: [https://arxiv.org/pdf/1802.07344.pdf](https://arxiv.org/pdf/1802.07344.pdf).
+It supports threshold issuance on multiple public and private attributes, re-randomization and multiple unlinkable selective attribute revelations.
 
-To run the code, first of all you need to follow standard Go installation procedure that includes setting up the $GOPATH, etc.
+The implementation is based on the existing Python version: [https://github.com/asonnino/coconut](https://github.com/asonnino/coconut)
 
-Then follow the instructions at <https://github.com/milagro-crypto/amcl/tree/master/version3/go> in order to install the pairing library. Make sure you select the BLS381 curve as an option.
+## Pre-requisites
+
+To run the code, first of all you need to follow standard Go installation procedure as described in [https://golang.org/doc/install](https://golang.org/doc/install).
+
+Then follow the instructions at [https://github.com/milagro-crypto/amcl/tree/master/version3/go](https://github.com/milagro-crypto/amcl/tree/master/version3/go) in order to install the Apache Milagro Cryptographic Library that is used for cryptographic primitives. Note that currently CoconutGo uses BLS381, so make sure you select it as the option during the library setup.
+
+## Test
+
+In order to run tests, firstly install Testify package:
+
+```bash
+go get github.com/stretchr/testify
+```
+
+Then simply run the tests with:
+
+```bash
+go test -v ./...
+```
+
+### Benchmarks
+
+todo
