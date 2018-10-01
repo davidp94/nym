@@ -1,3 +1,18 @@
+// scheme.go - tests for Coconut signature scheme
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package coconut
 
 import (
@@ -13,6 +28,9 @@ import (
 	"github.com/milagro-crypto/amcl/version3/go/amcl"
 	"github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
+
+// todo: tests for q > len(attriutes)
+// todo: simplify TestSchemeTTPKeygen
 
 func TestSchemeSetup(t *testing.T) {
 	_, err := Setup(0)
@@ -36,15 +54,16 @@ func TestSchemeKeygen(t *testing.T) {
 	params, err := Setup(10)
 	assert.Nil(t, err)
 
-	sk, vk, err := Keygen(&Params{G: params.G, hs: nil})
+	_, _, err = Keygen(&Params{G: params.G, hs: nil})
 	assert.Equal(t, ErrKeygenParams, err, "Should not allow generating params for less than 1 attribute")
 
-	sk, vk, err = Keygen(params)
+	sk, vk, err := Keygen(params)
 	assert.Nil(t, err)
 
 	keygenTest(t, params, sk, vk)
 }
 
+// nolint: gocyclo
 func TestSchemeTTPKeygen(t *testing.T) {
 	params, err := Setup(10)
 	assert.Nil(t, err)
@@ -271,7 +290,7 @@ func TestSchemeVerify(t *testing.T) {
 		msg            string
 	}{
 		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on single public attribute"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on mulitple public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{}, msg: "Should verify a valid signature on multiple public attribute"},
 		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"}, msg: "Should not verify a signature when malicious attribute is introduced"},
 		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, msg: "Should not verify a signature when malicious attributes are introduced"},
 	}
@@ -344,10 +363,14 @@ func TestSchemeKeyAggregation(t *testing.T) {
 		pp    *PolynomialPoints
 		msg   string
 	}{
-		{attrs: []string{"Hello World!"}, pp: nil, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, pp: nil, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
-		{attrs: []string{"Hello World!"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, pp: nil,
+			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: nil,
+			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}},
+			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
 	}
 
 	for _, test := range tests {
@@ -382,17 +405,27 @@ func TestSchemeAggregateVerification(t *testing.T) {
 		t              int
 		msg            string
 	}{
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0, msg: "Should verify aggregated signature when only single signature was used for aggregation"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0, msg: "Should verify aggregated signature when three signatures were used for aggregation"},
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, pp: nil, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, pp: nil, t: 0, msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2, maliciousAttrs: []string{"Malicious Hello World!"}, pp: nil, t: 0,
+			msg: "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"}, pp: nil, t: 0,
+			msg: "Should fail to verify aggregated where malicious signatures were introduced"},
 
-		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1, msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
-		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2, msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1)}}, t: 1,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation (threshold)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: &PolynomialPoints{[]*BLS381.BIG{BLS381.NewBIGint(1), BLS381.NewBIGint(2), BLS381.NewBIGint(3)}}, t: 2,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation (threshold)"},
 	}
 
 	for _, test := range tests {
@@ -529,6 +562,7 @@ func TestSchemeBlindVerify(t *testing.T) {
 		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
 
 		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
+		assert.Nil(t, err)
 		sig := Unblind(params, blindedSignature, d)
 
 		_, err = ShowBlindSignature(params, vk, sig, []*BLS381.BIG{})
@@ -751,6 +785,39 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 					b.StartTimer()
 					blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
 					_ = blindSignMats
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkBlindSign(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	pubns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		for _, pubn := range pubns {
+			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
+				for i := 0; i < b.N; i++ {
+					b.StopTimer()
+					params, _ := Setup(pubn + privn)    // we don't want to time setup
+					privs := make([]*BLS381.BIG, privn) // generate random attributes to sign
+					pubs := make([]*BLS381.BIG, pubn)   // generate random attributes to sign
+
+					for i := range privs {
+						privs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+					}
+
+					for i := range pubs {
+						pubs[i] = BLS381.Randomnum(params.G.Ord, params.G.Rng)
+					}
+
+					_, gamma := elgamal.Keygen(params.G)
+					blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+					sk, _, _ := Keygen(params)
+					b.StartTimer()
+					blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+					_ = blindSig
 				}
 			})
 		}
