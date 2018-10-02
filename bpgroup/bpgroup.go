@@ -29,10 +29,35 @@ import (
 
 // BpGroup represents data required for a bilinear pairing
 type BpGroup struct {
-	Gen1 *Curve.ECP
-	Gen2 *Curve.ECP2
-	Ord  *Curve.BIG
-	Rng  *amcl.RAND
+	gen1 *Curve.ECP
+	gen2 *Curve.ECP2
+	ord  *Curve.BIG
+	rng  *amcl.RAND
+}
+
+// Gen1 returns generator for G1
+func (b *BpGroup) Gen1() *Curve.ECP {
+	return b.gen1
+}
+
+// Gen2 returns generator for G2
+func (b *BpGroup) Gen2() *Curve.ECP2 {
+	return b.gen2
+}
+
+// Order returns order of the group
+func (b *BpGroup) Order() *Curve.BIG {
+	return b.ord
+}
+
+// Rng returns instance of random number generator
+func (b *BpGroup) Rng() *amcl.RAND {
+	return b.rng
+}
+
+// Pair performs the bilinear pairing operation e(G1, G2) -> GT
+func (b *BpGroup) Pair(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
+	return Curve.Fexp(Curve.Ate(g2, g1))
 }
 
 // New returns a new instance of a BpGroup
@@ -49,17 +74,12 @@ func New() *BpGroup {
 	rng.Seed(n, raw)
 
 	b := BpGroup{
-		Gen1: Curve.ECP_generator(),
-		Gen2: Curve.ECP2_generator(),
-		Ord:  Curve.NewBIGints(Curve.CURVE_Order),
-		Rng:  rng,
+		gen1: Curve.ECP_generator(),
+		gen2: Curve.ECP2_generator(),
+		ord:  Curve.NewBIGints(Curve.CURVE_Order),
+		rng:  rng,
 	}
 	return &b
-}
-
-// Pair performs the bilinear pairing operation e(G1, G2) -> GT
-func (b *BpGroup) Pair(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
-	return Curve.Fexp(Curve.Ate(g2, g1))
 }
 
 // Returns slice of bytes of specified size of cryptographically secure random numbers.

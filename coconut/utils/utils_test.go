@@ -60,6 +60,7 @@ func TestPolyEval(t *testing.T) {
 func TestLagrangeBasis(t *testing.T) {
 	// polynomial of order k - 1
 	G := bpgroup.New()
+	p, rng := G.Order(), G.Rng()
 	ks := []int{1, 3, 5, 10}
 	for _, k := range ks {
 		v := make([]*Curve.BIG, k)
@@ -67,18 +68,18 @@ func TestLagrangeBasis(t *testing.T) {
 		vals := make([]*Curve.BIG, k)
 		xs := make([]*Curve.BIG, k)
 		for i := range v {
-			v[i] = Curve.Randomnum(G.Ord, G.Rng)
-			xs[i] = Curve.Randomnum(G.Ord, G.Rng) // works for any xs
+			v[i] = Curve.Randomnum(p, rng)
+			xs[i] = Curve.Randomnum(p, rng) // works for any xs
 		}
 		for i := range v {
-			ls[i] = utils.LagrangeBasis(i, G.Ord, xs, 0)
-			vals[i] = utils.PolyEval(v, xs[i], G.Ord)
+			ls[i] = utils.LagrangeBasis(i, p, xs, 0)
+			vals[i] = utils.PolyEval(v, xs[i], p)
 		}
-		interpolated := Curve.Modmul(ls[0], vals[0], G.Ord)
+		interpolated := Curve.Modmul(ls[0], vals[0], p)
 		for i := 1; i < len(v); i++ {
-			interpolated = interpolated.Plus(Curve.Modmul(ls[i], vals[i], G.Ord))
+			interpolated = interpolated.Plus(Curve.Modmul(ls[i], vals[i], p))
 		}
-		interpolated.Mod(G.Ord)
+		interpolated.Mod(p)
 		assert.Zero(t, Curve.Comp(v[0], interpolated))
 	}
 }

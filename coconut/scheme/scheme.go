@@ -30,7 +30,6 @@ import (
 	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: allow for q being arbitrary larger than number of signed parameters
 // todo: remove the way functions are currently executed concurrently
 // todo: parallelization with worker pool
 // todo: modify data in Params to be consistent with the original paper
@@ -69,7 +68,10 @@ type BlindedSignature struct {
 
 // Params represent public system-wide parameters.
 type Params struct {
-	G  *bpgroup.BpGroup
+	G  *bpgroup.BpGroup // represents G1, G2, GT
+	p  *Curve.BIG
+	g1 *Curve.ECP
+	g2 *Curve.ECP2
 	hs []*Curve.ECP
 }
 
@@ -144,36 +146,42 @@ func Setup(q int) (*Params, error) {
 	}
 	wg.Wait()
 	G := bpgroup.New()
-	return &Params{G, hs}, nil
+	return &Params{
+		G:  G,
+		p:  G.Order(),
+		g1: G.Gen1(),
+		g2: G.Gen2(),
+		hs: hs,
+	}, nil
 }
 
 // Keygen generates a single Coconut keypair ((x, y1, y2...), (g2, g2^x, g2^y1, ...)).
 // It is not suitable for threshold credentials as all generated keys are independent of each other.
 func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
-	q := len(params.hs)
+	p, g2, hs, rng := params.p, params.g2, params.hs, params.G.Rng()
+
+	q := len(hs)
 	if q < 1 {
 		return nil, nil, ErrKeygenParams
 	}
-	G := params.G
-
-	x := Curve.Randomnum(G.Ord, G.Rng)
+	x := Curve.Randomnum(p, rng)
 	y := make([]*Curve.BIG, q)
 	sk := &SecretKey{x: x, y: y}
 
 	for i := 0; i < q; i++ {
-		y[i] = Curve.Randomnum(G.Ord, G.Rng)
+		y[i] = Curve.Randomnum(p, rng)
 	}
 
-	alpha := Curve.G2mul(G.Gen2, x)
+	alpha := Curve.G2mul(g2, x)
 	beta := make([]*Curve.ECP2, q)
-	vk := &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+	vk := &VerificationKey{g2: g2, alpha: alpha, beta: beta}
 
 	var wg sync.WaitGroup
 	wg.Add(q)
 
 	for i := 0; i < q; i++ {
 		go func(i int) {
-			beta[i] = Curve.G2mul(G.Gen2, y[i])
+			beta[i] = Curve.G2mul(g2, y[i])
 			wg.Done()
 		}(i)
 	}
@@ -185,8 +193,9 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
 // such that they support threshold aggregation of t parties.
 // It is expected that this procedure is executed by a Trusted Third Party.
 func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, error) {
-	q := len(params.hs)
-	G := params.G
+	p, g2, hs, rng := params.p, params.g2, params.hs, params.G.Rng()
+
+	q := len(hs)
 	if n < t || t <= 0 || q <= 0 {
 		return nil, nil, ErrTTPKeygenParams
 	}
@@ -194,14 +203,14 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	// polynomials generation
 	v := make([]*Curve.BIG, t)
 	for i := range v {
-		v[i] = Curve.Randomnum(G.Ord, G.Rng)
+		v[i] = Curve.Randomnum(p, rng)
 	}
 
 	w := make([][]*Curve.BIG, q)
 	for i := range w {
 		w[i] = make([]*Curve.BIG, t)
 		for j := range w[i] {
-			w[i][j] = Curve.Randomnum(G.Ord, G.Rng)
+			w[i][j] = Curve.Randomnum(p, rng)
 		}
 	}
 
@@ -213,10 +222,10 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	for i := 1; i < n+1; i++ {
 		go func(i int) {
 			iBIG := Curve.NewBIGint(i)
-			x := utils.PolyEval(v, iBIG, G.Ord)
+			x := utils.PolyEval(v, iBIG, p)
 			ys := make([]*Curve.BIG, q)
 			for j, wj := range w {
-				ys[j] = utils.PolyEval(wj, iBIG, G.Ord)
+				ys[j] = utils.PolyEval(wj, iBIG, p)
 			}
 			sks[i-1] = &SecretKey{x: x, y: ys}
 			wg.Done()
@@ -231,12 +240,12 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	vks := make([]*VerificationKey, n)
 	for i := range sks {
 		go func(i int) {
-			alpha := Curve.G2mul(G.Gen2, sks[i].x)
+			alpha := Curve.G2mul(g2, sks[i].x)
 			beta := make([]*Curve.ECP2, q)
 			for j, yj := range sks[i].y {
-				beta[j] = Curve.G2mul(G.Gen2, yj)
+				beta[j] = Curve.G2mul(g2, yj)
 			}
-			vks[i] = &VerificationKey{g2: G.Gen2, alpha: alpha, beta: beta}
+			vks[i] = &VerificationKey{g2: g2, alpha: alpha, beta: beta}
 			wg.Done()
 		}(i)
 	}
@@ -260,16 +269,18 @@ func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
 func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) {
+	p := params.p
+
 	if len(pubM) != len(sk.y) {
 		return nil, ErrSignParams
 	}
-	G := params.G
+
 	h := getBaseFromAttributes(pubM)
 
 	K := Curve.NewBIGcopy(sk.x) // K = x
 	for i := 0; i < len(pubM); i++ {
-		tmp := Curve.Modmul(sk.y[i], pubM[i], G.Ord) // (ai * yi)
-		K = K.Plus(tmp)                              // K = x + (a0 * y0) + ...
+		tmp := Curve.Modmul(sk.y[i], pubM[i], p) // (ai * yi)
+		K = K.Plus(tmp)                          // K = x + (a0 * y0) + ...
 	}
 	sig := Curve.G1mul(h, K) // sig = h^(x + (a0 * y0) + ... )
 
@@ -281,24 +292,25 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
-	G := params.G
+	G, p, g1, hs, rng := params.G, params.p, params.g1, params.hs, params.G.Rng()
+
 	if len(privM) <= 0 {
 		return nil, ErrPrepareBlindSignPrivate
 	}
 	attributes := append(privM, pubM...)
-	if len(attributes) > len(params.hs) {
+	if len(attributes) > len(hs) {
 		return nil, ErrPrepareBlindSignParams
 	}
 
-	r := Curve.Randomnum(G.Ord, G.Rng)
-	cm := Curve.G1mul(params.G.Gen1, r)
+	r := Curve.Randomnum(p, rng)
+	cm := Curve.G1mul(g1, r)
 
 	cmElems := make([]*Curve.ECP, len(attributes))
 	var wg sync.WaitGroup
 	wg.Add(len(attributes))
 	for i := range attributes {
 		go func(i int) {
-			cmElems[i] = Curve.G1mul(params.hs[i], attributes[i])
+			cmElems[i] = Curve.G1mul(hs[i], attributes[i])
 			wg.Done()
 		}(i)
 	}
@@ -334,7 +346,9 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*BlindedSignature, error) {
-	if len(blindSignMats.enc)+len(pubM) > len(params.hs) {
+	hs := params.hs
+
+	if len(blindSignMats.enc)+len(pubM) > len(hs) {
 		return nil, ErrBlindSignParams
 	}
 	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
@@ -401,7 +415,8 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 
 // Unblind unblinds the blinded Coconut credential.
 func Unblind(params *Params, blindedSignature *BlindedSignature, d *Curve.BIG) *Signature {
-	sig2 := elgamal.Decrypt(params.G, d, blindedSignature.sig2Tilda)
+	G := params.G
+	sig2 := elgamal.Decrypt(G, d, blindedSignature.sig2Tilda)
 	return &Signature{
 		sig1: blindedSignature.sig1,
 		sig2: sig2,
@@ -411,10 +426,11 @@ func Unblind(params *Params, blindedSignature *BlindedSignature, d *Curve.BIG) *
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
 func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signature) bool {
+	G := params.G
+
 	if len(pubM) != len(vk.beta) {
 		return false
 	}
-	G := params.G
 
 	K := Curve.NewECP2()
 	K.Copy(vk.alpha) // K = X
@@ -454,12 +470,13 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 // It returns kappa and nu - group elements needed to perform verification
 // and zero-knowledge proof asserting corectness of the above.
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
-	G := params.G
+	p, rng := params.p, params.G.Rng()
+
 	if len(privM) <= 0 || len(privM) > len(vk.beta) {
 		return nil, ErrShowBlindAttr
 	}
 
-	t := Curve.Randomnum(G.Ord, G.Rng)
+	t := Curve.Randomnum(p, rng)
 	kappa := Curve.G2mul(vk.g2, t)
 	kappa.Add(vk.alpha)
 	for i := range privM {
@@ -478,6 +495,8 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, pubM []*Curve.BIG) bool {
+	G := params.G
+
 	privateLen := len(showMats.proof.rm)
 	if len(pubM)+privateLen > len(vk.beta) || !VerifyVerifierProof(params, vk, sig, showMats) {
 		return false
@@ -500,8 +519,8 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 	t2.Copy(sig.sig2)
 	t2.Add(showMats.nu)
 
-	Gt1 := params.G.Pair(sig.sig1, t1)
-	Gt2 := params.G.Pair(t2, vk.g2)
+	Gt1 := G.Pair(sig.sig1, t1)
+	Gt2 := G.Pair(t2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
@@ -509,10 +528,11 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
 // from a fresh credential on different attributes
 func Randomize(params *Params, sig *Signature) *Signature {
-	G := params.G
+	p, rng := params.p, params.G.Rng()
+
 	var wg sync.WaitGroup
 	var rSig Signature
-	t := Curve.Randomnum(G.Ord, G.Rng)
+	t := Curve.Randomnum(p, rng)
 	wg.Add(2)
 	go func() {
 		rSig.sig1 = Curve.G1mul(sig.sig1, t)
@@ -529,6 +549,8 @@ func Randomize(params *Params, sig *Signature) *Signature {
 // AggregateVerificationKeys aggregates verification keys of the signing authorities.
 // Optionally it does so in a threshold manner.
 func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *PolynomialPoints) *VerificationKey {
+	p := params.p
+
 	var alpha *Curve.ECP2
 	beta := make([]*Curve.ECP2, len(vks[0].beta))
 
@@ -536,7 +558,7 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *Polyn
 		t := len(vks)
 		l := make([]*Curve.BIG, t)
 		for i := 0; i < t; i++ {
-			l[i] = utils.LagrangeBasis(i, params.G.Ord, pp.xs, 0)
+			l[i] = utils.LagrangeBasis(i, p, pp.xs, 0)
 		}
 
 		alpha = Curve.G2mul(vks[0].alpha, l[0])
@@ -584,12 +606,14 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *Polyn
 // that were produced by multiple signing authorities.
 // Optionally it does so in a threshold manner.
 func AggregateSignatures(params *Params, sigs []*Signature, pp *PolynomialPoints) *Signature {
+	p := params.p
+
 	var sig2 *Curve.ECP
 	if pp != nil {
 		t := len(sigs)
 		l := make([]*Curve.BIG, t)
 		for i := 0; i < t; i++ {
-			l[i] = utils.LagrangeBasis(i, params.G.Ord, pp.xs, 0)
+			l[i] = utils.LagrangeBasis(i, p, pp.xs, 0)
 		}
 		sig2 = Curve.G1mul(sigs[0].sig2, l[0])
 		for i := 1; i < len(sigs); i++ {

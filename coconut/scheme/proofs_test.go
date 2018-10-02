@@ -49,6 +49,7 @@ func TestSignerProof(t *testing.T) {
 	for _, test := range tests {
 		params, err := Setup(len(test.pub) + len(test.priv))
 		assert.Nil(t, err)
+		G, p, g1, rng := params.G, params.p, params.g1, params.G.Rng()
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
 		privBig := make([]*Curve.BIG, len(test.priv))
@@ -63,19 +64,19 @@ func TestSignerProof(t *testing.T) {
 
 		attributes := append(privBig, pubBig...)
 
-		r := Curve.Randomnum(params.G.Ord, params.G.Rng)
-		cm := Curve.G1mul(params.G.Gen1, r)
+		r := Curve.Randomnum(p, rng)
+		cm := Curve.G1mul(g1, r)
 		for i := range attributes {
 			cm.Add(Curve.G1mul(params.hs[i], attributes[i]))
 		}
 		h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
 		assert.Nil(t, err)
 
-		_, gamma := elgamal.Keygen(params.G)
+		_, gamma := elgamal.Keygen(G)
 		encs := make([]*elgamal.Encryption, len(test.priv))
 		ks := make([]*Curve.BIG, len(test.priv))
 		for i := range test.priv {
-			c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
+			c, k := elgamal.Encrypt(G, gamma, privBig[i], h)
 			encs[i] = c
 			ks[i] = k
 		}
@@ -91,7 +92,7 @@ func TestSignerProof(t *testing.T) {
 			assert.Equal(t, ErrConstructSignerCiphertexts, err)
 		}
 
-		_, err = ConstructSignerProof(&Params{G: params.G, hs: params.hs[1:]}, gamma, encs, cm, ks, r, pubBig, privBig)
+		_, err = ConstructSignerProof(&Params{G: G, hs: params.hs[1:]}, gamma, encs, cm, ks, r, pubBig, privBig)
 		assert.Equal(t, ErrConstructSignerAttrs, err)
 
 		_, err = ConstructSignerProof(params, gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
@@ -126,6 +127,7 @@ func TestVerifierProof(t *testing.T) {
 	for _, test := range tests {
 		params, err := Setup(len(test.pub) + len(test.priv))
 		assert.Nil(t, err)
+		G := params.G
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
 		privBig := make([]*Curve.BIG, len(test.priv))
@@ -140,7 +142,7 @@ func TestVerifierProof(t *testing.T) {
 
 		sk, vk, err := Keygen(params)
 		assert.Nil(t, err)
-		d, gamma := elgamal.Keygen(params.G)
+		d, gamma := elgamal.Keygen(G)
 
 		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
 		assert.Nil(t, err)

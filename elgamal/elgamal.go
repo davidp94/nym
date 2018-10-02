@@ -20,6 +20,7 @@ package elgamal
 
 import (
 	"github.com/jstuczyn/CoconutGo/bpgroup"
+
 	// The named import is used to be able to easily update curve being used
 	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
@@ -27,6 +28,7 @@ import (
 // todo: create types for public and private keys and adjust arguments accordingly (look https://godoc.org/golang.org/x/crypto/openpgp/elgamal)
 // todo: rather than pass entire BpGroup object, pass just rng gen, like the above implementation
 // todo: possibly alternative version of Decrypt to return actual m rather than h^m
+// todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
 
 // Encryption are the two points on the G1 curve
 // that represent encryption of message in form of h^m
@@ -53,10 +55,14 @@ func NewEncryptionFromPoints(c1 *Curve.ECP, c2 *Curve.ECP) *Encryption {
 	}
 }
 
-// Keygen generates private and public keys required for ElGamal encryption scheme
+// Keygen generates private and public keys required for ElGamal encryption scheme.
+// Passing coconut.Params as an argument would cause issues with cyclic dependencies,
+// passing BpGroup in that case is sufficient.
 func Keygen(G *bpgroup.BpGroup) (*Curve.BIG, *Curve.ECP) {
-	d := Curve.Randomnum(G.Ord, G.Rng)
-	gamma := Curve.G1mul(G.Gen1, d)
+	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+
+	d := Curve.Randomnum(p, rng)
+	gamma := Curve.G1mul(g1, d)
 	return d, gamma
 }
 
@@ -65,8 +71,10 @@ func Keygen(G *bpgroup.BpGroup) (*Curve.BIG, *Curve.ECP) {
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
 func Encrypt(G *bpgroup.BpGroup, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) (*Encryption, *Curve.BIG) {
-	k := Curve.Randomnum(G.Ord, G.Rng)
-	a := Curve.G1mul(G.Gen1, k)
+	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+
+	k := Curve.Randomnum(p, rng)
+	a := Curve.G1mul(g1, k)
 	b := Curve.G1mul(gamma, k) // b = (k * gamma)
 	b.Add(Curve.G1mul(h, m))   // b = (k * gamma) + (m * h)
 

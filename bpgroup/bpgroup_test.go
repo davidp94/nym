@@ -27,48 +27,48 @@ import (
 func TestPairing(t *testing.T) {
 	G := bpgroup.New()
 
-	P := Curve.G1mul(G.Gen1, G.Ord)
+	P := Curve.G1mul(G.Gen1(), G.Order())
 	assert.True(t, P.Is_infinity(), "rP != 0")
 
-	Q := Curve.G2mul(G.Gen2, G.Ord)
+	Q := Curve.G2mul(G.Gen2(), G.Order())
 	assert.True(t, Q.Is_infinity(), "rQ != 0")
 
 	// generate random g1 and g2 elements
-	x := Curve.Randomnum(G.Ord, G.Rng)
-	y := Curve.Randomnum(G.Ord, G.Rng)
+	x := Curve.Randomnum(G.Order(), G.Rng())
+	y := Curve.Randomnum(G.Order(), G.Rng())
 
-	P = Curve.G1mul(G.Gen1, x)
-	Q = Curve.G2mul(G.Gen2, y)
+	P = Curve.G1mul(G.Gen1(), x)
+	Q = Curve.G2mul(G.Gen2(), y)
 
 	W := G.Pair(P, Q)
 
-	g := Curve.GTpow(W, G.Ord)
+	g := Curve.GTpow(W, G.Order())
 	assert.True(t, g.Isunity(), "g^r != 1")
 
-	a := Curve.Randomnum(G.Ord, G.Rng)
+	a := Curve.Randomnum(G.Order(), G.Rng())
 	p := Curve.G1mul(P, a)
 	gt1 := G.Pair(p, Q)
 	gt2 := Curve.GTpow(G.Pair(P, Q), a)
 	assert.True(t, gt1.Equals(gt2), "e(aP, Q) != e(P, Q)^a")
 
-	a = Curve.Randomnum(G.Ord, G.Rng)
+	a = Curve.Randomnum(G.Order(), G.Rng())
 	q := Curve.G2mul(Q, a)
 	gt1 = G.Pair(P, q)
 	gt2 = Curve.GTpow(G.Pair(P, Q), a)
 	assert.True(t, gt1.Equals(gt2), "e(P, aQ) != e(P, Q)^a")
 
-	a = Curve.Randomnum(G.Ord, G.Rng)
+	a = Curve.Randomnum(G.Order(), G.Rng())
 	p = Curve.G1mul(P, a)
 	q = Curve.G2mul(Q, a)
 	gt1 = G.Pair(P, q)
 	gt2 = G.Pair(p, Q)
 	assert.True(t, gt1.Equals(gt2), "e(aP, Q) != e(P, aQ)")
 
-	a = Curve.Randomnum(G.Ord, G.Rng)
-	b := Curve.Randomnum(G.Ord, G.Rng)
+	a = Curve.Randomnum(G.Order(), G.Rng())
+	b := Curve.Randomnum(G.Order(), G.Rng())
 	p = Curve.G1mul(P, a)
 	q = Curve.G2mul(Q, b)
-	c := Curve.Modmul(a, b, G.Ord)
+	c := Curve.Modmul(a, b, G.Order())
 	gt1 = G.Pair(p, q)
 	gt2 = Curve.GTpow(G.Pair(P, Q), c)
 	assert.True(t, gt1.Equals(gt2), "e(aP, bQ) != e(P, Q)^ab")

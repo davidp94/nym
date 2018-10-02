@@ -27,22 +27,25 @@ import (
 
 func TestElGamalKeygen(t *testing.T) {
 	G := bpgroup.New()
+	g1 := G.Gen1()
 	d, gamma := Keygen(G)
 
-	assert.True(t, gamma.Equals(Curve.G1mul(G.Gen1, d)), "Gamma should be equal to g1 * d")
+	assert.True(t, gamma.Equals(Curve.G1mul(g1, d)), "Gamma should be equal to g1 * d")
 }
 
 func TestElGamalEncryption(t *testing.T) {
 	G := bpgroup.New()
+	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+
 	_, gamma := Keygen(G)
 
-	t1 := Curve.Randomnum(G.Ord, G.Rng)
-	h := Curve.G1mul(G.Gen1, t1) // random h
-	m := Curve.Randomnum(G.Ord, G.Rng)
+	t1 := Curve.Randomnum(p, rng)
+	h := Curve.G1mul(g1, t1) // random h
+	m := Curve.Randomnum(p, rng)
 
 	enc, k := Encrypt(G, gamma, m, h)
 
-	assert.True(t, enc.c1.Equals(Curve.G1mul(G.Gen1, k)), "a should be equal to g1^k")
+	assert.True(t, enc.c1.Equals(Curve.G1mul(g1, k)), "a should be equal to g1^k")
 
 	tmp := Curve.G1mul(gamma, k) // b = (k * gamma)
 	tmp.Add(Curve.G1mul(h, m))   // b = (k * gamma) + (m * h)
@@ -52,11 +55,13 @@ func TestElGamalEncryption(t *testing.T) {
 
 func TestElGamalDecryption(t *testing.T) {
 	G := bpgroup.New()
+	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+
 	d, gamma := Keygen(G)
 
-	t1 := Curve.Randomnum(G.Ord, G.Rng)
-	h := Curve.G1mul(G.Gen1, t1) // random h
-	m := Curve.Randomnum(G.Ord, G.Rng)
+	t1 := Curve.Randomnum(p, rng)
+	h := Curve.G1mul(g1, t1) // random h
+	m := Curve.Randomnum(p, rng)
 	hm := Curve.G1mul(h, m)
 
 	enc, _ := Encrypt(G, gamma, m, h)

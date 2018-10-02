@@ -29,7 +29,6 @@ import (
 	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: tests for q > len(attriutes)
 // todo: simplify TestSchemeTTPKeygen
 
 func TestSchemeSetup(t *testing.T) {
@@ -42,7 +41,9 @@ func TestSchemeSetup(t *testing.T) {
 }
 
 func keygenTest(t *testing.T, params *Params, sk *SecretKey, vk *VerificationKey) {
-	assert.True(t, params.G.Gen2.Equals(vk.g2))
+	g2 := params.g2
+
+	assert.True(t, g2.Equals(vk.g2))
 	assert.True(t, Curve.G2mul(vk.g2, sk.x).Equals(vk.alpha))
 	assert.Equal(t, len(sk.y), len(vk.beta))
 	for i := range vk.beta {
@@ -54,7 +55,7 @@ func TestSchemeKeygen(t *testing.T) {
 	params, err := Setup(10)
 	assert.Nil(t, err)
 
-	_, _, err = Keygen(&Params{G: params.G, hs: nil})
+	_, _, err = Keygen(&Params{G: params.G, p: params.p, g1: params.g1, g2: params.g2, hs: nil})
 	assert.Equal(t, ErrKeygenParams, err, "Should not allow generating params for less than 1 attribute")
 
 	sk, vk, err := Keygen(params)
@@ -74,7 +75,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 	_, _, err = TTPKeygen(params, 0, 6)
 	assert.Equal(t, ErrTTPKeygenParams, err)
 
-	_, _, err = TTPKeygen(&Params{G: params.G, hs: nil}, 6, 6)
+	_, _, err = TTPKeygen(&Params{G: params.G, p: params.p, g1: params.g1, g2: params.g2, hs: nil}, 6, 6)
 	assert.Equal(t, ErrTTPKeygenParams, err)
 
 	tests := []struct {
@@ -89,6 +90,9 @@ func TestSchemeTTPKeygen(t *testing.T) {
 		repeat := 3
 		q := 4
 		params, _ := Setup(q)
+
+		p := params.p
+
 		sks, vks, err := TTPKeygen(params, test.t, test.n)
 		assert.Nil(t, err)
 		assert.Equal(t, len(sks), len(vks))
@@ -116,7 +120,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				indices12[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
-				l11[i] = utils.LagrangeBasis(i, params.G.Ord, indices12, 0)
+				l11[i] = utils.LagrangeBasis(i, p, indices12, 0)
 			}
 
 			// we can do it for all polynomials used for x and ys
@@ -129,14 +133,14 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys1 {
 				for j := range sks21 {
 					if i == 0 { // x
-						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].x, params.G.Ord))
+						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].x, p))
 					} else { // ys
-						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].y[i-1], params.G.Ord))
+						polys1[i] = polys1[i].Plus(Curve.Modmul(l11[j], sks21[j].y[i-1], p))
 					}
 				}
 			}
 			for i := range polys1 {
-				polys1[i].Mod(params.G.Ord)
+				polys1[i].Mod(p)
 			}
 
 			indices2 := randomInts(test.t, test.n)
@@ -150,7 +154,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				indices22[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
-				l12[i] = utils.LagrangeBasis(i, params.G.Ord, indices22, 0)
+				l12[i] = utils.LagrangeBasis(i, p, indices22, 0)
 			}
 
 			polys2 := make([]*Curve.BIG, q+1)
@@ -161,14 +165,14 @@ func TestSchemeTTPKeygen(t *testing.T) {
 			for i := range polys2 {
 				for j := range sks22 {
 					if i == 0 { // x
-						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].x, params.G.Ord))
+						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].x, p))
 					} else { // ys
-						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].y[i-1], params.G.Ord))
+						polys2[i] = polys2[i].Plus(Curve.Modmul(l12[j], sks22[j].y[i-1], p))
 					}
 				}
 			}
 			for i := range polys2 {
-				polys2[i].Mod(params.G.Ord)
+				polys2[i].Mod(p)
 				assert.Zero(t, Curve.Comp(polys1[i], polys2[i]))
 			}
 
@@ -188,7 +192,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				indices12[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
-				l11[i] = utils.LagrangeBasis(i, params.G.Ord, indices12, 0)
+				l11[i] = utils.LagrangeBasis(i, p, indices12, 0)
 			}
 
 			// we can do it for all polynomials used for alpha and betas
@@ -219,7 +223,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 				indices22[i] = Curve.NewBIGint(val)
 			}
 			for i := 0; i < test.t; i++ {
-				l12[i] = utils.LagrangeBasis(i, params.G.Ord, indices22, 0)
+				l12[i] = utils.LagrangeBasis(i, p, indices22, 0)
 			}
 
 			polys2v := make([]*Curve.ECP2, q+1)
@@ -263,8 +267,8 @@ func TestSchemeSign(t *testing.T) {
 	for _, test := range tests {
 		params, err := Setup(test.q)
 		assert.Nil(t, err)
+		p := params.p
 
-		G := params.G
 		sk, _, err := Keygen(params)
 		assert.Nil(t, err)
 
@@ -283,7 +287,7 @@ func TestSchemeSign(t *testing.T) {
 
 		t1 := Curve.NewBIGcopy(sk.x)
 		for i := range sk.y {
-			t1 = t1.Plus(Curve.Modmul(attrsBig[i], sk.y[i], G.Ord))
+			t1 = t1.Plus(Curve.Modmul(attrsBig[i], sk.y[i], p))
 		}
 
 		sigTest := Curve.G1mul(sig.sig1, t1)
@@ -784,10 +788,11 @@ func BenchmarkSign(b *testing.B) {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				params, _ := Setup(q)         // we don't want to time setup
+				params, _ := Setup(q) // we don't want to time setup
+				p, rng := params.p, params.G.Rng()
 				pubs := make([]*Curve.BIG, q) // generate random attributes to sign
 				for i := range pubs {
-					pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
+					pubs[i] = Curve.Randomnum(p, rng)
 				}
 				sk, _, _ := Keygen(params)
 				b.StartTimer()
@@ -806,16 +811,17 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn)   // we don't want to time setup
+					params, _ := Setup(pubn + privn) // we don't want to time setup
+					p, rng := params.p, params.G.Rng()
 					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
 					pubs := make([]*Curve.BIG, pubn)   // generate random attributes to sign
 
 					for i := range privs {
-						privs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
+						privs[i] = Curve.Randomnum(p, rng)
 					}
 
 					for i := range pubs {
-						pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
+						pubs[i] = Curve.Randomnum(p, rng)
 					}
 
 					_, gamma := elgamal.Keygen(params.G)
@@ -836,16 +842,18 @@ func BenchmarkBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn)   // we don't want to time setup
+					params, _ := Setup(pubn + privn) // we don't want to time setup
+					p, rng := params.p, params.G.Rng()
+
 					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
 					pubs := make([]*Curve.BIG, pubn)   // generate random attributes to sign
 
 					for i := range privs {
-						privs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
+						privs[i] = Curve.Randomnum(p, rng)
 					}
 
 					for i := range pubs {
-						pubs[i] = Curve.Randomnum(params.G.Ord, params.G.Rng)
+						pubs[i] = Curve.Randomnum(p, rng)
 					}
 
 					_, gamma := elgamal.Keygen(params.G)
