@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
@@ -130,20 +129,15 @@ func Setup(q int) (*Params, error) {
 	if q < 1 {
 		return nil, ErrSetupParams
 	}
-	var wg sync.WaitGroup
-	wg.Add(q)
 	hs := make([]*Curve.ECP, q)
 	for i := 0; i < q; i++ {
-		go func(i int) {
-			hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
-			if err != nil {
-				panic(err)
-			}
-			hs[i] = hi
-			wg.Done()
-		}(i)
+		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		if err != nil {
+			panic(err)
+		}
+		hs[i] = hi
 	}
-	wg.Wait()
+
 	G := bpgroup.New()
 	return &Params{
 		G:  G,
@@ -175,16 +169,9 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
 	beta := make([]*Curve.ECP2, q)
 	vk := &VerificationKey{g2: g2, alpha: alpha, beta: beta}
 
-	var wg sync.WaitGroup
-	wg.Add(q)
-
 	for i := 0; i < q; i++ {
-		go func(i int) {
-			beta[i] = Curve.G2mul(g2, y[i])
-			wg.Done()
-		}(i)
+		beta[i] = Curve.G2mul(g2, y[i])
 	}
-	wg.Wait()
 	return sk, vk, nil
 }
 
@@ -213,42 +200,30 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 		}
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(n)
 	// secret keys
 	sks := make([]*SecretKey, n)
 	// we can use any is now, rather than 1,2...,n; might be useful if we have some authorities ids?
 	for i := 1; i < n+1; i++ {
-		go func(i int) {
-			iBIG := Curve.NewBIGint(i)
-			x := utils.PolyEval(v, iBIG, p)
-			ys := make([]*Curve.BIG, q)
-			for j, wj := range w {
-				ys[j] = utils.PolyEval(wj, iBIG, p)
-			}
-			sks[i-1] = &SecretKey{x: x, y: ys}
-			wg.Done()
-		}(i)
+		iBIG := Curve.NewBIGint(i)
+		x := utils.PolyEval(v, iBIG, p)
+		ys := make([]*Curve.BIG, q)
+		for j, wj := range w {
+			ys[j] = utils.PolyEval(wj, iBIG, p)
+		}
+		sks[i-1] = &SecretKey{x: x, y: ys}
 	}
-	wg.Wait()
-	// no point in overdoing it by assigning new goroutine to each G2mul
-	// (it's unlikely we'd have enough CPU cores to make use of that)
-	wg.Add(n)
 
 	// verification keys
 	vks := make([]*VerificationKey, n)
 	for i := range sks {
-		go func(i int) {
-			alpha := Curve.G2mul(g2, sks[i].x)
-			beta := make([]*Curve.ECP2, q)
-			for j, yj := range sks[i].y {
-				beta[j] = Curve.G2mul(g2, yj)
-			}
-			vks[i] = &VerificationKey{g2: g2, alpha: alpha, beta: beta}
-			wg.Done()
-		}(i)
+		alpha := Curve.G2mul(g2, sks[i].x)
+		beta := make([]*Curve.ECP2, q)
+		for j, yj := range sks[i].y {
+			beta[j] = Curve.G2mul(g2, yj)
+		}
+		vks[i] = &VerificationKey{g2: g2, alpha: alpha, beta: beta}
+
 	}
-	wg.Wait()
 	return sks, vks, nil
 }
 
@@ -305,15 +280,10 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 	cm := Curve.G1mul(g1, r)
 
 	cmElems := make([]*Curve.ECP, len(attributes))
-	var wg sync.WaitGroup
-	wg.Add(len(attributes))
 	for i := range attributes {
-		go func(i int) {
-			cmElems[i] = Curve.G1mul(hs[i], attributes[i])
-			wg.Done()
-		}(i)
+		cmElems[i] = Curve.G1mul(hs[i], attributes[i])
+
 	}
-	wg.Wait()
 	for _, elem := range cmElems {
 		cm.Add(elem)
 	}
@@ -359,26 +329,17 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	}
 
 	t1 := make([]*Curve.ECP, len(pubM))
-	var wg sync.WaitGroup
-	wg.Add(len(pubM))
 	for i := range pubM {
-		go func(i int) {
-			t1[i] = Curve.G1mul(h, pubM[i])
-			wg.Done()
-		}(i)
+		t1[i] = Curve.G1mul(h, pubM[i])
+
 	}
-	wg.Wait()
 
 	t2 := Curve.G1mul(blindSignMats.enc[0].C1(), sk.y[0])
-	wg.Add(len(blindSignMats.enc) - 1)
 	t2Elems := make([]*Curve.ECP, len(blindSignMats.enc)-1)
 	for i := 1; i < len(blindSignMats.enc); i++ {
-		go func(i int) {
-			t2Elems[i-1] = Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i])
-			wg.Done()
-		}(i)
+		t2Elems[i-1] = Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i])
+
 	}
-	wg.Wait()
 
 	for _, elem := range t2Elems {
 		t2.Add(elem)
@@ -393,14 +354,9 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 
 	// tmpslice: all B + t1
 	t3Elems := make([]*Curve.ECP, len(sk.y))
-	wg.Add(len(sk.y))
 	for i := range sk.y {
-		go func(i int) {
-			t3Elems[i] = Curve.G1mul(tmpSlice[i], sk.y[i])
-			wg.Done()
-		}(i)
+		t3Elems[i] = Curve.G1mul(tmpSlice[i], sk.y[i])
 	}
-	wg.Wait()
 
 	for _, elem := range t3Elems {
 		t3.Add(elem)
@@ -435,32 +391,20 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	K.Copy(vk.alpha) // K = X
 	tmp := make([]*Curve.ECP2, len(pubM))
 
-	var wg sync.WaitGroup
-	wg.Add(len(pubM))
 	for i := 0; i < len(pubM); i++ {
-		go func(i int) {
-			tmp[i] = Curve.G2mul(vk.beta[i], pubM[i]) // (ai * Yi)
-			wg.Done()
-		}(i)
+		tmp[i] = Curve.G2mul(vk.beta[i], pubM[i]) // (ai * Yi)
+
 	}
-	wg.Wait()
 	for i := 0; i < len(pubM); i++ {
 		K.Add(tmp[i]) // K = X + (a1 * Y1) + ...
 	}
 
-	wg.Add(2)
 	var Gt1 *Curve.FP12
 	var Gt2 *Curve.FP12
 
-	go func() {
-		Gt1 = G.Pair(sig.sig1, K)
-		wg.Done()
-	}()
-	go func() {
-		Gt2 = G.Pair(sig.sig2, vk.g2)
-		wg.Done()
-	}()
-	wg.Wait()
+	Gt1 = G.Pair(sig.sig1, K)
+
+	Gt2 = G.Pair(sig.sig2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
@@ -529,19 +473,12 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 func Randomize(params *Params, sig *Signature) *Signature {
 	p, rng := params.p, params.G.Rng()
 
-	var wg sync.WaitGroup
 	var rSig Signature
 	t := Curve.Randomnum(p, rng)
-	wg.Add(2)
-	go func() {
-		rSig.sig1 = Curve.G1mul(sig.sig1, t)
-		wg.Done()
-	}()
-	go func() {
-		rSig.sig2 = Curve.G1mul(sig.sig2, t)
-		wg.Done()
-	}()
-	wg.Wait()
+
+	rSig.sig1 = Curve.G1mul(sig.sig1, t)
+	rSig.sig2 = Curve.G1mul(sig.sig2, t)
+
 	return &rSig
 }
 
