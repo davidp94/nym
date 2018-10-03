@@ -2,12 +2,12 @@ language: go
 go: 
   - "1.11"
 
-before_install:
-  - go get github.com/milagro-crypto/amcl || true
-  - (cd $GOPATH/src/github.com/milagro-crypto/amcl/version3/go/; (echo "21"; echo "0") | python config64.py)
+env:
+  - DEP_VERSION="0.5.0"
 
-before_script:
-  - go get github.com/stretchr/testify
+before_install:
+  - curl -L -s https://github.com/golang/dep/releases/download/v${DEP_VERSION}/dep-linux-amd64 -o $GOPATH/bin/dep
+  - chmod +x $GOPATH/bin/dep
 
 script: 
   - go test -v ./... -coverprofile=coverage.txt -covermode=atomic
