@@ -20,8 +20,8 @@ package utils
 import (
 	"errors"
 
-	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	"github.com/jstuczyn/amcl/version3/go/amcl"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash

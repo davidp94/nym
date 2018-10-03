@@ -26,13 +26,12 @@ import (
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
-	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	"github.com/jstuczyn/amcl/version3/go/amcl"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: remove the way functions are currently executed concurrently
 // todo: parallelization with worker pool
-// todo: modify data in Params to be consistent with the original paper
 // todo: make errors private
 // todo: rename and restructure PolynomialPoints struct + all its uses
 // todo: comments with maths computation

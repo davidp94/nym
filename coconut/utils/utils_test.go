@@ -22,7 +22,7 @@ import (
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
-	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // nolint: lll

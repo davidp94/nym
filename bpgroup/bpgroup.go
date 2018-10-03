@@ -20,8 +20,8 @@ package bpgroup
 import (
 	"crypto/rand"
 
-	"github.com/milagro-crypto/amcl/version3/go/amcl"
-	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	"github.com/jstuczyn/amcl/version3/go/amcl"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: consider replacing attributes with getters?

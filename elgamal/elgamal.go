@@ -22,11 +22,10 @@ import (
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 
 	// The named import is used to be able to easily update curve being used
-	Curve "github.com/milagro-crypto/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: create types for public and private keys and adjust arguments accordingly (look https://godoc.org/golang.org/x/crypto/openpgp/elgamal)
-// todo: rather than pass entire BpGroup object, pass just rng gen, like the above implementation
 // todo: possibly alternative version of Decrypt to return actual m rather than h^m
 // todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
 
