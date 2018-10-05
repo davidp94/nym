@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
 
 func TestElGamalKeygen(t *testing.T) {

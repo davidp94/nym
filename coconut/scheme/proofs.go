@@ -22,7 +22,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
 
 // todo: Ensure Signer and Verifier are the correct terms for the proofs
@@ -45,11 +45,6 @@ type VerifierProof struct {
 	rt *Curve.BIG
 }
 
-// Printable is a wrapper for all objects that have ToString method. In particular Curve.ECP and Curve.ECP2.
-type Printable interface {
-	ToString() string
-}
-
 var (
 	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of
 	// proofs for corectness of ciphertexts and cm.
@@ -63,7 +58,7 @@ var (
 // constructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L9.
-func constructChallenge(elems []Printable) *Curve.BIG {
+func constructChallenge(elems []utils.Printable) *Curve.BIG {
 	csa := make([]string, len(elems))
 	for i := range elems {
 		csa[i] = elems[i].ToString()
@@ -126,11 +121,11 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 		Cw.Add(Curve.G1mul(hs[i], wm[i])) // Cw = (wr * g1) + (wm[0] * hs[0]) + ... + (wm[i] * hs[i])
 	}
 
-	tmpSlice := []Printable{g1, g2, cm, h, Cw}
-	ca := make([]Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
+	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
 	i := copy(ca, tmpSlice)
 
-	// can't use copy for those due to type difference (Printable vs *Curve.ECP)
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
 	for _, item := range hs {
 		ca[i] = item
 		i++
@@ -205,11 +200,11 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encrypt
 		Cw.Add(Curve.G1mul(hs[i], proof.rm[i])) // Cw = (cm * c) + (rr * g1) + (rm[0] * hs[0]) + ... + (rm[i] * hs[i])
 	}
 
-	tmpSlice := []Printable{g1, g2, cm, h, Cw}
-	ca := make([]Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
+	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
 	i := copy(ca, tmpSlice)
 
-	// can't use copy for those due to type difference (Printable vs *Curve.ECP)
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
 	for _, item := range hs {
 		ca[i] = item
 		i++
@@ -247,11 +242,11 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	}
 	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
 
-	tmpSlice := []Printable{g1, g2, vk.alpha, Aw, Bw}
-	ca := make([]Printable, len(tmpSlice)+len(hs)+len(vk.beta))
+	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
 	i := copy(ca, tmpSlice)
 
-	// can't use copy for those due to type difference (Printable vs *Curve.ECP and *Curve.ECP2)
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
 	for _, item := range hs {
 		ca[i] = item
 		i++
@@ -302,11 +297,11 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 	Bw := Curve.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)
 	Bw.Add(Curve.G1mul(sig.sig1, showMats.proof.rt)) // Bw = (c * nu) + (rt * h)
 
-	tmpSlice := []Printable{g1, g2, vk.alpha, Aw, Bw}
-	ca := make([]Printable, len(tmpSlice)+len(hs)+len(vk.beta))
+	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
 	i := copy(ca, tmpSlice)
 
-	// can't use copy for those due to type difference (Printable vs *Curve.ECP and *Curve.ECP2)
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
 	for _, item := range hs {
 		ca[i] = item
 		i++

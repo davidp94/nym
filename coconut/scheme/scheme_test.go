@@ -1,4 +1,4 @@
-// scheme.go - tests for Coconut signature scheme
+// scheme_test.go - tests for Coconut signature scheme
 // Copyright (C) 2018  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -26,7 +26,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
 
 // todo: simplify TestSchemeTTPKeygen

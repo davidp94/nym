@@ -26,7 +26,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
 
 // todo: remove the way functions are currently executed concurrently
@@ -232,7 +232,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 	s := make([]string, len(pubM))
 	for i := range pubM {
-		s[i] = pubM[i].ToString()
+		s[i] = utils.ToCoconutString(pubM[i])
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
 	if err != nil {
@@ -403,7 +403,6 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	var Gt2 *Curve.FP12
 
 	Gt1 = G.Pair(sig.sig1, K)
-
 	Gt2 = G.Pair(sig.sig2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)

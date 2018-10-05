@@ -18,11 +18,44 @@
 package utils
 
 import (
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
+
+// Printable is a wrapper for all objects that have ToString method. In particular Curve.ECP and Curve.ECP2.
+type Printable interface {
+	ToString() string
+}
+
+// ToCoconutString returns string representation of ECP or ECP2 object such that it is compatible with
+// representation of Python implementation.
+func ToCoconutString(p Printable) string {
+	MB := int(Curve.MODBYTES)
+	var b []byte
+	switch v := p.(type) {
+	case *Curve.ECP:
+		b = make([]byte, MB+1)
+		v.ToBytes(b, true)
+	case *Curve.ECP2:
+		b = make([]byte, 4*MB)
+		v.ToBytes(b)
+	case *Curve.BIG:
+		// in this case it's simpler, but inconsistent as Python implementation returns capitalised hex for Bn
+		str := v.ToString()
+		return strings.ToUpper(str)
+	}
+
+	if len(b) > 0 {
+		return hex.EncodeToString(b)
+
+	} else {
+		return ""
+	}
+}
 
 // hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
