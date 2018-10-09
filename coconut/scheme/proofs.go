@@ -61,7 +61,7 @@ var (
 func constructChallenge(elems []utils.Printable) *Curve.BIG {
 	csa := make([]string, len(elems))
 	for i := range elems {
-		csa[i] = elems[i].ToString()
+		csa[i] = utils.ToCoconutString(elems[i])
 	}
 	cs := strings.Join(csa, ",")
 	c, err := utils.HashStringToBig(amcl.SHA256, cs)
@@ -98,7 +98,10 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 		wm[i] = Curve.Randomnum(p, rng)
 	}
 
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+	b := make([]byte, utils.MB+1)
+	cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		return nil, err
 	}
@@ -143,17 +146,20 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))
+	rr = rr.Plus(p)
 	rr.Mod(p) // rr = (wr - c * r) % o
 
 	rk := make([]*Curve.BIG, len(wk))
 	for i := range wk {
 		rk[i] = wk[i].Minus(Curve.Modmul(c, k[i], p))
+		rk[i] = rk[i].Plus(p)
 		rk[i].Mod(p) // rk[i] = (wk[i] - c * k[i]) % o
 	}
 
 	rm := make([]*Curve.BIG, len(wm))
 	for i := range wm {
 		rm[i] = wm[i].Minus(Curve.Modmul(c, attributes[i], p))
+		rm[i] = rm[i].Plus(p)
 		rm[i].Mod(p) // rm[i] = (wm[i] - c * attributes[i]) % o
 	}
 
@@ -174,7 +180,11 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encrypt
 	if len(encs) != len(proof.rk) {
 		return false
 	}
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+
+	b := make([]byte, utils.MB+1)
+	cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		panic(err)
 	}
@@ -262,10 +272,12 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	rm := make([]*Curve.BIG, len(privM))
 	for i := range privM {
 		rm[i] = wm[i].Minus(Curve.Modmul(c, privM[i], p))
+		rm[i] = rm[i].Plus(p)
 		rm[i].Mod(p)
 	}
 
 	rt := wt.Minus(Curve.Modmul(c, t, p))
+	rt = rt.Plus(p)
 	rt.Mod(p)
 
 	return &VerifierProof{

@@ -69,7 +69,11 @@ func TestSignerProof(t *testing.T) {
 		for i := range attributes {
 			cm.Add(Curve.G1mul(params.hs[i], attributes[i]))
 		}
-		h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+
+		b := make([]byte, utils.MB+1)
+		cm.ToBytes(b, true)
+
+		h, err := utils.HashBytesToG1(amcl.SHA256, b)
 		assert.Nil(t, err)
 
 		_, gamma := elgamal.Keygen(G)

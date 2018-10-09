@@ -131,7 +131,7 @@ func Setup(q int) (*Params, error) {
 	}
 	hs := make([]*Curve.ECP, q)
 	for i := 0; i < q; i++ {
-		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		hi, err := utils.HashStringToG1(amcl.SHA512, fmt.Sprintf("h%d", i))
 		if err != nil {
 			panic(err)
 		}
@@ -288,7 +288,10 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 		cm.Add(elem)
 	}
 
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+	b := make([]byte, utils.MB+1)
+	cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +326,11 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
 		return nil, ErrBlindSignProof
 	}
-	h, err := utils.HashStringToG1(amcl.SHA256, blindSignMats.cm.ToString())
+
+	b := make([]byte, utils.MB+1)
+	blindSignMats.cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		return nil, err
 	}

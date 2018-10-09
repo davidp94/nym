@@ -20,12 +20,13 @@ package utils
 import (
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
+
+var MB = int(Curve.MODBYTES)
 
 // todo: verify HashBytesToG1
 // todo: wait for George's change in bplib for hashG1
@@ -38,7 +39,6 @@ type Printable interface {
 // ToCoconutString returns string representation of ECP or ECP2 object such that it is compatible with
 // representation of Python implementation.
 func ToCoconutString(p Printable) string {
-	MB := int(Curve.MODBYTES)
 	var b []byte
 	switch v := p.(type) {
 	case *Curve.ECP:
@@ -114,8 +114,12 @@ func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
 	hash := W[:]
 
 	y := Curve.FromBytes(hash)
-	q := Curve.NewBIGints(Curve.CURVE_Order)
-	y.Mod(q)
+	// you should really take mod of this, however python coconut doesn't
+	// what produces comptability issues
+	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
+		q := Curve.NewBIGints(Curve.CURVE_Order)
+		y.Mod(q)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -150,12 +154,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 			x.Mod(p)
 			E = Curve.NewECPbigint(x, 1)
 		}
-		fmt.Println("Point Out:", ToCoconutString(E))
-
-		// fmt.Println("hash2:", hex.EncodeToString(hash2))
-
 		return E, nil
-
 	} else {
 		hash, err := hashBytes(sha, b)
 		if err != nil {
@@ -166,7 +165,6 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 		// considering they cover curve-specific edge cases which I am not aware of
 		return Curve.ECP_mapit(hash), nil
 	}
-
 }
 
 // PolyEval evaluates a polynomial defined by the slice of coefficient coeff at point x.
