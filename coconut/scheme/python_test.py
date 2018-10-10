@@ -16,6 +16,32 @@ def printEC(ec):
 
 # modified version with additional arguments to remove randomness
 # and allow comparison with go implementation
+def make_pi_v_witn(witnesses, params, aggr_vk, sigma, private_m, t):
+	(wm, wt) = witnesses
+	(G, o, g1, hs, g2, e) = params
+	(g2, alpha, beta) = aggr_vk
+	(h, s) = sigma
+	Aw = wt*g2 + alpha + ec_sum([wm[i]*beta[i] for i in range(len(private_m))])
+	Bw = wt*h
+	c = to_challenge([g1, g2, alpha, Aw, Bw]+hs+beta)
+	rm = [(wm[i] - c*private_m[i]) % o for i in range(len(private_m))]
+	rt = (wt - c*t) % o
+	return (c, rm, rt)
+
+# modified version with additional arguments to remove randomness
+# and allow comparison with go implementation
+def show_blind_sign_t(t, witnesses, params, aggr_vk, sigma, private_m):
+	(G, o, g1, hs, g2, e) = params
+	(g2, alpha, beta) = aggr_vk
+	(h, s) = sigma
+	kappa = t*g2 + alpha + ec_sum([private_m[i]*beta[i] for i in range(len(private_m))])
+	nu = t*h
+	pi_v = make_pi_v_witn(witnesses, params, aggr_vk, sigma, private_m, t)
+	return (kappa, nu, pi_v)
+
+
+# modified version with additional arguments to remove randomness
+# and allow comparison with go implementation
 def make_pi_s_witn(witnesses, params, gamma, ciphertext, cm, k, r, public_m, private_m):
 	(wr, wk, wm) = witnesses
 	(G, o, g1, hs, g2, e) = params
@@ -27,8 +53,6 @@ def make_pi_s_witn(witnesses, params, gamma, ciphertext, cm, k, r, public_m, pri
 	c = to_challenge([g1, g2, cm, h, Cw]+hs+Aw+Bw)
 	rr = (wr - c * r) % o
 	rk = [(wk[i] - c*k[i]) % o for i in range(len(wk))]
-	printBn(wk[0])
-	printBn(rk[1])
 	rm = [(wm[i] - c*attributes[i]) % o for i in range(len(wm))]
 	return (c, rk, rm, rr)
 
@@ -82,7 +106,10 @@ def generateData():
 	hex_wm2 = "11A4B4BF934A3709F9E7A54324AACF0ED13BCAAA0CC2AD2791437363A64E404C"
 	hex_wm3 = "096EB6930E70DEE0ACC0093A23A3586217C20FD6FD1ECB9923B2EDCE288F961F"
 	hex_wm4 = "131CCECB6386CA3A773C898193116B76A2D6BD34D3BB4A7BC7143E494B7C69D9"
-
+	hex_t = "0ADE8E2E5EC8806EC1B873B0F5735A9EB7FCA8D7DA3AC8D965487E0982C75F68"
+	hex_wm1_v = "05E8CB173C636A190CC628803768833123A9FC54A92224D97155E87EF7E3F3C4"
+	hex_wm2_v = "124052CD6EB215D98B20F343348E3898E65AC82A43AA57D0720311259D05D3DA"
+	hex_wt = "0E7BF9EAD25C09716291E864B99DD063EC911ABCD26CBF682DE9B7C4E95D126F"
 
 	# elgamal keypair
 	d = Bn.from_hex(hex_d)
@@ -109,15 +136,27 @@ def generateData():
 	witnesses = (wr, wk, wm)	
 
 	(cm, c, pi_s) = prepare_blind_sign_r(r, ks, witnesses, params, gamma, private_m, public_m=public_m)
+	sigma_tilde = blind_sign(params, sk, cm, c, gamma, pi_s, public_m=public_m) 
+	sigma = unblind(params, sigma_tilde, d)
+	# sigma = randomize(params, sig) # multiplication by a constant factor is consistent so there's no need of testing randomization
+	t = Bn.from_hex(hex_t)
 
-	(ch, rk, rm, rr) = pi_s
+	# create the witnesses
+	wm = [Bn.from_hex(hex_wm1_v), Bn.from_hex(hex_wm2_v)]
+	wt = Bn.from_hex(hex_wt)
+	witnesses = (wm, wt)
 
+	(kappa, nu, pi_v) = show_blind_sign_t(t, witnesses, params, vk, sigma, private_m)
 
+	(c, rm, rt) = pi_v
+	print("C")
+	printBn(c)
+	print("rm")
+	for a in rm:
+		printBn(a)
+	print("rt")
+	printBn(rt)
 	
-	# sigma_tilde = blind_sign(params, sk, cm, c, gamma, pi_s, public_m=public_m) 
-	# sig = unblind(params, sigma_tilde, d)
-	# sigma = randomize(params, sig)
-	# (kappa, nu, pi_v) = show_blind_sign(params, vk, sigma, private_m)
 	# assert blind_verify(params, vk, sigma, kappa, nu, pi_v, public_m=public_m)
 
 

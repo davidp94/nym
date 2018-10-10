@@ -31,10 +31,15 @@ import (
 // todo: wait for George's fix for hashG1 to know which solution to choose
 // todo: wait for Alberto's fix for threshold credentials to make tests for them
 
-type witnesses struct {
+type witnessesS struct {
 	wr *Curve.BIG
 	wk []*Curve.BIG
 	wm []*Curve.BIG
+}
+
+type witnessesV struct {
+	wm []*Curve.BIG
+	wt *Curve.BIG
 }
 
 func recoverKeys(t *testing.T, g2 *Curve.ECP2, xHex string, ysHex ...string) (*SecretKey, *VerificationKey) {
@@ -77,7 +82,74 @@ func ECP2FromHex(t *testing.T, hexStr string) *Curve.ECP2 {
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
-func constructSignerProofWitn(witnesses *witnesses, params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
+func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
+	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
+	wm := witnesses.wm
+	wt := witnesses.wt
+
+	// witnesses commitments
+	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
+	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
+	for i := range privM {
+		Aw.Add(Curve.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
+	}
+	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
+
+	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
+	i := copy(ca, tmpSlice)
+
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
+	for _, item := range hs {
+		ca[i] = item
+		i++
+	}
+	for _, item := range vk.beta {
+		ca[i] = item
+		i++
+	}
+
+	c := constructChallenge(ca)
+
+	// responses
+	rm := make([]*Curve.BIG, len(privM))
+	for i := range privM {
+		rm[i] = wm[i].Minus(Curve.Modmul(c, privM[i], p))
+		rm[i] = rm[i].Plus(p)
+		rm[i].Mod(p)
+	}
+
+	rt := wt.Minus(Curve.Modmul(c, t, p))
+	rt = rt.Plus(p)
+	rt.Mod(p)
+
+	return &VerifierProof{
+		c:  c,
+		rm: rm,
+		rt: rt,
+	}
+}
+
+// modified version with additional arguments to remove randomness
+// and allow comparison with python implementation
+func showBlindSignatureT(t *Curve.BIG, witn *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
+	kappa := Curve.G2mul(vk.g2, t)
+	kappa.Add(vk.alpha)
+	for i := range privM {
+		kappa.Add(Curve.G2mul(vk.beta[i], privM[i]))
+	}
+	nu := Curve.G1mul(sig.sig1, t)
+	verifierProof := constructVerifierProofWitn(witn, params, vk, sig, privM, t)
+	return &BlindShowMats{
+		kappa: kappa,
+		nu:    nu,
+		proof: verifierProof,
+	}, nil
+}
+
+// modified version with additional arguments to remove randomness
+// and allow comparison with python implementation
+func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 	attributes := append(privM, pubM...)
 	wr := witnesses.wr
@@ -171,7 +243,7 @@ func encryptK(G *bpgroup.BpGroup, k *Curve.BIG, gamma *Curve.ECP, m *Curve.BIG, 
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
-func prepareBlindSign_r(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnesses, params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
+func prepareBlindSign_r(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnessesS, params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
 	G, g1, hs := params.G, params.g1, params.hs
 	attributes := append(privM, pubM...)
 	cm := Curve.G1mul(g1, r)
@@ -194,7 +266,6 @@ func prepareBlindSign_r(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witne
 	}
 
 	encs := make([]*elgamal.Encryption, len(privM))
-	// can't easily encrypt in parallel since random number generator object is shared between encryptions
 	for i := range privM {
 		c, _ := encryptK(G, ks[i], gamma, privM[i], h)
 		encs[i] = c
@@ -211,7 +282,6 @@ func prepareBlindSign_r(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witne
 	}, nil
 }
 
-// not testing for threshold signatures because at the time of writing this test, they are still broken in pyhon implementation
 func TestCompareWithPython(t *testing.T) {
 	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
 		return
@@ -267,12 +337,32 @@ func TestCompareWithPython(t *testing.T) {
 	c1Priv2Hex := "03137f64f199fafc1db69884523acc2b47735cbe09dc48795cfa96ac3888f9e6a7"
 	c2Priv2Hex := "02231d4f703805cb64e76cadfba3d85b40f05defd13ba6e9cce5db7ed94009f106"
 	// pi_s:
-	chHex := "37CAEA1F7CFACC39C5767CCF43361D7AE9A4DE868D7C33E2BF0ACBA8005B3A80"
-	rk1Hex := "1522885F58EDC52CA001192BD62E7C6B1540A871E3B811F1730218E28AC8E6BB"
-	rk2Hex := "1D45583D9ED278D3CEE2641ACB5C5CC877848B56C3ADAA24D8B7D3D512CD26B5"
-	rm1Hex := "1C38F72D4AACE4279B119EEC925A5616775789BEE084314734E8325F8CA9BE7B"
-	rm2Hex := "0E51EFB8E526291EF16788F6AE310CC0D63F158C72DCE5218F7EE40720F4F55A"
-	rrHex := "1942DB548E26B6566145A8E881BD218F9C24A1A9F07F63C221312C04C7F22A8F"
+	chSHex := "37CAEA1F7CFACC39C5767CCF43361D7AE9A4DE868D7C33E2BF0ACBA8005B3A80"
+	rk1SHex := "1522885F58EDC52CA001192BD62E7C6B1540A871E3B811F1730218E28AC8E6BB"
+	rk2SHex := "1D45583D9ED278D3CEE2641ACB5C5CC877848B56C3ADAA24D8B7D3D512CD26B5"
+	rm1SHex := "1C38F72D4AACE4279B119EEC925A5616775789BEE084314734E8325F8CA9BE7B"
+	rm2SHex := "0E51EFB8E526291EF16788F6AE310CC0D63F158C72DCE5218F7EE40720F4F55A"
+	rrSHex := "1942DB548E26B6566145A8E881BD218F9C24A1A9F07F63C221312C04C7F22A8F"
+
+	hTildaHex := "030f4bdc378c5fcb44e5e3d2e41eec3f7756738f62eb5ba2e637d904a3f0b0ab49"
+	sigC1TildaHex := "02088b6b1b249e922c4d1f27dfc46a2a02b4cf6ed3c3b308bfac4f9a3ea95f289b"
+	sigC2TildaHex := "020ca5d0e1a6ed0c8f9401ccdf0abc9cbab630b2ae0e888e8c8a0d3c7c11b020c6"
+	sig2Hex := "0223a3693156fab9fcc63096a567a99c9bc9276ea6c05f168c494ec6eb41ed650f"
+
+	// witnesses
+	wm1VHex := "05E8CB173C636A190CC628803768833123A9FC54A92224D97155E87EF7E3F3C4"
+	wm2VHex := "124052CD6EB215D98B20F343348E3898E65AC82A43AA57D0720311259D05D3DA"
+	wtHex := "0E7BF9EAD25C09716291E864B99DD063EC911ABCD26CBF682DE9B7C4E95D126F"
+
+	// for showBlindSign
+	tHex := "0ADE8E2E5EC8806EC1B873B0F5735A9EB7FCA8D7DA3AC8D965487E0982C75F68"
+	kappaHex := "2227bc5a1acd5b4edfc244460d0679361535c0ddc0d5d2759d0f9c1f9eea117f1a8a933e3d69ce785f5524133a208a9259cc119221cfe72c99da3eb2475f96a30b7da97c5575b8e10c476fdd3cf6c8dc7d57d17bfe825dda473e9c4c697f0d880ca413462a517b67b727d50653cafb5a55a5062b3f0b23bd757a511cc6c9bfa0"
+	nuHex := "030b9a28caf7c58ba525011a0685388514a792aaa98edc74fb83e319960e0f3880"
+	// pi_v
+	chVHex := "F277CD97107F373EFE48A986FD735F8BE79DE39DF97E0A87AF31B1964643B3C9"
+	rm1VHex := "1FFAB49038C79193C43C1BE7F98A7ECD9E2907A259234312C0838C0EE62F4C1B"
+	rm2VHex := "18AAB72BE3BA10CCC46659ADEEF201BE1D0C8FCEB0D6F431478DB06786AF671F"
+	rtHex := "0B32CD80C75C2D339E062F735A037B3571CC882D6CBAF7F858726252FE56B363"
 
 	params, _ := Setup(4)
 	g1, g2, p, hs := params.g1, params.g2, params.p, params.hs
@@ -343,37 +433,78 @@ func TestCompareWithPython(t *testing.T) {
 	wr := BIGFromHex(t, wrHex)
 	wk := recoverBIGSlice(t, wk1Hex, wk2Hex)
 	wm := recoverBIGSlice(t, wm1Hex, wm2Hex, wm3Hex, wm4Hex)
-	witnesses := &witnesses{wr, wk, wm}
+	witnesses := &witnessesS{wr, wk, wm}
 
 	bsm, err := prepareBlindSign_r(t, r, ks, witnesses, params, gamma, pubM, privM)
 	assert.Nil(t, err)
 
 	// expected:
 	cmExp := ECPFromHex(t, cmHex)
-	c1e1 := ECPFromHex(t, c1Priv1Hex)
-	c2e1 := ECPFromHex(t, c2Priv1Hex)
-	c1e2 := ECPFromHex(t, c1Priv2Hex)
-	c2e2 := ECPFromHex(t, c2Priv2Hex)
-	ch := BIGFromHex(t, chHex)
-	rk := recoverBIGSlice(t, rk1Hex, rk2Hex)
-	rm := recoverBIGSlice(t, rm1Hex, rm2Hex)
-	rr := BIGFromHex(t, rrHex)
+	c1e1Exp := ECPFromHex(t, c1Priv1Hex)
+	c2e1Exp := ECPFromHex(t, c2Priv1Hex)
+	c1e2Exp := ECPFromHex(t, c1Priv2Hex)
+	c2e2Exp := ECPFromHex(t, c2Priv2Hex)
+	chSExp := BIGFromHex(t, chSHex)
+	rkSExp := recoverBIGSlice(t, rk1SHex, rk2SHex)
+	rmSExp := recoverBIGSlice(t, rm1SHex, rm2SHex)
+	rrSExp := BIGFromHex(t, rrSHex)
 
 	assert.True(t, bsm.cm.Equals(cmExp))
-	assert.True(t, bsm.enc[0].C1().Equals(c1e1))
-	assert.True(t, bsm.enc[0].C2().Equals(c2e1))
-	assert.True(t, bsm.enc[1].C1().Equals(c1e2))
-	assert.True(t, bsm.enc[1].C2().Equals(c2e2))
+	assert.True(t, bsm.enc[0].C1().Equals(c1e1Exp))
+	assert.True(t, bsm.enc[0].C2().Equals(c2e1Exp))
+	assert.True(t, bsm.enc[1].C1().Equals(c1e2Exp))
+	assert.True(t, bsm.enc[1].C2().Equals(c2e2Exp))
 
-	assert.Zero(t, Curve.Comp(ch, bsm.proof.c))
-	for i := range rk {
-		assert.Zero(t, Curve.Comp(rk[i], bsm.proof.rk[i]))
+	assert.Zero(t, Curve.Comp(chSExp, bsm.proof.c))
+	for i := range rkSExp {
+		assert.Zero(t, Curve.Comp(rkSExp[i], bsm.proof.rk[i]))
 	}
-	for i := range rm {
-		assert.Zero(t, Curve.Comp(rm[i], bsm.proof.rm[i]))
+	for i := range rmSExp {
+		assert.Zero(t, Curve.Comp(rmSExp[i], bsm.proof.rm[i]))
 	}
-	assert.Zero(t, Curve.Comp(rr, bsm.proof.rr))
+	assert.Zero(t, Curve.Comp(rrSExp, bsm.proof.rr))
 
-	_ = skFull
-	_ = vkFull
+	blindedSig, err := BlindSign(params, skFull, bsm, gamma, pubM)
+	assert.Nil(t, err)
+
+	// expected:
+	blindSig1Exp := ECPFromHex(t, hTildaHex)
+	blindSig2C1Exp := ECPFromHex(t, sigC1TildaHex)
+	blindSig2C2Exp := ECPFromHex(t, sigC2TildaHex)
+
+	assert.True(t, blindSig1Exp.Equals(blindedSig.sig1))
+	assert.True(t, blindSig2C1Exp.Equals(blindedSig.sig2Tilda.C1()))
+	assert.True(t, blindSig2C2Exp.Equals(blindedSig.sig2Tilda.C2()))
+
+	sig := Unblind(params, blindedSig, d)
+
+	sig2Exp := ECPFromHex(t, sig2Hex)
+	assert.True(t, blindSig1Exp.Equals(sig.sig1))
+	assert.True(t, sig2Exp.Equals(sig.sig2))
+
+	tr := BIGFromHex(t, tHex)
+	wmV := recoverBIGSlice(t, wm1VHex, wm2VHex)
+	wt := BIGFromHex(t, wtHex)
+	witnessesV := &witnessesV{wmV, wt}
+
+	bsm2, err := showBlindSignatureT(tr, witnessesV, params, vkFull, sig, privM)
+	assert.Nil(t, err)
+
+	// expected:
+	kappaExp := ECP2FromHex(t, kappaHex)
+	nuExp := ECPFromHex(t, nuHex)
+	chVExp := BIGFromHex(t, chVHex)
+	rmVExp := recoverBIGSlice(t, rm1VHex, rm2VHex)
+	rtExp := BIGFromHex(t, rtHex)
+
+	assert.True(t, kappaExp.Equals(bsm2.kappa))
+	assert.True(t, nuExp.Equals(bsm2.nu))
+	assert.Zero(t, Curve.Comp(chVExp, bsm2.proof.c))
+	for i := range rmVExp {
+		assert.Zero(t, Curve.Comp(rmVExp[i], bsm2.proof.rm[i]))
+	}
+	assert.Zero(t, Curve.Comp(rtExp, bsm2.proof.rt))
+
+	// finally for sanity checks ensure the credentials verify
+	assert.True(t, BlindVerify(params, vkFull, sig, bsm2, pubM))
 }
