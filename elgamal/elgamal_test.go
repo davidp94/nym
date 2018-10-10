@@ -69,3 +69,28 @@ func TestElGamalDecryption(t *testing.T) {
 
 	assert.True(t, dec.Equals(hm), "Original message should be recovered")
 }
+
+func TestElGamalNewEncryptionFromPoints(t *testing.T) {
+	G := bpgroup.New()
+	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+
+	d, gamma := Keygen(G)
+
+	// encrypt random message
+	t1 := Curve.Randomnum(p, rng)
+	h := Curve.G1mul(g1, t1)
+	m := Curve.Randomnum(p, rng)
+	hm := Curve.G1mul(h, m)
+
+	enc, _ := Encrypt(G, gamma, m, h)
+	// multiply encryption by random scalar
+	r := Curve.Randomnum(p, rng)
+	c1 := Curve.G1mul(enc.C1(), r)
+	c2 := Curve.G1mul(enc.C2(), r)
+	enc2 := NewEncryptionFromPoints(c1, c2)
+
+	// ensure it still decrypts correctly
+	dec := Decrypt(G, d, enc2)
+	hm = Curve.G1mul(hm, r)
+	assert.True(t, dec.Equals(hm), "Original message (multiplied by same scalar) should be recovered")
+}
