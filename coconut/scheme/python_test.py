@@ -147,17 +147,7 @@ def generateData():
 	witnesses = (wm, wt)
 
 	(kappa, nu, pi_v) = show_blind_sign_t(t, witnesses, params, vk, sigma, private_m)
-
-	(c, rm, rt) = pi_v
-	print("C")
-	printBn(c)
-	print("rm")
-	for a in rm:
-		printBn(a)
-	print("rt")
-	printBn(rt)
-	
-	# assert blind_verify(params, vk, sigma, kappa, nu, pi_v, public_m=public_m)
+	assert blind_verify(params, vk, sigma, kappa, nu, pi_v, public_m=public_m)
 
 
 if __name__ == "__main__":
