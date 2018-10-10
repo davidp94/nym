@@ -26,7 +26,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
 
 // todo: remove the way functions are currently executed concurrently
@@ -131,7 +131,7 @@ func Setup(q int) (*Params, error) {
 	}
 	hs := make([]*Curve.ECP, q)
 	for i := 0; i < q; i++ {
-		hi, err := utils.HashStringToG1(amcl.SHA256, fmt.Sprintf("h%d", i))
+		hi, err := utils.HashStringToG1(amcl.SHA512, fmt.Sprintf("h%d", i))
 		if err != nil {
 			panic(err)
 		}
@@ -232,7 +232,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 	s := make([]string, len(pubM))
 	for i := range pubM {
-		s[i] = pubM[i].ToString()
+		s[i] = utils.ToCoconutString(pubM[i])
 	}
 	h, err := utils.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
 	if err != nil {
@@ -288,7 +288,10 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 		cm.Add(elem)
 	}
 
-	h, err := utils.HashStringToG1(amcl.SHA256, cm.ToString())
+	b := make([]byte, utils.MB+1)
+	cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +326,11 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
 		return nil, ErrBlindSignProof
 	}
-	h, err := utils.HashStringToG1(amcl.SHA256, blindSignMats.cm.ToString())
+
+	b := make([]byte, utils.MB+1)
+	blindSignMats.cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA256, b)
 	if err != nil {
 		return nil, err
 	}
@@ -403,7 +410,6 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	var Gt2 *Curve.FP12
 
 	Gt1 = G.Pair(sig.sig1, K)
-
 	Gt2 = G.Pair(sig.sig2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)

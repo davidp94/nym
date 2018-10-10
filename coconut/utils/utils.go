@@ -18,17 +18,53 @@
 package utils
 
 import (
+	"encoding/hex"
 	"errors"
+	"strings"
 
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
 )
+
+var MB = int(Curve.MODBYTES)
+
+// todo: verify HashBytesToG1
+// todo: wait for George's change in bplib for hashG1
+
+// Printable is a wrapper for all objects that have ToString method. In particular Curve.ECP and Curve.ECP2.
+type Printable interface {
+	ToString() string
+}
+
+// ToCoconutString returns string representation of ECP or ECP2 object such that it is compatible with
+// representation of Python implementation.
+func ToCoconutString(p Printable) string {
+	var b []byte
+	switch v := p.(type) {
+	case *Curve.ECP:
+		b = make([]byte, MB+1)
+		v.ToBytes(b, true)
+	case *Curve.ECP2:
+		b = make([]byte, 4*MB)
+		v.ToBytes(b)
+	case *Curve.BIG:
+		// in this case it's simpler, but inconsistent as Python implementation returns capitalised hex for Bn
+		str := v.ToString()
+		return strings.ToUpper(str)
+	}
+
+	if len(b) > 0 {
+		return hex.EncodeToString(b)
+
+	} else {
+		return ""
+	}
+}
 
 // hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
 func hashBytes(sha int, b []byte) ([]byte, error) {
 	var R []byte
-
 	if sha == amcl.SHA256 {
 		H := amcl.NewHASH256()
 		H.Process_array(b)
@@ -45,7 +81,21 @@ func hashBytes(sha int, b []byte) ([]byte, error) {
 
 	if R == nil {
 		return []byte{}, errors.New("Nil hash result")
+	} else {
+		return R, nil
 	}
+}
+
+// HashStringToBig takes a string message and maps it to a BIG number
+func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
+	b := []byte(m)
+	return HashBytesToBig(sha, b)
+}
+
+// HashBytesToBig takes a bytes message and maps it to a BIG number
+// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
+func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
+	R, err := hashBytes(sha, b)
 
 	const RM int = int(Curve.MODBYTES)
 	var W [RM]byte
@@ -61,22 +111,15 @@ func hashBytes(sha int, b []byte) ([]byte, error) {
 			W[i] = 0
 		}
 	}
-	return W[:], nil
-}
+	hash := W[:]
 
-// HashStringToBig takes a string message and maps it to a BIG number
-func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
-	b := []byte(m)
-	return HashBytesToBig(sha, b)
-}
-
-// HashBytesToBig takes a bytes message and maps it to a BIG number
-// It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
-func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
-	hash, err := hashBytes(sha, b)
 	y := Curve.FromBytes(hash)
-	q := Curve.NewBIGints(Curve.CURVE_Order)
-	y.Mod(q)
+	// you should really take mod of this, however python coconut doesn't
+	// what produces comptability issues
+	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
+		q := Curve.NewBIGints(Curve.CURVE_Order)
+		y.Mod(q)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -90,12 +133,38 @@ func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
 }
 
 // HashBytesToG1 takes a bytes message and maps it to a point on G1 Curve
+// Python implementation use SHA512, so temporarily hardcoding it here
+// todo: NEED GEORGE'S FIX TO KNOW HOW TO FURTHER CHANGE IT
 func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
-	hash, err := hashBytes(sha, b)
-	if err != nil {
-		return nil, err
+	// Follow Python implementation
+	if Curve.CURVE_PAIRING_TYPE == Curve.BN {
+		// sha = amcl.SHA256
+		sha = amcl.SHA512
+
+		p := Curve.NewBIGints(Curve.Modulus)
+		E := Curve.NewECP() // new ECP object is at infinity
+		hash := b
+		var err error
+		for E.Is_infinity() {
+			hash, err = hashBytes(sha, hash)
+			if err != nil {
+				return nil, err
+			}
+			x := Curve.FromBytes(hash)
+			x.Mod(p)
+			E = Curve.NewECPbigint(x, 1)
+		}
+		return E, nil
+	} else {
+		hash, err := hashBytes(sha, b)
+		if err != nil {
+			return nil, err
+		}
+		// amcl have nice ECP_mapit function, but Python implementation differs,
+		// however, if we are not using BN254 curve, I feel more confident using it instead,
+		// considering they cover curve-specific edge cases which I am not aware of
+		return Curve.ECP_mapit(hash), nil
 	}
-	return Curve.ECP_mapit(hash), nil
 }
 
 // PolyEval evaluates a polynomial defined by the slice of coefficient coeff at point x.
