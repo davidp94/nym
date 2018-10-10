@@ -26,7 +26,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: remove the way functions are currently executed concurrently

@@ -22,7 +22,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 
 	// The named import is used to be able to easily update curve being used
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: create types for public and private keys and adjust arguments accordingly (look https://godoc.org/golang.org/x/crypto/openpgp/elgamal)

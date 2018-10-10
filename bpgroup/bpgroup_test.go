@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
 

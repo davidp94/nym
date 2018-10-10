@@ -21,7 +21,7 @@ import (
 	"crypto/rand"
 
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // todo: consider replacing attributes with getters?

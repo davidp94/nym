@@ -20,16 +20,17 @@ package utils
 import (
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/jstuczyn/amcl/version3/go/amcl"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BN254"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 var MB = int(Curve.MODBYTES)
 
 // todo: verify HashBytesToG1
-// todo: wait for George's change in bplib for hashG1
+// todo: wait for George's change in bplib for hashG1 -> worst case scenario is to try to butcher and modify amcl fork
 
 // Printable is a wrapper for all objects that have ToString method. In particular Curve.ECP and Curve.ECP2.
 type Printable interface {
@@ -59,6 +60,25 @@ func ToCoconutString(p Printable) string {
 	} else {
 		return ""
 	}
+}
+
+// addHashPadding ensures that resultant hash is long enough to be used in a FromBytes() method
+func addHashPadding(sha int, b []byte) []byte {
+	const RM int = int(Curve.MODBYTES)
+	var W [RM]byte
+	if sha >= RM {
+		for i := 0; i < RM; i++ {
+			W[i] = b[i]
+		}
+	} else {
+		for i := 0; i < sha; i++ {
+			W[i+RM-sha] = b[i]
+		}
+		for i := 0; i < RM-sha; i++ {
+			W[i] = 0
+		}
+	}
+	return W[:]
 }
 
 // hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
@@ -95,23 +115,12 @@ func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
 // HashBytesToBig takes a bytes message and maps it to a BIG number
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L707
 func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
-	R, err := hashBytes(sha, b)
-
-	const RM int = int(Curve.MODBYTES)
-	var W [RM]byte
-	if sha >= RM {
-		for i := 0; i < RM; i++ {
-			W[i] = R[i]
-		}
-	} else {
-		for i := 0; i < sha; i++ {
-			W[i+RM-sha] = R[i]
-		}
-		for i := 0; i < RM-sha; i++ {
-			W[i] = 0
-		}
+	if Curve.CURVE_PAIRING_TYPE == Curve.BN && sha != amcl.SHA256 {
+		// if curve used is BN254, ensure the used hash is SHA256 as this is what is used by Python implementation
+		return nil, fmt.Errorf("Hashing to BIG on BN254 requires SHA256 (%s), but %s was used instead", amcl.SHA256, sha)
 	}
-	hash := W[:]
+	R, err := hashBytes(sha, b)
+	hash := addHashPadding(sha, R)
 
 	y := Curve.FromBytes(hash)
 	// you should really take mod of this, however python coconut doesn't
@@ -138,8 +147,10 @@ func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
 func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 	// Follow Python implementation
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN {
-		// sha = amcl.SHA256
-		sha = amcl.SHA512
+		// temp solution as it depends on George's decision in bplib
+		if sha != amcl.SHA512 {
+			return nil, fmt.Errorf("Hashing to G1 on BN254 requires SHA512 (%s), but %s was used instead", amcl.SHA512, sha)
+		}
 
 		p := Curve.NewBIGints(Curve.Modulus)
 		E := Curve.NewECP() // new ECP object is at infinity
@@ -157,6 +168,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 		return E, nil
 	} else {
 		hash, err := hashBytes(sha, b)
+		hash = addHashPadding(sha, hash)
 		if err != nil {
 			return nil, err
 		}
