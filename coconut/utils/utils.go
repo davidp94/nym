@@ -81,9 +81,9 @@ func addHashPadding(sha int, b []byte) []byte {
 	return W[:]
 }
 
-// hashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
+// HashBytes takes a bytes message and returns its SHA256/SHA384/SHA512 hash
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
-func hashBytes(sha int, b []byte) ([]byte, error) {
+func HashBytes(sha int, b []byte) ([]byte, error) {
 	var R []byte
 	if sha == amcl.SHA256 {
 		H := amcl.NewHASH256()
@@ -117,9 +117,9 @@ func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
 func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN && sha != amcl.SHA256 {
 		// if curve used is BN254, ensure the used hash is SHA256 as this is what is used by Python implementation
-		return nil, fmt.Errorf("Hashing to BIG on BN254 requires SHA256 (%s), but %s was used instead", amcl.SHA256, sha)
+		return nil, fmt.Errorf("Hashing to BIG on BN254 requires SHA256 (%d), but %d was used instead", amcl.SHA256, sha)
 	}
-	R, err := hashBytes(sha, b)
+	R, err := HashBytes(sha, b)
 	hash := addHashPadding(sha, R)
 
 	y := Curve.FromBytes(hash)
@@ -149,7 +149,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN {
 		// temp solution as it depends on George's decision in bplib
 		if sha != amcl.SHA512 {
-			return nil, fmt.Errorf("Hashing to G1 on BN254 requires SHA512 (%s), but %s was used instead", amcl.SHA512, sha)
+			return nil, fmt.Errorf("Hashing to G1 on BN254 requires SHA512 (%d), but %d was used instead", amcl.SHA512, sha)
 		}
 
 		p := Curve.NewBIGints(Curve.Modulus)
@@ -157,7 +157,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 		hash := b
 		var err error
 		for E.Is_infinity() {
-			hash, err = hashBytes(sha, hash)
+			hash, err = HashBytes(sha, hash)
 			if err != nil {
 				return nil, err
 			}
@@ -167,7 +167,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 		}
 		return E, nil
 	} else {
-		hash, err := hashBytes(sha, b)
+		hash, err := HashBytes(sha, b)
 		hash = addHashPadding(sha, hash)
 		if err != nil {
 			return nil, err
