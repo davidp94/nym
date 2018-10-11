@@ -234,7 +234,7 @@ func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 	for i := range pubM {
 		s[i] = utils.ToCoconutString(pubM[i])
 	}
-	h, err := utils.HashStringToG1(amcl.SHA256, strings.Join(s, ","))
+	h, err := utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
 	if err != nil {
 		panic(err)
 	}
@@ -291,7 +291,7 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 	b := make([]byte, utils.MB+1)
 	cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +330,7 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	b := make([]byte, utils.MB+1)
 	blindSignMats.cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		return nil, err
 	}

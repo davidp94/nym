@@ -101,7 +101,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	b := make([]byte, utils.MB+1)
 	cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encrypt
 	b := make([]byte, utils.MB+1)
 	cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		panic(err)
 	}

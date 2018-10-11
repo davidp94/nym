@@ -73,7 +73,7 @@ func TestSignerProof(t *testing.T) {
 		b := make([]byte, utils.MB+1)
 		cm.ToBytes(b, true)
 
-		h, err := utils.HashBytesToG1(amcl.SHA256, b)
+		h, err := utils.HashBytesToG1(amcl.SHA512, b)
 		assert.Nil(t, err)
 
 		_, gamma := elgamal.Keygen(G)

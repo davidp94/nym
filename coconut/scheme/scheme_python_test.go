@@ -159,7 +159,7 @@ func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curv
 	b := make([]byte, utils.MB+1)
 	cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +260,7 @@ func prepareBlindSignR(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnes
 	b := make([]byte, utils.MB+1)
 	cm.ToBytes(b, true)
 
-	h, err := utils.HashBytesToG1(amcl.SHA256, b)
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
 		return nil, err
 	}

@@ -12,8 +12,17 @@ before_install:
 install:
   - dep ensure
 
+before_script:
+  - go get github.com/wadey/gocovmerge
+  - go install $GOPATH/src/github.com/wadey/gocovmerge
+
 script: 
-  - go test -v ./... -coverprofile=coverage.txt -covermode=atomic
+  - ./changecurve.sh BLS
+  - go test -v ./... -coverprofile=coverageBLS.out -covermode=atomic
+  - ./changecurve.sh BN
+  - go test -v ./... -coverprofile=coverageBN.out -covermode=atomic
+  - $GOPATH/bin/gocovmerge coverageBLS.out coverageBN.out > coverage.txt
+  - rm coverageB*
   # - go test ./... -timeout=60m -run nothing -bench=. -cpu=1,2,4 -benchtime=2s
 
 after_success:
