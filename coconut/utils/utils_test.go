@@ -13,19 +13,24 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-package utils_test
+package utils
 
 import (
 	"encoding/hex"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
-	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 // nolint: lll
 func TestPolyEval(t *testing.T) {
@@ -54,7 +59,7 @@ func TestPolyEval(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		comp := Curve.Comp(test.expected, utils.PolyEval(test.coeff, test.x, test.o))
+		comp := Curve.Comp(test.expected, PolyEval(test.coeff, test.x, test.o))
 		assert.Zero(t, comp)
 	}
 }
@@ -74,8 +79,8 @@ func TestLagrangeBasis(t *testing.T) {
 			xs[i] = Curve.Randomnum(p, rng) // works for any xs
 		}
 		for i := range v {
-			ls[i] = utils.LagrangeBasis(i, p, xs, 0)
-			vals[i] = utils.PolyEval(v, xs[i], p)
+			ls[i] = LagrangeBasis(i, p, xs, 0)
+			vals[i] = PolyEval(v, xs[i], p)
 		}
 		interpolated := Curve.Modmul(ls[0], vals[0], p)
 		for i := 1; i < len(v); i++ {
@@ -88,10 +93,10 @@ func TestLagrangeBasis(t *testing.T) {
 
 func TestHashBytes(t *testing.T) {
 	b := []byte("Some arbitrary string to convert into bytes")
-	hash1, err1 := utils.HashBytes(amcl.SHA256, b)
-	hash2, err2 := utils.HashBytes(amcl.SHA384, b)
-	hash3, err3 := utils.HashBytes(amcl.SHA512, b)
-	hash4, err4 := utils.HashBytes(42, b)
+	hash1, err1 := HashBytes(amcl.SHA256, b)
+	hash2, err2 := HashBytes(amcl.SHA384, b)
+	hash3, err3 := HashBytes(amcl.SHA512, b)
+	hash4, err4 := HashBytes(42, b)
 	assert.Nil(t, err1)
 	assert.Nil(t, err2)
 	assert.Nil(t, err3)
@@ -109,9 +114,9 @@ func TestToCoconutString(t *testing.T) {
 		g1Hex := "032523648240000001ba344d80000000086121000000000013a700000000000012"
 		g2Hex := "061a10bb519eb62feb8d8c7e8c61edb6a4648bbb4898bf0d91ee4224c803fb2b0516aaf9ba737833310aa78c5982aa5b1f4d746bae3784b70d8c34c1e7d54cf3021897a06baf93439a90e096698c822329bd0ae6bdbe09bd19f0e07891cd2b9a0ebb2b0e7c8b15268f6d4456f5f38d37b09006ffd739c9578a2d1aec6b3ace9b"
 
-		assert.Equal(t, ordHex, utils.ToCoconutString(G.Order()))
-		assert.Equal(t, g1Hex, utils.ToCoconutString(G.Gen1()))
-		assert.Equal(t, g2Hex, utils.ToCoconutString(G.Gen2()))
+		assert.Equal(t, ordHex, ToCoconutString(G.Order()))
+		assert.Equal(t, g1Hex, ToCoconutString(G.Gen1()))
+		assert.Equal(t, g2Hex, ToCoconutString(G.Gen2()))
 	}
 
 	// check that you can correctly recover random ones
@@ -119,9 +124,9 @@ func TestToCoconutString(t *testing.T) {
 	g1r := Curve.G1mul(G.Gen1(), r)
 	g2r := Curve.G2mul(G.Gen2(), r)
 
-	rHex := utils.ToCoconutString(r)
-	g1rHex := utils.ToCoconutString(g1r)
-	g2rHex := utils.ToCoconutString(g2r)
+	rHex := ToCoconutString(r)
+	g1rHex := ToCoconutString(g1r)
+	g2rHex := ToCoconutString(g2r)
 
 	b1, err := hex.DecodeString(rHex)
 	assert.Nil(t, err)
@@ -137,5 +142,103 @@ func TestToCoconutString(t *testing.T) {
 
 	// another Printable element that is not BIG, ECP or ECP2
 	f := Curve.NewFP12int(42)
-	assert.Empty(t, utils.ToCoconutString(f))
+	assert.Empty(t, ToCoconutString(f))
+}
+
+func randomString(n int) string {
+	var letter = []rune(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~")
+
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letter[rand.Intn(len(letter))]
+	}
+	return string(b)
+}
+
+func TestHashToBIG(t *testing.T) {
+	shas := []int{amcl.SHA256, amcl.SHA384, amcl.SHA512, 42} // invalid sha value added at the end
+	m1 := "Hello World!"
+	m2 := randomString(64)
+
+	for _, sha := range shas {
+		for _, m := range []string{m1, m2} {
+			// ensure the wrapper gives out same result as underlying function
+			r1, err1 := HashStringToBig(sha, m)
+			r2, err2 := HashBytesToBig(sha, []byte(m))
+			hash, _ := HashBytes(sha, []byte(m))
+			if sha != amcl.SHA256 && sha != amcl.SHA384 && sha != amcl.SHA512 {
+				assert.Nil(t, r1)
+				assert.Nil(t, r2)
+				assert.NotNil(t, err1)
+				assert.NotNil(t, err2)
+			} else if Curve.CURVE_PAIRING_TYPE == Curve.BN && sha != amcl.SHA256 {
+				assert.Nil(t, r1)
+				assert.Nil(t, r2)
+				assert.NotNil(t, err1)
+				assert.NotNil(t, err2)
+			} else {
+				assert.Zero(t, Curve.Comp(r1, r2))
+				assert.Nil(t, err1)
+				assert.Nil(t, err2)
+			}
+			if r1 != nil {
+				// for BN curve, the value might be larger than ord as mod is not taken
+				if Curve.CURVE_PAIRING_TYPE == Curve.BN {
+					b := make([]byte, MB)
+					r1.ToBytes(b)
+					assert.Equal(t, b, hash)
+				} else {
+					q := Curve.NewBIGints(Curve.CURVE_Order)
+					hash = addHashPadding(sha, hash)
+					y := Curve.FromBytes(hash)
+					y.Mod(q)
+					assert.Zero(t, Curve.Comp(y, r1))
+				}
+			}
+		}
+	}
+}
+
+func TestHashToG1(t *testing.T) {
+	shas := []int{amcl.SHA256, amcl.SHA384, amcl.SHA512, 42} // invalid sha value added at the end
+	m1 := "Hello World!"
+	m2 := randomString(64)
+	for _, sha := range shas {
+		for _, m := range []string{m1, m2} {
+			// ensure the wrapper gives out same result as underlying function
+			r1, err1 := HashStringToG1(sha, m)
+			r2, err2 := HashBytesToG1(sha, []byte(m))
+			hash, _ := HashBytes(sha, []byte(m))
+			if sha != amcl.SHA256 && sha != amcl.SHA384 && sha != amcl.SHA512 {
+				assert.Nil(t, r1)
+				assert.Nil(t, r2)
+				assert.NotNil(t, err1)
+				assert.NotNil(t, err2)
+			} else if Curve.CURVE_PAIRING_TYPE == Curve.BN && sha != amcl.SHA512 {
+				assert.Nil(t, r1)
+				assert.Nil(t, r2)
+				assert.NotNil(t, err1)
+				assert.NotNil(t, err2)
+			} else {
+				assert.True(t, r1.Equals(r2))
+				assert.Nil(t, err1)
+				assert.Nil(t, err2)
+			}
+			// that test case is so specific so that once the specs change
+			// I'd remember to update the code due to failing test since results
+			// would start to diverge
+			if r1 != nil && Curve.CURVE_PAIRING_TYPE == Curve.BN {
+				p := Curve.NewBIGints(Curve.Modulus)
+				x := Curve.FromBytes(hash)
+				E := Curve.NewECPbigint(x, 1)
+				for E.Is_infinity() {
+					hash, _ = HashBytes(sha, hash)
+					x := Curve.FromBytes(hash)
+					x.Mod(p)
+					E = Curve.NewECPbigint(x, 1)
+				}
+				assert.True(t, r1.Equals(E))
+			}
+		}
+	}
 }

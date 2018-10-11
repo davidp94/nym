@@ -120,17 +120,16 @@ func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
 		return nil, fmt.Errorf("Hashing to BIG on BN254 requires SHA256 (%d), but %d was used instead", amcl.SHA256, sha)
 	}
 	R, err := HashBytes(sha, b)
+	if err != nil {
+		return nil, err
+	}
 	hash := addHashPadding(sha, R)
-
 	y := Curve.FromBytes(hash)
 	// you should really take mod of this, however python coconut doesn't
 	// what produces comptability issues
 	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
 		q := Curve.NewBIGints(Curve.CURVE_Order)
 		y.Mod(q)
-	}
-	if err != nil {
-		return nil, err
 	}
 	return y, nil
 }
@@ -168,10 +167,10 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 		return E, nil
 	} else {
 		hash, err := HashBytes(sha, b)
-		hash = addHashPadding(sha, hash)
 		if err != nil {
 			return nil, err
 		}
+		hash = addHashPadding(sha, hash)
 		// amcl have nice ECP_mapit function, but Python implementation differs,
 		// however, if we are not using BN254 curve, I feel more confident using it instead,
 		// considering they cover curve-specific edge cases which I am not aware of

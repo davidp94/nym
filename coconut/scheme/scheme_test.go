@@ -31,6 +31,10 @@ import (
 
 // todo: simplify TestSchemeTTPKeygen
 
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
 func TestSchemeSetup(t *testing.T) {
 	_, err := Setup(0)
 	assert.Equal(t, ErrSetupParams, err, "Should not allow generating params for less than 1 attribute")
@@ -645,7 +649,6 @@ func randomInts(q int, max int) []int {
 func TestThresholdAuthorities(t *testing.T) {
 	// for this purpose those randoms don't need to be securely generated
 	repeat := 3
-	rand.Seed(time.Now().UnixNano())
 	tests := []struct {
 		pub  []string
 		priv []string
