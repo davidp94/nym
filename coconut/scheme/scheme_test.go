@@ -739,8 +739,10 @@ func BenchmarkSetup(b *testing.B) {
 	for _, q := range qs {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				params, _ := Setup(q)
-				_ = params
+				_, err := Setup(q)
+				if err != nil {
+					panic(err)
+				}
 			}
 		})
 	}
@@ -752,10 +754,12 @@ func BenchmarkKeygen(b *testing.B) {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				params, _ := Setup(q) // we don't want to time setup
+				params, _ := Setup(q)
 				b.StartTimer()
-				sk, vk, _ := Keygen(params)
-				_, _ = sk, vk
+				_, _, err := Keygen(params)
+				if err != nil {
+					panic(err)
+				}
 			}
 		})
 	}
@@ -774,10 +778,12 @@ func BenchmarkTTPKeygen(b *testing.B) {
 				b.Run(fmt.Sprintf("q=%d/t=%d/n=%d", q, t, n), func(b *testing.B) {
 					for i := 0; i < b.N; i++ {
 						b.StopTimer()
-						params, _ := Setup(q) // we don't want to time setup
+						params, _ := Setup(q)
 						b.StartTimer()
-						sks, vks, _ := TTPKeygen(params, t, n)
-						_, _ = sks, vks
+						_, _, err := TTPKeygen(params, t, n)
+						if err != nil {
+							panic(err)
+						}
 					}
 				})
 			}
@@ -791,7 +797,7 @@ func BenchmarkSign(b *testing.B) {
 		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				params, _ := Setup(q) // we don't want to time setup
+				params, _ := Setup(q)
 				p, rng := params.p, params.G.Rng()
 				pubs := make([]*Curve.BIG, q) // generate random attributes to sign
 				for i := range pubs {
@@ -799,8 +805,10 @@ func BenchmarkSign(b *testing.B) {
 				}
 				sk, _, _ := Keygen(params)
 				b.StartTimer()
-				sig, _ := Sign(params, sk, pubs)
-				_ = sig
+				_, err := Sign(params, sk, pubs)
+				if err != nil {
+					panic(err)
+				}
 			}
 		})
 	}
@@ -814,7 +822,7 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn) // we don't want to time setup
+					params, _ := Setup(pubn + privn)
 					p, rng := params.p, params.G.Rng()
 					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
 					pubs := make([]*Curve.BIG, pubn)   // generate random attributes to sign
@@ -829,8 +837,10 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 
 					_, gamma := elgamal.Keygen(params.G)
 					b.StartTimer()
-					blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
-					_ = blindSignMats
+					_, err := PrepareBlindSign(params, gamma, pubs, privs)
+					if err != nil {
+						panic(err)
+					}
 				}
 			})
 		}
@@ -845,7 +855,7 @@ func BenchmarkBlindSign(b *testing.B) {
 			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
-					params, _ := Setup(pubn + privn) // we don't want to time setup
+					params, _ := Setup(pubn + privn)
 					p, rng := params.p, params.G.Rng()
 
 					privs := make([]*Curve.BIG, privn) // generate random attributes to sign
@@ -864,11 +874,130 @@ func BenchmarkBlindSign(b *testing.B) {
 
 					sk, _, _ := Keygen(params)
 					b.StartTimer()
-					blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
-					_ = blindSig
+					_, err := BlindSign(params, sk, blindSignMats, gamma, pubs)
+					if err != nil {
+						panic(err)
+					}
 				}
 			})
 		}
+	}
+}
+
+var unblindRes *Signature
+
+// since unblind takes constant time in relation to number of attributes,
+// there is no point in embedding variable number of them into a credential
+func BenchmarkUnblind(b *testing.B) {
+	var sig *Signature
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		params, _ := Setup(1)
+		p, rng := params.p, params.G.Rng()
+
+		privs := []*Curve.BIG{Curve.Randomnum(p, rng)}
+		pubs := []*Curve.BIG{}
+
+		d, gamma := elgamal.Keygen(params.G)
+		blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+		sk, _, _ := Keygen(params)
+		blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+		b.StartTimer()
+		sig = Unblind(params, blindSig, d)
+	}
+	// it is recommended to store results in package level variables,
+	// so that compiler would not try to optimize the benchmark
+	unblindRes = sig
+}
+
+func BenchmarkVerify(b *testing.B) {
+	qs := []int{1, 3, 5, 10}
+	for _, q := range qs {
+		b.Run(fmt.Sprintf("q=%d", q), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(q)
+				p, rng := params.p, params.G.Rng()
+				pubs := make([]*Curve.BIG, q) // generate random attributes to sign
+				for i := range pubs {
+					pubs[i] = Curve.Randomnum(p, rng)
+				}
+				sk, vk, _ := Keygen(params)
+				sig, _ := Sign(params, sk, pubs)
+				b.StartTimer()
+				isValid := Verify(params, vk, pubs, sig)
+				if !isValid {
+					panic(isValid)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkShowBlindSignature(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(privn)
+				p, rng := params.p, params.G.Rng()
+
+				privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+				pubs := []*Curve.BIG{}
+
+				for i := range privs {
+					privs[i] = Curve.Randomnum(p, rng)
+				}
+
+				d, gamma := elgamal.Keygen(params.G)
+				blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+				sk, vk, _ := Keygen(params)
+				blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+				sig := Unblind(params, blindSig, d)
+				b.StartTimer()
+				_, err := ShowBlindSignature(params, vk, sig, privs)
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkBlindVerify(b *testing.B) {
+	pubns := []int{1, 3, 5, 10}
+	for _, pubn := range pubns {
+		b.Run(fmt.Sprintf("pub=%d", pubn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(pubn + 1)
+				p, rng := params.p, params.G.Rng()
+
+				privs := []*Curve.BIG{Curve.Randomnum(p, rng)}
+				pubs := make([]*Curve.BIG, pubn)
+
+				for i := range pubs {
+					pubs[i] = Curve.Randomnum(p, rng)
+				}
+
+				d, gamma := elgamal.Keygen(params.G)
+				blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+				sk, vk, _ := Keygen(params)
+				blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+				sig := Unblind(params, blindSig, d)
+				blindShowMats, _ := ShowBlindSignature(params, vk, sig, privs)
+
+				b.StartTimer()
+				isValid := BlindVerify(params, vk, sig, blindShowMats, pubs)
+				if !isValid {
+					panic(isValid)
+				}
+			}
+		})
 	}
 }
 
@@ -938,5 +1067,4 @@ func Example() {
 	fmt.Println(BlindVerify(params, avk2, rSig2, blindShowMats2, pubMBig))
 	fmt.Println(BlindVerify(params, avk1, rSig2, blindShowMats3, pubMBig))
 	fmt.Println(BlindVerify(params, avk2, rSig1, blindShowMats4, pubMBig))
-
 }
