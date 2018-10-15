@@ -94,3 +94,38 @@ func TestElGamalNewEncryptionFromPoints(t *testing.T) {
 	hm = Curve.G1mul(hm, r)
 	assert.True(t, dec.Equals(hm), "Original message (multiplied by same scalar) should be recovered")
 }
+
+var kencRes *Curve.BIG
+
+func BenchmarkElGamalEncryption(b *testing.B) {
+	var k *Curve.BIG
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		G := bpgroup.New()
+		_, gamma := Keygen(G)
+		m := Curve.Randomnum(G.Order(), G.Rng())
+		t := Curve.Randomnum(G.Order(), G.Rng())
+		h := Curve.G1mul(G.Gen1(), t)
+		b.StartTimer()
+		_, k = Encrypt(G, gamma, m, h)
+	}
+	kencRes = k
+}
+
+var decRes *Curve.ECP
+
+func BenchmarkElGamalDecryption(b *testing.B) {
+	var dec *Curve.ECP
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		G := bpgroup.New()
+		d, gamma := Keygen(G)
+		m := Curve.Randomnum(G.Order(), G.Rng())
+		t := Curve.Randomnum(G.Order(), G.Rng())
+		h := Curve.G1mul(G.Gen1(), t)
+		enc, _ := Encrypt(G, gamma, m, h)
+		b.StartTimer()
+		dec = Decrypt(G, d, enc)
+	}
+	decRes = dec
+}
