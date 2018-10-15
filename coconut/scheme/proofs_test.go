@@ -16,6 +16,7 @@
 package coconut
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -164,5 +165,167 @@ func TestVerifierProof(t *testing.T) {
 }
 
 //
-// BENCHMARKS (todo)
+// BENCHMARKS
 //
+
+func BenchmarkConstructSignerProof(b *testing.B) {
+	// public attributes have negligible effect on performance of that function,
+	// so only variable number of private attributes is being tested
+	privns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(privn)
+				g1, p, rng := params.g1, params.p, params.G.Rng()
+				privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+
+				for i := range privs {
+					privs[i] = Curve.Randomnum(p, rng)
+				}
+
+				r := Curve.Randomnum(p, rng)
+				cm := Curve.G1mul(g1, r)
+				for i := range privs {
+					cm.Add(Curve.G1mul(params.hs[i], privs[i]))
+				}
+
+				cmb := make([]byte, utils.MB+1)
+				cm.ToBytes(cmb, true)
+
+				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)
+
+				_, gamma := elgamal.Keygen(params.G)
+
+				encs := make([]*elgamal.Encryption, privn)
+				ks := make([]*Curve.BIG, privn)
+				for i := range privs {
+					c, k := elgamal.Encrypt(params.G, gamma, privs[i], h)
+					encs[i] = c
+					ks[i] = k
+				}
+
+				b.StartTimer()
+				_, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkVerifySignerProof(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(privn)
+				g1, p, rng := params.g1, params.p, params.G.Rng()
+				privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+
+				for i := range privs {
+					privs[i] = Curve.Randomnum(p, rng)
+				}
+
+				r := Curve.Randomnum(p, rng)
+				cm := Curve.G1mul(g1, r)
+				for i := range privs {
+					cm.Add(Curve.G1mul(params.hs[i], privs[i]))
+				}
+
+				cmb := make([]byte, utils.MB+1)
+				cm.ToBytes(cmb, true)
+
+				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)
+
+				_, gamma := elgamal.Keygen(params.G)
+
+				encs := make([]*elgamal.Encryption, privn)
+				ks := make([]*Curve.BIG, privn)
+				for i := range privs {
+					c, k := elgamal.Encrypt(params.G, gamma, privs[i], h)
+					encs[i] = c
+					ks[i] = k
+				}
+
+				signerProof, _ := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				b.StartTimer()
+				isValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
+				if !isValid {
+					panic(isValid)
+				}
+
+			}
+		})
+	}
+}
+
+var verifierProofRes *VerifierProof
+
+func BenchmarkConstructVerifierProof(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	var verifierProof *VerifierProof
+	for _, privn := range privns {
+		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(privn)
+				p, rng := params.p, params.G.Rng()
+				privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+				pubs := []*Curve.BIG{}
+
+				for i := range privs {
+					privs[i] = Curve.Randomnum(p, rng)
+				}
+
+				d, gamma := elgamal.Keygen(params.G)
+				blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+				sk, vk, _ := Keygen(params)
+				blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+				sig := Unblind(params, blindSig, d)
+
+				t := Curve.Randomnum(p, rng)
+				b.StartTimer()
+				verifierProof = ConstructVerifierProof(params, vk, sig, privs, t)
+			}
+		})
+	}
+	// it is recommended to store results in package level variables,
+	// so that compiler would not try to optimize the benchmark
+	verifierProofRes = verifierProof
+}
+
+func BenchmarkVerifyVerifierProof(b *testing.B) {
+	privns := []int{1, 3, 5, 10}
+	for _, privn := range privns {
+		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				b.StopTimer()
+				params, _ := Setup(privn)
+				p, rng := params.p, params.G.Rng()
+				privs := make([]*Curve.BIG, privn) // generate random attributes to sign
+				pubs := []*Curve.BIG{}
+
+				for i := range privs {
+					privs[i] = Curve.Randomnum(p, rng)
+				}
+
+				d, gamma := elgamal.Keygen(params.G)
+				blindSignMats, _ := PrepareBlindSign(params, gamma, pubs, privs)
+
+				sk, vk, _ := Keygen(params)
+				blindSig, _ := BlindSign(params, sk, blindSignMats, gamma, pubs)
+				sig := Unblind(params, blindSig, d)
+				blindShowMats, _ := ShowBlindSignature(params, vk, sig, privs)
+				b.StartTimer()
+				isValid := VerifyVerifierProof(params, vk, sig, blindShowMats)
+				if !isValid {
+					panic(isValid)
+				}
+			}
+		})
+	}
+}

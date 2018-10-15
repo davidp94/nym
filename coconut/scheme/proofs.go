@@ -76,7 +76,7 @@ func constructChallenge(elems []utils.Printable) *Curve.BIG {
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
-// nolint: interfacer
+// nolint: interfacer, lll
 func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
 
@@ -176,6 +176,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
+// nolint: lll
 func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, proof *SignerProof) bool {
 	g1, g2, hs := params.g1, params.g2, params.hs
 
@@ -236,6 +237,7 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encrypt
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
+// nolint: lll
 func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
 	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
 

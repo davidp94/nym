@@ -29,7 +29,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: remove the way functions are currently executed concurrently
 // todo: parallelization with worker pool
 // todo: make errors private
 // todo: rename and restructure PolynomialPoints struct + all its uses
