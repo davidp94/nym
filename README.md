@@ -124,7 +124,6 @@ The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6
 | Verify Pi_V/privM=3              | 2000   | 41.59 ms/op  | 11.75 kB/op | 241841 allocs/op  |
 | Verify Pi_V/privM=5              | 2000   | 63.44 ms/op  | 15.21 kB/op | 313454 allocs/op  |
 | Verify Pi_V/privM=10             | 1000   | 100.71 ms/op | 23.87 kB/op | 492518 allocs/op  |
-| Verify Pi_V/privM=10             | 1000   | 100706661 ns/op | 23874607 B/op | 492518 allocs/op  |
 
 #### BLS381
 
