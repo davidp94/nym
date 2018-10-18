@@ -127,4 +127,97 @@ The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6
 
 #### BLS381
 
-todo
+| Operation                        | Times run | Time per op     | Memory per op | Allocs per op     |
+|----------------------------------|-----------:|-----------------:|---------------:|-------------------:|
+| G1Mul                            | 30000 | 3.14 ms/op   | 0.86 kB/op   | 12879 allocs/op   |
+| G2Mul                            | 10000 | 7.43 ms/op   | 2.36 kB/op   | 35502 allocs/op   |
+| Pairing                          | 2000  | 35.24 ms/op  | 12.98 kB/op  | 227295 allocs/op  |
+| ElGamalEncryption                | 10000 | 9.28 ms/op   | 2.62 kB/op   | 39219 allocs/op   |
+| ElGamalDecryption                | 30000 | 3.27 ms/op   | 0.87 kB/op   | 12981 allocs/op   |
+|                                  |       |              |              |                   |
+| Setup/q=1                        | 10000 | 6.20 ms/op   | 0.85 kB/op   | 12359 allocs/op   |
+| Setup/q=3                        | 10000 | 10.03 ms/op  | 2.55 kB/op   | 37085 allocs/op   |
+| Setup/q=5                        | 5000  | 15.07 ms/op  | 4.23 kB/op   | 61436 allocs/op   |
+| Setup/q=10                       | 3000  | 29.58 ms/op  | 8.42 kB/op   | 122373 allocs/op  |
+| Setup/q=20                       | 2000  | 58.55 ms/op  | 17.04 kB/op  | 247682 allocs/op  |
+|                                  |       |              |              |                   |
+| Keygen/q=1                       | 5000  | 14.22 ms/op  | 4.78 kB/op   | 72051 allocs/op   |
+| Keygen/q=3                       | 3000  | 29.57 ms/op  | 9.56 kB/op   | 144087 allocs/op  |
+| Keygen/q=5                       | 2000  | 43.98 ms/op  | 14.34 kB/op  | 216119 allocs/op  |
+| Keygen/q=10                      | 1000  | 79.13 ms/op  | 26.29 kB/op  | 396254 allocs/op  |
+|                                  |       |              |              |                   |
+| TTPKeygen/q=1/t=3/n=5            | 2000  | 68.68 ms/op  | 24.09 kB/op  | 362908 allocs/op  |
+| TTPKeygen/q=3/t=3/n=5            | 500   | 140.11 ms/op | 48.18 kB/op  | 725938 allocs/op  |
+| TTPKeygen/q=5/t=3/n=5            | 500   | 250.20 ms/op | 72.26 kB/op  | 1088793 allocs/op |
+| TTPKeygen/q=10/t=3/n=5           | 200   | 419.25 ms/op | 132.49 kB/op | 1996312 allocs/op |
+|                                  |       |              |              |                   |
+| TTPKeygen/q=3/t=1/n=5            | 1000  | 131.74 ms/op | 47.29 kB/op  | 712539 allocs/op  |
+| TTPKeygen/q=3/t=3/n=5            | 500   | 140.11 ms/op | 48.18 kB/op  | 725938 allocs/op  |
+| TTPKeygen/q=3/t=5/n=5            | 500   | 148.48 ms/op | 49.04 kB/op  | 738884 allocs/op  |
+|                                  |       |              |              |                   |
+| TTPKeygen/q=3/t=1/n=1            | 3000  | 27.94 ms/op  | 9.57 kB/op   | 144175 allocs/op  |
+| TTPKeygen/q=3/t=1/n=3            | 1000  | 80.56 ms/op  | 28.43 kB/op  | 428325 allocs/op  |
+| TTPKeygen/q=3/t=1/n=5            | 1000  | 131.74 ms/op | 47.29 kB/op  | 712539 allocs/op  |
+| TTPKeygen/q=3/t=1/n=10           | 300   | 264.51 ms/op | 94.44 kB/op  | 1422807 allocs/op |
+|                                  |       |              |              |                   |
+| Sign/q=1                         | 10000 | 6.59 ms/op   | 1.72 kB/op   | 25457 allocs/op   |
+| Sign/q=3                         | 10000 | 6.34 ms/op   | 1.75 kB/op   | 26128 allocs/op   |
+| Sign/q=5                         | 10000 | 6.30 ms/op   | 1.77 kB/op   | 26731 allocs/op   |
+| Sign/q=10                        | 10000 | 6.85 ms/op   | 1.84 kB/op   | 28319 allocs/op   |
+|                                  |       |              |              |                   |
+| PrepareBlindSign/pubM=1/privM=3  | 1000  | 99.25 ms/op  | 27.16 kB/op  | 403995 allocs/op  |
+| PrepareBlindSign/pubM=3/privM=3  | 1000  | 114.68 ms/op | 30.69 kB/op  | 456865 allocs/op  |
+| PrepareBlindSign/pubM=5/privM=3  | 1000  | 125.83 ms/op | 34.23 kB/op  | 509835 allocs/op  |
+| PrepareBlindSign/pubM=10/privM=3 | 500   | 155.18 ms/op | 43.07 kB/op  | 642252 allocs/op  |
+|                                  |       |              |              |                   |
+| PrepareBlindSign/pubM=3/privM=1  | 2000  | 59.54 ms/op  | 16.42 kB/op  | 243791 allocs/op  |
+| PrepareBlindSign/pubM=3/privM=3  | 1000  | 114.68 ms/op | 30.69 kB/op  | 456865 allocs/op  |
+| PrepareBlindSign/pubM=3/privM=5  | 500   | 159.97 ms/op | 44.96 kB/op  | 669924 allocs/op  |
+| PrepareBlindSign/pubM=3/privM=10 | 300   | 279.99 ms/op | 80.66 kB/op  | 1203099 allocs/op |
+|                                  |       |              |              |                   |
+| BlindSign/pubM=1/privM=3         | 1000  | 116.49 ms/op | 29.71 kB/op  | 439143 allocs/op  |
+| BlindSign/pubM=3/privM=3         | 1000  | 137.48 ms/op | 34.89 kB/op  | 516775 allocs/op  |
+| BlindSign/pubM=5/privM=3         | 500   | 175.99 ms/op | 40.08 kB/op  | 594434 allocs/op  |
+| BlindSign/pubM=10/privM=3        | 500   | 221.57 ms/op | 53.04 kB/op  | 788480 allocs/op  |
+|                                  |       |              |              |                   |
+| BlindSign/pubM=3/privM=1         | 1000  | 79.49 ms/op  | 20.08 kB/op  | 297298 allocs/op  |
+| BlindSign/pubM=3/privM=3         | 1000  | 137.48 ms/op | 34.89 kB/op  | 516775 allocs/op  |
+| BlindSign/pubM=3/privM=5         | 500   | 198.60 ms/op | 49.70 kB/op  | 736258 allocs/op  |
+| BlindSign/pubM=3/privM=10        | 200   | 360.87 ms/op | 86.72 kB/op  | 1284699 allocs/op |
+|                                  |       |              |              |                   |
+| Unblind                          | 30000 | 3.29 ms/op   | 0.87 kB/op   | 12981 allocs/op   |
+|                                  |       |              |              |                   |
+| Verify/q=1                       | 1000  | 79.75 ms/op  | 28.47 kB/op  | 492060 allocs/op  |
+| Verify/q=3                       | 1000  | 101.28 ms/op | 33.21 kB/op  | 563590 allocs/op  |
+| Verify/q=5                       | 1000  | 121.88 ms/op | 37.96 kB/op  | 635132 allocs/op  |
+| Verify/q=10                      | 500   | 157.97 ms/op | 49.83 kB/op  | 813898 allocs/op  |
+|                                  |       |              |              |                   |
+| ShowBlindSignature/privM=1       | 3000  | 33.87 ms/op  | 11.49 kB/op  | 172584 allocs/op  |
+| ShowBlindSignature/privM=3       | 2000  | 68.18 ms/op  | 21.08 kB/op  | 317034 allocs/op  |
+| ShowBlindSignature/privM=5       | 1000  | 102.96 ms/op | 30.67 kB/op  | 461511 allocs/op  |
+| ShowBlindSignature/privM=10      | 500   | 181.16 ms/op | 54.65 kB/op  | 822574 allocs/op  |
+|                                  |       |              |              |                   |
+| BlindVerify/pubM=1               | 1000  | 123.31 ms/op | 40.12 kB/op  | 666449 allocs/op  |
+| BlindVerify/pubM=3               | 1000  | 139.62 ms/op | 44.89 kB/op  | 738303 allocs/op  |
+| BlindVerify/pubM=5               | 500   | 164.23 ms/op | 49.66 kB/op  | 810116 allocs/op  |
+| BlindVerify/pubM=10              | 500   | 229.97 ms/op | 61.60 kB/op  | 989803 allocs/op  |
+|                                  |       |              |              |                   |
+| ConstructSignerProof/privM=1     | 5000  | 19.20 ms/op  | 5.78 kB/op   | 85033 allocs/op   |
+| ConstructSignerProof/privM=3     | 2000  | 43.65 ms/op  | 13.08 kB/op  | 193845 allocs/op  |
+| ConstructSignerProof/privM=5     | 1000  | 67.95 ms/op  | 20.39 kB/op  | 302659 allocs/op  |
+| ConstructSignerProof/privM=10    | 1000  | 129.18 ms/op | 38.65 kB/op  | 574694 allocs/op  |
+|                                  |       |              |              |                   |
+| VerifySignerProof/privM=1        | 3000  | 28.52 ms/op  | 8.63 kB/op   | 126866 allocs/op  |
+| VerifySignerProof/privM=3        | 2000  | 67.80 ms/op  | 19.74 kB/op  | 291483 allocs/op  |
+| VerifySignerProof/privM=5        | 1000  | 112.43 ms/op | 30.85 kB/op  | 456039 allocs/op  |
+| VerifySignerProof/privM=10       | 500   | 215.14 ms/op | 58.63 kB/op  | 867673 allocs/op  |
+|                                  |       |              |              |                   |
+| ConstructVerifierProof/privM=1   | 5000  | 21.35 ms/op  | 5.85 kB/op   | 87663 allocs/op   |
+| ConstructVerifierProof/privM=3   | 2000  | 41.01 ms/op  | 10.69 kB/op  | 160576 allocs/op  |
+| ConstructVerifierProof/privM=5   | 2000  | 59.72 ms/op  | 15.54 kB/op  | 233515 allocs/op  |
+|                                  |       |              |              |                   |
+| ConstructVerifierProof/privM=10  | 1000  | 115.53 ms/op | 27.64 kB/op  | 415779 allocs/op  |
+| VerifyVerifierProof/privM=1      | 2000  | 52.42 ms/op  | 11.51 kB/op  | 172606 allocs/op  |
+| VerifyVerifierProof/privM=3      | 1000  | 77.37 ms/op  | 16.29 kB/op  | 244440 allocs/op  |
+| VerifyVerifierProof/privM=5      | 1000  | 103.73 ms/op | 21.06 kB/op  | 316318 allocs/op  |
+| VerifyVerifierProof/privM=10     | 500   | 169.76 ms/op | 32.99 kB/op  | 495936 allocs/op  |
