@@ -1,8 +1,6 @@
 package jobworker
 
 import (
-	"fmt"
-
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/worker"
 )
@@ -21,7 +19,7 @@ func (w *Worker) worker() {
 		case e := <-w.jobQueue:
 			jobpkt = e.(*jobpacket.JobPacket)
 		}
-		fmt.Println("Worker id", w.id)
+		// fmt.Println("Worker id", w.id)
 
 		res, err := jobpkt.Op()
 		if err != nil {

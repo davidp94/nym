@@ -819,7 +819,7 @@ func BenchmarkPrepareBlindSign(b *testing.B) {
 	pubns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
 		for _, pubn := range pubns {
-			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
+			b.Run(fmt.Sprintf("pubM=%d/privM=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					params, _ := Setup(pubn + privn)
@@ -852,7 +852,7 @@ func BenchmarkBlindSign(b *testing.B) {
 	pubns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
 		for _, pubn := range pubns {
-			b.Run(fmt.Sprintf("pubs=%d/priv=%d", pubn, privn), func(b *testing.B) {
+			b.Run(fmt.Sprintf("pubM=%d/privM=%d", pubn, privn), func(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					params, _ := Setup(pubn + privn)
@@ -938,7 +938,7 @@ func BenchmarkVerify(b *testing.B) {
 func BenchmarkShowBlindSignature(b *testing.B) {
 	privns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
-		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
+		b.Run(fmt.Sprintf("privM=%d", privn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
 				params, _ := Setup(privn)
@@ -970,7 +970,7 @@ func BenchmarkShowBlindSignature(b *testing.B) {
 func BenchmarkBlindVerify(b *testing.B) {
 	pubns := []int{1, 3, 5, 10}
 	for _, pubn := range pubns {
-		b.Run(fmt.Sprintf("pub=%d", pubn), func(b *testing.B) {
+		b.Run(fmt.Sprintf("pubM=%d", pubn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
 				params, _ := Setup(pubn + 1)

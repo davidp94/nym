@@ -49,12 +49,32 @@ type VerificationKey struct {
 	beta  []*Curve.ECP2
 }
 
+func (vk *VerificationKey) G2() *Curve.ECP2 {
+	return vk.g2
+}
+
+func (vk *VerificationKey) Alpha() *Curve.ECP2 {
+	return vk.alpha
+}
+
+func (vk *VerificationKey) Beta() []*Curve.ECP2 {
+	return vk.beta
+}
+
 // Signature represents signature/credential issued by a Coconut signing authority.
 // sig1 = h,
 // sig2 = h * (x + (m[0] * y[0]) + ... + (m[i] * y[i])).
 type Signature struct {
 	sig1 *Curve.ECP
 	sig2 *Curve.ECP
+}
+
+func (s *Signature) Sig1() *Curve.ECP {
+	return s.sig1
+}
+
+func (s *Signature) Sig2() *Curve.ECP {
+	return s.sig2
 }
 
 // BlindedSignature represents blinded version of a normal Coconut signature
