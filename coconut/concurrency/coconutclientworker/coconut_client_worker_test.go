@@ -45,10 +45,10 @@ func TestCCWVerify(t *testing.T) {
 
 	infch := channels.NewInfiniteChannel()
 
-	ccw := coconutclientworker.New(infch)
+	ccw := coconutclientworker.New(infch.In())
 
 	for i := 0; i < numWorkers; i++ {
-		jobworker.New(infch.Out(), i)
+		jobworker.New(infch.Out(), uint64(i))
 	}
 
 	assert.True(t, ccw.Verify(params, vk, attrsBig, sig))
@@ -58,7 +58,7 @@ func TestCCWVerify(t *testing.T) {
 }
 
 func BenchmarkCCWVerify(b *testing.B) {
-	numWorkers := 3
+	numWorkers := 1
 	attrs := []string{
 		"foo1",
 		"foo2",
@@ -81,10 +81,10 @@ func BenchmarkCCWVerify(b *testing.B) {
 	sig, _ := coconut.Sign(params, sk, attrsBig)
 
 	infch := channels.NewInfiniteChannel()
-	ccw := coconutclientworker.New(infch)
+	ccw := coconutclientworker.New(infch.In())
 
 	for i := 0; i < numWorkers; i++ {
-		jobworker.New(infch.Out(), i)
+		jobworker.New(infch.Out(), uint64(i))
 	}
 
 	b.ResetTimer()
