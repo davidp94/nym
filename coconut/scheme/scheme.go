@@ -42,6 +42,16 @@ type SecretKey struct {
 	y []*Curve.BIG
 }
 
+// X returns appropriate part of the the secret key
+func (sk *SecretKey) X() *Curve.BIG {
+	return sk.x
+}
+
+// Y returns appropriate part of the the secret key
+func (sk *SecretKey) Y() []*Curve.BIG {
+	return sk.y
+}
+
 // VerificationKey represents verification key of a Coconut signing authority.
 type VerificationKey struct {
 	g2    *Curve.ECP2
@@ -49,14 +59,17 @@ type VerificationKey struct {
 	beta  []*Curve.ECP2
 }
 
+// G2 returns generator of G2 that is part of the verification key
 func (vk *VerificationKey) G2() *Curve.ECP2 {
 	return vk.g2
 }
 
+// Alpha returns appropriate part of the the verification key
 func (vk *VerificationKey) Alpha() *Curve.ECP2 {
 	return vk.alpha
 }
 
+// Beta returns appropriate part of the the verification key
 func (vk *VerificationKey) Beta() []*Curve.ECP2 {
 	return vk.beta
 }
@@ -69,10 +82,12 @@ type Signature struct {
 	sig2 *Curve.ECP
 }
 
+// Sig1 returns first ECP group of the signature
 func (s *Signature) Sig1() *Curve.ECP {
 	return s.sig1
 }
 
+// Sig2 returns second ECP group of the signature
 func (s *Signature) Sig2() *Curve.ECP {
 	return s.sig2
 }
@@ -90,6 +105,26 @@ type Params struct {
 	g1 *Curve.ECP
 	g2 *Curve.ECP2
 	hs []*Curve.ECP
+}
+
+// P returns order of the group in params
+func (p *Params) P() *Curve.BIG {
+	return p.p
+}
+
+// G1 returns generator of G1 in params
+func (p *Params) G1() *Curve.ECP {
+	return p.g1
+}
+
+// G2 returns generator of G2 in params
+func (p *Params) G2() *Curve.ECP2 {
+	return p.g2
+}
+
+// Hs returns generators of G1 in params
+func (p *Params) Hs() []*Curve.ECP {
+	return p.hs
 }
 
 // BlindSignMats encapsulates data created by PrepareBlindSign function.
@@ -141,6 +176,25 @@ var (
 	// or their number was larger than the verification key supports
 	ErrShowBlindAttr = errors.New("Invalid attributes provided")
 )
+
+// NewSk returns instance of verification key from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewSk(x *Curve.BIG, y []*Curve.BIG) *SecretKey {
+	return &SecretKey{
+		x: x,
+		y: y,
+	}
+}
+
+// NewVk returns instance of verification key from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewVk(g2 *Curve.ECP2, alpha *Curve.ECP2, beta []*Curve.ECP2) *VerificationKey {
+	return &VerificationKey{
+		g2:    g2,
+		alpha: alpha,
+		beta:  beta,
+	}
+}
 
 // Setup generates the public parameters required by the Coconut scheme.
 // q indicates the maximum number of attributes that can be embed in the credentials.

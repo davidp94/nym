@@ -52,6 +52,49 @@ func (ccw *CoconutClientWorker) Setup(q int) (*MuxParams, error) {
 	return &MuxParams{*params, sync.Mutex{}}, nil
 }
 
+// Keygen generates a single Coconut keypair ((x, y1, y2...), (g2, g2^x, g2^y1, ...)).
+// It is not suitable for threshold credentials as all generated keys are independent of each other.
+func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
+
+	q := len(hs)
+	if q < 1 {
+		return nil, nil, coconut.ErrKeygenParams
+	}
+	// normal sk generation
+	x := Curve.Randomnum(p, rng)
+	y := make([]*Curve.BIG, q)
+	for i := 0; i < q; i++ {
+		y[i] = Curve.Randomnum(p, rng)
+	}
+	sk := coconut.NewSk(x, y)
+
+	alphaCh := make(chan interface{})
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, g2, x)
+
+	// unlike other G2muls where results are then added together,
+	// ordering matters here, so we can't just use buffered channels
+	beta := make([]*Curve.ECP2, q)
+	betaChs := make([]chan interface{}, q)
+	for i := range betaChs {
+		betaChs[i] = make(chan interface{})
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i], g2, y[i])
+	}
+
+	// all jobs are in the queue, so it doesn't matter in which order we read results
+	// as we need all of them and each results has dedicated channel, so nothing is blocked
+	alphaRes := <-alphaCh
+	alpha := alphaRes.(*Curve.ECP2)
+
+	for i := 0; i < q; i++ {
+		betaRes := <-betaChs[i]
+		beta[i] = betaRes.(*Curve.ECP2)
+	}
+
+	vk := coconut.NewVk(g2, alpha, beta)
+	return sk, vk, nil
+}
+
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
 func (ccw *CoconutClientWorker) Verify(params *coconut.Params, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
@@ -64,15 +107,15 @@ func (ccw *CoconutClientWorker) Verify(params *coconut.Params, vk *coconut.Verif
 
 	// create buffered channel so that workers could immediately start next job
 	// packet without waiting for read from the master (if multiple writes)
-	outChG1Mul := make(chan interface{}, len(pubM))
+	outChG2Mul := make(chan interface{}, len(pubM))
 
 	// in this case ordering does not matter at all, since we're adding all results together
 	for i := 0; i < len(pubM); i++ {
 		// change structure of jobpacket to fix that monstrosity...
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(outChG1Mul, vk.Beta()[i], pubM[i])
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(outChG2Mul, vk.Beta()[i], pubM[i])
 	}
 	for i := 0; i < len(pubM); i++ {
-		res := <-outChG1Mul
+		res := <-outChG2Mul
 		g2E := res.(*Curve.ECP2)
 		K.Add(g2E) // K = X + (a1 * Y1) + ...
 	}

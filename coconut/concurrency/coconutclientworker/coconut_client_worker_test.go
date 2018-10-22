@@ -14,6 +14,9 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+// those are currently only very crude tests
+// todo: make them look proper, with decent vectors etc
+
 func TestCCWVerify(t *testing.T) {
 	numWorkers := 2
 	attrs := []string{
@@ -44,7 +47,6 @@ func TestCCWVerify(t *testing.T) {
 	// assert.True(t, coconut.Verify(params, vk, attrsBig, sig))
 
 	infch := channels.NewInfiniteChannel()
-
 	ccw := coconutclientworker.New(infch.In())
 
 	for i := 0; i < numWorkers; i++ {
@@ -55,6 +57,33 @@ func TestCCWVerify(t *testing.T) {
 
 	// ccw.DoG1Mul(g1, x, y)
 
+}
+
+func TestCCWKeygen(t *testing.T) {
+	numWorkers := 2
+	q := 5
+
+	infch := channels.NewInfiniteChannel()
+	ccw := coconutclientworker.New(infch.In())
+
+	for i := 0; i < numWorkers; i++ {
+		jobworker.New(infch.Out(), uint64(i))
+	}
+
+	muxParams, err := ccw.Setup(q)
+	assert.Nil(t, err)
+
+	sk, vk, err := ccw.Keygen(muxParams)
+	assert.Nil(t, err)
+	assert.True(t, Curve.G2mul(vk.G2(), sk.X()).Equals(vk.Alpha()))
+	assert.Equal(t, len(sk.Y()), len(vk.Beta()))
+
+	g2 := vk.G2()
+	y := sk.Y()
+	beta := vk.Beta()
+	for i := range beta {
+		assert.Equal(t, beta[i], Curve.G2mul(g2, y[i]))
+	}
 }
 
 func BenchmarkCCWVerify(b *testing.B) {

@@ -30,6 +30,7 @@ type Worker struct {
 	jobQueue <-chan interface{}
 }
 
+// todo: some halt signal
 func (w *Worker) worker() {
 	for {
 		var jobpkt *jobpacket.JobPacket

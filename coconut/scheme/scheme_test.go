@@ -44,7 +44,7 @@ func TestSchemeSetup(t *testing.T) {
 	assert.Equal(t, 10, len(params.hs))
 }
 
-func keygenTest(t *testing.T, params *Params, sk *SecretKey, vk *VerificationKey) {
+func KeygenTest(t *testing.T, params *Params, sk *SecretKey, vk *VerificationKey) {
 	g2 := params.g2
 
 	assert.True(t, g2.Equals(vk.g2))
@@ -65,7 +65,7 @@ func TestSchemeKeygen(t *testing.T) {
 	sk, vk, err := Keygen(params)
 	assert.Nil(t, err)
 
-	keygenTest(t, params, sk, vk)
+	KeygenTest(t, params, sk, vk)
 }
 
 // nolint: gocyclo, dupl
@@ -103,7 +103,7 @@ func TestSchemeTTPKeygen(t *testing.T) {
 
 		// first check if they work as normal keys
 		for i := range sks {
-			keygenTest(t, params, sks[i], vks[i])
+			KeygenTest(t, params, sks[i], vks[i])
 		}
 
 		// choose random 2 subsets of t keys and ensure that when multiplied by langrage basis they converge to same value
