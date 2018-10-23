@@ -217,3 +217,12 @@ func LagrangeBasis(i int, o *Curve.BIG, xs []*Curve.BIG, x int) *Curve.BIG {
 	denominator.Invmodp(o) // denominator = 1/denominator % o
 	return Curve.Modmul(numerator, denominator, o)
 }
+
+// GenerateRandomBIGSlice creates a slice of specified length with random BIGs.
+func GenerateRandomBIGSlice(p *Curve.BIG, rng *amcl.RAND, n int) []*Curve.BIG {
+	s := make([]*Curve.BIG, n)
+	for i := range s {
+		s[i] = Curve.Randomnum(p, rng)
+	}
+	return s
+}

@@ -14,13 +14,14 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package coconutclientworker provides the functionalities required to use the Coconut scheme concurrently
+// Package coconutclientworker provides the functionalities required to use the Coconut scheme concurrently.
 package coconutclientworker
 
 import (
 	"sync"
 
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
+	"github.com/jstuczyn/CoconutGo/coconut/utils"
 
 	"github.com/jstuczyn/CoconutGo/coconut/scheme"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -95,9 +96,64 @@ func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *
 	return sk, vk, nil
 }
 
+func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
+
+	q := len(hs)
+	if n < t || t <= 0 || q <= 0 {
+		return nil, nil, coconut.ErrTTPKeygenParams
+	}
+
+	// polynomials generation
+	v := utils.GenerateRandomBIGSlice(p, rng, t)
+	w := make([][]*Curve.BIG, q)
+	for i := range w {
+		w[i] = utils.GenerateRandomBIGSlice(p, rng, t)
+	}
+
+	// secret keys - nothing (relatively) computationally expensive here
+	sks := make([]*coconut.SecretKey, n)
+	for i := 1; i < n+1; i++ {
+		iBIG := Curve.NewBIGint(i)
+		x := utils.PolyEval(v, iBIG, p)
+		ys := make([]*Curve.BIG, q)
+		for j, wj := range w {
+			ys[j] = utils.PolyEval(wj, iBIG, p)
+		}
+		sks[i-1] = coconut.NewSk(x, ys)
+	}
+
+	alphaChs := make([]chan interface{}, n)
+	betaChs := make([][]chan interface{}, n)
+	for i := range sks {
+		alphaChs[i] = make(chan interface{})
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, sks[i].X())
+
+		betaChs[i] = make([]chan interface{}, q)
+		for j, yj := range sks[i].Y() {
+			betaChs[i][j] = make(chan interface{})
+			ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i][j], g2, yj)
+		}
+	}
+
+	vks := make([]*coconut.VerificationKey, n)
+	for i := range sks {
+		alphaRes := <-alphaChs[i]
+		alpha := alphaRes.(*Curve.ECP2)
+
+		beta := make([]*Curve.ECP2, q)
+		for j := 0; j < q; j++ {
+			betaijRes := <-betaChs[i][j]
+			beta[j] = betaijRes.(*Curve.ECP2)
+		}
+		vks[i] = coconut.NewVk(g2, alpha, beta)
+	}
+	return sks, vks, nil
+}
+
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
-func (ccw *CoconutClientWorker) Verify(params *coconut.Params, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if len(pubM) != len(vk.Beta()) {
 		return false
 	}

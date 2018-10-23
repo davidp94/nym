@@ -56,7 +56,6 @@ func New(jobQueue <-chan interface{}, id uint64) *Worker {
 		id:       id,
 	}
 
-	// how come this is working if w.worker object was never created
 	w.Go(w.worker)
 	return w
 }

@@ -98,6 +98,15 @@ type BlindedSignature struct {
 	sig2Tilda *elgamal.Encryption
 }
 
+// CoconutParams interface allows for interchangebly using Params and MuxParams
+// (where applicable)
+type CoconutParams interface {
+	P() *Curve.BIG
+	G1() *Curve.ECP
+	G2() *Curve.ECP2
+	Hs() []*Curve.ECP
+}
+
 // Params represent public system-wide parameters.
 type Params struct {
 	G  *bpgroup.BpGroup // represents G1, G2, GT
@@ -260,17 +269,10 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	}
 
 	// polynomials generation
-	v := make([]*Curve.BIG, t)
-	for i := range v {
-		v[i] = Curve.Randomnum(p, rng)
-	}
-
+	v := utils.GenerateRandomBIGSlice(p, rng, t)
 	w := make([][]*Curve.BIG, q)
 	for i := range w {
-		w[i] = make([]*Curve.BIG, t)
-		for j := range w[i] {
-			w[i][j] = Curve.Randomnum(p, rng)
-		}
+		w[i] = utils.GenerateRandomBIGSlice(p, rng, t)
 	}
 
 	// secret keys
