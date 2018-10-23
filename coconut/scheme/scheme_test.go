@@ -82,100 +82,13 @@ func TestSchemeTTPKeygen(t *testing.T) {
 	}
 }
 
-// func TestSchemeSign(t *testing.T) {
-// 	tests := []struct {
-// 		q     int
-// 		attrs []string
-// 		err   error
-// 		msg   string
-// 	}{
-// 		{q: 1, attrs: []string{"Hello World!"}, err: nil,
-// 			msg: "For single attribute sig2 should be equal to (x + m * y) * sig1"},
-// 		{q: 3, attrs: []string{"Foo", "Bar", "Baz"}, err: nil,
-// 			msg: "For three attributes sig2 shguld be equal to (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1"},
-// 		{q: 2, attrs: []string{"Foo", "Bar", "Baz"}, err: ErrSignParams,
-// 			msg: "Sign should fail due to invalid param combination"},
-// 		{q: 3, attrs: []string{"Foo", "Bar"}, err: ErrSignParams,
-// 			msg: "Sign should fail due to invalid param combination"},
-// 	}
+func TestSchemeSign(t *testing.T) {
+	TestSign(t, nil)
+}
 
-// 	for _, test := range tests {
-// 		params, err := Setup(test.q)
-// 		assert.Nil(t, err)
-// 		p := params.p
-
-// 		sk, _, err := Keygen(params)
-// 		assert.Nil(t, err)
-
-// 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-// 		for i := range test.attrs {
-// 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
-// 			assert.Nil(t, err)
-// 		}
-
-// 		sig, err := Sign(params, sk, attrsBig)
-// 		if test.err == ErrSignParams {
-// 			assert.Equal(t, ErrSignParams, err, test.msg)
-// 			return // everything beyond that point is UB
-// 		}
-// 		assert.Nil(t, err)
-
-// 		t1 := Curve.NewBIGcopy(sk.X())
-// 		for i := range sk.Y() {
-// 			t1 = t1.Plus(Curve.Modmul(attrsBig[i], sk.Y()[i], p))
-// 		}
-
-// 		sigTest := Curve.G1mul(sig.Sig1(), t1)
-// 		assert.True(t, sigTest.Equals(sig.sig2), test.msg)
-// 	}
-// }
-
-// func TestSchemeVerify(t *testing.T) {
-// 	tests := []struct {
-// 		attrs          []string
-// 		maliciousAttrs []string
-// 		msg            string
-// 	}{
-// 		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{},
-// 			msg: "Should verify a valid signature on single public attribute"},
-// 		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{},
-// 			msg: "Should verify a valid signature on multiple public attribute"},
-// 		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"},
-// 			msg: "Should not verify a signature when malicious attribute is introduced"},
-// 		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"},
-// 			msg: "Should not verify a signature when malicious attributes are introduced"},
-// 	}
-
-// 	for _, test := range tests {
-// 		params, err := Setup(len(test.attrs))
-// 		assert.Nil(t, err)
-
-// 		sk, vk, err := Keygen(params)
-// 		assert.Nil(t, err)
-
-// 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-// 		for i := range test.attrs {
-// 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
-// 			assert.Nil(t, err)
-// 		}
-// 		sig, err := Sign(params, sk, attrsBig)
-// 		assert.Nil(t, err)
-// 		assert.True(t, Verify(params, vk, attrsBig, sig), test.msg)
-
-// 		if len(test.maliciousAttrs) > 0 {
-// 			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
-// 			for i := range test.maliciousAttrs {
-// 				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
-// 				assert.Nil(t, err)
-// 			}
-// 			sig2, err := Sign(params, sk, mAttrsBig)
-// 			assert.Nil(t, err)
-
-// 			assert.False(t, Verify(params, vk, attrsBig, sig2), test.msg)
-// 			assert.False(t, Verify(params, vk, mAttrsBig, sig), test.msg)
-// 		}
-// 	}
-// }
+func TestSchemeVerify(t *testing.T) {
+	TestVerify(t, nil)
+}
 
 // // todo: add tests for private
 // func TestSchemeRandomize(t *testing.T) {

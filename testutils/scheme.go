@@ -22,8 +22,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/coconut/concurrency/coconutclientworker"
+
 	"github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
@@ -150,5 +153,131 @@ func TestTTPKeygenProperties(t *testing.T, params coconut.CoconutParams, sks []*
 	polysVk2 := interpolateRandomSubsetOfKeys(p, k, n, vks)
 	for i := range polysVk1 {
 		assert.True(t, polysVk1[i].(*Curve.ECP2).Equals(polysVk2[i].(*Curve.ECP2)))
+	}
+}
+
+func setupAndKeygen(t *testing.T, q int, ccw *coconutclientworker.CoconutClientWorker) (coconut.CoconutParams, *coconut.SecretKey, *coconut.VerificationKey) {
+	if ccw == nil {
+		params, err := coconut.Setup(q)
+		assert.Nil(t, err)
+
+		sk, vk, err := coconut.Keygen(params)
+		assert.Nil(t, err)
+		return params, sk, vk
+	}
+	params, err := ccw.Setup(q)
+	assert.Nil(t, err)
+
+	sk, vk, err := ccw.Keygen(params)
+	assert.Nil(t, err)
+	return params, sk, vk
+}
+
+// TestSign verifies whether a coconut signature was correctly constructed
+func TestSign(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
+	tests := []struct {
+		q     int
+		attrs []string
+		err   error
+		msg   string
+	}{
+		{q: 1, attrs: []string{"Hello World!"}, err: nil,
+			msg: "For single attribute sig2 should be equal to (x + m * y) * sig1"},
+		{q: 3, attrs: []string{"Foo", "Bar", "Baz"}, err: nil,
+			msg: "For three attributes sig2 shguld be equal to (x + m1 * y1 + m2 * y2 + m3 * y3) * sig1"},
+		{q: 2, attrs: []string{"Foo", "Bar", "Baz"}, err: coconut.ErrSignParams,
+			msg: "Sign should fail due to invalid param combination"},
+		{q: 3, attrs: []string{"Foo", "Bar"}, err: coconut.ErrSignParams,
+			msg: "Sign should fail due to invalid param combination"},
+	}
+
+	for _, test := range tests {
+		params, sk, _ := setupAndKeygen(t, test.q, ccw)
+		p := params.P()
+
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
+		var err error
+		for i := range test.attrs {
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		var sig *coconut.Signature
+		if ccw == nil {
+			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
+		} else {
+			sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, attrsBig)
+		}
+		if test.err == coconut.ErrSignParams {
+			assert.Equal(t, coconut.ErrSignParams, err, test.msg)
+			continue // everything beyond that point is UB
+		}
+		assert.Nil(t, err)
+
+		t1 := Curve.NewBIGcopy(sk.X())
+		for i := range sk.Y() {
+			t1 = t1.Plus(Curve.Modmul(attrsBig[i], sk.Y()[i], p))
+		}
+
+		sigTest := Curve.G1mul(sig.Sig1(), t1)
+		assert.True(t, sigTest.Equals(sig.Sig2()), test.msg)
+	}
+}
+
+func TestVerify(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
+	tests := []struct {
+		attrs          []string
+		maliciousAttrs []string
+		msg            string
+	}{
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{},
+			msg: "Should verify a valid signature on single public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{},
+			msg: "Should verify a valid signature on multiple public attribute"},
+		{attrs: []string{"Hello World!"}, maliciousAttrs: []string{"Malicious Hello World!"},
+			msg: "Should not verify a signature when malicious attribute is introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"},
+			msg: "Should not verify a signature when malicious attributes are introduced"},
+	}
+
+	for _, test := range tests {
+		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
+		var err error
+		for i := range test.attrs {
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		var sig *coconut.Signature
+		if ccw == nil {
+			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
+			assert.Nil(t, err)
+			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, sig), test.msg)
+		} else {
+			sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, attrsBig)
+			assert.Nil(t, err)
+			assert.True(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, attrsBig, sig), test.msg)
+		}
+
+		if len(test.maliciousAttrs) > 0 {
+			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
+			for i := range test.maliciousAttrs {
+				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
+				assert.Nil(t, err)
+			}
+
+			var sig2 *coconut.Signature
+			if ccw == nil {
+				sig2, err = coconut.Sign(params.(*coconut.Params), sk, mAttrsBig)
+				assert.False(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, sig2), test.msg)
+				assert.False(t, coconut.Verify(params.(*coconut.Params), vk, mAttrsBig, sig), test.msg)
+			} else {
+				sig2, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, mAttrsBig)
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, attrsBig, sig2), test.msg)
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, mAttrsBig, sig), test.msg)
+			}
+		}
 	}
 }

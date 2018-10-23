@@ -96,6 +96,9 @@ func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *
 	return sk, vk, nil
 }
 
+// TTPKeygen generates a set of n Coconut keypairs [((x, y1, y2...), (g2, g2^x, g2^y1, ...)), ...],
+// such that they support threshold aggregation of t parties.
+// It is expected that this procedure is executed by a Trusted Third Party.
 func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
@@ -149,6 +152,12 @@ func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*c
 		vks[i] = coconut.NewVk(g2, alpha, beta)
 	}
 	return sks, vks, nil
+}
+
+// Sign creates a Coconut credential under a given secret key on a set of public attributes only.
+func (ccw *CoconutClientWorker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+	// there are no expensive operations that could be parallelized in sign
+	return coconut.Sign(&params.Params, sk, pubM)
 }
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes

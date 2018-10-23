@@ -20,7 +20,6 @@ package coconut
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
@@ -300,20 +299,6 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 
 	}
 	return sks, vks, nil
-}
-
-// getBaseFromAttributes generates the base h from public attributes.
-// It is only used for Sign function that works exlusively on public attributes
-func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
-	s := make([]string, len(pubM))
-	for i := range pubM {
-		s[i] = utils.ToCoconutString(pubM[i])
-	}
-	h, err := utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
-	if err != nil {
-		panic(err)
-	}
-	return h
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.

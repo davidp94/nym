@@ -6,6 +6,7 @@ import (
 	"github.com/eapache/channels"
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/coconutclientworker"
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobworker"
+	coconut "github.com/jstuczyn/CoconutGo/coconut/scheme"
 	. "github.com/jstuczyn/CoconutGo/testutils"
 	"github.com/stretchr/testify/assert"
 )
@@ -13,96 +14,83 @@ import (
 // those are currently only very crude tests
 // todo: make them look proper, with decent vectors etc
 
-// func TestCCWVerify(t *testing.T) {
-// 	numWorkers := 2
-// 	attrs := []string{
-// 		"foo1",
-// 		"foo2",
-// 		"foo3",
-// 		"foo4",
-// 		"foo5",
-// 		"foo6",
-// 		"foo7",
-// 		"foo8",
-// 		"foo9",
-// 		"foo10",
-// 	}
-// 	params, err := coconut.Setup(len(attrs))
-// 	assert.Nil(t, err)
+const NUM_WORKERS = 2
 
-// 	sk, vk, err := coconut.Keygen(params)
-// 	assert.Nil(t, err)
+var jobCh *channels.InfiniteChannel
+var ccw *coconutclientworker.CoconutClientWorker
 
-// 	attrsBig := make([]*Curve.BIG, len(attrs))
-// 	for i := range attrs {
-// 		attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, attrs[i])
-// 		assert.Nil(t, err)
-// 	}
-// 	sig, err := coconut.Sign(params, sk, attrsBig)
-// 	assert.Nil(t, err)
-// 	// assert.True(t, coconut.Verify(params, vk, attrsBig, sig))
+func init() {
+	jobCh = channels.NewInfiniteChannel()
+	ccw = coconutclientworker.New(jobCh.In())
 
-// 	infch := channels.NewInfiniteChannel()
-// 	ccw := coconutclientworker.New(infch.In())
-
-// 	for i := 0; i < numWorkers; i++ {
-// 		jobworker.New(infch.Out(), uint64(i))
-// 	}
-
-// 	assert.True(t, ccw.Verify(params, vk, attrsBig, sig))
-
-// 	// ccw.DoG1Mul(g1, x, y)
-
-// }
-
-func TestCCWKeygen(t *testing.T) {
-	numWorkers := 2
-	q := 5
-
-	infch := channels.NewInfiniteChannel()
-	ccw := coconutclientworker.New(infch.In())
-
-	for i := 0; i < numWorkers; i++ {
-		jobworker.New(infch.Out(), uint64(i))
+	for i := 0; i < NUM_WORKERS; i++ {
+		jobworker.New(jobCh.Out(), uint64(i))
 	}
-
-	muxParams, err := ccw.Setup(q)
-	assert.Nil(t, err)
-
-	sk, vk, err := ccw.Keygen(muxParams)
-	assert.Nil(t, err)
-	TestKeygenProperties(t, muxParams, sk, vk)
 }
 
-// todo: proper test vectors
+func TestCCWSetup(t *testing.T) {
+	_, err := ccw.Setup(0)
+	assert.Equal(t, coconut.ErrSetupParams, err, "Should not allow generating params for less than 1 attribute")
+
+	params, err := ccw.Setup(10)
+	assert.Nil(t, err)
+	assert.Len(t, params.Hs(), 10)
+}
+
+func TestCCWKeygen(t *testing.T) {
+	params, err := ccw.Setup(10)
+	assert.Nil(t, err)
+
+	sk, vk, err := ccw.Keygen(params)
+	assert.Nil(t, err)
+
+	TestKeygenProperties(t, params, sk, vk)
+}
+
 func TestCCWTTPKeygen(t *testing.T) {
-	numWorkers := 2
-	repeat := 3
-	q := 5
-	k := 2
-	n := 5
-
-	infch := channels.NewInfiniteChannel()
-	ccw := coconutclientworker.New(infch.In())
-
-	for i := 0; i < numWorkers; i++ {
-		jobworker.New(infch.Out(), uint64(i))
-	}
-
-	muxParams, err := ccw.Setup(q)
+	params, err := ccw.Setup(10)
 	assert.Nil(t, err)
 
-	sks, vks, err := ccw.TTPKeygen(muxParams, k, n)
-	assert.Nil(t, err)
-	assert.Equal(t, len(sks), len(vks))
-	for i := range sks {
-		TestKeygenProperties(t, muxParams, sks[i], vks[i])
-	}
+	_, _, err = ccw.TTPKeygen(params, 6, 5)
+	assert.Equal(t, coconut.ErrTTPKeygenParams, err)
 
-	for i := 0; i < repeat; i++ {
-		TestTTPKeygenProperties(t, muxParams, sks, vks, k, n)
-	}
+	_, _, err = ccw.TTPKeygen(params, 0, 6)
+	assert.Equal(t, coconut.ErrTTPKeygenParams, err)
 
+	tests := []struct {
+		t int
+		n int
+	}{
+		{1, 6},
+		{3, 6},
+		{6, 6},
+	}
+	for _, test := range tests {
+		repeat := 3
+		q := 4
+		params, _ := ccw.Setup(q)
+
+		sks, vks, err := ccw.TTPKeygen(params, test.t, test.n)
+		assert.Nil(t, err)
+		assert.Equal(t, len(sks), len(vks))
+
+		// first check if they work as normal keys
+		for i := range sks {
+			TestKeygenProperties(t, params, sks[i], vks[i])
+		}
+
+		for i := 0; i < repeat; i++ {
+			TestTTPKeygenProperties(t, params, sks, vks, test.t, test.n)
+		}
+	}
+}
+
+func TestCCWSign(t *testing.T) {
+	TestSign(t, ccw)
+}
+
+func TestCCWVerify(t *testing.T) {
+	TestVerify(t, ccw)
 }
 
 // func BenchmarkCCWVerify(b *testing.B) {
