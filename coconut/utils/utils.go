@@ -226,3 +226,12 @@ func GenerateRandomBIGSlice(p *Curve.BIG, rng *amcl.RAND, n int) []*Curve.BIG {
 	}
 	return s
 }
+
+// GenerateLagrangianCoefficients creates a slice of Lagragian Coefficients
+func GenerateLagrangianCoefficients(n int, p *Curve.BIG, xs []*Curve.BIG, x int) []*Curve.BIG {
+	l := make([]*Curve.BIG, n)
+	for i := 0; i < n; i++ {
+		l[i] = LagrangeBasis(i, p, xs, x)
+	}
+	return l
+}

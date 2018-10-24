@@ -93,6 +93,14 @@ func TestCCWVerify(t *testing.T) {
 	TestVerify(t, ccw)
 }
 
+func TestCCWKeyAggregation(t *testing.T) {
+	TestKeyAggregation(t, ccw)
+}
+
+func TestCCWAggregateVerification(t *testing.T) {
+	TestAggregateVerification(t, ccw)
+}
+
 // func BenchmarkCCWVerify(b *testing.B) {
 // 	numWorkers := 1
 // 	attrs := []string{

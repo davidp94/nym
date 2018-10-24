@@ -29,7 +29,6 @@ import (
 )
 
 // todo: parallelization with worker pool
-// todo: make errors private
 // todo: rename and restructure PolynomialPoints struct + all its uses
 // todo: comments with maths computation
 // todo: comments with python sources
@@ -155,6 +154,11 @@ type PolynomialPoints struct {
 	xs []*Curve.BIG
 }
 
+// Xs returns slice of x coordinates of Polynomial Points
+func (pp *PolynomialPoints) Xs() []*Curve.BIG {
+	return pp.xs
+}
+
 var (
 	// ErrSetupParams indicates incorrect parameters provided for Setup.
 	ErrSetupParams = errors.New("Can't generate params for less than 1 attribute")
@@ -201,6 +205,23 @@ func NewVk(g2 *Curve.ECP2, alpha *Curve.ECP2, beta []*Curve.ECP2) *VerificationK
 		g2:    g2,
 		alpha: alpha,
 		beta:  beta,
+	}
+}
+
+// NewSignature returns instance of signature from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewSignature(sig1 *Curve.ECP, sig2 *Curve.ECP) *Signature {
+	return &Signature{
+		sig1: sig1,
+		sig2: sig2,
+	}
+}
+
+// NewSignature returns instance of PolynomialPoints from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewPP(xs []*Curve.BIG) *PolynomialPoints {
+	return &PolynomialPoints{
+		xs: xs,
 	}
 }
 
@@ -551,46 +572,37 @@ func Randomize(params *Params, sig *Signature) *Signature {
 // AggregateVerificationKeys aggregates verification keys of the signing authorities.
 // Optionally it does so in a threshold manner.
 func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *PolynomialPoints) *VerificationKey {
-	p := params.p
+	t := len(vks)
+	if t <= 0 {
+		return nil
+	}
 
-	var alpha *Curve.ECP2
+	p := params.p
+	alpha := Curve.NewECP2()
 	beta := make([]*Curve.ECP2, len(vks[0].beta))
+	for i := range beta {
+		beta[i] = Curve.NewECP2()
+	}
 
 	if pp != nil {
-		t := len(vks)
-		l := make([]*Curve.BIG, t)
-		for i := 0; i < t; i++ {
-			l[i] = utils.LagrangeBasis(i, p, pp.xs, 0)
-		}
+		l := utils.GenerateLagrangianCoefficients(t, p, pp.xs, 0)
 
-		alpha = Curve.G2mul(vks[0].alpha, l[0])
-		for i := 1; i < len(vks); i++ {
+		for i := 0; i < len(vks); i++ {
 			alpha.Add(Curve.G2mul(vks[i].alpha, l[i]))
 		}
 
-		for i := 0; i < len(vks[0].beta); i++ {
-			beta[i] = Curve.G2mul(vks[0].beta[i], l[0])
-		}
-
-		for i := 1; i < len(vks); i++ { // we already got values from first set of keys
+		for i := 0; i < len(vks); i++ {
 			for j := 0; j < len(beta); j++ {
 				beta[j].Add(Curve.G2mul(vks[i].beta[j], l[i]))
 			}
 		}
 
 	} else {
-		alpha = Curve.NewECP2()
-		alpha.Copy(vks[0].alpha)
-		for i := 1; i < len(vks); i++ {
+		for i := 0; i < len(vks); i++ {
 			alpha.Add(vks[i].alpha)
 		}
 
-		for i := 0; i < len(vks[0].beta); i++ {
-			beta[i] = Curve.NewECP2()
-			beta[i].Copy(vks[0].beta[i])
-		}
-
-		for i := 1; i < len(vks); i++ { // we already copied values from first set of keys
+		for i := 0; i < len(vks); i++ { // we already copied values from first set of keys
 			for j := 0; j < len(beta); j++ {
 				beta[j].Add(vks[i].beta[j])
 			}
@@ -608,24 +620,22 @@ func AggregateVerificationKeys(params *Params, vks []*VerificationKey, pp *Polyn
 // that were produced by multiple signing authorities.
 // Optionally it does so in a threshold manner.
 func AggregateSignatures(params *Params, sigs []*Signature, pp *PolynomialPoints) *Signature {
-	p := params.p
+	t := len(sigs)
+	if t <= 0 {
+		return nil
+	}
 
-	var sig2 *Curve.ECP
+	p := params.p
+	sig2 := Curve.NewECP()
+
 	if pp != nil {
-		t := len(sigs)
-		l := make([]*Curve.BIG, t)
+		l := utils.GenerateLagrangianCoefficients(t, p, pp.xs, 0)
+
 		for i := 0; i < t; i++ {
-			l[i] = utils.LagrangeBasis(i, p, pp.xs, 0)
-		}
-		sig2 = Curve.G1mul(sigs[0].sig2, l[0])
-		for i := 1; i < len(sigs); i++ {
 			sig2.Add(Curve.G1mul(sigs[i].sig2, l[i]))
 		}
 	} else {
-		sig2 = Curve.NewECP()
-		sig2.Copy(sigs[0].sig2)
-
-		for i := 1; i < len(sigs); i++ {
+		for i := 0; i < t; i++ {
 			sig2.Add(sigs[i].sig2)
 		}
 	}

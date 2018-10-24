@@ -57,7 +57,7 @@ func RandomInts(q int, max int) []int {
 	return ints
 }
 
-// KeygenTest checks basic properties of the Coconut keys, such as whether X = g2^x.
+// TestKeygenProperties checks basic properties of the Coconut keys, such as whether X = g2^x.
 func TestKeygenProperties(t *testing.T, params coconut.CoconutParams, sk *coconut.SecretKey, vk *coconut.VerificationKey) {
 	g2p := params.G2()
 
@@ -224,6 +224,7 @@ func TestSign(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
 	}
 }
 
+// TestVerify checks whether only a valid coconut signature successfully verifies.
 func TestVerify(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
 	tests := []struct {
 		attrs          []string
@@ -277,6 +278,276 @@ func TestVerify(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
 				sig2, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, mAttrsBig)
 				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, attrsBig, sig2), test.msg)
 				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, mAttrsBig, sig), test.msg)
+			}
+		}
+	}
+}
+
+// TestRandomize checks if randomizing a signature still produces a valid coconut signature.
+func TestRandomize(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
+	tests := []struct {
+		attrs []string
+		msg   string
+	}{
+		{attrs: []string{"Hello World!"}, msg: "Should verify a randomized signature on single public attribute"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, msg: "Should verify a radomized signature on three public attribute"},
+	}
+
+	for _, test := range tests {
+		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
+		var err error
+		for i := range test.attrs {
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		var sig *coconut.Signature
+		if ccw == nil {
+			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
+			assert.Nil(t, err)
+			randSig := coconut.Randomize(params.(*coconut.Params), sig)
+			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, randSig), test.msg)
+		} else {
+			sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, attrsBig)
+			assert.Nil(t, err)
+			randSig := ccw.Randomize(params.(*coconutclientworker.MuxParams), sig)
+			assert.True(t, ccw.Verify(params.(*coconutclientworker.MuxParams), vk, attrsBig, randSig), test.msg)
+		}
+	}
+}
+
+// TestKeyAggregation checks correctness of aggregating single verification key.
+// Aggregation of multiple verification keys is implicitly checked in other tests.
+func TestKeyAggregation(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
+	tests := []struct {
+		attrs []string
+		pp    *coconut.PolynomialPoints
+		msg   string
+	}{
+		{attrs: []string{"Hello World!"}, pp: nil,
+			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: nil,
+			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+		{attrs: []string{"Hello World!"}, pp: coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1)}),
+			msg: "Should verify a signature when single set of verification keys is aggregated (single attribute)"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, pp: coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1)}),
+			msg: "Should verify a signature when single set of verification keys is aggregated (three attributes)"},
+	}
+
+	for _, test := range tests {
+		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
+		var err error
+		for i := range test.attrs {
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		var sig *coconut.Signature
+		if ccw == nil {
+			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
+			assert.Nil(t, err)
+
+			avk := coconut.AggregateVerificationKeys(params.(*coconut.Params), []*coconut.VerificationKey{vk}, test.pp)
+			assert.True(t, coconut.Verify(params.(*coconut.Params), avk, attrsBig, sig), test.msg)
+		} else {
+			sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sk, attrsBig)
+			assert.Nil(t, err)
+
+			avk := ccw.AggregateVerificationKeys(params.(*coconutclientworker.MuxParams), []*coconut.VerificationKey{vk}, test.pp)
+			assert.True(t, ccw.Verify(params.(*coconutclientworker.MuxParams), avk, attrsBig, sig), test.msg)
+		}
+	}
+}
+
+// TestAggregateVerification checks whether signatures and verification keys from multiple authorities
+// can be correctly aggregated and verified.
+// This particular test does not test the threshold property, it is tested in separate test.
+func TestAggregateVerification(t *testing.T, ccw *coconutclientworker.CoconutClientWorker) {
+	tests := []struct {
+		attrs          []string
+		authorities    int
+		maliciousAuth  int
+		maliciousAttrs []string
+		pp             *coconut.PolynomialPoints
+		t              int
+		msg            string
+	}{
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when only single signature was used for aggregation"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0, maliciousAttrs: []string{}, pp: nil, t: 0,
+			msg: "Should verify aggregated signature when three signatures were used for aggregation"},
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 2,
+			maliciousAttrs: []string{"Malicious Hello World!"},
+			pp:             nil,
+			t:              0,
+			msg:            "Should fail to verify aggregated where malicious signatures were introduced"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 2,
+			maliciousAttrs: []string{"Foo2", "Bar2", "Baz2"},
+			pp:             nil,
+			t:              0,
+			msg:            "Should fail to verify aggregated where malicious signatures were introduced"},
+
+		{attrs: []string{"Hello World!"}, authorities: 1, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1)}),
+			t:              1,
+			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
+		{attrs: []string{"Hello World!"}, authorities: 3, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1), Curve.NewBIGint(2), Curve.NewBIGint(3)}),
+			t:              2,
+			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 1, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1)}),
+			t:              1,
+			msg:            "Should verify aggregated signature when only single signature was used for aggregation +threshold"},
+		{attrs: []string{"Foo", "Bar", "Baz"}, authorities: 3, maliciousAuth: 0,
+			maliciousAttrs: []string{},
+			pp:             coconut.NewPP([]*Curve.BIG{Curve.NewBIGint(1), Curve.NewBIGint(2), Curve.NewBIGint(3)}),
+			t:              2,
+			msg:            "Should verify aggregated signature when three signatures were used for aggregation +threshold"},
+	}
+
+	for _, test := range tests {
+		var params coconut.CoconutParams
+		var err error
+		if ccw == nil {
+			params, err = coconut.Setup(len(test.attrs))
+		} else {
+			params, err = ccw.Setup(len(test.attrs))
+		}
+		assert.Nil(t, err)
+
+		var sks []*coconut.SecretKey
+		var vks []*coconut.VerificationKey
+
+		// generate appropriate keys using appropriate method
+		if test.pp == nil {
+			sks = make([]*coconut.SecretKey, test.authorities)
+			vks = make([]*coconut.VerificationKey, test.authorities)
+			for i := 0; i < test.authorities; i++ {
+				var sk *coconut.SecretKey
+				var vk *coconut.VerificationKey
+				if ccw == nil {
+					sk, vk, err = coconut.Keygen(params.(*coconut.Params))
+				} else {
+					sk, vk, err = ccw.Keygen(params.(*coconutclientworker.MuxParams))
+				}
+				assert.Nil(t, err)
+				sks[i] = sk
+				vks[i] = vk
+			}
+		} else {
+			if ccw == nil {
+				sks, vks, err = coconut.TTPKeygen(params.(*coconut.Params), test.t, test.authorities)
+			} else {
+				sks, vks, err = ccw.TTPKeygen(params.(*coconutclientworker.MuxParams), test.t, test.authorities)
+			}
+			assert.Nil(t, err)
+		}
+
+		attrsBig := make([]*Curve.BIG, len(test.attrs))
+		for i := range test.attrs {
+			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
+			assert.Nil(t, err)
+		}
+
+		signatures := make([]*coconut.Signature, test.authorities)
+		for i := 0; i < test.authorities; i++ {
+			var sig *coconut.Signature
+			if ccw == nil {
+				sig, err = coconut.Sign(params.(*coconut.Params), sks[i], attrsBig)
+			} else {
+				sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), sks[i], attrsBig)
+			}
+			signatures[i] = sig
+			assert.Nil(t, err)
+		}
+
+		var aSig *coconut.Signature
+		var avk *coconut.VerificationKey
+
+		if ccw == nil {
+			aSig = coconut.AggregateSignatures(params.(*coconut.Params), signatures, test.pp)
+			avk = coconut.AggregateVerificationKeys(params.(*coconut.Params), vks, test.pp)
+			assert.True(t, coconut.Verify(params.(*coconut.Params), avk, attrsBig, aSig), test.msg)
+		} else {
+			aSig = ccw.AggregateSignatures(params.(*coconutclientworker.MuxParams), signatures, test.pp)
+			avk = ccw.AggregateVerificationKeys(params.(*coconutclientworker.MuxParams), vks, test.pp)
+			assert.True(t, ccw.Verify(params.(*coconutclientworker.MuxParams), avk, attrsBig, aSig), test.msg)
+		}
+
+		if test.maliciousAuth > 0 {
+			msks := make([]*coconut.SecretKey, test.maliciousAuth)
+			mvks := make([]*coconut.VerificationKey, test.maliciousAuth)
+			for i := 0; i < test.maliciousAuth; i++ {
+				var sk *coconut.SecretKey
+				var vk *coconut.VerificationKey
+				if ccw == nil {
+					sk, vk, err = coconut.Keygen(params.(*coconut.Params))
+				} else {
+					sk, vk, err = ccw.Keygen(params.(*coconutclientworker.MuxParams))
+				}
+				assert.Nil(t, err)
+				msks[i] = sk
+				mvks[i] = vk
+			}
+
+			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
+			for i := range test.maliciousAttrs {
+				mAttrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.maliciousAttrs[i])
+				assert.Nil(t, err)
+			}
+
+			mSignatures := make([]*coconut.Signature, test.maliciousAuth)
+			for i := 0; i < test.maliciousAuth; i++ {
+				var sig *coconut.Signature
+				if ccw == nil {
+					sig, err = coconut.Sign(params.(*coconut.Params), msks[i], mAttrsBig)
+				} else {
+					sig, err = ccw.Sign(params.(*coconutclientworker.MuxParams), msks[i], mAttrsBig)
+				}
+				mSignatures[i] = sig
+				assert.Nil(t, err)
+			}
+
+			if ccw == nil {
+				maSig := coconut.AggregateSignatures(params.(*coconut.Params), mSignatures, test.pp)
+				mavk := coconut.AggregateVerificationKeys(params.(*coconut.Params), mvks, test.pp)
+				maSig2 := coconut.AggregateSignatures(params.(*coconut.Params), append(signatures, mSignatures...), test.pp)
+				mavk2 := coconut.AggregateVerificationKeys(params.(*coconut.Params), append(vks, mvks...), test.pp)
+
+				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk, attrsBig, maSig), test.msg)
+				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, attrsBig, maSig2), test.msg)
+
+				assert.False(t, coconut.Verify(params.(*coconut.Params), avk, mAttrsBig, maSig), test.msg)
+				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, mAttrsBig, aSig), test.msg)
+
+				assert.False(t, coconut.Verify(params.(*coconut.Params), avk, mAttrsBig, maSig2), test.msg)
+				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, mAttrsBig, maSig2), test.msg)
+			} else {
+				maSig := ccw.AggregateSignatures(params.(*coconutclientworker.MuxParams), mSignatures, test.pp)
+				mavk := ccw.AggregateVerificationKeys(params.(*coconutclientworker.MuxParams), mvks, test.pp)
+				maSig2 := ccw.AggregateSignatures(params.(*coconutclientworker.MuxParams), append(signatures, mSignatures...), test.pp)
+				mavk2 := ccw.AggregateVerificationKeys(params.(*coconutclientworker.MuxParams), append(vks, mvks...), test.pp)
+
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), mavk, attrsBig, maSig), test.msg)
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), mavk2, attrsBig, maSig2), test.msg)
+
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), avk, mAttrsBig, maSig), test.msg)
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), mavk2, mAttrsBig, aSig), test.msg)
+
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), avk, mAttrsBig, maSig2), test.msg)
+				assert.False(t, ccw.Verify(params.(*coconutclientworker.MuxParams), mavk2, mAttrsBig, maSig2), test.msg)
 			}
 		}
 	}

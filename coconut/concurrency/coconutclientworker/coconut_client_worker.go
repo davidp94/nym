@@ -31,7 +31,7 @@ import (
 // rng in bpgroup could be shared safely.
 type MuxParams struct {
 	coconut.Params
-	mux sync.Mutex
+	sync.Mutex
 }
 
 // CoconutClientWorker allows writing coconut actions to a shared job queue,
@@ -70,7 +70,7 @@ func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *
 	}
 	sk := coconut.NewSk(x, y)
 
-	alphaCh := make(chan interface{})
+	alphaCh := make(chan interface{}, 1)
 	ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, g2, x)
 
 	// unlike other G2muls where results are then added together,
@@ -78,7 +78,7 @@ func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *
 	beta := make([]*Curve.ECP2, q)
 	betaChs := make([]chan interface{}, q)
 	for i := range betaChs {
-		betaChs[i] = make(chan interface{})
+		betaChs[i] = make(chan interface{}, 1)
 		ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i], g2, y[i])
 	}
 
@@ -129,12 +129,12 @@ func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*c
 	alphaChs := make([]chan interface{}, n)
 	betaChs := make([][]chan interface{}, n)
 	for i := range sks {
-		alphaChs[i] = make(chan interface{})
+		alphaChs[i] = make(chan interface{}, 1)
 		ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, sks[i].X())
 
 		betaChs[i] = make([]chan interface{}, q)
 		for j, yj := range sks[i].Y() {
-			betaChs[i][j] = make(chan interface{})
+			betaChs[i][j] = make(chan interface{}, 1)
 			ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i][j], g2, yj)
 		}
 	}
@@ -176,7 +176,6 @@ func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.Verificati
 
 	// in this case ordering does not matter at all, since we're adding all results together
 	for i := 0; i < len(pubM); i++ {
-		// change structure of jobpacket to fix that monstrosity...
 		ccw.jobQueue <- jobpacket.MakeG2MulPacket(outChG2Mul, vk.Beta()[i], pubM[i])
 	}
 	for i := 0; i < len(pubM); i++ {
@@ -199,6 +198,112 @@ func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.Verificati
 
 	exp2 := gt1.Equals(gt2)
 	return exp1 && exp2
+}
+
+// Randomize randomizes the Coconut credential such that it becomes indistinguishable
+// from a fresh credential on different attributes
+func (ccw *CoconutClientWorker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
+	p, rng := params.P(), params.G.Rng()
+
+	params.Lock()
+	t := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	sig1Ch := make(chan interface{}, 1)
+	sig2Ch := make(chan interface{}, 1)
+
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig1Ch, sig.Sig1(), t)
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sig.Sig2(), t)
+
+	sig1Res := <-sig1Ch
+	sig2Res := <-sig2Ch
+
+	return coconut.NewSignature(sig1Res.(*Curve.ECP), sig2Res.(*Curve.ECP))
+}
+
+// AggregateVerificationKeys aggregates verification keys of the signing authorities.
+// Optionally it does so in a threshold manner.
+func (ccw *CoconutClientWorker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+	// no point in repeating code as this bit can't benefit from concurrency anyway
+	if pp == nil {
+		return coconut.AggregateVerificationKeys(&params.Params, vks, nil)
+	}
+
+	// threshold aggregation
+	t := len(vks)
+	if t <= 0 {
+		return nil
+	}
+	p := params.P()
+	q := len(vks[0].Beta())
+
+	alpha := Curve.NewECP2()
+	beta := make([]*Curve.ECP2, q)
+	for i := range beta {
+		beta[i] = Curve.NewECP2()
+	}
+
+	li := make([]*Curve.BIG, t)
+	for i := 0; i < t; i++ {
+		li[i] = utils.LagrangeBasis(i, p, pp.Xs(), 0)
+	}
+
+	alphaCh := make(chan interface{}, t)
+	// make q channels (for each attribute) with buffer of t
+	betaChs := make([]chan interface{}, q)
+	for i := range betaChs {
+		betaChs[i] = make(chan interface{}, t)
+	}
+	for i := 0; i < t; i++ {
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, vks[i].Alpha(), li[i])
+		for j, betaj := range vks[i].Beta() {
+			ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[j], betaj, li[i])
+		}
+	}
+
+	for i := 0; i < t; i++ {
+		alphaRes := <-alphaCh
+		alpha.Add(alphaRes.(*Curve.ECP2))
+	}
+
+	for i := 0; i < t; i++ {
+		for j := 0; j < len(beta); j++ {
+			betaRes := <-betaChs[j]
+			beta[j].Add(betaRes.(*Curve.ECP2))
+		}
+	}
+
+	return coconut.NewVk(vks[0].G2(), alpha, beta)
+}
+
+// AggregateSignatures aggregates Coconut credentials on the same set of attributes
+// that were produced by multiple signing authorities.
+// Optionally it does so in a threshold manner.
+func (ccw *CoconutClientWorker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+	// no point in repeating code as this bit can't benefit from concurrency anyway
+	if pp == nil {
+		return coconut.AggregateSignatures(&params.Params, sigs, nil)
+	}
+
+	t := len(sigs)
+	if t <= 0 {
+		return nil
+	}
+	p := params.P()
+	sig2 := Curve.NewECP()
+	l := utils.GenerateLagrangianCoefficients(t, p, pp.Xs(), 0)
+
+	sig2Ch := make(chan interface{}, t)
+	for i := 0; i < t; i++ {
+		ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sigs[i].Sig2(), l[i])
+	}
+
+	for i := 0; i < t; i++ {
+		sig2Res := <-sig2Ch
+		sig2.Add(sig2Res.(*Curve.ECP))
+	}
+
+	return coconut.NewSignature(sigs[0].Sig1(), sig2)
 }
 
 // New creates new instance of the CoconutClientWorker.
