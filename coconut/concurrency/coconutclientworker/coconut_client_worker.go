@@ -188,16 +188,12 @@ func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.Verificati
 	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), K)
 	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig2(), vk.G2())
 
-	// we can evaluate that while waiting for valuation of both pairings
-	exp1 := !sig.Sig1().Is_infinity()
-
 	res1 := <-outChPair
 	res2 := <-outChPair
 	gt1 := res1.(*Curve.FP12)
 	gt2 := res2.(*Curve.FP12)
 
-	exp2 := gt1.Equals(gt2)
-	return exp1 && exp2
+	return !sig.Sig1().Is_infinity() && gt1.Equals(gt2)
 }
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
