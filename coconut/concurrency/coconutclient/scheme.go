@@ -1,4 +1,4 @@
-// coconut_client_worker.go - Worker for the Coconut scheme
+// scheme.go - Worker for the Coconut scheme
 // Copyright (C) 2018  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package coconutclientworker provides the functionalities required to use the Coconut scheme concurrently.
-package coconutclientworker
+// Package coconutclient provides the functionalities required to use the Coconut scheme concurrently.
+package coconutclient
 
 import (
 	"sync"
@@ -34,16 +34,16 @@ type MuxParams struct {
 	sync.Mutex
 }
 
-// CoconutClientWorker allows writing coconut actions to a shared job queue,
+// Worker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
 // todo: introduce more attributes as needed, perhaps keep params here?
-type CoconutClientWorker struct {
+type Worker struct {
 	jobQueue chan<- interface{}
 }
 
 // Setup generates the public parameters required by the Coconut scheme.
 // q indicates the maximum number of attributes that can be embed in the credentials.
-func (ccw *CoconutClientWorker) Setup(q int) (*MuxParams, error) {
+func (ccw *Worker) Setup(q int) (*MuxParams, error) {
 	// each hashing operation takes ~3ms, which is not neccesarily worth parallelizing
 	// due to increased code complexity especially since Setup is only run once
 	params, err := coconut.Setup(q)
@@ -55,7 +55,7 @@ func (ccw *CoconutClientWorker) Setup(q int) (*MuxParams, error) {
 
 // Keygen generates a single Coconut keypair ((x, y1, y2...), (g2, g2^x, g2^y1, ...)).
 // It is not suitable for threshold credentials as all generated keys are independent of each other.
-func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+func (ccw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -99,7 +99,7 @@ func (ccw *CoconutClientWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *
 // TTPKeygen generates a set of n Coconut keypairs [((x, y1, y2...), (g2, g2^x, g2^y1, ...)), ...],
 // such that they support threshold aggregation of t parties.
 // It is expected that this procedure is executed by a Trusted Third Party.
-func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+func (ccw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -155,14 +155,14 @@ func (ccw *CoconutClientWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*c
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
-func (ccw *CoconutClientWorker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+func (ccw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Sign(&params.Params, sk, pubM)
 }
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
-func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if len(pubM) != len(vk.Beta()) {
 		return false
 	}
@@ -198,7 +198,7 @@ func (ccw *CoconutClientWorker) Verify(params *MuxParams, vk *coconut.Verificati
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
 // from a fresh credential on different attributes
-func (ccw *CoconutClientWorker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
+func (ccw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
 	p, rng := params.P(), params.G.Rng()
 
 	params.Lock()
@@ -219,7 +219,7 @@ func (ccw *CoconutClientWorker) Randomize(params *MuxParams, sig *coconut.Signat
 
 // AggregateVerificationKeys aggregates verification keys of the signing authorities.
 // Optionally it does so in a threshold manner.
-func (ccw *CoconutClientWorker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+func (ccw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateVerificationKeys(&params.Params, vks, nil)
@@ -275,7 +275,7 @@ func (ccw *CoconutClientWorker) AggregateVerificationKeys(params *MuxParams, vks
 // AggregateSignatures aggregates Coconut credentials on the same set of attributes
 // that were produced by multiple signing authorities.
 // Optionally it does so in a threshold manner.
-func (ccw *CoconutClientWorker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateSignatures(&params.Params, sigs, nil)
@@ -303,8 +303,8 @@ func (ccw *CoconutClientWorker) AggregateSignatures(params *MuxParams, sigs []*c
 }
 
 // New creates new instance of the CoconutClientWorker.
-func New(jobQueue chan<- interface{}) *CoconutClientWorker {
-	return &CoconutClientWorker{
+func New(jobQueue chan<- interface{}) *Worker {
+	return &Worker{
 		jobQueue: jobQueue,
 	}
 }

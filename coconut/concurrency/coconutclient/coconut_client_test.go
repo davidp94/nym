@@ -1,10 +1,10 @@
-package coconutclientworker_test
+package coconutclient_test
 
 import (
 	"testing"
 
 	"github.com/eapache/channels"
-	"github.com/jstuczyn/CoconutGo/coconut/concurrency/coconutclientworker"
+	"github.com/jstuczyn/CoconutGo/coconut/concurrency/coconutclient"
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobworker"
 	coconut "github.com/jstuczyn/CoconutGo/coconut/scheme"
 	. "github.com/jstuczyn/CoconutGo/testutils"
@@ -17,11 +17,11 @@ import (
 const NUM_WORKERS = 2
 
 var jobCh *channels.InfiniteChannel
-var ccw *coconutclientworker.CoconutClientWorker
+var ccw *coconutclient.Worker
 
 func init() {
 	jobCh = channels.NewInfiniteChannel()
-	ccw = coconutclientworker.New(jobCh.In())
+	ccw = coconutclient.New(jobCh.In())
 
 	for i := 0; i < NUM_WORKERS; i++ {
 		jobworker.New(jobCh.Out(), uint64(i))
@@ -93,6 +93,10 @@ func TestCCWVerify(t *testing.T) {
 	TestVerify(t, ccw)
 }
 
+func TestCCWRandomize(t *testing.T) {
+	TestRandomize(t, ccw)
+}
+
 func TestCCWKeyAggregation(t *testing.T) {
 	TestKeyAggregation(t, ccw)
 }
@@ -125,7 +129,7 @@ func TestCCWAggregateVerification(t *testing.T) {
 // 	sig, _ := coconut.Sign(params, sk, attrsBig)
 
 // 	infch := channels.NewInfiniteChannel()
-// 	ccw := coconutclientworker.New(infch.In())
+// 	ccw := coconutclient.New(infch.In())
 
 // 	for i := 0; i < numWorkers; i++ {
 // 		jobworker.New(infch.Out(), uint64(i))
