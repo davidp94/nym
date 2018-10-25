@@ -25,6 +25,11 @@ import (
 
 // todo: reimplement keygen and decrypt with putting g1^d to jobqueue? - needs performance testing whether it is worth it.
 
+type ElGamalEncryptionResult struct {
+	enc *elgamal.Encryption
+	k   *Curve.BIG
+}
+
 // ElGamalKeygen generates private and public keys required for ElGamal encryption scheme.
 func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 	params.Lock()
@@ -37,7 +42,7 @@ func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 // where h is a point on the G1 curve using the given public key.
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
-func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) (*elgamal.Encryption, *Curve.BIG) {
+func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) *ElGamalEncryptionResult {
 	p, g1, rng := params.P(), params.G1(), params.G.Rng()
 
 	params.Lock()
@@ -59,7 +64,20 @@ func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.
 	b := bRes1.(*Curve.ECP)   // b = (k * gamma) OR b = (m * h)
 	b.Add(bRes2.(*Curve.ECP)) // b = (k * gamma) + (m * h)
 
-	return elgamal.NewEncryptionFromPoints(a, b), k
+	return &ElGamalEncryptionResult{
+		elgamal.NewEncryptionFromPoints(a, b),
+		k,
+	}
+}
+
+// makeElGamalEncryptionOp returns a function with signature of func() (interface{}, error),
+// so that it could be performed by job workers.
+// Ideally this method should have been changed into function and placed in jobpacket package,
+// but that would cause a cyclic dependency (coconutclient imports jobpacket already).
+func (ccw *Worker) makeElGamalEncryptionOp(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
+	return func() (interface{}, error) {
+		return ccw.ElGamalEncrypt(params, gamma, m, h), nil
+	}
 }
 
 // ElGamalDecrypt takes the ElGamal encryption of a message and returns a point on the G1 curve

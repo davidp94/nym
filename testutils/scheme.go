@@ -1,4 +1,4 @@
-// schemer.go - Shared test functions for Coconut implementations
+// scheme.go - Shared test functions for Coconut implementations
 // Copyright (C) 2018  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -553,7 +553,7 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 	}
 }
 
-// func TestBlindVerify(t *testing.T, ccw *coconutclient.coconutclient) {
+// func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 // 	tests := []struct {
 // 		q    int
 // 		pub  []string
@@ -574,13 +574,18 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 // 	}
 
 // 	for _, test := range tests {
-// 		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
-
-// 		d, gamma := elgamal.Keygen(params.G)
+// 		params, sk, vk := setupAndKeygen(t, test.q, ccw)
+// 		var d *Curve.BIG
+// 		var gamma *Curve.ECP
+// 		if ccw == nil {
+// 			d, gamma = elgamal.Keygen(params.(*coconut.Params).G)
+// 		} else {
+// 			d, gamma = ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
+// 		}
 
 // 		pubBig := make([]*Curve.BIG, len(test.pub))
 // 		privBig := make([]*Curve.BIG, len(test.priv))
-
+// 		var err error
 // 		for i := range test.pub {
 // 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 // 			assert.Nil(t, err)

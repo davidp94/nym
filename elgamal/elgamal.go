@@ -29,6 +29,19 @@ import (
 // todo: possibly alternative version of Decrypt to return actual m rather than h^m
 // todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
 
+type EncryptionResult struct {
+	enc *Encryption
+	k   *Curve.BIG
+}
+
+func (er *EncryptionResult) Enc() *Encryption {
+	return er.enc
+}
+
+func (er *EncryptionResult) K() *Curve.BIG {
+	return er.k
+}
+
 // Encryption are the two points on the G1 curve
 // that represent encryption of message in form of h^m
 type Encryption struct {

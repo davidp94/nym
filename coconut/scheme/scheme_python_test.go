@@ -109,7 +109,7 @@ func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *Verif
 		i++
 	}
 
-	c := constructChallenge(ca)
+	c := ConstructChallenge(ca)
 
 	// responses
 	rm := make([]*Curve.BIG, len(privM))
@@ -200,7 +200,7 @@ func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curv
 		i++
 	}
 
-	c := constructChallenge(ca)
+	c := ConstructChallenge(ca)
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))

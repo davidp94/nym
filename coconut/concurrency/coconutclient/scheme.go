@@ -22,8 +22,10 @@ import (
 
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/elgamal"
 
 	"github.com/jstuczyn/CoconutGo/coconut/scheme"
+	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -158,6 +160,68 @@ func (ccw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.Secret
 func (ccw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Sign(&params.Params, sk, pubM)
+}
+
+// PrepareBlindSign builds cryptographic material for blind sign.
+// It returns commitment to the private and public attributes,
+// encryptions of the private attributes
+// and zero-knowledge proof asserting corectness of the above.
+func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+	p, g1, hs, rng := params.P(), params.G1(), params.Hs(), params.G.Rng()
+
+	if len(privM) <= 0 {
+		return nil, coconut.ErrPrepareBlindSignPrivate
+	}
+	attributes := append(privM, pubM...)
+	if len(attributes) > len(hs) {
+		return nil, coconut.ErrPrepareBlindSignParams
+	}
+
+	params.Lock()
+	r := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	cm := Curve.NewECP()
+	cmCh := make(chan interface{}, 1+len(attributes))
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, g1, r)
+	for i := range attributes {
+		ccw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, hs[i], attributes[i])
+	}
+	for i := 0; i <= len(attributes); i++ {
+		cmElemRes := <-cmCh
+		cm.Add(cmElemRes.(*Curve.ECP))
+	}
+
+	b := make([]byte, utils.MB+1)
+	cm.ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
+	if err != nil {
+		return nil, err
+	}
+
+	encsChs := make([]chan interface{}, len(privM))
+	encs := make([]*elgamal.Encryption, len(privM))
+	ks := make([]*Curve.BIG, len(privM))
+
+	for i := range privM {
+		encsChs[i] = make(chan interface{}, 1)
+		ccw.jobQueue <- jobpacket.New(encsChs[i], ccw.makeElGamalEncryptionOp(params, gamma, privM[i], h))
+	}
+
+	for i := range privM {
+		encRes := <-encsChs[i]
+		encFull := encRes.(*elgamal.EncryptionResult)
+		encs[i] = encFull.Enc()
+		ks[i] = encFull.K()
+	}
+
+	// TODO: CCW.PROOFS
+	signerProof, err := ccw.ConstructSignerProof(params, gamma, encs, cm, ks, r, pubM, privM)
+	if err != nil {
+		return nil, err
+	}
+	return coconut.NewBlindSignMats(cm, encs, signerProof), nil
 }
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
@@ -300,6 +364,11 @@ func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signat
 	}
 
 	return coconut.NewSignature(sigs[0].Sig1(), sig2)
+}
+
+// BlindVerify verifies the Coconut credential on the private and optional public attributes.
+func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+	return false
 }
 
 // New creates new instance of the CoconutClientWorker.

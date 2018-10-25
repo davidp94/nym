@@ -32,21 +32,6 @@ import (
 // todo: make errors private
 // todo: deal with too lengthy function signatures
 
-// SignerProof (name to be confirmed) represents all the fields contained within the said proof.
-type SignerProof struct {
-	c  *Curve.BIG
-	rr *Curve.BIG
-	rk []*Curve.BIG
-	rm []*Curve.BIG
-}
-
-// VerifierProof (name to be confirmed) represents all the fields contained within the said proof.
-type VerifierProof struct {
-	c  *Curve.BIG
-	rm []*Curve.BIG
-	rt *Curve.BIG
-}
-
 var (
 	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of
 	// proofs for corectness of ciphertexts and cm.
@@ -57,10 +42,10 @@ var (
 	ErrConstructSignerAttrs = errors.New("More than specified number of attributes provided")
 )
 
-// constructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
+// ConstructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L9.
-func constructChallenge(elems []utils.Printable) *Curve.BIG {
+func ConstructChallenge(elems []utils.Printable) *Curve.BIG {
 	csa := make([]string, len(elems))
 	for i := range elems {
 		csa[i] = utils.ToCoconutString(elems[i])
@@ -144,7 +129,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 		i++
 	}
 
-	c := constructChallenge(ca)
+	c := ConstructChallenge(ca)
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))
@@ -166,11 +151,11 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	}
 
 	return &SignerProof{
-			c:  c,
-			rr: rr,
-			rk: rk,
-			rm: rm},
-		nil
+		c:  c,
+		rr: rr,
+		rk: rk,
+		rm: rm,
+	}, nil
 }
 
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
@@ -231,7 +216,7 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encrypt
 		i++
 	}
 
-	return Curve.Comp(proof.c, constructChallenge(ca)) == 0
+	return Curve.Comp(proof.c, ConstructChallenge(ca)) == 0
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
@@ -270,7 +255,7 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 		i++
 	}
 
-	c := constructChallenge(ca)
+	c := ConstructChallenge(ca)
 
 	// responses
 	rm := make([]*Curve.BIG, len(privM))
@@ -326,5 +311,5 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 		ca[i] = item
 		i++
 	}
-	return Curve.Comp(showMats.proof.c, constructChallenge(ca)) == 0
+	return Curve.Comp(showMats.proof.c, ConstructChallenge(ca)) == 0
 }
