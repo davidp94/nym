@@ -162,8 +162,9 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
 // nolint: lll
-func VerifySignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, proof *SignerProof) bool {
+func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *BlindSignMats) bool {
 	g1, g2, hs := params.g1, params.g2, params.hs
+	cm, encs, proof := signMats.cm, signMats.enc, signMats.proof
 
 	if len(encs) != len(proof.rk) {
 		return false

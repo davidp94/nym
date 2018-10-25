@@ -101,3 +101,10 @@ func Decrypt(G *bpgroup.BpGroup, d *Curve.BIG, enc *Encryption) *Curve.ECP {
 	dec.Sub(Curve.G1mul(enc.c1, d))
 	return dec
 }
+
+func NewEncryptionResult(enc *Encryption, k *Curve.BIG) *EncryptionResult {
+	return &EncryptionResult{
+		enc: enc,
+		k:   k,
+	}
+}

@@ -25,7 +25,6 @@ import (
 	. "github.com/jstuczyn/CoconutGo/testutils"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
-	"github.com/stretchr/testify/assert"
 )
 
 //
@@ -37,52 +36,7 @@ func TestSchemeSignerProof(t *testing.T) {
 }
 
 func TestSchemeVerifierProof(t *testing.T) {
-	tests := []struct {
-		pub  []string
-		priv []string
-		msg  string
-	}{
-		{pub: []string{}, priv: []string{"Foo2"}, msg: "The proof should verify on single private attribute"},
-		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
-		{pub: []string{"Foo"}, priv: []string{"Foo2"},
-			msg: "The proof should verify on single public and private attributes"},
-		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"},
-			msg: "The proof should verify on three public and private attributes"},
-	}
-
-	for _, test := range tests {
-		params, err := Setup(len(test.pub) + len(test.priv))
-		assert.Nil(t, err)
-		G := params.G
-
-		pubBig := make([]*Curve.BIG, len(test.pub))
-		privBig := make([]*Curve.BIG, len(test.priv))
-		for i := range test.pub {
-			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-			assert.Nil(t, err)
-		}
-		for i := range test.priv {
-			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-			assert.Nil(t, err)
-		}
-
-		sk, vk, err := Keygen(params)
-		assert.Nil(t, err)
-		d, gamma := elgamal.Keygen(G)
-
-		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-		assert.Nil(t, err)
-
-		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-		assert.Nil(t, err)
-
-		sig := Unblind(params, blindedSignature, d)
-
-		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
-		assert.Nil(t, err)
-
-		assert.True(t, VerifyVerifierProof(params, vk, sig, blindShowMats), test.msg)
-	}
+	TestVerifierProof(t, nil)
 }
 
 //
@@ -172,8 +126,9 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 				}
 
 				signerProof, _ := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				bsm := NewBlindSignMats(cm, encs, signerProof)
 				b.StartTimer()
-				isValid := VerifySignerProof(params, gamma, encs, cm, signerProof)
+				isValid := VerifySignerProof(params, gamma, bsm)
 				if !isValid {
 					panic(isValid)
 				}

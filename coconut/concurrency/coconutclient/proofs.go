@@ -144,8 +144,9 @@ func (ccw *Worker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, enc
 }
 
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
-func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, proof *coconut.SignerProof) bool {
+func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMats *coconut.BlindSignMats) bool {
 	g1, g2, hs := params.G1(), params.G2(), params.Hs()
+	cm, encs, proof := signMats.Cm(), signMats.Enc(), signMats.Proof()
 
 	if len(encs) != len(proof.Rk()) {
 		return false
@@ -226,4 +227,120 @@ func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, encs [
 	}
 
 	return Curve.Comp(proof.C(), coconut.ConstructChallenge(ca)) == 0
+}
+
+// ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
+func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) *coconut.VerifierProof {
+	p, g1, g2, hs, rng := params.P(), params.G1(), params.G2(), params.Hs(), params.G.Rng()
+
+	// witnesses creation
+	params.Lock()
+	wm := make([]*Curve.BIG, len(privM))
+	for i := 0; i < len(privM); i++ {
+		wm[i] = Curve.Randomnum(p, rng)
+	}
+	wt := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	// witnesses commitments
+	Aw := Curve.NewECP2()
+	var Bw *Curve.ECP
+
+	AwCh := make(chan interface{}, 1+len(privM))
+	BwCh := make(chan interface{}, 1)
+
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, g2, wt)
+	for i := range privM {
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], wm[i])
+	}
+
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, sig.Sig1(), wt)
+
+	Aw.Copy(vk.Alpha())
+	for i := 0; i <= len(privM); i++ {
+		AwElemRes := <-AwCh
+		Aw.Add(AwElemRes.(*Curve.ECP2)) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
+	}
+
+	BwRes := <-BwCh
+	Bw = BwRes.(*Curve.ECP) // Bw = wt * h
+
+	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.Beta()))
+	i := copy(ca, tmpSlice)
+
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
+	for _, item := range hs {
+		ca[i] = item
+		i++
+	}
+	for _, item := range vk.Beta() {
+		ca[i] = item
+		i++
+	}
+
+	c := coconut.ConstructChallenge(ca)
+
+	// responses
+	rm := make([]*Curve.BIG, len(privM))
+	for i := range privM {
+		rm[i] = wm[i].Minus(Curve.Modmul(c, privM[i], p))
+		rm[i] = rm[i].Plus(p)
+		rm[i].Mod(p)
+	}
+
+	rt := wt.Minus(Curve.Modmul(c, t, p))
+	rt = rt.Plus(p)
+	rt.Mod(p)
+
+	return coconut.NewVerifierProof(c, rm, rt)
+}
+
+// VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
+func (ccw *Worker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
+
+	Aw := Curve.NewECP2()
+	var Bw *Curve.ECP
+
+	AwCh := make(chan interface{}, 3+len(showMats.Proof().Rm()))
+	BwCh := make(chan interface{}, 2)
+
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, showMats.Kappa(), showMats.Proof().C())            // Aw = (c * kappa)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), showMats.Proof().Rt())                    // Aw = (c * kappa) + (rt * g2)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Alpha(), Curve.Modneg(showMats.Proof().C(), p)) // Aw = (c * kappa) + (rt * g2) + (-c * alpha)
+	for i := range showMats.Proof().Rm() {
+		// Aw = (c * kappa) + (rt * g2) + (-c * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], showMats.Proof().Rm()[i])
+	}
+
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, showMats.Nu(), showMats.Proof().C())
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, sig.Sig1(), showMats.Proof().Rt())
+
+	Aw.Copy(vk.Alpha()) // this changes (-c * alpha) to ((1 - c) * alpha) as required
+	for i := 0; i < 3+len(showMats.Proof().Rm()); i++ {
+		AwElemRes := <-AwCh
+		Aw.Add(AwElemRes.(*Curve.ECP2))
+	}
+
+	BwRes1 := <-BwCh
+	BwRes2 := <-BwCh
+	Bw = BwRes1.(*Curve.ECP)    // Bw = (c * nu) OR Bw = (rt * h)
+	Bw.Add(BwRes2.(*Curve.ECP)) // Bw = (c * nu) + (rt * h)
+
+	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
+	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.Beta()))
+	i := copy(ca, tmpSlice)
+
+	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
+	for _, item := range hs {
+		ca[i] = item
+		i++
+	}
+	for _, item := range vk.Beta() {
+		ca[i] = item
+		i++
+	}
+
+	return Curve.Comp(showMats.Proof().C(), coconut.ConstructChallenge(ca)) == 0
 }

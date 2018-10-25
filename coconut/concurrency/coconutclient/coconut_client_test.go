@@ -109,6 +109,10 @@ func TestCCWSignerProof(t *testing.T) {
 	TestSignerProof(t, ccw)
 }
 
+func TestCCWVerifierProof(t *testing.T) {
+	TestVerifierProof(t, ccw)
+}
+
 // func BenchmarkCCWVerify(b *testing.B) {
 // 	numWorkers := 1
 // 	attrs := []string{

@@ -238,12 +238,14 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*BlindedSignature, error) {
+	// todo: can optimize by calculating first pubM * yj and then do single G1mul rather than two of them
+
 	hs := params.hs
 
 	if len(blindSignMats.enc)+len(pubM) > len(hs) {
 		return nil, ErrBlindSignParams
 	}
-	if !VerifySignerProof(params, gamma, blindSignMats.enc, blindSignMats.cm, blindSignMats.proof) {
+	if !VerifySignerProof(params, gamma, blindSignMats) {
 		return nil, ErrBlindSignProof
 	}
 
@@ -258,18 +260,11 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	t1 := make([]*Curve.ECP, len(pubM))
 	for i := range pubM {
 		t1[i] = Curve.G1mul(h, pubM[i])
-
 	}
 
-	t2 := Curve.G1mul(blindSignMats.enc[0].C1(), sk.y[0])
-	t2Elems := make([]*Curve.ECP, len(blindSignMats.enc)-1)
-	for i := 1; i < len(blindSignMats.enc); i++ {
-		t2Elems[i-1] = Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i])
-
-	}
-
-	for _, elem := range t2Elems {
-		t2.Add(elem)
+	t2 := Curve.NewECP()
+	for i := 0; i < len(blindSignMats.enc); i++ {
+		t2.Add(Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i]))
 	}
 
 	t3 := Curve.G1mul(h, sk.x)

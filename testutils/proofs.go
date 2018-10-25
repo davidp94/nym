@@ -39,11 +39,11 @@ func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.Cocon
 	return ccw.ConstructSignerProof(params.(*coconutclient.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
-func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, proof *coconut.SignerProof) bool {
+func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
 	if ccw == nil {
-		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, encs, cm, proof)
+		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, blindSignMats)
 	}
-	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, encs, cm, proof)
+	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, blindSignMats)
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
@@ -133,12 +133,73 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 		assert.Nil(t, err)
 
 		if len(test.priv) > 0 {
-			assert.False(t, verifySignerProofWrapper(ccw, params, gamma, encs[1:], cm, signerProof), test.msg)
-			assert.False(t, verifySignerProofWrapper(ccw, params, gamma, encs, cm,
-				coconut.NewSignerProof(signerProof.C(), signerProof.Rr(), signerProof.Rk()[1:], signerProof.Rm())),
+			assert.False(t, verifySignerProofWrapper(ccw, params, gamma, coconut.NewBlindSignMats(cm, encs[1:], signerProof)), test.msg)
+			assert.False(t, verifySignerProofWrapper(ccw, params, gamma, coconut.NewBlindSignMats(cm, encs,
+				coconut.NewSignerProof(signerProof.C(), signerProof.Rr(), signerProof.Rk()[1:], signerProof.Rm()))),
 				test.msg)
 		}
-		assert.True(t, verifySignerProofWrapper(ccw, params, gamma, encs, cm, signerProof), test.msg)
+		assert.True(t, verifySignerProofWrapper(ccw, params, gamma, coconut.NewBlindSignMats(cm, encs, signerProof)), test.msg)
+	}
+}
+
+func TestVerifierProof(t *testing.T, ccw *coconutclient.Worker) {
+	tests := []struct {
+		pub  []string
+		priv []string
+		msg  string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}, msg: "The proof should verify on single private attribute"},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}, msg: "The proof should verify on three private attributes"},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"},
+			msg: "The proof should verify on single public and private attributes"},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"},
+			msg: "The proof should verify on three public and private attributes"},
 	}
 
+	for _, test := range tests {
+		params, sk, vk := setupAndKeygen(t, len(test.pub)+len(test.priv), ccw)
+
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+		var err error
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
+		}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
+		}
+
+		if ccw == nil {
+			d, gamma := elgamal.Keygen(params.(*coconut.Params).G)
+			blindSignMats, err := coconut.PrepareBlindSign(params.(*coconut.Params), gamma, pubBig, privBig)
+			assert.Nil(t, err)
+
+			blindedSignature, err := coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, gamma, pubBig)
+			assert.Nil(t, err)
+
+			sig := coconut.Unblind(params.(*coconut.Params), blindedSignature, d)
+
+			blindShowMats, err := coconut.ShowBlindSignature(params.(*coconut.Params), vk, sig, privBig)
+			assert.Nil(t, err)
+
+			assert.True(t, coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, blindShowMats), test.msg)
+		} else {
+			d, gamma := ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
+			blindSignMats, err := ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), gamma, pubBig, privBig)
+			assert.Nil(t, err)
+
+			blindedSignature, err := ccw.BlindSign(params.(*coconutclient.MuxParams), sk, blindSignMats, gamma, pubBig)
+			assert.Nil(t, err)
+
+			sig := ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, d)
+
+			blindShowMats, err := ccw.ShowBlindSignature(params.(*coconutclient.MuxParams), vk, sig, privBig)
+			assert.Nil(t, err)
+
+			assert.True(t, ccw.VerifyVerifierProof(params.(*coconutclient.MuxParams), vk, sig, blindShowMats), test.msg)
+		}
+
+	}
 }

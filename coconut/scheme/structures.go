@@ -130,11 +130,41 @@ type BlindSignMats struct {
 	proof *SignerProof
 }
 
+// Cm returns the commitment part of the BlindSignMats
+func (bsm *BlindSignMats) Cm() *Curve.ECP {
+	return bsm.cm
+}
+
+// Enc returns the encryptions part of the BlindSignMats
+func (bsm *BlindSignMats) Enc() []*elgamal.Encryption {
+	return bsm.enc
+}
+
+// Proof returns the proof part of the BlindSignMats
+func (bsm *BlindSignMats) Proof() *SignerProof {
+	return bsm.proof
+}
+
 // BlindShowMats encapsulates data created by ShowBlindSignature function.
 type BlindShowMats struct {
 	kappa *Curve.ECP2
 	nu    *Curve.ECP
 	proof *VerifierProof
+}
+
+// Kappa returns the kappa part of the BlindShowMats
+func (bsm *BlindShowMats) Kappa() *Curve.ECP2 {
+	return bsm.kappa
+}
+
+// Nu returns the nu part of the BlindShowMats
+func (bsm *BlindShowMats) Nu() *Curve.ECP {
+	return bsm.nu
+}
+
+// Proof returns the proof part of the BlindShowMats
+func (bsm *BlindShowMats) Proof() *VerifierProof {
+	return bsm.proof
 }
 
 // PolynomialPoints (tmp) represents x values of points on polynomial of degree t - 1
@@ -183,6 +213,21 @@ type VerifierProof struct {
 	rt *Curve.BIG
 }
 
+// C returns challenge part of the signer proof
+func (vp *VerifierProof) C() *Curve.BIG {
+	return vp.c
+}
+
+// Rm returns set of rm responses of the signer proof
+func (vp *VerifierProof) Rm() []*Curve.BIG {
+	return vp.rm
+}
+
+// Rt returns set of rt responses of the signer proof
+func (vp *VerifierProof) Rt() *Curve.BIG {
+	return vp.rt
+}
+
 // NewSk returns instance of verification key from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewSk(x *Curve.BIG, y []*Curve.BIG) *SecretKey {
@@ -229,7 +274,17 @@ func NewBlindSignMats(cm *Curve.ECP, enc []*elgamal.Encryption, proof *SignerPro
 	}
 }
 
-// NewSignerProof returns instance of BlindSignMats from the provided attributes.
+// NewBlindShowMats returns instance of BlindShowMats from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewBlindShowMats(kappa *Curve.ECP2, nu *Curve.ECP, proof *VerifierProof) *BlindShowMats {
+	return &BlindShowMats{
+		kappa: kappa,
+		nu:    nu,
+		proof: proof,
+	}
+}
+
+// NewSignerProof returns instance of SignerProof from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewSignerProof(c *Curve.BIG, rr *Curve.BIG, rk []*Curve.BIG, rm []*Curve.BIG) *SignerProof {
 	return &SignerProof{
@@ -240,12 +295,21 @@ func NewSignerProof(c *Curve.BIG, rr *Curve.BIG, rk []*Curve.BIG, rm []*Curve.BI
 	}
 }
 
-// NewVerifierProof returns instance of BlindSignMats from the provided attributes.
+// NewVerifierProof returns instance of VerifierProof from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewVerifierProof(c *Curve.BIG, rm []*Curve.BIG, rt *Curve.BIG) *VerifierProof {
 	return &VerifierProof{
 		c:  c,
 		rm: rm,
 		rt: rt,
+	}
+}
+
+// NewBlindedSignature returns instance of BlindedSignature from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewBlindedSignature(sig1 *Curve.ECP, sig2Tilda *elgamal.Encryption) *BlindedSignature {
+	return &BlindedSignature{
+		sig1:      sig1,
+		sig2Tilda: sig2Tilda,
 	}
 }

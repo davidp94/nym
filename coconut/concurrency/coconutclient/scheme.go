@@ -29,6 +29,8 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+//todo : put ConstructVerifierProof in showblindsignature to jobpacket for further parallelization
+
 // MuxParams is identical to normal params, but has an attached mutex, so that
 // rng in bpgroup could be shared safely.
 type MuxParams struct {
@@ -224,6 +226,68 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []
 	return coconut.NewBlindSignMats(cm, encs, signerProof), nil
 }
 
+// BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
+func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+	p, hs := params.P(), params.Hs()
+
+	if len(blindSignMats.Enc())+len(pubM) > len(hs) {
+		return nil, coconut.ErrBlindSignParams
+	}
+	if !ccw.VerifySignerProof(params, gamma, blindSignMats) {
+		return nil, coconut.ErrBlindSignProof
+	}
+
+	b := make([]byte, utils.MB+1)
+	blindSignMats.Cm().ToBytes(b, true)
+
+	h, err := utils.HashBytesToG1(amcl.SHA512, b)
+	if err != nil {
+		return nil, err
+	}
+
+	t1 := make([]*Curve.BIG, len(pubM))
+	t2 := Curve.NewECP()
+	t3 := Curve.NewECP()
+
+	t2Ch := make(chan interface{}, len(blindSignMats.Enc()))
+	t3Ch := make(chan interface{}, 1+len(blindSignMats.Enc())+len(pubM))
+
+	j := len(blindSignMats.Enc())
+	for i := range pubM {
+		t1[i] = Curve.Modmul(pubM[i], sk.Y()[j+i], p) // pubM[i] * y[j + i]
+	}
+
+	for i := range blindSignMats.Enc() {
+		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t2Ch, blindSignMats.Enc()[i].C1(), sk.Y()[i]) // g1 ^ (k * yi)
+	}
+
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, sk.X())
+	for i := range blindSignMats.Enc() {
+		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, blindSignMats.Enc()[i].C2(), sk.Y()[i]) // privs
+	}
+	for i := range t1 {
+		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, t1[i]) // pubs
+	}
+
+	for _ = range blindSignMats.Enc() {
+		t2Res := <-t2Ch
+		t2.Add(t2Res.(*Curve.ECP))
+	}
+
+	for i := 0; i < 1+len(blindSignMats.Enc())+len(pubM); i++ {
+		t3Res := <-t3Ch
+		t3.Add(t3Res.(*Curve.ECP))
+	}
+
+	return coconut.NewBlindedSignature(h, elgamal.NewEncryptionFromPoints(t2, t3)), nil
+}
+
+// Unblind unblinds the blinded Coconut credential.
+func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, d *Curve.BIG) *coconut.Signature {
+	// there are no expensive operations that could be parallelized in sign
+	return coconut.Unblind(&params.Params, blindedSignature, d)
+}
+
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
 func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
@@ -364,6 +428,46 @@ func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signat
 	}
 
 	return coconut.NewSignature(sigs[0].Sig1(), sig2)
+}
+
+// ShowBlindSignature builds cryptographic material required for blind verification.
+// It returns kappa and nu - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+	p, rng := params.P(), params.G.Rng()
+
+	if len(privM) <= 0 || len(privM) > len(vk.Beta()) {
+		return nil, coconut.ErrShowBlindAttr
+	}
+
+	params.Lock()
+	t := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	kappaCh := make(chan interface{}, len(privM)+1)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.G2(), t)
+	for i := range privM {
+		ccw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.Beta()[i], privM[i])
+	}
+
+	nuCh := make(chan interface{}, 1)
+	ccw.jobQueue <- jobpacket.MakeG1MulPacket(nuCh, sig.Sig1(), t)
+
+	kappa := Curve.NewECP2()
+	kappa.Copy(vk.Alpha())
+
+	for i := 0; i <= len(privM); i++ {
+		kappaRes := <-kappaCh
+		kappa.Add(kappaRes.(*Curve.ECP2))
+	}
+
+	nuRes := <-nuCh
+	nu := nuRes.(*Curve.ECP)
+
+	// todo: put ConstructVerifierProof to jobpacket (like elgamalencrypt)
+	verifierProof := ccw.ConstructVerifierProof(params, vk, sig, privM, t)
+
+	return coconut.NewBlindShowMats(kappa, nu, verifierProof), nil
 }
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
