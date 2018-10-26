@@ -45,6 +45,11 @@ type Worker struct {
 	jobQueue chan<- interface{}
 }
 
+// currently for testing sake; todo: should I use this instead of writing manually?
+func (ccw *Worker) AddToJobQueue(jobpacket *jobpacket.JobPacket) {
+	ccw.jobQueue <- jobpacket
+}
+
 // Setup generates the public parameters required by the Coconut scheme.
 // q indicates the maximum number of attributes that can be embed in the credentials.
 func (ccw *Worker) Setup(q int) (*MuxParams, error) {

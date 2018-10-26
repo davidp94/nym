@@ -18,7 +18,6 @@
 package coconutclient
 
 import (
-	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -38,27 +37,19 @@ func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
 func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
+	// we had a choice of either having multiple encryptions in parallel or g1muls inside them
+	// having both would require changing entire worker structure to perhaps have some priority queues
+	// and somehow detect deadlocks (say there's a single worker which works on encryption, then it spawns G1mulpacket,
+	// which worker is gonna read it and how if they are stuck waiting for said results?)
 	p, g1, rng := params.P(), params.G1(), params.G.Rng()
 
 	params.Lock()
 	k := Curve.Randomnum(p, rng)
 	params.Unlock()
 
-	aCh := make(chan interface{}, 1)
-	bCh := make(chan interface{}, 2)
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(aCh, g1, k)
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(bCh, gamma, k)
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(bCh, h, m)
-
-	// deadlocks here - nothing seems to be written to the channel
-	aRes := <-aCh
-	a := aRes.(*Curve.ECP)
-
-	bRes1 := <-bCh
-	bRes2 := <-bCh
-
-	b := bRes1.(*Curve.ECP)   // b = (k * gamma) OR b = (m * h)
-	b.Add(bRes2.(*Curve.ECP)) // b = (k * gamma) + (m * h)
+	a := Curve.G1mul(g1, k)
+	b := Curve.G1mul(gamma, k) // b = (k * gamma)
+	b.Add(Curve.G1mul(h, m))   // b = (k * gamma) + (m * h)
 
 	return elgamal.NewEncryptionResult(elgamal.NewEncryptionFromPoints(a, b), k)
 }
