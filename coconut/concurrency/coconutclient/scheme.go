@@ -296,7 +296,7 @@ func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedS
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
 func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
-	if len(pubM) != len(vk.Beta()) {
+	if len(pubM) > len(vk.Beta()) {
 		return false
 	}
 
@@ -477,7 +477,44 @@ func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verificatio
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
-	return false
+	privateLen := len(showMats.Proof().Rm())
+	if len(pubM)+privateLen > len(vk.Beta()) || !ccw.VerifyVerifierProof(params, vk, sig, showMats) {
+		return false
+	}
+
+	// we put it here so that we could put one of the pairings to the queue already;
+	// the other one depends on resolution of aggr
+	t1 := Curve.NewECP()
+	t1.Copy(sig.Sig2())
+	t1.Add(showMats.Nu())
+
+	outChPair := make(chan interface{}, 2)
+	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, t1, vk.G2())
+
+	aggr := Curve.NewECP2() // new point is at infinity
+	if len(pubM) > 0 {
+		aggrCh := make(chan interface{}, len(pubM))
+		for i := 0; i < len(pubM); i++ {
+			ccw.jobQueue <- jobpacket.MakeG2MulPacket(aggrCh, vk.Beta()[i+privateLen], pubM[i])
+		}
+		for i := 0; i < len(pubM); i++ {
+			aggrRes := <-aggrCh
+			aggr.Add(aggrRes.(*Curve.ECP2))
+		}
+	}
+
+	t2 := Curve.NewECP2()
+	t2.Copy(showMats.Kappa())
+	t2.Add(aggr)
+
+	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), t2)
+
+	res1 := <-outChPair
+	res2 := <-outChPair
+	gt1 := res1.(*Curve.FP12)
+	gt2 := res2.(*Curve.FP12)
+
+	return !sig.Sig1().Is_infinity() && gt1.Equals(gt2)
 }
 
 // New creates new instance of the CoconutClientWorker.

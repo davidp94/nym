@@ -113,6 +113,10 @@ func TestCCWVerifierProof(t *testing.T) {
 	TestVerifierProof(t, ccw)
 }
 
+func TestCCWBlindVerify(t *testing.T) {
+	TestBlindVerify(t, ccw)
+}
+
 // func BenchmarkCCWVerify(b *testing.B) {
 // 	numWorkers := 1
 // 	attrs := []string{

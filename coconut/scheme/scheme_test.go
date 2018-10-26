@@ -23,8 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// todo: simplify TestSchemeTTPKeygen
-
 func TestSchemeSetup(t *testing.T) {
 	_, err := Setup(0)
 	assert.Equal(t, ErrSetupParams, err, "Should not allow generating params for less than 1 attribute")
@@ -103,85 +101,9 @@ func TestSchemeAggregateVerification(t *testing.T) {
 	TestAggregateVerification(t, nil)
 }
 
-// func TestSchemeBlindVerify(t *testing.T) {
-// 	tests := []struct {
-// 		q    int
-// 		pub  []string
-// 		priv []string
-// 		err  error
-// 		msg  string
-// 	}{
-// 		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: ErrPrepareBlindSignPrivate,
-// 			msg: "Should not allow blindly signing messages with no private attributes"},
-// 		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: ErrPrepareBlindSignParams,
-// 			msg: "Should not allow blindly signing messages with invalid params"},
-// 		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil,
-// 			msg: "Should blindly sign a valid set of private attributes"},
-// 		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
-// 			msg: "Should blindly sign a valid set of public and private attributes"},
-// 		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
-// 			msg: "Should blindly sign a valid set of public and private attributes"}, // q > len(pub) + len(priv)
-// 	}
-
-// 	for _, test := range tests {
-// 		params, err := Setup(test.q)
-// 		assert.Nil(t, err)
-
-// 		sk, vk, err := Keygen(params)
-// 		assert.Nil(t, err)
-// 		d, gamma := elgamal.Keygen(params.G)
-
-// 		pubBig := make([]*Curve.BIG, len(test.pub))
-// 		privBig := make([]*Curve.BIG, len(test.priv))
-
-// 		for i := range test.pub {
-// 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-// 			assert.Nil(t, err)
-// 		}
-// 		for i := range test.priv {
-// 			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-// 			assert.Nil(t, err)
-// 		}
-
-// 		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-// 		if len(test.priv) == 0 {
-// 			assert.Equal(t, test.err, err)
-// 			return
-// 		} else if test.q < len(test.priv)+len(test.pub) {
-// 			assert.Equal(t, test.err, err)
-// 			return
-// 		} else {
-// 			assert.Nil(t, err)
-// 		}
-
-// 		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
-// 		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, Curve.NewBIG()))
-// 		assert.Equal(t, ErrPrepareBlindSignParams, err, test.msg)
-
-// 		incorrectGamma := Curve.NewECP()
-// 		incorrectGamma.Copy(gamma)
-// 		incorrectGamma.Add(Curve.NewECP()) // adds point in infinity
-// 		// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
-// 		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, Curve.NewBIG()))
-// 		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
-
-// 		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-// 		assert.Nil(t, err)
-// 		sig := Unblind(params, blindedSignature, d)
-
-// 		_, err = ShowBlindSignature(params, vk, sig, []*Curve.BIG{})
-// 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
-
-// 		_, err = ShowBlindSignature(params, vk, sig, append(privBig, Curve.NewBIG())) // ensures len(private_m) > len(vk.beta
-// 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
-
-// 		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
-// 		assert.Nil(t, err)
-
-// 		assert.True(t, BlindVerify(params, vk, sig, blindShowMats, pubBig), test.msg)
-// 		assert.True(t, Verify(params, vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
-// 	}
-// }
+func TestSchemeBlindVerify(t *testing.T) {
+	TestBlindVerify(t, nil)
+}
 
 // func TestThresholdAuthorities(t *testing.T) {
 // 	// for this purpose those randoms don't need to be securely generated

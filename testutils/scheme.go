@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/coconutclient"
+	"github.com/jstuczyn/CoconutGo/elgamal"
 
 	"github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
@@ -33,6 +34,22 @@ import (
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+}
+
+// todo: wrappers for all functions to make tests better looking
+
+func showBlindSignatureWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+	if ccw == nil {
+		return coconut.ShowBlindSignature(params.(*coconut.Params), vk, sig, privM)
+	}
+	return ccw.ShowBlindSignature(params.(*coconutclient.MuxParams), vk, sig, privM)
+}
+
+func blindSignWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+	if ccw == nil {
+		return coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, gamma, pubM)
+	}
+	return ccw.BlindSign(params.(*coconutclient.MuxParams), sk, blindSignMats, gamma, pubM)
 }
 
 func randomInt(seen []int, max int) int {
@@ -553,84 +570,104 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 	}
 }
 
-// func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
-// 	tests := []struct {
-// 		q    int
-// 		pub  []string
-// 		priv []string
-// 		err  error
-// 		msg  string
-// 	}{
-// 		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: coconut.ErrPrepareBlindSignPrivate,
-// 			msg: "Should not allow blindly signing messages with no private attributes"},
-// 		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: coconut.ErrPrepareBlindSignParams,
-// 			msg: "Should not allow blindly signing messages with invalid params"},
-// 		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil,
-// 			msg: "Should blindly sign a valid set of private attributes"},
-// 		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
-// 			msg: "Should blindly sign a valid set of public and private attributes"},
-// 		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
-// 			msg: "Should blindly sign a valid set of public and private attributes"}, // q > len(pub) + len(priv)
-// 	}
+// TestBlindVerify checks whether only a valid coconut signature successfully verifies (includes private attributes).
+func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
+	tests := []struct {
+		q    int
+		pub  []string
+		priv []string
+		err  error
+		msg  string
+	}{
+		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: coconut.ErrPrepareBlindSignPrivate,
+			msg: "Should not allow blindly signing messages with no private attributes"},
+		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: coconut.ErrPrepareBlindSignParams,
+			msg: "Should not allow blindly signing messages with invalid params"},
+		{q: 2, pub: []string{}, priv: []string{"Foo", "Bar"}, err: nil,
+			msg: "Should blindly sign and verify a valid set of private attributes"},
+		{q: 6, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
+			msg: "Should blindly sign and verify a valid set of public and private attributes"},
+		{q: 10, pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}, err: nil,
+			msg: "Should blindly sign and verify a valid set of public and private attributes"}, // q > len(pub) + len(priv)
+	}
 
-// 	for _, test := range tests {
-// 		params, sk, vk := setupAndKeygen(t, test.q, ccw)
-// 		var d *Curve.BIG
-// 		var gamma *Curve.ECP
-// 		if ccw == nil {
-// 			d, gamma = elgamal.Keygen(params.(*coconut.Params).G)
-// 		} else {
-// 			d, gamma = ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
-// 		}
+	for _, test := range tests {
+		params, sk, vk := setupAndKeygen(t, test.q, ccw)
+		var d *Curve.BIG
+		var gamma *Curve.ECP
+		if ccw == nil {
+			d, gamma = elgamal.Keygen(params.(*coconut.Params).G)
+		} else {
+			d, gamma = ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
+		}
 
-// 		pubBig := make([]*Curve.BIG, len(test.pub))
-// 		privBig := make([]*Curve.BIG, len(test.priv))
-// 		var err error
-// 		for i := range test.pub {
-// 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-// 			assert.Nil(t, err)
-// 		}
-// 		for i := range test.priv {
-// 			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-// 			assert.Nil(t, err)
-// 		}
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+		var err error
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
+		}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
+		}
 
-// 		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-// 		if len(test.priv) == 0 {
-// 			assert.Equal(t, test.err, err)
-// 			return
-// 		} else if test.q < len(test.priv)+len(test.pub) {
-// 			assert.Equal(t, test.err, err)
-// 			return
-// 		} else {
-// 			assert.Nil(t, err)
-// 		}
+		var blindSignMats *coconut.BlindSignMats
+		if ccw == nil {
+			blindSignMats, err = coconut.PrepareBlindSign(params.(*coconut.Params), gamma, pubBig, privBig)
+		} else {
+			blindSignMats, err = ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), gamma, pubBig, privBig)
+		}
 
-// 		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
-// 		_, err = BlindSign(params, sk, blindSignMats, gamma, append(pubBig, Curve.NewBIG()))
-// 		assert.Equal(t, ErrPrepareBlindSignParams, err, test.msg)
+		if len(test.priv) == 0 {
+			assert.Equal(t, test.err, err)
+			continue
+		} else if test.q < len(test.priv)+len(test.pub) {
+			assert.Equal(t, test.err, err)
+			continue
+		} else {
+			assert.Nil(t, err)
+		}
 
-// 		incorrectGamma := Curve.NewECP()
-// 		incorrectGamma.Copy(gamma)
-// 		incorrectGamma.Add(Curve.NewECP()) // adds point in infinity
-// 		// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
-// 		_, err = BlindSign(params, sk, blindSignMats, incorrectGamma, append(pubBig, Curve.NewBIG()))
-// 		assert.Equal(t, ErrPrepareBlindSignPrivate, err, test.msg)
+		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
+		if test.q <= len(test.priv)+len(test.pub) {
+			_, err = blindSignWrapper(ccw, params, sk, blindSignMats, gamma, append(pubBig, Curve.NewBIG()))
+			assert.Equal(t, coconut.ErrPrepareBlindSignParams, err, test.msg)
 
-// 		blindedSignature, err := BlindSign(params, sk, blindSignMats, gamma, pubBig)
-// 		assert.Nil(t, err)
-// 		sig := Unblind(params, blindedSignature, d)
+			// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
+			_, err = blindSignWrapper(ccw, params, sk, blindSignMats, gamma, append(pubBig, Curve.NewBIG()))
+			assert.Equal(t, coconut.ErrPrepareBlindSignParams, err, test.msg)
+		}
 
-// 		_, err = ShowBlindSignature(params, vk, sig, []*Curve.BIG{})
-// 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
+		blindedSignature, err := blindSignWrapper(ccw, params, sk, blindSignMats, gamma, pubBig)
+		assert.Nil(t, err)
 
-// 		_, err = ShowBlindSignature(params, vk, sig, append(privBig, Curve.NewBIG())) // ensures len(private_m) > len(vk.beta
-// 		assert.Equal(t, ErrShowBlindAttr, err, test.msg)
+		var sig *coconut.Signature
+		if ccw == nil {
+			sig = coconut.Unblind(params.(*coconut.Params), blindedSignature, d)
+		} else {
+			sig = ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, d)
+		}
 
-// 		blindShowMats, err := ShowBlindSignature(params, vk, sig, privBig)
-// 		assert.Nil(t, err)
+		_, err = showBlindSignatureWrapper(ccw, params, vk, sig, []*Curve.BIG{})
+		assert.Equal(t, coconut.ErrShowBlindAttr, err, test.msg)
 
-// 		assert.True(t, BlindVerify(params, vk, sig, blindShowMats, pubBig), test.msg)
-// 		assert.True(t, Verify(params, vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
-// 	}
-// }
+		if len(test.pub) == 0 {
+			_, err = showBlindSignatureWrapper(ccw, params, vk, sig, append(privBig, Curve.NewBIG())) // ensures len(private_m) > len(vk.beta)
+			assert.Equal(t, coconut.ErrShowBlindAttr, err, test.msg)
+		}
+
+		blindShowMats, err := showBlindSignatureWrapper(ccw, params, vk, sig, privBig)
+		assert.Nil(t, err)
+
+		if ccw == nil {
+			assert.True(t, coconut.BlindVerify(params.(*coconut.Params), vk, sig, blindShowMats, pubBig), test.msg)
+			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
+		} else {
+			assert.True(t, ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, blindShowMats, pubBig), test.msg)
+			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
+
+		}
+	}
+}

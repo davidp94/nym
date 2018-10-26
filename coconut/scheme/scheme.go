@@ -275,8 +275,8 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	tmpSlice = append(tmpSlice, t1...)
 
 	// tmpslice: all B + t1
-	t3Elems := make([]*Curve.ECP, len(sk.y))
-	for i := range sk.y {
+	t3Elems := make([]*Curve.ECP, len(tmpSlice))
+	for i := range tmpSlice {
 		t3Elems[i] = Curve.G1mul(tmpSlice[i], sk.y[i])
 	}
 
@@ -305,7 +305,12 @@ func Unblind(params *Params, blindedSignature *BlindedSignature, d *Curve.BIG) *
 func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signature) bool {
 	G := params.G
 
-	if len(pubM) != len(vk.beta) {
+	// should not really fail because as long as key is longer than numAttr,
+	// it can create a valid credential
+	// if len(pubM) != len(vk.beta) {
+	// 	return false
+	// }
+	if len(pubM) > len(vk.beta) {
 		return false
 	}
 
@@ -366,15 +371,13 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 		return false
 	}
 
-	var aggr *Curve.ECP2
-	if len(pubM) <= 0 {
-		aggr = Curve.NewECP2() // new point is at infinity
-	} else {
-		aggr = Curve.G2mul(vk.beta[privateLen], pubM[0]) // guaranteed to have at least 1 element
-		for i := 1; i < len(pubM); i++ {
+	aggr := Curve.NewECP2() // new point is at infinity
+	if len(pubM) > 0 {
+		for i := 0; i < len(pubM); i++ {
 			aggr.Add(Curve.G2mul(vk.beta[i+privateLen], pubM[i]))
 		}
 	}
+
 	t1 := Curve.NewECP2()
 	t1.Copy(showMats.kappa)
 	t1.Add(aggr)
