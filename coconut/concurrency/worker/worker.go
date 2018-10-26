@@ -1,5 +1,4 @@
 // for now copied from https://github.com/katzenpost/core/blob/master/worker/worker.go
-// todo: remove unneccsary bits
 // todo: how does license work for copied code?
 
 package worker

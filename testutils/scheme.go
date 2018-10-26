@@ -36,7 +36,84 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-// todo: wrappers for all functions to make tests better looking
+func setupWrapper(ccw *coconutclient.Worker, q int) (coconut.CoconutParams, error) {
+	if ccw == nil {
+		return coconut.Setup(q)
+	}
+	return ccw.Setup(q)
+}
+
+func keygenWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+	if ccw == nil {
+		return coconut.Keygen(params.(*coconut.Params))
+	}
+	return ccw.Keygen(params.(*coconutclient.MuxParams))
+}
+
+func ttpKeygenWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+	if ccw == nil {
+		return coconut.TTPKeygen(params.(*coconut.Params), t, n)
+	}
+	return ccw.TTPKeygen(params.(*coconutclient.MuxParams), t, n)
+
+}
+
+func signWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+	if ccw == nil {
+		return coconut.Sign(params.(*coconut.Params), sk, pubM)
+	}
+	return ccw.Sign(params.(*coconutclient.MuxParams), sk, pubM)
+}
+
+func verifyWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+	if ccw == nil {
+		return coconut.Verify(params.(*coconut.Params), vk, pubM, sig)
+	}
+	return ccw.Verify(params.(*coconutclient.MuxParams), vk, pubM, sig)
+}
+
+func randomizeWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, sig *coconut.Signature) *coconut.Signature {
+	if ccw == nil {
+		return coconut.Randomize(params.(*coconut.Params), sig)
+	}
+	return ccw.Randomize(params.(*coconutclient.MuxParams), sig)
+}
+
+func aggregateSignaturesWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+	if ccw == nil {
+		return coconut.AggregateSignatures(params.(*coconut.Params), sigs, pp)
+
+	}
+	return ccw.AggregateSignatures(params.(*coconutclient.MuxParams), sigs, pp)
+}
+
+func aggregateVerificationKeysWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+	if ccw == nil {
+		return coconut.AggregateVerificationKeys(params.(*coconut.Params), vks, pp)
+	}
+	return ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), vks, pp)
+}
+
+func elGamalKeygenWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams) (*Curve.BIG, *Curve.ECP) {
+	if ccw == nil {
+		return elgamal.Keygen(params.(*coconut.Params).G)
+	}
+	return ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
+}
+
+func prepareBlindSignWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+	if ccw == nil {
+		return coconut.PrepareBlindSign(params.(*coconut.Params), gamma, pubM, privM)
+	}
+	return ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), gamma, pubM, privM)
+}
+
+func unblindWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, blindedSignature *coconut.BlindedSignature, d *Curve.BIG) *coconut.Signature {
+	if ccw == nil {
+		return coconut.Unblind(params.(*coconut.Params), blindedSignature, d)
+	}
+	return ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, d)
+}
 
 func showBlindSignatureWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	if ccw == nil {
@@ -50,6 +127,14 @@ func blindSignWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, s
 		return coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, gamma, pubM)
 	}
 	return ccw.BlindSign(params.(*coconutclient.MuxParams), sk, blindSignMats, gamma, pubM)
+}
+
+func blindVerifyWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+	if ccw == nil {
+		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, showMats, pubM)
+	}
+	return ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, showMats, pubM)
+
 }
 
 func randomInt(seen []int, max int) int {
@@ -93,13 +178,11 @@ func TestKeygenProperties(t *testing.T, params coconut.CoconutParams, sk *coconu
 func interpolateRandomSubsetOfKeys(p *Curve.BIG, k int, n int, keys interface{}) []interface{} {
 	indices := RandomInts(k, n)
 	indicesBIG := make([]*Curve.BIG, k)
-	li := make([]*Curve.BIG, k)
 	for i, val := range indices {
 		indicesBIG[i] = Curve.NewBIGint(val)
 	}
-	for i := 0; i < k; i++ {
-		li[i] = utils.LagrangeBasis(i, p, indicesBIG, 0)
-	}
+	li := utils.GenerateLagrangianCoefficients(k, p, indicesBIG, 0)
+
 	switch v := keys.(type) {
 	case []*coconut.SecretKey:
 		keySub := make([]*coconut.SecretKey, k)
@@ -173,23 +256,6 @@ func TestTTPKeygenProperties(t *testing.T, params coconut.CoconutParams, sks []*
 	}
 }
 
-func setupAndKeygen(t *testing.T, q int, ccw *coconutclient.Worker) (coconut.CoconutParams, *coconut.SecretKey, *coconut.VerificationKey) {
-	if ccw == nil {
-		params, err := coconut.Setup(q)
-		assert.Nil(t, err)
-
-		sk, vk, err := coconut.Keygen(params)
-		assert.Nil(t, err)
-		return params, sk, vk
-	}
-	params, err := ccw.Setup(q)
-	assert.Nil(t, err)
-
-	sk, vk, err := ccw.Keygen(params)
-	assert.Nil(t, err)
-	return params, sk, vk
-}
-
 // TestSign verifies whether a coconut signature was correctly constructed
 func TestSign(t *testing.T, ccw *coconutclient.Worker) {
 	tests := []struct {
@@ -209,22 +275,21 @@ func TestSign(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, _ := setupAndKeygen(t, test.q, ccw)
+		params, err := setupWrapper(ccw, test.q)
+		assert.Nil(t, err)
+
+		sk, _, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
+
 		p := params.P()
 
 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-		var err error
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
 
-		var sig *coconut.Signature
-		if ccw == nil {
-			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
-		} else {
-			sig, err = ccw.Sign(params.(*coconutclient.MuxParams), sk, attrsBig)
-		}
+		sig, err := signWrapper(ccw, params, sk, attrsBig)
 		if test.err == coconut.ErrSignParams {
 			assert.Equal(t, coconut.ErrSignParams, err, test.msg)
 			continue // everything beyond that point is UB
@@ -259,25 +324,21 @@ func TestVerify(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+		params, err := setupWrapper(ccw, len(test.attrs))
+		assert.Nil(t, err)
+
+		sk, vk, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-		var err error
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
 
-		var sig *coconut.Signature
-		if ccw == nil {
-			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
-			assert.Nil(t, err)
-			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, sig), test.msg)
-		} else {
-			sig, err = ccw.Sign(params.(*coconutclient.MuxParams), sk, attrsBig)
-			assert.Nil(t, err)
-			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, attrsBig, sig), test.msg)
-		}
+		sig, err := signWrapper(ccw, params, sk, attrsBig)
+		assert.Nil(t, err)
+		assert.True(t, verifyWrapper(ccw, params, vk, attrsBig, sig), test.msg)
 
 		if len(test.maliciousAttrs) > 0 {
 			mAttrsBig := make([]*Curve.BIG, len(test.maliciousAttrs))
@@ -286,16 +347,11 @@ func TestVerify(t *testing.T, ccw *coconutclient.Worker) {
 				assert.Nil(t, err)
 			}
 
-			var sig2 *coconut.Signature
-			if ccw == nil {
-				sig2, err = coconut.Sign(params.(*coconut.Params), sk, mAttrsBig)
-				assert.False(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, sig2), test.msg)
-				assert.False(t, coconut.Verify(params.(*coconut.Params), vk, mAttrsBig, sig), test.msg)
-			} else {
-				sig2, err = ccw.Sign(params.(*coconutclient.MuxParams), sk, mAttrsBig)
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, attrsBig, sig2), test.msg)
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, mAttrsBig, sig), test.msg)
-			}
+			sig2, err := signWrapper(ccw, params, sk, mAttrsBig)
+			assert.Nil(t, err)
+			assert.False(t, verifyWrapper(ccw, params, vk, attrsBig, sig2), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, vk, mAttrsBig, sig), test.msg)
+
 		}
 	}
 }
@@ -311,27 +367,22 @@ func TestRandomize(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+		params, err := setupWrapper(ccw, len(test.attrs))
+		assert.Nil(t, err)
+
+		sk, vk, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-		var err error
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
 
-		var sig *coconut.Signature
-		if ccw == nil {
-			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
-			assert.Nil(t, err)
-			randSig := coconut.Randomize(params.(*coconut.Params), sig)
-			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, attrsBig, randSig), test.msg)
-		} else {
-			sig, err = ccw.Sign(params.(*coconutclient.MuxParams), sk, attrsBig)
-			assert.Nil(t, err)
-			randSig := ccw.Randomize(params.(*coconutclient.MuxParams), sig)
-			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, attrsBig, randSig), test.msg)
-		}
+		sig, err := signWrapper(ccw, params, sk, attrsBig)
+		assert.Nil(t, err)
+		randSig := randomizeWrapper(ccw, params, sig)
+		assert.True(t, verifyWrapper(ccw, params, vk, attrsBig, randSig), test.msg)
 	}
 }
 
@@ -354,29 +405,24 @@ func TestKeyAggregation(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, vk := setupAndKeygen(t, len(test.attrs), ccw)
+		params, err := setupWrapper(ccw, len(test.attrs))
+		assert.Nil(t, err)
+
+		sk, vk, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
 
 		attrsBig := make([]*Curve.BIG, len(test.attrs))
-		var err error
 		for i := range test.attrs {
 			attrsBig[i], err = utils.HashStringToBig(amcl.SHA256, test.attrs[i])
 			assert.Nil(t, err)
 		}
 
-		var sig *coconut.Signature
-		if ccw == nil {
-			sig, err = coconut.Sign(params.(*coconut.Params), sk, attrsBig)
-			assert.Nil(t, err)
+		sig, err := signWrapper(ccw, params, sk, attrsBig)
+		assert.Nil(t, err)
 
-			avk := coconut.AggregateVerificationKeys(params.(*coconut.Params), []*coconut.VerificationKey{vk}, test.pp)
-			assert.True(t, coconut.Verify(params.(*coconut.Params), avk, attrsBig, sig), test.msg)
-		} else {
-			sig, err = ccw.Sign(params.(*coconutclient.MuxParams), sk, attrsBig)
-			assert.Nil(t, err)
+		avk := aggregateVerificationKeysWrapper(ccw, params, []*coconut.VerificationKey{vk}, test.pp)
+		assert.True(t, verifyWrapper(ccw, params, avk, attrsBig, sig), test.msg)
 
-			avk := ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), []*coconut.VerificationKey{vk}, test.pp)
-			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), avk, attrsBig, sig), test.msg)
-		}
 	}
 }
 
@@ -435,13 +481,7 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		var params coconut.CoconutParams
-		var err error
-		if ccw == nil {
-			params, err = coconut.Setup(len(test.attrs))
-		} else {
-			params, err = ccw.Setup(len(test.attrs))
-		}
+		params, err := setupWrapper(ccw, len(test.attrs))
 		assert.Nil(t, err)
 
 		var sks []*coconut.SecretKey
@@ -452,23 +492,14 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 			sks = make([]*coconut.SecretKey, test.authorities)
 			vks = make([]*coconut.VerificationKey, test.authorities)
 			for i := 0; i < test.authorities; i++ {
-				var sk *coconut.SecretKey
-				var vk *coconut.VerificationKey
-				if ccw == nil {
-					sk, vk, err = coconut.Keygen(params.(*coconut.Params))
-				} else {
-					sk, vk, err = ccw.Keygen(params.(*coconutclient.MuxParams))
-				}
+				sk, vk, err := keygenWrapper(ccw, params)
 				assert.Nil(t, err)
 				sks[i] = sk
 				vks[i] = vk
 			}
 		} else {
-			if ccw == nil {
-				sks, vks, err = coconut.TTPKeygen(params.(*coconut.Params), test.t, test.authorities)
-			} else {
-				sks, vks, err = ccw.TTPKeygen(params.(*coconutclient.MuxParams), test.t, test.authorities)
-			}
+			sks, vks, err = ttpKeygenWrapper(ccw, params, test.t, test.authorities)
+
 			assert.Nil(t, err)
 		}
 
@@ -480,40 +511,22 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 
 		signatures := make([]*coconut.Signature, test.authorities)
 		for i := 0; i < test.authorities; i++ {
-			var sig *coconut.Signature
-			if ccw == nil {
-				sig, err = coconut.Sign(params.(*coconut.Params), sks[i], attrsBig)
-			} else {
-				sig, err = ccw.Sign(params.(*coconutclient.MuxParams), sks[i], attrsBig)
-			}
+
+			sig, err := signWrapper(ccw, params, sks[i], attrsBig)
+
 			signatures[i] = sig
 			assert.Nil(t, err)
 		}
 
-		var aSig *coconut.Signature
-		var avk *coconut.VerificationKey
-
-		if ccw == nil {
-			aSig = coconut.AggregateSignatures(params.(*coconut.Params), signatures, test.pp)
-			avk = coconut.AggregateVerificationKeys(params.(*coconut.Params), vks, test.pp)
-			assert.True(t, coconut.Verify(params.(*coconut.Params), avk, attrsBig, aSig), test.msg)
-		} else {
-			aSig = ccw.AggregateSignatures(params.(*coconutclient.MuxParams), signatures, test.pp)
-			avk = ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), vks, test.pp)
-			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), avk, attrsBig, aSig), test.msg)
-		}
+		aSig := aggregateSignaturesWrapper(ccw, params, signatures, test.pp)
+		avk := aggregateVerificationKeysWrapper(ccw, params, vks, test.pp)
+		assert.True(t, verifyWrapper(ccw, params, avk, attrsBig, aSig), test.msg)
 
 		if test.maliciousAuth > 0 {
 			msks := make([]*coconut.SecretKey, test.maliciousAuth)
 			mvks := make([]*coconut.VerificationKey, test.maliciousAuth)
 			for i := 0; i < test.maliciousAuth; i++ {
-				var sk *coconut.SecretKey
-				var vk *coconut.VerificationKey
-				if ccw == nil {
-					sk, vk, err = coconut.Keygen(params.(*coconut.Params))
-				} else {
-					sk, vk, err = ccw.Keygen(params.(*coconutclient.MuxParams))
-				}
+				sk, vk, err := keygenWrapper(ccw, params)
 				assert.Nil(t, err)
 				msks[i] = sk
 				mvks[i] = vk
@@ -537,35 +550,19 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 				assert.Nil(t, err)
 			}
 
-			if ccw == nil {
-				maSig := coconut.AggregateSignatures(params.(*coconut.Params), mSignatures, test.pp)
-				mavk := coconut.AggregateVerificationKeys(params.(*coconut.Params), mvks, test.pp)
-				maSig2 := coconut.AggregateSignatures(params.(*coconut.Params), append(signatures, mSignatures...), test.pp)
-				mavk2 := coconut.AggregateVerificationKeys(params.(*coconut.Params), append(vks, mvks...), test.pp)
+			maSig := aggregateSignaturesWrapper(ccw, params, mSignatures, test.pp)
+			mavk := aggregateVerificationKeysWrapper(ccw, params, mvks, test.pp)
+			maSig2 := aggregateSignaturesWrapper(ccw, params, append(signatures, mSignatures...), test.pp)
+			mavk2 := aggregateVerificationKeysWrapper(ccw, params, append(vks, mvks...), test.pp)
 
-				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk, attrsBig, maSig), test.msg)
-				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, attrsBig, maSig2), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, mavk, attrsBig, maSig), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, mavk2, attrsBig, maSig2), test.msg)
 
-				assert.False(t, coconut.Verify(params.(*coconut.Params), avk, mAttrsBig, maSig), test.msg)
-				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, mAttrsBig, aSig), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, avk, mAttrsBig, maSig), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, mavk2, mAttrsBig, aSig), test.msg)
 
-				assert.False(t, coconut.Verify(params.(*coconut.Params), avk, mAttrsBig, maSig2), test.msg)
-				assert.False(t, coconut.Verify(params.(*coconut.Params), mavk2, mAttrsBig, maSig2), test.msg)
-			} else {
-				maSig := ccw.AggregateSignatures(params.(*coconutclient.MuxParams), mSignatures, test.pp)
-				mavk := ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), mvks, test.pp)
-				maSig2 := ccw.AggregateSignatures(params.(*coconutclient.MuxParams), append(signatures, mSignatures...), test.pp)
-				mavk2 := ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), append(vks, mvks...), test.pp)
-
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), mavk, attrsBig, maSig), test.msg)
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), mavk2, attrsBig, maSig2), test.msg)
-
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), avk, mAttrsBig, maSig), test.msg)
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), mavk2, mAttrsBig, aSig), test.msg)
-
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), avk, mAttrsBig, maSig2), test.msg)
-				assert.False(t, ccw.Verify(params.(*coconutclient.MuxParams), mavk2, mAttrsBig, maSig2), test.msg)
-			}
+			assert.False(t, verifyWrapper(ccw, params, avk, mAttrsBig, maSig2), test.msg)
+			assert.False(t, verifyWrapper(ccw, params, mavk2, mAttrsBig, maSig2), test.msg)
 		}
 	}
 }
@@ -592,18 +589,15 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, vk := setupAndKeygen(t, test.q, ccw)
-		var d *Curve.BIG
-		var gamma *Curve.ECP
-		if ccw == nil {
-			d, gamma = elgamal.Keygen(params.(*coconut.Params).G)
-		} else {
-			d, gamma = ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
-		}
+		params, err := setupWrapper(ccw, test.q)
+		assert.Nil(t, err)
+
+		sk, vk, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
+		d, gamma := elGamalKeygenWrapper(ccw, params)
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
 		privBig := make([]*Curve.BIG, len(test.priv))
-		var err error
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)
@@ -613,12 +607,7 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 			assert.Nil(t, err)
 		}
 
-		var blindSignMats *coconut.BlindSignMats
-		if ccw == nil {
-			blindSignMats, err = coconut.PrepareBlindSign(params.(*coconut.Params), gamma, pubBig, privBig)
-		} else {
-			blindSignMats, err = ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), gamma, pubBig, privBig)
-		}
+		blindSignMats, err := prepareBlindSignWrapper(ccw, params, gamma, pubBig, privBig)
 
 		if len(test.priv) == 0 {
 			assert.Equal(t, test.err, err)
@@ -643,12 +632,7 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 		blindedSignature, err := blindSignWrapper(ccw, params, sk, blindSignMats, gamma, pubBig)
 		assert.Nil(t, err)
 
-		var sig *coconut.Signature
-		if ccw == nil {
-			sig = coconut.Unblind(params.(*coconut.Params), blindedSignature, d)
-		} else {
-			sig = ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, d)
-		}
+		sig := unblindWrapper(ccw, params, blindedSignature, d)
 
 		_, err = showBlindSignatureWrapper(ccw, params, vk, sig, []*Curve.BIG{})
 		assert.Equal(t, coconut.ErrShowBlindAttr, err, test.msg)
@@ -661,13 +645,8 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 		blindShowMats, err := showBlindSignatureWrapper(ccw, params, vk, sig, privBig)
 		assert.Nil(t, err)
 
-		if ccw == nil {
-			assert.True(t, coconut.BlindVerify(params.(*coconut.Params), vk, sig, blindShowMats, pubBig), test.msg)
-			assert.True(t, coconut.Verify(params.(*coconut.Params), vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
-		} else {
-			assert.True(t, ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, blindShowMats, pubBig), test.msg)
-			assert.True(t, ccw.Verify(params.(*coconutclient.MuxParams), vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
+		assert.True(t, blindVerifyWrapper(ccw, params, vk, sig, blindShowMats, pubBig), test.msg)
+		assert.True(t, verifyWrapper(ccw, params, vk, append(privBig, pubBig...), sig), test.msg) // private attributes are revealed
 
-		}
 	}
 }

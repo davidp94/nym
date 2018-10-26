@@ -18,8 +18,11 @@
 package jobworker
 
 import (
+	"fmt"
+
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/worker"
+	"github.com/jstuczyn/CoconutGo/constants"
 )
 
 // Worker is an instance of jobWorker.
@@ -30,17 +33,21 @@ type Worker struct {
 	jobQueue <-chan interface{}
 }
 
-// todo: some halt signal
 func (w *Worker) worker() {
 	for {
 		var jobpkt *jobpacket.JobPacket
 		select {
+		case <-w.HaltCh():
+			if constants.DEBUG {
+				fmt.Println("Halting worker", w.id)
+			}
+			return
 		case e := <-w.jobQueue:
 			jobpkt = e.(*jobpacket.JobPacket)
 		}
-		// fmt.Println("Worker id", w.id)
 
 		res, err := jobpkt.Op()
+		// job provider will be able to distinguish those cases thanks to type assertions
 		if err != nil {
 			jobpkt.OutCh <- err
 		} else {

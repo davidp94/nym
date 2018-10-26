@@ -46,6 +46,13 @@ func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutP
 	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, blindSignMats)
 }
 
+func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+	if ccw == nil {
+		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, showMats)
+	}
+	return ccw.VerifyVerifierProof(params.(*coconutclient.MuxParams), vk, sig, showMats)
+}
+
 // TestSignerProof tests properties of the appropriate NIZK
 func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 	tests := []struct {
@@ -64,7 +71,9 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, _, _ := setupAndKeygen(t, len(test.pub)+len(test.priv), ccw)
+		params, err := setupWrapper(ccw, len(test.pub)+len(test.priv))
+		assert.Nil(t, err)
+
 		var G *bpgroup.BpGroup
 		if ccw == nil {
 			G = params.(*coconut.Params).G
@@ -75,7 +84,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
 		privBig := make([]*Curve.BIG, len(test.priv))
-		var err error
+
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)
@@ -100,12 +109,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 		h, err := utils.HashBytesToG1(amcl.SHA512, b)
 		assert.Nil(t, err)
 
-		var gamma *Curve.ECP
-		if ccw == nil {
-			_, gamma = elgamal.Keygen(params.(*coconut.Params).G)
-		} else {
-			_, gamma = ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
-		}
+		_, gamma := elGamalKeygenWrapper(ccw, params)
 
 		encs := make([]*elgamal.Encryption, len(test.priv))
 		ks := make([]*Curve.BIG, len(test.priv))
@@ -157,11 +161,14 @@ func TestVerifierProof(t *testing.T, ccw *coconutclient.Worker) {
 	}
 
 	for _, test := range tests {
-		params, sk, vk := setupAndKeygen(t, len(test.pub)+len(test.priv), ccw)
+		params, err := setupWrapper(ccw, len(test.pub)+len(test.priv))
+		assert.Nil(t, err)
+
+		sk, vk, err := keygenWrapper(ccw, params)
+		assert.Nil(t, err)
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
 		privBig := make([]*Curve.BIG, len(test.priv))
-		var err error
 		for i := range test.pub {
 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
 			assert.Nil(t, err)
@@ -171,35 +178,18 @@ func TestVerifierProof(t *testing.T, ccw *coconutclient.Worker) {
 			assert.Nil(t, err)
 		}
 
-		if ccw == nil {
-			d, gamma := elgamal.Keygen(params.(*coconut.Params).G)
-			blindSignMats, err := coconut.PrepareBlindSign(params.(*coconut.Params), gamma, pubBig, privBig)
-			assert.Nil(t, err)
+		d, gamma := elGamalKeygenWrapper(ccw, params)
+		blindSignMats, err := prepareBlindSignWrapper(ccw, params, gamma, pubBig, privBig)
+		assert.Nil(t, err)
 
-			blindedSignature, err := coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, gamma, pubBig)
-			assert.Nil(t, err)
+		blindedSignature, err := blindSignWrapper(ccw, params, sk, blindSignMats, gamma, pubBig)
+		assert.Nil(t, err)
 
-			sig := coconut.Unblind(params.(*coconut.Params), blindedSignature, d)
+		sig := unblindWrapper(ccw, params, blindedSignature, d)
 
-			blindShowMats, err := coconut.ShowBlindSignature(params.(*coconut.Params), vk, sig, privBig)
-			assert.Nil(t, err)
+		blindShowMats, err := showBlindSignatureWrapper(ccw, params, vk, sig, privBig)
+		assert.Nil(t, err)
 
-			assert.True(t, coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, blindShowMats), test.msg)
-		} else {
-			d, gamma := ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
-			blindSignMats, err := ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), gamma, pubBig, privBig)
-			assert.Nil(t, err)
-
-			blindedSignature, err := ccw.BlindSign(params.(*coconutclient.MuxParams), sk, blindSignMats, gamma, pubBig)
-			assert.Nil(t, err)
-
-			sig := ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, d)
-
-			blindShowMats, err := ccw.ShowBlindSignature(params.(*coconutclient.MuxParams), vk, sig, privBig)
-			assert.Nil(t, err)
-
-			assert.True(t, ccw.VerifyVerifierProof(params.(*coconutclient.MuxParams), vk, sig, blindShowMats), test.msg)
-		}
-
+		assert.True(t, verifyVerifierProofWrapper(ccw, params, vk, sig, blindShowMats), test.msg)
 	}
 }

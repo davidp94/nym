@@ -11,10 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// those are currently only very crude tests
-// todo: make them look proper, with decent vectors etc
-
 const NUM_WORKERS = 2
+
+var workers []*jobworker.Worker
 
 var jobCh *channels.InfiniteChannel
 var ccw *coconutclient.Worker
@@ -24,7 +23,13 @@ func init() {
 	ccw = coconutclient.New(jobCh.In())
 
 	for i := 0; i < NUM_WORKERS; i++ {
-		jobworker.New(jobCh.Out(), uint64(i))
+		workers = append(workers, jobworker.New(jobCh.Out(), uint64(i)))
+	}
+}
+
+func stopWorkers() {
+	for _, worker := range workers {
+		worker.Halt()
 	}
 }
 

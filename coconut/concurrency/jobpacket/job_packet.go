@@ -28,45 +28,27 @@ type JobPacket struct {
 	Op    func() (interface{}, error)
 }
 
-// MakeG1MulOp creates arguments required for performing G1Mul
-// and returns a function with (interface{}, error) signature.
-func MakeG1MulOp(g1 *Curve.ECP, x *Curve.BIG) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return Curve.G1mul(g1, x), nil
-	}
-}
-
 // MakeG1MulPacket combines MakeG1MulOp and New into a single function for increased code readibility.
 func MakeG1MulPacket(outCh chan<- interface{}, g1 *Curve.ECP, x *Curve.BIG) *JobPacket {
-	op := MakeG1MulOp(g1, x)
-	return New(outCh, op)
-}
-
-// MakeG2MulOp creates arguments required for performing G2Mul
-// and returns a function with (interface{}, error) signature.
-func MakeG2MulOp(g2 *Curve.ECP2, x *Curve.BIG) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return Curve.G2mul(g2, x), nil
+	op := func() (interface{}, error) {
+		return Curve.G1mul(g1, x), nil
 	}
+	return New(outCh, op)
 }
 
 // MakeG2MulPacket combines MakeG2MulOp and New into a single function for increased code readibility.
 func MakeG2MulPacket(outCh chan<- interface{}, g2 *Curve.ECP2, x *Curve.BIG) *JobPacket {
-	op := MakeG2MulOp(g2, x)
-	return New(outCh, op)
-}
-
-// MakePairingOp creates arguments required for performing bilinear pairing
-// and returns a function with (interface{}, error) signature.
-func MakePairingOp(g1 *Curve.ECP, g2 *Curve.ECP2) func() (interface{}, error) {
-	return func() (interface{}, error) {
-		return Curve.Fexp(Curve.Ate(g2, g1)), nil
+	op := func() (interface{}, error) {
+		return Curve.G2mul(g2, x), nil
 	}
+	return New(outCh, op)
 }
 
 // MakePairingPacket combines MakePairingOp and New into a single function for increased code readibility.
 func MakePairingPacket(outCh chan<- interface{}, g1 *Curve.ECP, g2 *Curve.ECP2) *JobPacket {
-	op := MakePairingOp(g1, g2)
+	op := func() (interface{}, error) {
+		return Curve.Fexp(Curve.Ate(g2, g1)), nil
+	}
 	return New(outCh, op)
 }
 
