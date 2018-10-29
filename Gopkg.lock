@@ -8,6 +8,18 @@
   version = "v1.1.1"
 
 [[projects]]
+  name = "github.com/eapache/channels"
+  packages = ["."]
+  revision = "47238d5aae8c0fefd518ef2bee46290909cf8263"
+  version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/eapache/queue"
+  packages = ["."]
+  revision = "44cc805cf13205b55f69e14bcb69867d1ae92f98"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/jstuczyn/amcl"
   packages = ["version3/go/amcl","version3/go/amcl/BLS381"]
@@ -28,6 +40,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "c99f7878c6ed518fd36238dc63ec082ae513ce63ea264cd2a46dee9359bbf77d"
+  inputs-digest = "8290785c6cfc11e2ea6b8dd2bf5189b8dfa8b02449388d68b84dd5ec948ec613"
   solver-name = "gps-cdcl"
   solver-version = 1
