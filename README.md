@@ -28,7 +28,8 @@ go test -v ./...
 
 The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6GHz Ryzen 1600 assigned. Each individual benchmark was run single-threaded for 1 minute with `-benchtime=60s` flag.
 
-#### BN254
+REQUIRE RERUNNING
+<!-- #### BN254
 
 | Operation                        | Times run | Time per op     | Memory per op | Allocs per op     |
 |----------------------------------|-----------:|-----------------:|---------------:|-------------------:|
@@ -220,4 +221,4 @@ The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6
 | VerifyVerifierProof/privM=1      | 2000  | 52.42 ms/op  | 11.51 kB/op  | 172606 allocs/op  |
 | VerifyVerifierProof/privM=3      | 1000  | 77.37 ms/op  | 16.29 kB/op  | 244440 allocs/op  |
 | VerifyVerifierProof/privM=5      | 1000  | 103.73 ms/op | 21.06 kB/op  | 316318 allocs/op  |
-| VerifyVerifierProof/privM=10     | 500   | 169.76 ms/op | 32.99 kB/op  | 495936 allocs/op  |
+| VerifyVerifierProof/privM=10     | 500   | 169.76 ms/op | 32.99 kB/op  | 495936 allocs/op  | -->
