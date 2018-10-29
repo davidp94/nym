@@ -18,9 +18,9 @@ before_script:
 
 script: 
   - ./changecurve.sh BLS
-  - go test -v ./... -coverprofile=coverageBLS.out -covermode=atomic
+  - go test -v ./... -race -coverprofile=coverageBLS.out -covermode=atomic
   - ./changecurve.sh BN
-  - go test -v ./... -coverprofile=coverageBN.out -covermode=atomic
+  - go test -v ./... -race -coverprofile=coverageBN.out -covermode=atomic
   - $GOPATH/bin/gocovmerge coverageBLS.out coverageBN.out > coverage.txt
   - rm coverageB*
   # - go test ./... -timeout=60m -run nothing -bench=. -cpu=1,2,4 -benchtime=2s
