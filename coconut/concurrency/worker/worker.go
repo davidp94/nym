@@ -1,6 +1,23 @@
-// for now copied from https://github.com/katzenpost/core/blob/master/worker/worker.go
-// todo: how does license work for copied code?
+// worker.go - Background worker tasks.
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// Original source: https://github.com/katzenpost/core/blob/master/worker/worker.go
+// Original Copyright (C) 2017  Yawning Angel.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package worker provides background worker tasks.
 package worker
 
 import "sync"
@@ -14,7 +31,7 @@ type Worker struct {
 }
 
 // Go excutes the function fn in a new Go routine.  Multiple Go routines may
-// be started under the same Worker.  It is the function's responsiblity to
+// be started under the same Worker. It is the function's responsibility to
 // monitor the channel returned by `Worker.HaltCh()` and to return.
 func (w *Worker) Go(fn func()) {
 	w.initOnce.Do(w.init)

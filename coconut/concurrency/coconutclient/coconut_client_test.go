@@ -27,6 +27,7 @@ func init() {
 	}
 }
 
+// nolint: unused, megacheck
 func stopWorkers() {
 	for _, worker := range workers {
 		worker.Halt()

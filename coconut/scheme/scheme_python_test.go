@@ -82,6 +82,7 @@ func ECP2FromHex(t *testing.T, hexStr string) *Curve.ECP2 {
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
+// nolint: lll, misspell
 func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 	wm := witnesses.wm
@@ -132,6 +133,7 @@ func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *Verif
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
+// nolint: lll, misspell
 func showBlindSignatureT(t *Curve.BIG, witn *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
 	kappa := Curve.G2mul(vk.g2, t)
 	kappa.Add(vk.alpha)
@@ -149,6 +151,7 @@ func showBlindSignatureT(t *Curve.BIG, witn *witnessesV, params *Params, vk *Ver
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
+// nolint: lll, misspell
 func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 	attributes := append(privM, pubM...)
@@ -231,6 +234,7 @@ func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curv
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
+// nolint: lll, misspell
 func encryptK(G *bpgroup.BpGroup, k *Curve.BIG, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) (*elgamal.Encryption, *Curve.BIG) {
 	g1 := G.Gen1()
 
@@ -243,6 +247,7 @@ func encryptK(G *bpgroup.BpGroup, k *Curve.BIG, gamma *Curve.ECP, m *Curve.BIG, 
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
+// nolint: lll, misspell
 func prepareBlindSignR(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnessesS, params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
 	G, g1, hs := params.G, params.g1, params.hs
 	attributes := append(privM, pubM...)
@@ -288,7 +293,10 @@ func TestCurveParameters(t *testing.T) {
 	}
 
 	g1Hex := "032523648240000001ba344d80000000086121000000000013a700000000000012"
-	g2Hex := "061a10bb519eb62feb8d8c7e8c61edb6a4648bbb4898bf0d91ee4224c803fb2b0516aaf9ba737833310aa78c5982aa5b1f4d746bae3784b70d8c34c1e7d54cf3021897a06baf93439a90e096698c822329bd0ae6bdbe09bd19f0e07891cd2b9a0ebb2b0e7c8b15268f6d4456f5f38d37b09006ffd739c9578a2d1aec6b3ace9b"
+	g2Hex := "061a10bb519eb62feb8d8c7e8c61edb6a4648bbb4898bf0d91ee4224c803fb2b05" +
+		"16aaf9ba737833310aa78c5982aa5b1f4d746bae3784b70d8c34c1e7d54cf30218" +
+		"97a06baf93439a90e096698c822329bd0ae6bdbe09bd19f0e07891cd2b9a0ebb2b" +
+		"0e7c8b15268f6d4456f5f38d37b09006ffd739c9578a2d1aec6b3ace9b"
 	ordHex := "2523648240000001BA344D8000000007FF9F800000000010A10000000000000D"
 
 	// ASSUMES SHA512 implementation with truncating arguments to Bn.from_binary()
@@ -333,7 +341,10 @@ func TestBasicOperations(t *testing.T) {
 
 	xHex := "076501B5E73FA81B28FAB06EE3F6929E6AE4DB9461A49930C49EF1B28A625DD2"
 	g1MulResHex := "02096d26612159d5339748b78c53000734df70a678f4d2ce389b422b076bf5996b"
-	g2MulResHex := "13b24880cbd8053ce23d5cfc42070fff29cae3bbbecf2c5c519b6bb1574b9e3e20e01badca9cc9394b30ce9d63d293953572d0d2f75a02632dc0217ab6fa05f912e9eabbed9eeccc8679c782c26a11d7bb0656930fe5b7d3d4d67d3424b7afd4212cf71b70d1e2a01299342878e350c3d82e17a5a4370adc7b7076ed87dce6b7"
+	g2MulResHex := "13b24880cbd8053ce23d5cfc42070fff29cae3bbbecf2c5c519b6bb1574b9e3e20" +
+		"e01badca9cc9394b30ce9d63d293953572d0d2f75a02632dc0217ab6fa05f912e9" +
+		"eabbed9eeccc8679c782c26a11d7bb0656930fe5b7d3d4d67d3424b7afd4212cf7" +
+		"1b70d1e2a01299342878e350c3d82e17a5a4370adc7b7076ed87dce6b7"
 
 	xP := BIGFromHex(t, xHex)
 	g1MulResExp := ECPFromHex(t, g1MulResHex)
@@ -451,7 +462,10 @@ func TestCoconut(t *testing.T) {
 
 	// results of show_blind_sign
 	tHex := "0ADE8E2E5EC8806EC1B873B0F5735A9EB7FCA8D7DA3AC8D965487E0982C75F68"
-	kappaHex := "2227bc5a1acd5b4edfc244460d0679361535c0ddc0d5d2759d0f9c1f9eea117f1a8a933e3d69ce785f5524133a208a9259cc119221cfe72c99da3eb2475f96a30b7da97c5575b8e10c476fdd3cf6c8dc7d57d17bfe825dda473e9c4c697f0d880ca413462a517b67b727d50653cafb5a55a5062b3f0b23bd757a511cc6c9bfa0"
+	kappaHex := "2227bc5a1acd5b4edfc244460d0679361535c0ddc0d5d2759d0f9c1f9eea117f" +
+		"1a8a933e3d69ce785f5524133a208a9259cc119221cfe72c99da3eb2475f96a3" +
+		"0b7da97c5575b8e10c476fdd3cf6c8dc7d57d17bfe825dda473e9c4c697f0d88" +
+		"0ca413462a517b67b727d50653cafb5a55a5062b3f0b23bd757a511cc6c9bfa0"
 	nuHex := "030b9a28caf7c58ba525011a0685388514a792aaa98edc74fb83e319960e0f3880"
 	// pi_v
 	chVHex := "F277CD97107F373EFE48A986FD735F8BE79DE39DF97E0A87AF31B1964643B3C9"

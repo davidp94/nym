@@ -29,37 +29,40 @@ import (
 // todo: possibly alternative version of Decrypt to return actual m rather than h^m
 // todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
 
+// EncryptionResult encapsulates entire result of ElGamal encryption, including random k.
 type EncryptionResult struct {
 	enc *Encryption
 	k   *Curve.BIG
 }
 
+// Enc returns encryption part of the EncryptionResult.
 func (er *EncryptionResult) Enc() *Encryption {
 	return er.enc
 }
 
+// K returns random k part of the EncryptionResult.
 func (er *EncryptionResult) K() *Curve.BIG {
 	return er.k
 }
 
 // Encryption are the two points on the G1 curve
-// that represent encryption of message in form of h^m
+// that represent encryption of message in form of h^m.
 type Encryption struct {
 	c1 *Curve.ECP
 	c2 *Curve.ECP
 }
 
-// C1 returns first group element of the ElGamal Encryption
+// C1 returns first group element of the ElGamal Encryption.
 func (e *Encryption) C1() *Curve.ECP {
 	return e.c1
 }
 
-// C2 returns second group element of the ElGamal Encryption
+// C2 returns second group element of the ElGamal Encryption.
 func (e *Encryption) C2() *Curve.ECP {
 	return e.c2
 }
 
-// NewEncryptionFromPoints wraps two points on G1 curve as ElGamal Encryption
+// NewEncryptionFromPoints wraps two points on G1 curve as ElGamal Encryption.
 func NewEncryptionFromPoints(c1 *Curve.ECP, c2 *Curve.ECP) *Encryption {
 	return &Encryption{
 		c1: c1,
@@ -102,6 +105,7 @@ func Decrypt(G *bpgroup.BpGroup, d *Curve.BIG, enc *Encryption) *Curve.ECP {
 	return dec
 }
 
+// NewEncryptionResult returns new instance of EncryptionResult from provided encryption and k.
 func NewEncryptionResult(enc *Encryption, k *Curve.BIG) *EncryptionResult {
 	return &EncryptionResult{
 		enc: enc,

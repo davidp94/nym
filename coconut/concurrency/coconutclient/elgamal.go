@@ -22,8 +22,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: reimplement keygen and decrypt with putting g1^d to jobqueue? - needs performance testing whether it is worth it.
-
 // ElGamalKeygen generates private and public keys required for ElGamal encryption scheme.
 func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 	params.Lock()
@@ -36,6 +34,7 @@ func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 // where h is a point on the G1 curve using the given public key.
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
+// nolint: lll
 func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
 	// we had a choice of either having multiple encryptions in parallel or g1muls inside them
 	// having both would require changing entire worker structure to perhaps have some priority queues
@@ -58,6 +57,7 @@ func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.
 // so that it could be performed by job workers.
 // Ideally this method should have been changed into function and placed in jobpacket package,
 // but that would cause a cyclic dependency (coconutclient imports jobpacket already).
+// nolint: lll
 func (ccw *Worker) makeElGamalEncryptionOp(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
 	return func() (interface{}, error) {
 		return ccw.ElGamalEncrypt(params, gamma, m, h), nil

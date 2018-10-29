@@ -85,9 +85,9 @@ type BlindedSignature struct {
 	sig2Tilda *elgamal.Encryption
 }
 
-// CoconutParams interface allows for interchangebly using Params and MuxParams
+// SchemeParams interface allows for interchangeably using Params and MuxParams
 // (where applicable)
-type CoconutParams interface {
+type SchemeParams interface {
 	P() *Curve.BIG
 	G1() *Curve.ECP
 	G2() *Curve.ECP2

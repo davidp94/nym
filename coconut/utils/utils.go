@@ -27,6 +27,7 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+// MB represents number of bytes each num takes
 var MB = int(Curve.MODBYTES)
 
 // todo: verify HashBytesToG1
@@ -57,9 +58,8 @@ func ToCoconutString(p Printable) string {
 	if len(b) > 0 {
 		return hex.EncodeToString(b)
 
-	} else {
-		return ""
 	}
+	return ""
 }
 
 // addHashPadding ensures that resultant hash is long enough to be used in a FromBytes() method
@@ -101,9 +101,8 @@ func HashBytes(sha int, b []byte) ([]byte, error) {
 
 	if R == nil {
 		return []byte{}, errors.New("Nil hash result")
-	} else {
-		return R, nil
 	}
+	return R, nil
 }
 
 // HashStringToBig takes a string message and maps it to a BIG number
@@ -126,7 +125,7 @@ func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
 	hash := addHashPadding(sha, R)
 	y := Curve.FromBytes(hash)
 	// you should really take mod of this, however python coconut doesn't
-	// what produces comptability issues
+	// what produces compatibility issues
 	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
 		q := Curve.NewBIGints(Curve.CURVE_Order)
 		y.Mod(q)
@@ -165,17 +164,16 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 			E = Curve.NewECPbigint(x, 1)
 		}
 		return E, nil
-	} else {
-		hash, err := HashBytes(sha, b)
-		if err != nil {
-			return nil, err
-		}
-		hash = addHashPadding(sha, hash)
-		// amcl have nice ECP_mapit function, but Python implementation differs,
-		// however, if we are not using BN254 curve, I feel more confident using it instead,
-		// considering they cover curve-specific edge cases which I am not aware of
-		return Curve.ECP_mapit(hash), nil
 	}
+	hash, err := HashBytes(sha, b)
+	if err != nil {
+		return nil, err
+	}
+	hash = addHashPadding(sha, hash)
+	// amcl have nice ECP_mapit function, but Python implementation differs,
+	// however, if we are not using BN254 curve, I feel more confident using it instead,
+	// considering they cover curve-specific edge cases which I am not aware of
+	return Curve.ECP_mapit(hash), nil
 }
 
 // PolyEval evaluates a polynomial defined by the slice of coefficient coeff at point x.

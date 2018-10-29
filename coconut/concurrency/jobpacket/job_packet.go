@@ -28,7 +28,7 @@ type JobPacket struct {
 	Op    func() (interface{}, error)
 }
 
-// MakeG1MulPacket combines MakeG1MulOp and New into a single function for increased code readibility.
+// MakeG1MulPacket creates a G1Mul job packet to be read by jobworkers.
 func MakeG1MulPacket(outCh chan<- interface{}, g1 *Curve.ECP, x *Curve.BIG) *JobPacket {
 	op := func() (interface{}, error) {
 		return Curve.G1mul(g1, x), nil
@@ -36,7 +36,7 @@ func MakeG1MulPacket(outCh chan<- interface{}, g1 *Curve.ECP, x *Curve.BIG) *Job
 	return New(outCh, op)
 }
 
-// MakeG2MulPacket combines MakeG2MulOp and New into a single function for increased code readibility.
+// MakeG2MulPacket creates a G2mul job packet to be read by jobworkers.
 func MakeG2MulPacket(outCh chan<- interface{}, g2 *Curve.ECP2, x *Curve.BIG) *JobPacket {
 	op := func() (interface{}, error) {
 		return Curve.G2mul(g2, x), nil
@@ -44,7 +44,7 @@ func MakeG2MulPacket(outCh chan<- interface{}, g2 *Curve.ECP2, x *Curve.BIG) *Jo
 	return New(outCh, op)
 }
 
-// MakePairingPacket combines MakePairingOp and New into a single function for increased code readibility.
+// MakePairingPacket creates a pairing job packet to be read by jobworkers.
 func MakePairingPacket(outCh chan<- interface{}, g1 *Curve.ECP, g2 *Curve.ECP2) *JobPacket {
 	op := func() (interface{}, error) {
 		return Curve.Fexp(Curve.Ate(g2, g1)), nil

@@ -237,6 +237,7 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 }
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
+// nolint: lll
 func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*BlindedSignature, error) {
 	// todo: can optimize by calculating first pubM * yj and then do single G1mul rather than two of them
 
@@ -338,6 +339,7 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 // ShowBlindSignature builds cryptographic material required for blind verification.
 // It returns kappa and nu - group elements needed to perform verification
 // and zero-knowledge proof asserting corectness of the above.
+// nolint: lll
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
 	p, rng := params.p, params.G.Rng()
 

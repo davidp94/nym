@@ -32,21 +32,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
+// nolint: errcheck
+func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
 	if ccw == nil {
 		return coconut.ConstructSignerProof(params.(*coconut.Params), gamma, encs, cm, k, r, pubM, privM)
 	}
 	return ccw.ConstructSignerProof(params.(*coconutclient.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
-func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
+// nolint: errcheck
+func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
 	if ccw == nil {
 		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, blindSignMats)
 	}
 	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, blindSignMats)
 }
 
-func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.CoconutParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+// nolint: errcheck
+func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
 	if ccw == nil {
 		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, showMats)
 	}
@@ -146,6 +149,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 	}
 }
 
+// TestVerifierProof tests properties of the appropriate NIZK
 func TestVerifierProof(t *testing.T, ccw *coconutclient.Worker) {
 	tests := []struct {
 		pub  []string

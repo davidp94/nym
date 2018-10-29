@@ -27,6 +27,7 @@ import (
 )
 
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
+// nolint: lll, gocyclo
 func (ccw *Worker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
 	p, g1, g2, hs, rng := params.P(), params.G1(), params.G2(), params.Hs(), params.G.Rng()
 
@@ -75,7 +76,8 @@ func (ccw *Worker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, enc
 	}
 
 	for i := range wk {
-		BwChs[i] = make(chan interface{}, 2) // buf for 2 - (wm[i] * h) AND (wk[i] * gamma) - order does not matter because they're added together later
+		// buf for 2 - (wm[i] * h) AND (wk[i] * gamma) - order does not matter because they're added together later
+		BwChs[i] = make(chan interface{}, 2)
 		ccw.jobQueue <- jobpacket.MakeG1MulPacket(BwChs[i], h, wm[i])
 		ccw.jobQueue <- jobpacket.MakeG1MulPacket(BwChs[i], gamma, wk[i])
 	}
@@ -169,7 +171,8 @@ func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMa
 	CwCh := make(chan interface{}, 2+len(proof.Rm()))
 
 	for i := range proof.Rk() {
-		AwChs[i] = make(chan interface{}, 2) // buf for 2 - (c * c1[i]) AND (rk[i] * g1)  - order does not matter because they're added together later
+		// buf for 2 - (c * c1[i]) AND (rk[i] * g1)  - order does not matter because they're added together later
+		AwChs[i] = make(chan interface{}, 2)
 		ccw.jobQueue <- jobpacket.MakeG1MulPacket(AwChs[i], encs[i].C1(), proof.C())
 		ccw.jobQueue <- jobpacket.MakeG1MulPacket(AwChs[i], g1, proof.Rk()[i])
 	}
@@ -230,6 +233,7 @@ func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMa
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
+// nolint: lll
 func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) *coconut.VerifierProof {
 	p, g1, g2, hs, rng := params.P(), params.G1(), params.G2(), params.Hs(), params.G.Rng()
 
@@ -297,6 +301,7 @@ func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.Verific
 }
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
+// nolint: lll
 func (ccw *Worker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
 	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
 
@@ -306,9 +311,12 @@ func (ccw *Worker) VerifyVerifierProof(params *MuxParams, vk *coconut.Verificati
 	AwCh := make(chan interface{}, 3+len(showMats.Proof().Rm()))
 	BwCh := make(chan interface{}, 2)
 
-	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, showMats.Kappa(), showMats.Proof().C())            // Aw = (c * kappa)
-	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), showMats.Proof().Rt())                    // Aw = (c * kappa) + (rt * g2)
-	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Alpha(), Curve.Modneg(showMats.Proof().C(), p)) // Aw = (c * kappa) + (rt * g2) + (-c * alpha)
+	// Aw = (c * kappa)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, showMats.Kappa(), showMats.Proof().C())
+	// Aw = (c * kappa) + (rt * g2)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), showMats.Proof().Rt())
+	// Aw = (c * kappa) + (rt * g2) + (-c * alpha)
+	ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Alpha(), Curve.Modneg(showMats.Proof().C(), p))
 	for i := range showMats.Proof().Rm() {
 		// Aw = (c * kappa) + (rt * g2) + (-c * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
 		ccw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], showMats.Proof().Rm()[i])
