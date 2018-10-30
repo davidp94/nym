@@ -17,5 +17,26 @@
 // Package constants declares system-wide constants.
 package constants
 
+import (
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+)
+
 // DEBUG sets debug status
 const DEBUG = true
+
+// MarshalEmbedHelperData decides whether to embed an additional byte specifying lenghts of embedded arrays
+const MarshalEmbedHelperData = true
+
+var (
+	// MB represents number of bytes each BIG takes
+	MB = int(Curve.MODBYTES)
+
+	// BIGLen is alias for MB
+	BIGLen = MB
+
+	//ECPLen represents number of bytes each ECP takes
+	ECPLen = MB + 1
+
+	//ECP2Len represents number of bytes each ECP2 takes
+	ECP2Len = MB * 4
+)

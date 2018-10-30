@@ -19,6 +19,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
@@ -159,7 +161,7 @@ func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curv
 	wk := witnesses.wk
 	wm := witnesses.wm
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
@@ -262,7 +264,7 @@ func prepareBlindSignR(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnes
 		cm.Add(elem)
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)

@@ -18,12 +18,24 @@
 package coconut
 
 import (
+	"errors"
 	"strings"
 
+	"github.com/jstuczyn/CoconutGo/elgamal"
+
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+var (
+	ErrUnmarshalLength     = errors.New("The byte array provided is incomplete")
+	ErrMarshalMethod       = errors.New("Can't marshal this structure")
+	ErrMarshalTooLongArray = errors.New("The array is the struct has more than 255 elements")
+)
+
+// todo: marshal/unmarshal params?
 
 // getBaseFromAttributes generates the base h from public attributes.
 // It is only used for Sign function that works exlusively on public attributes
@@ -40,3 +52,206 @@ func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 	}
 	return h
 }
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (sk *SecretKey) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	// sk consists of len(ys) + 1 values which are all of same, constant, length
+	data := make([]byte, blen*(len(sk.y)+1))
+	sk.x.ToBytes(data)
+	for i := range sk.y {
+		sk.y[i].ToBytes(data[blen*(i+1):])
+	}
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (sk *SecretKey) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	if len(data)%blen != 0 || len(data) < 2*blen {
+		return ErrUnmarshalLength
+	}
+	x := Curve.FromBytes(data)
+	y := make([]*Curve.BIG, (len(data)/blen - 1))
+	for i := range y {
+		y[i] = Curve.FromBytes(data[blen*(i+1):])
+	}
+	sk.x = x
+	sk.y = y
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (vk *VerificationKey) MarshalBinary() ([]byte, error) {
+	ec2len := constants.ECP2Len
+	// sk consists of len(beta) + 2 values which are all of same, constant, length
+	data := make([]byte, (ec2len * (len(vk.beta) + 2)))
+	vk.g2.ToBytes(data)
+	vk.alpha.ToBytes(data[ec2len:])
+	for i := range vk.beta {
+		vk.beta[i].ToBytes(data[ec2len*(i+2):])
+	}
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
+	ec2len := constants.ECP2Len
+
+	if len(data)%ec2len != 0 || len(data) < 3*ec2len {
+		return ErrUnmarshalLength
+	}
+	g2 := Curve.ECP2_fromBytes(data)
+	alpha := Curve.ECP2_fromBytes(data[ec2len:])
+	beta := make([]*Curve.ECP2, (len(data)/ec2len - 2))
+	for i := range beta {
+		beta[i] = Curve.ECP2_fromBytes(data[ec2len*(i+2):])
+	}
+	vk.g2 = g2
+	vk.alpha = alpha
+	vk.beta = beta
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (sig *Signature) MarshalBinary() ([]byte, error) {
+	eclen := constants.ECPLen
+	data := make([]byte, eclen*2)
+	sig.sig1.ToBytes(data, true)
+	sig.sig2.ToBytes(data[eclen:], true)
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (sig *Signature) UnmarshalBinary(data []byte) error {
+	eclen := constants.ECPLen
+	if len(data) != 2*eclen {
+		return ErrUnmarshalLength
+	}
+	sig1 := Curve.ECP_fromBytes(data)
+	sig2 := Curve.ECP_fromBytes(data[eclen:])
+	sig.sig1 = sig1
+	sig.sig2 = sig2
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bs *BlindedSignature) MarshalBinary() ([]byte, error) {
+	eclen := constants.ECPLen
+
+	data := make([]byte, eclen*3)
+	bs.sig1.ToBytes(data, true)
+	sig2data, err := bs.sig2Tilda.MarshalBinary()
+	if err != nil || len(sig2data) != 2*eclen {
+		return nil, err
+	}
+	for i := range sig2data {
+		data[eclen+i] = sig2data[i]
+	}
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
+	eclen := constants.ECPLen
+
+	if len(data) != 3*eclen {
+		return ErrUnmarshalLength
+	}
+	sig1 := Curve.ECP_fromBytes(data)
+	sig2Tilda := &elgamal.Encryption{}
+	sig2Tilda.UnmarshalBinary(data[eclen:])
+	bs.sig1 = sig1
+	bs.sig2Tilda = sig2Tilda
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (sp *SignerProof) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	if !constants.MarshalEmbedHelperData {
+		// without embedding array sizes, it is impossible (or at least I could not figure it out)
+		// how to distinguish two arrays so that they could be unmarshaled later
+		return nil, ErrMarshalMethod
+	}
+	data := make([]byte, blen*(2+len(sp.rk)+len(sp.rm))+1)
+	sp.c.ToBytes(data)
+	sp.rr.ToBytes(data[blen:])
+	// realistically it should never, ever fail, because it would imply credential
+	// has more than 255 private attributes...
+	if len(sp.rk) > 255 {
+		return nil, ErrMarshalTooLongArray
+	}
+	data[2*blen] = byte(len(sp.rk)) // due to previous check guaranteed to be less than 255
+	for i := range sp.rk {
+		// sp.rk[i].ToBytes(data[(2*blen+1)+blen*i:])
+		sp.rk[i].ToBytes(data[blen*(2+i)+1:])
+	}
+	// we do not need to put the size of the other array since it can be implied for the length of data packet
+	for i := range sp.rm {
+		// sp.rm[i].ToBytes(data[(2*blen+1+blen*len(sp.rk))+blen*i:])
+		sp.rm[i].ToBytes(data[blen*(2+len(sp.rk)+i)+1:])
+	}
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (sp *SignerProof) UnmarshalBinary(data []byte) error {
+	if !constants.MarshalEmbedHelperData {
+		// same reasoning as above
+		return ErrMarshalMethod
+	}
+
+	blen := constants.BIGLen
+
+	if (len(data)-1)%blen != 0 || len(data) < 4*blen+1 {
+		return ErrUnmarshalLength
+	}
+
+	c := Curve.FromBytes(data)
+	rr := Curve.FromBytes(data[blen:])
+	rkLen := int(data[2*blen])
+	rk := make([]*Curve.BIG, rkLen)
+	for i := range rk {
+		rk[i] = Curve.FromBytes(data[blen*(2+i)+1:])
+	}
+
+	rmLenBytes := len(data[blen*(2+rkLen)+1:])
+	// just a sanity check. Realistically it should never, ever happen
+	if rmLenBytes%blen != 0 {
+		return ErrUnmarshalLength
+	}
+	rmLen := rmLenBytes / blen
+	rm := make([]*Curve.BIG, rmLen)
+	for i := range rm {
+		rm[i] = Curve.FromBytes(data[blen*(2+rkLen+i)+1:])
+	}
+	sp.c = c
+	sp.rr = rr
+	sp.rk = rk
+	sp.rm = rm
+	return nil
+}
+
+// type SignerProof struct {
+// 	c  *Curve.BIG
+// 	rr *Curve.BIG
+// 	rk []*Curve.BIG
+// 	rm []*Curve.BIG
+// }
+
+// type VerifierProof struct {
+// 	c  *Curve.BIG
+// 	rm []*Curve.BIG
+// 	rt *Curve.BIG
+// }

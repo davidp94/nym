@@ -19,7 +19,10 @@
 package elgamal
 
 import (
+	"errors"
+
 	"github.com/jstuczyn/CoconutGo/bpgroup"
+	"github.com/jstuczyn/CoconutGo/constants"
 
 	// The named import is used to be able to easily update curve being used
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -28,6 +31,12 @@ import (
 // todo: create types for public and private keys and adjust arguments accordingly (look https://godoc.org/golang.org/x/crypto/openpgp/elgamal)
 // todo: possibly alternative version of Decrypt to return actual m rather than h^m
 // todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
+
+// todo: move it somewhere else as the identical code is in coconut.auxiliary... cant reference it due to cyclic
+// make separate packet for marshalling?
+var (
+	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
+)
 
 // EncryptionResult encapsulates entire result of ElGamal encryption, including random k.
 type EncryptionResult struct {
@@ -60,6 +69,32 @@ func (e *Encryption) C1() *Curve.ECP {
 // C2 returns second group element of the ElGamal Encryption.
 func (e *Encryption) C2() *Curve.ECP {
 	return e.c2
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (e *Encryption) MarshalBinary() ([]byte, error) {
+	eclen := constants.ECPLen
+
+	data := make([]byte, eclen*2)
+	e.c1.ToBytes(data, true)
+	e.c2.ToBytes(data[eclen:], true)
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (e *Encryption) UnmarshalBinary(data []byte) error {
+	eclen := constants.ECPLen
+
+	if len(data) != 2*eclen {
+		return ErrUnmarshalLength
+	}
+	c1 := Curve.ECP_fromBytes(data)
+	c2 := Curve.ECP_fromBytes(data[eclen:])
+	e.c1 = c1
+	e.c2 = c2
+	return nil
 }
 
 // NewEncryptionFromPoints wraps two points on G1 curve as ElGamal Encryption.

@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jstuczyn/CoconutGo/bpgroup"
@@ -187,7 +189,7 @@ func TestHashToBIG(t *testing.T) {
 			if r1 != nil {
 				// for BN curve, the value might be larger than ord as mod is not taken
 				if Curve.CURVE_PAIRING_TYPE == Curve.BN {
-					b := make([]byte, MB)
+					b := make([]byte, constants.BIGLen)
 					r1.ToBytes(b)
 					assert.Equal(t, b, hash)
 				} else {

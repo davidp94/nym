@@ -21,6 +21,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
@@ -85,7 +87,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 		wm[i] = Curve.Randomnum(p, rng)
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
@@ -170,7 +172,7 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *BlindSignMats
 		return false
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)

@@ -23,12 +23,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
-
-// MB represents number of bytes each num takes
-var MB = int(Curve.MODBYTES)
 
 // todo: verify HashBytesToG1
 // todo: wait for George's change in bplib for hashG1 -> worst case scenario is to try to butcher and modify amcl fork
@@ -44,10 +42,10 @@ func ToCoconutString(p Printable) string {
 	var b []byte
 	switch v := p.(type) {
 	case *Curve.ECP:
-		b = make([]byte, MB+1)
+		b = make([]byte, constants.ECPLen)
 		v.ToBytes(b, true)
 	case *Curve.ECP2:
-		b = make([]byte, 4*MB)
+		b = make([]byte, 4*constants.ECP2Len)
 		v.ToBytes(b)
 	case *Curve.BIG:
 		// in this case it's simpler, but inconsistent as Python implementation returns capitalised hex for Bn

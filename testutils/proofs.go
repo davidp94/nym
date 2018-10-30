@@ -20,6 +20,8 @@ package schemetest
 import (
 	"testing"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 
 	"github.com/jstuczyn/CoconutGo/coconut/scheme"
@@ -106,7 +108,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 			cm.Add(Curve.G1mul(hs[i], attributes[i]))
 		}
 
-		b := make([]byte, utils.MB+1)
+		b := make([]byte, constants.ECPLen)
 		cm.ToBytes(b, true)
 
 		h, err := utils.HashBytesToG1(amcl.SHA512, b)

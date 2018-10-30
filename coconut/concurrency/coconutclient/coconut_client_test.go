@@ -11,6 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// todo: ensure results returned by ccw.Method() are the same as by coconut.Function()
+
 const NUM_WORKERS = 2
 
 var workers []*jobworker.Worker

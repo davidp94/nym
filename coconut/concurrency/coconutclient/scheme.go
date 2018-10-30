@@ -20,6 +20,8 @@ package coconutclient
 import (
 	"sync"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
@@ -202,7 +204,7 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []
 		cm.Add(cmElemRes.(*Curve.ECP))
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
@@ -246,7 +248,7 @@ func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSign
 		return nil, coconut.ErrBlindSignProof
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	blindSignMats.Cm().ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)

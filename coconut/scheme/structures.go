@@ -85,6 +85,16 @@ type BlindedSignature struct {
 	sig2Tilda *elgamal.Encryption
 }
 
+// Sig1 returns first ECP group of the signature
+func (bs *BlindedSignature) Sig1() *Curve.ECP {
+	return bs.sig1
+}
+
+// Sig2Tilda returns the elgamal encryption of the second ECP group of the signature
+func (bs *BlindedSignature) Sig2Tilda() *elgamal.Encryption {
+	return bs.sig2Tilda
+}
+
 // SchemeParams interface allows for interchangeably using Params and MuxParams
 // (where applicable)
 type SchemeParams interface {

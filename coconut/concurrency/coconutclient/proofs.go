@@ -21,6 +21,7 @@ import (
 	"github.com/jstuczyn/CoconutGo/coconut/concurrency/jobpacket"
 	coconut "github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -53,7 +54,7 @@ func (ccw *Worker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, enc
 	}
 	params.Unlock()
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
@@ -154,7 +155,7 @@ func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMa
 		return false
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)

@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	. "github.com/jstuczyn/CoconutGo/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
@@ -65,7 +67,7 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 					cm.Add(Curve.G1mul(params.Hs()[i], privs[i]))
 				}
 
-				cmb := make([]byte, utils.MB+1)
+				cmb := make([]byte, constants.ECPLen)
 				cm.ToBytes(cmb, true)
 
 				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)
@@ -110,7 +112,7 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 					cm.Add(Curve.G1mul(params.Hs()[i], privs[i]))
 				}
 
-				cmb := make([]byte, utils.MB+1)
+				cmb := make([]byte, constants.ECPLen)
 				cm.ToBytes(cmb, true)
 
 				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)

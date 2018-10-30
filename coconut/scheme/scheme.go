@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/jstuczyn/CoconutGo/bpgroup"
 	"github.com/jstuczyn/CoconutGo/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/elgamal"
@@ -208,7 +210,7 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 		cm.Add(elem)
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
@@ -250,7 +252,7 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 		return nil, ErrBlindSignProof
 	}
 
-	b := make([]byte, utils.MB+1)
+	b := make([]byte, constants.ECPLen)
 	blindSignMats.cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
