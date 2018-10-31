@@ -45,7 +45,7 @@ func ToCoconutString(p Printable) string {
 		b = make([]byte, constants.ECPLen)
 		v.ToBytes(b, true)
 	case *Curve.ECP2:
-		b = make([]byte, 4*constants.ECP2Len)
+		b = make([]byte, constants.ECP2Len)
 		v.ToBytes(b)
 	case *Curve.BIG:
 		// in this case it's simpler, but inconsistent as Python implementation returns capitalised hex for Bn

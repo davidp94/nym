@@ -22,4 +22,5 @@ fi
 find ./bpgroup/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./coconut/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./elgamal/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./constants/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./testutils/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
