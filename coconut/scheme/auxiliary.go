@@ -391,10 +391,47 @@ func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 	}
 }
 
-// for BSM it is possible to infer all stuff (if array len < MB)
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (vp *VerifierProof) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	data := make([]byte, blen*(2+len(vp.rm)))
+	vp.c.ToBytes(data)
+	vp.rt.ToBytes(data[blen:])
+	for i := range vp.rm {
+		vp.rm[i].ToBytes(data[blen*(2+i):])
+	}
+	return data, nil
+}
 
-// type BlindSignMats struct {
-// 	cm    *Curve.ECP
-// 	enc   []*elgamal.Encryption
-// 	proof *SignerProof
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (vp *VerifierProof) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	if len(data)%blen != 0 || len(data) < 3*blen {
+		return ErrUnmarshalLength
+	}
+	c := Curve.FromBytes(data)
+	rt := Curve.FromBytes(data[blen:])
+
+	rmLenBytes := len(data[2*blen:])
+	// just a sanity check. Realistically it should never, ever happen
+	if rmLenBytes%blen != 0 {
+		return ErrUnmarshalLength
+	}
+	rmLen := rmLenBytes / blen
+	rm := make([]*Curve.BIG, rmLen)
+	for i := range rm {
+		rm[i] = Curve.FromBytes(data[blen*(2+i):])
+	}
+	vp.c = c
+	vp.rt = rt
+	vp.rm = rm
+	return nil
+}
+
+// type VerifierProof struct {
+// 	c  *Curve.BIG
+// 	rm []*Curve.BIG
+// 	rt *Curve.BIG
 // }
