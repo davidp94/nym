@@ -125,6 +125,10 @@ func TestCCWBlindVerify(t *testing.T) {
 	TestBlindVerify(t, ccw)
 }
 
+func TestCCWThresholdAuthorities(t *testing.T) {
+	TestThresholdAuthorities(t, ccw)
+}
+
 // func BenchmarkCCWVerify(b *testing.B) {
 // 	numWorkers := 1
 // 	attrs := []string{

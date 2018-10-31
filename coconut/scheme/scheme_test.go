@@ -105,93 +105,9 @@ func TestSchemeBlindVerify(t *testing.T) {
 	TestBlindVerify(t, nil)
 }
 
-// func TestThresholdAuthorities(t *testing.T) {
-// 	// for this purpose those randoms don't need to be securely generated
-// 	repeat := 3
-// 	tests := []struct {
-// 		pub  []string
-// 		priv []string
-// 		t    int
-// 		n    int
-// 	}{
-// 		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 1, n: 6},
-// 		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 3, n: 6},
-// 		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 6, n: 6},
-// 		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 1, n: 6},
-// 		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 3, n: 6},
-// 		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 6, n: 6},
-// 	}
-
-// 	for _, test := range tests {
-
-// 		params, err := Setup(len(test.pub) + len(test.priv))
-// 		assert.Nil(t, err)
-
-// 		d, gamma := elgamal.Keygen(params.G)
-
-// 		pubBig := make([]*Curve.BIG, len(test.pub))
-// 		privBig := make([]*Curve.BIG, len(test.priv))
-
-// 		for i := range test.pub {
-// 			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-// 			assert.Nil(t, err)
-// 		}
-// 		for i := range test.priv {
-// 			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-// 			assert.Nil(t, err)
-// 		}
-
-// 		blindSignMats, err := PrepareBlindSign(params, gamma, pubBig, privBig)
-// 		assert.Nil(t, err)
-
-// 		sks, vks, err := TTPKeygen(params, test.t, test.n)
-// 		assert.Nil(t, err)
-
-// 		// repeat the test repeat number of times to ensure it works with different subsets of keys/sigs
-// 		for a := 0; a < repeat; a++ {
-// 			// choose any t vks
-// 			indices := RandomInts(test.t, test.n)
-// 			vks2 := make([]*VerificationKey, test.t)
-// 			for i := range vks2 {
-// 				vks2[i] = vks[indices[i]-1]
-// 			}
-// 			// right now each point of vk has value of index + 1
-// 			indices12 := make([]*Curve.BIG, test.t)
-// 			for i, val := range indices {
-// 				indices12[i] = Curve.NewBIGint(val)
-// 			}
-
-// 			avk := AggregateVerificationKeys(params, vks2, &PolynomialPoints{indices12})
-
-// 			signatures := make([]*Signature, test.n)
-// 			for i := 0; i < test.n; i++ {
-// 				blindedSignature, err := BlindSign(params, sks[i], blindSignMats, gamma, pubBig)
-// 				assert.Nil(t, err)
-// 				signatures[i] = Unblind(params, blindedSignature, d)
-// 			}
-
-// 			// and choose some other subset of t signatures
-// 			indices2 := RandomInts(test.t, test.n)
-// 			sigs2 := make([]*Signature, test.t)
-// 			for i := range vks2 {
-// 				sigs2[i] = signatures[indices2[i]-1]
-// 			}
-// 			// right now each point of sig has value of index + 1
-// 			indices22 := make([]*Curve.BIG, test.t)
-// 			for i, val := range indices2 {
-// 				indices22[i] = Curve.NewBIGint(val)
-// 			}
-
-// 			aSig := AggregateSignatures(params, sigs2, &PolynomialPoints{indices22})
-// 			rSig := Randomize(params, aSig)
-
-// 			blindShowMats, err := ShowBlindSignature(params, avk, rSig, privBig)
-// 			assert.Nil(t, err)
-
-// 			assert.True(t, BlindVerify(params, avk, rSig, blindShowMats, pubBig))
-// 		}
-// 	}
-// }
+func TestSchemeThresholdAuthorities(t *testing.T) {
+	TestThresholdAuthorities(t, nil)
+}
 
 // func BenchmarkSetup(b *testing.B) {
 // 	qs := []int{1, 3, 5, 10, 20}

@@ -650,3 +650,94 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 
 	}
 }
+
+// TestThresholdAuthorities checks the threshold property of the appropriate keys, as in whether
+// any subset of t verification keys can be used to verify aggregate credential created out of
+// any different subset of t issued credentials.
+func TestThresholdAuthorities(t *testing.T, ccw *coconutclient.Worker) {
+	// for this purpose those randoms don't need to be securely generated
+	repeat := 3
+	tests := []struct {
+		pub  []string
+		priv []string
+		t    int
+		n    int
+	}{
+		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 1, n: 6},
+		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 3, n: 6},
+		{pub: []string{"foo", "bar"}, priv: []string{"foo2", "bar2"}, t: 6, n: 6},
+		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 1, n: 6},
+		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 3, n: 6},
+		{pub: []string{}, priv: []string{"foo2", "bar2"}, t: 6, n: 6},
+	}
+
+	for _, test := range tests {
+
+		params, err := setupWrapper(ccw, len(test.pub)+len(test.priv))
+		assert.Nil(t, err)
+
+		d, gamma := elGamalKeygenWrapper(ccw, params)
+
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+
+		for i := range test.pub {
+			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+			assert.Nil(t, err)
+		}
+		for i := range test.priv {
+			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+			assert.Nil(t, err)
+		}
+
+		blindSignMats, err := prepareBlindSignWrapper(ccw, params, gamma, pubBig, privBig)
+		assert.Nil(t, err)
+
+		sks, vks, err := ttpKeygenWrapper(ccw, params, test.t, test.n)
+		assert.Nil(t, err)
+
+		// repeat the test repeat number of times to ensure it works with different subsets of keys/sigs
+		for a := 0; a < repeat; a++ {
+			// choose any t vks
+			indices := RandomInts(test.t, test.n)
+			vks2 := make([]*coconut.VerificationKey, test.t)
+			for i := range vks2 {
+				vks2[i] = vks[indices[i]-1]
+			}
+			// right now each point of vk has value of index + 1
+			indices12 := make([]*Curve.BIG, test.t)
+			for i, val := range indices {
+				indices12[i] = Curve.NewBIGint(val)
+			}
+
+			avk := aggregateVerificationKeysWrapper(ccw, params, vks2, coconut.NewPP(indices12))
+
+			signatures := make([]*coconut.Signature, test.n)
+			for i := 0; i < test.n; i++ {
+				blindedSignature, err := blindSignWrapper(ccw, params, sks[i], blindSignMats, gamma, pubBig)
+				assert.Nil(t, err)
+				signatures[i] = unblindWrapper(ccw, params, blindedSignature, d)
+			}
+
+			// and choose some other subset of t signatures
+			indices2 := RandomInts(test.t, test.n)
+			sigs2 := make([]*coconut.Signature, test.t)
+			for i := range vks2 {
+				sigs2[i] = signatures[indices2[i]-1]
+			}
+			// right now each point of sig has value of index + 1
+			indices22 := make([]*Curve.BIG, test.t)
+			for i, val := range indices2 {
+				indices22[i] = Curve.NewBIGint(val)
+			}
+
+			aSig := aggregateSignaturesWrapper(ccw, params, sigs2, coconut.NewPP(indices22))
+			rSig := randomizeWrapper(ccw, params, aSig)
+
+			blindShowMats, err := showBlindSignatureWrapper(ccw, params, avk, rSig, privBig)
+			assert.Nil(t, err)
+
+			assert.True(t, blindVerifyWrapper(ccw, params, avk, rSig, blindShowMats, pubBig))
+		}
+	}
+}
