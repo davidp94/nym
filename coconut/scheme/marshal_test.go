@@ -85,11 +85,11 @@ func TestSignerProofMarshal(t *testing.T) {
 		priv []string
 	}{
 		{pub: []string{}, priv: []string{"Foo2"}},
-		// {pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
-		// {pub: []string{"Foo"}, priv: []string{}},
-		// {pub: []string{"Foo", "Bar", "Baz"}, priv: []string{}},
-		// {pub: []string{"Foo"}, priv: []string{"Foo2"}},
-		// {pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{"Foo"}, priv: []string{}},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{}},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}},
 	}
 
 	for _, test := range tests {
@@ -153,5 +153,77 @@ func TestSignerProofMarshal(t *testing.T) {
 		assert.True(t, coconut.VerifySignerProof(params, gamma, coconut.NewBlindSignMats(cm, encs, signerProof)))
 		assert.True(t, coconut.VerifySignerProof(params, gamma, coconut.NewBlindSignMats(cm, encs, recoveredProof)))
 
+	}
+}
+
+func TestBlindSignMatsMarshal(t *testing.T) {
+	tests := []struct {
+		pub  []string
+		priv []string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{}, priv: []string{
+			"A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8",
+			"B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8",
+			"C1", "C2", "C3", "C4", "C5", "C6", "C7",
+		}},
+		{pub: []string{}, priv: []string{
+			"A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8",
+			"B1", "B2", "B3", "B4", "B5", "B6", "B7", "B8",
+			"C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8",
+		},
+		},
+
+		// todo: test for 25 attrs
+	}
+
+	for _, test := range tests {
+		params, _ := coconut.Setup(len(test.pub) + len(test.priv))
+
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+
+		for i := range test.pub {
+			pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+		}
+		for i := range test.priv {
+			privBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+		}
+
+		_, gamma := elgamal.Keygen(params.G)
+		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
+
+		data, err := blindSignMats.MarshalBinary()
+		if !constants.MarshalEmbedHelperData && len(test.priv) > constants.MB/2-1 {
+			assert.NotNil(t, err)
+			continue
+		}
+
+		assert.Nil(t, err)
+		recoveredBlindSignMats := &coconut.BlindSignMats{}
+		assert.Nil(t, recoveredBlindSignMats.UnmarshalBinary(data))
+
+		assert.True(t, blindSignMats.Cm().Equals(recoveredBlindSignMats.Cm()))
+		for i := range blindSignMats.Enc() {
+			assert.True(t, blindSignMats.Enc()[i].C1().Equals(recoveredBlindSignMats.Enc()[i].C1()))
+			assert.True(t, blindSignMats.Enc()[i].C2().Equals(recoveredBlindSignMats.Enc()[i].C2()))
+		}
+
+		assert.Zero(t, Curve.Comp(blindSignMats.Proof().C(), blindSignMats.Proof().C()))
+		assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rr(), blindSignMats.Proof().Rr()))
+		for i := range blindSignMats.Proof().Rk() {
+			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rk()[i], blindSignMats.Proof().Rk()[i]))
+		}
+
+		for i := range blindSignMats.Proof().Rm() {
+			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rm()[i], blindSignMats.Proof().Rm()[i]))
+		}
+
+		// sanity check
+		assert.True(t, coconut.VerifySignerProof(params, gamma, blindSignMats))
+		assert.True(t, coconut.VerifySignerProof(params, gamma, recoveredBlindSignMats))
 	}
 }

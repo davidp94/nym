@@ -87,7 +87,7 @@ func (e *Encryption) MarshalBinary() ([]byte, error) {
 func (e *Encryption) UnmarshalBinary(data []byte) error {
 	eclen := constants.ECPLen
 
-	if len(data) != 2*eclen {
+	if len(data) < 2*eclen {
 		return ErrUnmarshalLength
 	}
 	c1 := Curve.ECP_fromBytes(data)
