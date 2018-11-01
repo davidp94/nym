@@ -430,8 +430,44 @@ func (vp *VerifierProof) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// type VerifierProof struct {
-// 	c  *Curve.BIG
-// 	rm []*Curve.BIG
-// 	rt *Curve.BIG
-// }
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindShowMats) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+
+	data := make([]byte, ec2len+eclen+blen*(2+len(bsm.proof.rm)))
+	bsm.kappa.ToBytes(data)
+	bsm.nu.ToBytes(data[ec2len:], true)
+	proofdata, err := bsm.proof.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	for i := range proofdata {
+		data[ec2len+eclen+i] = proofdata[i]
+	}
+
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+
+	kappa := Curve.ECP2_fromBytes(data)
+	nu := Curve.ECP_fromBytes(data[ec2len:])
+	proof := &VerifierProof{}
+	err := proof.UnmarshalBinary(data[ec2len+eclen:])
+	if err != nil {
+		return err
+	}
+
+	bsm.kappa = kappa
+	bsm.nu = nu
+	bsm.proof = proof
+
+	return nil
+}

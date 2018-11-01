@@ -228,7 +228,6 @@ func TestVerifierProofMarshal(t *testing.T) {
 	tests := []struct {
 		pub  []string
 		priv []string
-		msg  string
 	}{
 		{pub: []string{}, priv: []string{"Foo2"}},
 		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
@@ -269,5 +268,54 @@ func TestVerifierProofMarshal(t *testing.T) {
 		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, blindShowMats))
 		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, coconut.NewBlindShowMats(blindShowMats.Kappa(), blindShowMats.Nu(), recoveredProof)))
 
+	}
+}
+
+func TestBlindShowMatsMarshal(t *testing.T) {
+	tests := []struct {
+		pub  []string
+		priv []string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+	}
+
+	for _, test := range tests {
+		params, _ := coconut.Setup(len(test.pub) + len(test.priv))
+		sk, vk, _ := coconut.Keygen(params)
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+		for i := range test.pub {
+			pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+		}
+		for i := range test.priv {
+			privBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+		}
+
+		d, gamma := elgamal.Keygen(params.G)
+		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
+		blindedSignature, _ := coconut.BlindSign(params, sk, blindSignMats, gamma, pubBig)
+		sig := coconut.Unblind(params, blindedSignature, d)
+		blindShowMats, _ := coconut.ShowBlindSignature(params, vk, sig, privBig)
+
+		data, err := blindShowMats.MarshalBinary()
+		assert.Nil(t, err)
+		recoveredBlindShowMats := &coconut.BlindShowMats{}
+		assert.Nil(t, recoveredBlindShowMats.UnmarshalBinary(data))
+
+		assert.True(t, blindShowMats.Kappa().Equals(recoveredBlindShowMats.Kappa()))
+		assert.True(t, blindShowMats.Nu().Equals(recoveredBlindShowMats.Nu()))
+
+		assert.Zero(t, Curve.Comp(blindShowMats.Proof().C(), recoveredBlindShowMats.Proof().C()))
+		assert.Zero(t, Curve.Comp(blindShowMats.Proof().Rt(), recoveredBlindShowMats.Proof().Rt()))
+		for i := range blindShowMats.Proof().Rm() {
+			assert.Zero(t, Curve.Comp(blindShowMats.Proof().Rm()[i], recoveredBlindShowMats.Proof().Rm()[i]))
+		}
+
+		// sanity checks
+		assert.True(t, coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig))
+		assert.True(t, coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig))
 	}
 }

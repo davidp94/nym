@@ -35,6 +35,7 @@ import (
 // todo: comments with maths computation
 // todo: comments with python sources
 // todo: remove ShowBlindSignature and move it straight to BlindVerify?
+// todo: include gamma to blindsignmats as per paper rather than as per python implementation?
 
 var (
 	// ErrSetupParams indicates incorrect parameters provided for Setup.
