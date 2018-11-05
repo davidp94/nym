@@ -28,7 +28,7 @@ func init() {
 
 	jobCh = channels.NewInfiniteChannel()
 
-	ccw = coconutclient.New(jobCh.In(), nil, uint64(42), log, nil, nil)
+	ccw = coconutclient.New(jobCh.In(), nil, uint64(42), log, nil, nil, nil)
 
 	for i := 0; i < NUM_WORKERS; i++ {
 		workers = append(workers, jobworker.New(jobCh.Out(), uint64(i), log))

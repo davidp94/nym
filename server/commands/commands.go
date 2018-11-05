@@ -24,6 +24,8 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+// todo: add length to EVERY packet sent, even if it can be easily implied
+
 const (
 	cmdOverhead = 4 // for now just length (as bigendian uint32)
 
@@ -71,7 +73,9 @@ func FromBytes(b []byte) Command {
 	var cmd Command
 	switch id {
 	case GetVerificationKeyID:
-		// todo
+		vkCmd := &Vk{}
+		vkCmd.UnmarshalBinary(payload) // in case implementation changes
+		cmd = vkCmd
 	case SignID:
 		signCmd := &Sign{}
 		signCmd.UnmarshalBinary(payload)
@@ -144,3 +148,9 @@ func (s *Sign) MarshalBinary() ([]byte, error) {
 	}
 	return data, nil
 }
+
+// not sure if will end up being used as keys might be shared in a different way
+type Vk struct{}
+
+func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
+func (v *Vk) MarshalBinary() ([]byte, error)    { return make([]byte, 0), nil }

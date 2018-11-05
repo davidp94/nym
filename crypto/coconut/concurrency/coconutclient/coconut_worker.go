@@ -64,12 +64,11 @@ func (ccw *Worker) worker() {
 					cmdReq.RetCh() <- err
 					continue
 				}
-				// ccw.log.Critical(utils.ToCoconutString(sig.Sig1()))
-				// ccw.log.Critical(utils.ToCoconutString(sig.Sig2()))
-				// ccw.log.Critical("Verifies: ", ccw.Verify(ccw.muxParams, ccw.vk, signCmd.PubM(), sig))
-				// // todo: where to write result?
 				ccw.log.Debugf("Writing back signature")
 				cmdReq.RetCh() <- sig
+			case *commands.Vk:
+				ccw.log.Debug("Get Vk cmd")
+				cmdReq.RetCh() <- ccw.vk
 			}
 		}
 	}
