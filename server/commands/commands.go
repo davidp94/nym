@@ -25,6 +25,8 @@ import (
 )
 
 const (
+	cmdOverhead = 4 // for now just length (as bigendian uint32)
+
 	GetVerificationKeyID commandID = 100
 	SignID               commandID = 101
 	VerifyID             commandID = 102

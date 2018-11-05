@@ -1,10 +1,12 @@
 package listener
 
 import (
+	"encoding/binary"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
@@ -74,15 +76,25 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	// if _, err := io.ReadFull(conn, b0); err != nil {
 	// 	panic(err)
 	// }
-	res, err := ioutil.ReadAll(conn)
-	if err != nil {
+	var err error
+	tmp := make([]byte, 4)
+	if _, err = io.ReadFull(conn, tmp); err != nil {
 		panic(err)
 	}
-	cmd := commands.FromBytes(res)
+	cmdLen := binary.BigEndian.Uint32(tmp)
+
+	cmdBytes := make([]byte, cmdLen)
+
+	if _, err = io.ReadFull(conn, cmdBytes); err != nil {
+		panic(err)
+	}
+	cmd := commands.FromBytes(cmdBytes)
 	l.incomingCh <- cmd
 	// how to get result here and write back to client?
 
-	b := []byte("Hello World")
+	l.log.Notice("Test wait")
+	time.Sleep(time.Second * 1)
+	b := []byte("Hello World\n")
 	conn.Write(b)
 	conn.Close()
 }

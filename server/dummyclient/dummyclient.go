@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"encoding/binary"
+
 	"net"
 
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -24,13 +26,19 @@ func main() {
 	payloadBytes, _ := payload.MarshalBinary()
 	cmd := commands.NewCommand(commands.SignID, payloadBytes)
 	cmdBytes := cmd.ToBytes()
+
+	packet := make([]byte, 4+len(cmdBytes))
+	binary.BigEndian.PutUint32(packet, uint32(len(cmdBytes)))
+	copy(packet[4:], cmdBytes)
+
 	clientLog.Critical("writing cmd")
-	conn.Write(cmdBytes)
+	conn.Write(packet)
 
 	// if client doesnt close socket then server hangs?
-	conn.Close()
+	// conn.Close()
 
 	// listen for reply
+	clientLog.Debug("before io")
 	message, _ := bufio.NewReader(conn).ReadString('\n')
 	clientLog.Notice("Message from server: " + message)
 }
