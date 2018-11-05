@@ -18,16 +18,18 @@
 package constants
 
 import (
+	"errors"
+
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// DEBUG sets debug status
-const DEBUG = true
+const (
+	// DEBUG sets debug status
+	DEBUG = true
 
-// MarshalEmbedHelperData decides whether to embed an additional byte specifying lenghts of embedded arrays
-const MarshalEmbedHelperData = true
+	// MarshalEmbedHelperData decides whether to embed an additional byte specifying lenghts of embedded arrays
+	MarshalEmbedHelperData = true
 
-var (
 	// MB represents number of bytes each BIG takes
 	MB = int(Curve.MODBYTES)
 
@@ -39,4 +41,11 @@ var (
 
 	//ECP2Len represents number of bytes each ECP2 takes
 	ECP2Len = MB * 4
+
+	//SetupAttrs defines maximum number of attributes IA supports
+	SetupAttrs = 5
+)
+
+var (
+	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )

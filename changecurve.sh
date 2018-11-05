@@ -19,8 +19,7 @@ else
     exit
 fi
 
-find ./bpgroup/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
-find ./coconut/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
-find ./elgamal/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./crypto/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./server/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./constants/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
-find ./testutils/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./worker/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
