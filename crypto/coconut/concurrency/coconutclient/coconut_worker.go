@@ -11,7 +11,6 @@ import (
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	coconut "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/worker"
 )
@@ -43,38 +42,35 @@ func (ccw *Worker) AddToJobQueue(jobpacket *jobpacket.JobPacket) {
 
 func (ccw *Worker) worker() {
 	for {
-		var cmd *commands.Command
+		var cmdReq *commands.CommandRequest
 		select {
 		case <-ccw.HaltCh():
 			ccw.log.Debugf("Halting Coconut worker %d\n", ccw.id)
 			return
 		case e := <-ccw.incomingCh:
-			cmd = e.(*commands.Command)
-			switch cmd.Id() {
-			case commands.GetVerificationKeyID:
-				ccw.log.Debug("GetVk cmd")
-			case commands.SignID:
+			cmdReq = e.(*commands.CommandRequest)
+			cmd := cmdReq.Cmd()
+			switch v := cmd.(type) {
+			case *commands.Sign:
 				ccw.log.Debug("Sign cmd")
-				signCmd := &commands.Sign{}
-				if err := signCmd.UnmarshalBinary(cmd.Payload()); err != nil {
-					panic(err)
-				}
-				if len(signCmd.PubM()) > len(ccw.sk.Y()) {
-					ccw.log.Error("Too many params to sign")
+				if len(v.PubM()) > len(ccw.sk.Y()) {
+					ccw.log.Error("Too many params to sign.")
+					cmdReq.RetCh() <- nil
 					continue
 				}
-				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, signCmd.PubM())
+				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, v.PubM())
 				if err != nil {
-					panic(err)
+					ccw.log.Error("Error while signing message")
+					cmdReq.RetCh() <- err
+					continue
 				}
-				ccw.log.Critical(utils.ToCoconutString(sig.Sig1()))
-				ccw.log.Critical(utils.ToCoconutString(sig.Sig2()))
-				ccw.log.Critical("Verifies: ", ccw.Verify(ccw.muxParams, ccw.vk, signCmd.PubM(), sig))
-				// todo: where to write result?
-			case commands.VerifyID:
-				ccw.log.Debug("Verify cmd")
+				// ccw.log.Critical(utils.ToCoconutString(sig.Sig1()))
+				// ccw.log.Critical(utils.ToCoconutString(sig.Sig2()))
+				// ccw.log.Critical("Verifies: ", ccw.Verify(ccw.muxParams, ccw.vk, signCmd.PubM(), sig))
+				// // todo: where to write result?
+				ccw.log.Debugf("Writing back signature")
+				cmdReq.RetCh() <- sig
 			}
-			ccw.log.Notice("Cmd payload:", cmd.Payload())
 		}
 	}
 }

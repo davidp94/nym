@@ -32,26 +32,31 @@ const (
 	VerifyID             commandID = 102
 )
 
+type Command interface {
+	MarshalBinary() ([]byte, error)
+	UnmarshalBinary(data []byte) error
+}
+
 type commandID byte
 
-type Command struct {
+type RawCommand struct {
 	id      commandID
 	payload []byte
 }
 
-func NewCommand(id commandID, payload []byte) *Command {
-	return &Command{id, payload}
+func NewRawCommand(id commandID, payload []byte) *RawCommand {
+	return &RawCommand{id, payload}
 }
 
-func (c *Command) Id() commandID {
+func (c *RawCommand) Id() commandID {
 	return c.id
 }
 
-func (c *Command) Payload() []byte {
+func (c *RawCommand) Payload() []byte {
 	return c.payload
 }
 
-func (c *Command) ToBytes() []byte {
+func (c *RawCommand) ToBytes() []byte {
 	b := make([]byte, 1+len(c.payload))
 	b[0] = byte(c.id)
 	for i := range c.payload {
@@ -60,13 +65,38 @@ func (c *Command) ToBytes() []byte {
 	return b
 }
 
-func FromBytes(b []byte) *Command {
-	id := b[0]
+func FromBytes(b []byte) Command {
+	id := commandID(b[0])
 	payload := b[1:]
-	return &Command{
-		id:      commandID(id),
-		payload: payload,
+	var cmd Command
+	switch id {
+	case GetVerificationKeyID:
+		// todo
+	case SignID:
+		signCmd := &Sign{}
+		signCmd.UnmarshalBinary(payload)
+		cmd = signCmd
+	case VerifyID:
+		// todo + more
 	}
+	return cmd
+}
+
+type CommandRequest struct {
+	cmd   Command
+	retCh chan interface{}
+}
+
+func NewCommandRequest(cmd Command, ch chan interface{}) *CommandRequest {
+	return &CommandRequest{cmd: cmd, retCh: ch}
+}
+
+func (cr *CommandRequest) RetCh() chan interface{} {
+	return cr.retCh
+}
+
+func (cr *CommandRequest) Cmd() Command {
+	return cr.cmd
 }
 
 // all the below commands are recovered from payload field in Command

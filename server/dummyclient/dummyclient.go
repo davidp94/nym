@@ -1,8 +1,13 @@
 package main
 
 import (
-	"bufio"
 	"encoding/binary"
+	"io"
+	"time"
+
+	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 
 	"net"
 
@@ -24,8 +29,8 @@ func main() {
 	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
 	payload := commands.NewSign(pubM)
 	payloadBytes, _ := payload.MarshalBinary()
-	cmd := commands.NewCommand(commands.SignID, payloadBytes)
-	cmdBytes := cmd.ToBytes()
+	rawCmd := commands.NewRawCommand(commands.SignID, payloadBytes)
+	cmdBytes := rawCmd.ToBytes()
 
 	packet := make([]byte, 4+len(cmdBytes))
 	binary.BigEndian.PutUint32(packet, uint32(len(cmdBytes)))
@@ -35,10 +40,19 @@ func main() {
 	conn.Write(packet)
 
 	// if client doesnt close socket then server hangs?
-	// conn.Close()
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
+	resLen := 2 * constants.ECPLen // we expect signature which is of that length
 	// listen for reply
-	clientLog.Debug("before io")
-	message, _ := bufio.NewReader(conn).ReadString('\n')
-	clientLog.Notice("Message from server: " + message)
+	signatureBytes := make([]byte, resLen)
+	var err error
+	if _, err = io.ReadFull(conn, signatureBytes); err != nil {
+		clientLog.Critical(string(signatureBytes))
+		panic(err)
+	}
+	sig := &coconut.Signature{}
+	err = sig.UnmarshalBinary(signatureBytes)
+	if err == nil {
+		clientLog.Notice("Successfuly obtained signature", utils.ToCoconutString(sig.Sig1()), utils.ToCoconutString(sig.Sig2()))
+	}
 }

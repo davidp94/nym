@@ -6,7 +6,9 @@ import (
 	"io"
 	"net"
 	"sync"
-	"time"
+
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
@@ -68,6 +70,12 @@ func (l *Listener) worker() {
 }
 
 func (l *Listener) onNewConn(conn net.Conn) {
+	// todo deadlines etc
+	defer func() {
+		l.log.Debug("Closing Connection")
+		conn.Close()
+	}()
+
 	l.log.Debug("onNewConn called")
 	// conn.SetDeadline(time.Now().Add(100 * time.Millisecond))
 
@@ -89,14 +97,28 @@ func (l *Listener) onNewConn(conn net.Conn) {
 		panic(err)
 	}
 	cmd := commands.FromBytes(cmdBytes)
-	l.incomingCh <- cmd
-	// how to get result here and write back to client?
 
-	l.log.Notice("Test wait")
-	time.Sleep(time.Second * 1)
-	b := []byte("Hello World\n")
-	conn.Write(b)
-	conn.Close()
+	resCh := make(chan interface{}, 1)
+	cmdReq := commands.NewCommandRequest(cmd, resCh)
+	l.incomingCh <- cmdReq
+	// time.Sleep(time.Second * 1)
+	sigRes := <-resCh
+	switch sig := sigRes.(type) {
+	case error:
+		l.log.Error("Failed to sign message")
+		// currently client will panic because that string is shorter than 2EC
+		// and is actually what we want
+		conn.Write([]byte("Failed to sign message"))
+	case *coconut.Signature:
+		l.log.Debug("Received signature")
+		l.log.Debug(utils.ToCoconutString(sig.Sig1()))
+		l.log.Debug(utils.ToCoconutString(sig.Sig2()))
+		b, err := sig.MarshalBinary()
+		if err == nil {
+			l.log.Notice("Writing Signature response to the client")
+			conn.Write(b)
+		}
+	}
 }
 
 // New creates a new listener.
