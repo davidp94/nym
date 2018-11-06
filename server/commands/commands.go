@@ -27,11 +27,9 @@ import (
 // todo: add length to EVERY packet sent, even if it can be easily implied
 
 const (
-	cmdOverhead = 4 // for now just length (as bigendian uint32)
-
-	GetVerificationKeyID commandID = 100
-	SignID               commandID = 101
-	VerifyID             commandID = 102
+	GetVerificationKeyID CommandID = 100
+	SignID               CommandID = 101
+	VerifyID             CommandID = 102
 )
 
 type Command interface {
@@ -39,18 +37,18 @@ type Command interface {
 	UnmarshalBinary(data []byte) error
 }
 
-type commandID byte
+type CommandID byte
 
 type RawCommand struct {
-	id      commandID
+	id      CommandID
 	payload []byte
 }
 
-func NewRawCommand(id commandID, payload []byte) *RawCommand {
+func NewRawCommand(id CommandID, payload []byte) *RawCommand {
 	return &RawCommand{id, payload}
 }
 
-func (c *RawCommand) Id() commandID {
+func (c *RawCommand) Id() CommandID {
 	return c.id
 }
 
@@ -61,14 +59,12 @@ func (c *RawCommand) Payload() []byte {
 func (c *RawCommand) ToBytes() []byte {
 	b := make([]byte, 1+len(c.payload))
 	b[0] = byte(c.id)
-	for i := range c.payload {
-		b[1+i] = c.payload[i]
-	}
+	copy(b[1:], c.payload)
 	return b
 }
 
 func FromBytes(b []byte) Command {
-	id := commandID(b[0])
+	id := CommandID(b[0])
 	payload := b[1:]
 	var cmd Command
 	switch id {

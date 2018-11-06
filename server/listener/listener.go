@@ -1,17 +1,17 @@
 package listener
 
 import (
+	"encoding"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
 	"sync"
-
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"time"
 
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
+	"github.com/jstuczyn/CoconutGo/server/packet"
 
 	"github.com/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
@@ -79,61 +79,70 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	}()
 
 	l.log.Debug("onNewConn called")
-	// conn.SetDeadline(time.Now().Add(100 * time.Millisecond))
+	conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
 
 	var err error
-	tmp := make([]byte, 4)
+	tmp := make([]byte, 4) // packetlength
 	if _, err = io.ReadFull(conn, tmp); err != nil {
 		panic(err)
 	}
-	cmdLen := binary.BigEndian.Uint32(tmp)
-	cmdBytes := make([]byte, cmdLen)
-	if _, err = io.ReadFull(conn, cmdBytes); err != nil {
+	packetLength := binary.BigEndian.Uint32(tmp)
+	packetBytes := make([]byte, packetLength)
+	copy(packetBytes, tmp)
+	if _, err = io.ReadFull(conn, packetBytes[4:]); err != nil {
 		panic(err)
 	}
+	inPacket := packet.FromBytes(packetBytes) // currently rather redundant as we recover nothing useful, but might be needed when headers are expanded
 
-	cmd := commands.FromBytes(cmdBytes)
+	cmd := commands.FromBytes(inPacket.Payload())
 	resCh := make(chan interface{}, 1)
 	cmdReq := commands.NewCommandRequest(cmd, resCh)
+
 	l.incomingCh <- cmdReq
-	l.resolveCommand(resCh, conn)
+	outPacket := l.resolveCommand(resCh)
+	l.replyToClient(outPacket, conn)
 }
 
-func (l *Listener) resolveCommand(resCh chan interface{}, conn net.Conn) {
-	// time.Sleep(time.Second * 1)
-	resInt := <-resCh
-	switch res := resInt.(type) {
+func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
+	l.log.Notice("Replying back to the client")
+	b, err := packet.MarshalBinary()
+	if err == nil {
+		conn.Write(b)
+	} else {
+		l.log.Error("Couldn't reply to the client") // conn will close regardless after this
+	}
+}
 
-	case *coconut.Signature:
-		l.log.Debug("Received signature")
-		l.log.Debug(utils.ToCoconutString(res.Sig1()))
-		l.log.Debug(utils.ToCoconutString(res.Sig2()))
-		b, err := res.MarshalBinary()
-		if err == nil {
-			l.log.Notice("Writing Signature response to the client")
-			conn.Write(b)
-		}
-	case *coconut.VerificationKey:
-		l.log.Debug("Received VK")
-		b, err := res.MarshalBinary()
-		// todo: deal with so much repeating code regarding packet
-		packet := make([]byte, 4+len(b))
-		binary.BigEndian.PutUint32(packet, uint32(len(b)))
-		copy(packet[4:], b)
+func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
+	res := <-resCh
 
+	var payload []byte
+	switch resVal := res.(type) {
+	case encoding.BinaryMarshaler: // all coconut structures implement that interface
+		l.log.Debug("Received non-empty response from the worker")
+		b, err := resVal.MarshalBinary()
 		if err == nil {
-			l.log.Notice("Writing VK response to the client")
-			conn.Write(packet)
+			payload = b
 		}
 	default:
 		l.log.Error("Failed to resolve command")
-		// currently client will panic because that string is shorter than anything that is expected
-		// and is actually what we want
-		conn.Write([]byte("Failed to resolve request"))
-
 	}
-
+	return packet.NewPacket(payload)
 }
+
+// case *coconut.Signature:
+// 	l.log.Debug("Received signature from the worker")
+// 	b, err := resVal.MarshalBinary()
+// 	if err == nil {
+// 		payload = b
+// 	}
+// case *coconut.VerificationKey:
+// 	l.log.Debug("Received VK fron the worker")
+// 	b, err := resVal.MarshalBinary()
+// 	if err == nil {
+// 		l.log.Notice("Writing VK response to the client")
+// 		conn.Write(packet)
+// 	}
 
 // New creates a new listener.
 func New(incomingCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
