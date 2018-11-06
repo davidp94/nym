@@ -69,6 +69,9 @@ func (ccw *Worker) worker() {
 			case *commands.Vk:
 				ccw.log.Debug("Get Vk cmd")
 				cmdReq.RetCh() <- ccw.vk
+			case *commands.Verify:
+				ccw.log.Debug("Verify cmd")
+				cmdReq.RetCh() <- ccw.Verify(ccw.muxParams, ccw.vk, v.PubM(), v.Sig())
 			}
 		}
 	}

@@ -57,11 +57,7 @@ func makeAndSendPacket(cmd commands.Command, cmdID commands.CommandID) *packet.P
 	return packet.FromBytes(packetOutBytes)
 }
 
-func getSignature() {
-	// make a sign request command
-	G := bpgroup.New()
-
-	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+func getSignature(pubM []*Curve.BIG) *coconut.Signature {
 	cmd := commands.NewSign(pubM)
 	resp := makeAndSendPacket(cmd, commands.SignID)
 
@@ -70,9 +66,10 @@ func getSignature() {
 	if err == nil {
 		clientLog.Notice("Successfuly obtained signature", utils.ToCoconutString(sig.Sig1()), utils.ToCoconutString(sig.Sig2()))
 	}
+	return sig
 }
 
-func getVks() {
+func getVks() *coconut.VerificationKey {
 	cmd := &commands.Vk{}
 	resp := makeAndSendPacket(cmd, commands.GetVerificationKeyID)
 
@@ -86,10 +83,25 @@ func getVks() {
 			clientLog.Notice(utils.ToCoconutString(vk.Beta()[i]))
 		}
 	}
+	return vk
+}
+
+func verify(pubM []*Curve.BIG, sig *coconut.Signature) bool {
+	cmd := commands.NewVerify(pubM, sig)
+	resp := makeAndSendPacket(cmd, commands.VerifyID)
+	if resp.Payload()[0] == 0 {
+		return false
+	}
+	return true
 }
 
 func main() {
-	getSignature()
-	time.Sleep(time.Second * 3)
-	getVks()
+	G := bpgroup.New()
+	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+
+	sig := getSignature(pubM)
+	// time.Sleep(time.Second * 3)
+	// getVks()
+
+	clientLog.Notice("Result:", verify(pubM, sig))
 }

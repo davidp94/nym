@@ -19,7 +19,8 @@ package packet
 
 import (
 	"encoding/binary"
-	"errors"
+
+	"github.com/jstuczyn/CoconutGo/constants"
 )
 
 // to be used by both client and server to send data
@@ -42,7 +43,7 @@ type Packet struct {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (h *header) UnmarshalBinary(data []byte) error {
 	if len(data) != headerLength {
-		return errors.New("Invalid marshaled header")
+		return constants.ErrUnmarshalLength
 	}
 	h.packetLength = binary.BigEndian.Uint32(data)
 	return nil

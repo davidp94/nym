@@ -114,19 +114,32 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 }
 
 func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
-	res := <-resCh
-
 	var payload []byte
-	switch resVal := res.(type) {
-	case encoding.BinaryMarshaler: // all coconut structures implement that interface
-		l.log.Debug("Received non-empty response from the worker")
-		b, err := resVal.MarshalBinary()
-		if err == nil {
-			payload = b
+	select {
+	case res := <-resCh:
+		switch resVal := res.(type) {
+		case encoding.BinaryMarshaler: // all coconut structures implement that interface
+			l.log.Debug("Received non-empty response from the worker")
+			b, err := resVal.MarshalBinary()
+			if err == nil {
+				payload = b
+			}
+		case bool: // only the case for Verify/BlindVerify
+			// todo: some wrapper for bool?
+			l.log.Debug("Verified the signature", resVal)
+			if resVal {
+				payload = []byte{1}
+			} else {
+				payload = []byte{0}
+			}
+		default:
+			l.log.Error("Failed to resolve command")
 		}
-	default:
-		l.log.Error("Failed to resolve command")
+	// we can wait up to 500ms to resolve request
+	case <-time.After(500 * time.Millisecond):
+		l.log.Error("Failed to resolve request")
 	}
+
 	return packet.NewPacket(payload)
 }
 

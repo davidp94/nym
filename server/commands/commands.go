@@ -21,6 +21,7 @@ package commands
 
 import (
 	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -67,17 +68,23 @@ func FromBytes(b []byte) Command {
 	id := CommandID(b[0])
 	payload := b[1:]
 	var cmd Command
+	var err error
 	switch id {
 	case GetVerificationKeyID:
 		vkCmd := &Vk{}
-		vkCmd.UnmarshalBinary(payload) // in case implementation changes
+		err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
 		cmd = vkCmd
 	case SignID:
 		signCmd := &Sign{}
-		signCmd.UnmarshalBinary(payload)
+		err = signCmd.UnmarshalBinary(payload)
 		cmd = signCmd
 	case VerifyID:
-		// todo + more
+		verifyCmd := &Verify{}
+		err = verifyCmd.UnmarshalBinary(payload)
+		cmd = verifyCmd
+	}
+	if err != nil {
+		return nil
 	}
 	return cmd
 }
@@ -150,3 +157,66 @@ type Vk struct{}
 
 func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
 func (v *Vk) MarshalBinary() ([]byte, error)    { return make([]byte, 0), nil }
+
+type Verify struct {
+	sig  *coconut.Signature
+	pubM []*Curve.BIG
+}
+
+func (v *Verify) Sig() *coconut.Signature {
+	return v.sig
+}
+
+func (v *Verify) PubM() []*Curve.BIG {
+	return v.pubM
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (v *Verify) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	if (len(data)-2*eclen)%blen != 0 {
+		return constants.ErrUnmarshalLength
+	}
+
+	sig := &coconut.Signature{}
+	err := sig.UnmarshalBinary(data[:2*eclen])
+	if err != nil {
+		return err
+	}
+	n := (len(data) - 2*eclen) / blen
+	pubM := make([]*Curve.BIG, n)
+	for i := range pubM {
+		pubM[i] = Curve.FromBytes(data[2*eclen+i*blen:])
+	}
+	v.sig = sig
+	v.pubM = pubM
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (v *Verify) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	data := make([]byte, 2*eclen+blen*len(v.pubM))
+	sigB, err := v.sig.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	copy(data, sigB)
+	for i := range v.pubM {
+		v.pubM[i].ToBytes(data[2*eclen+i*blen:])
+	}
+	return data, nil
+}
+
+func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
+	return &Verify{
+		pubM: pubM,
+		sig:  sig,
+	}
+}
