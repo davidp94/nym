@@ -72,6 +72,21 @@ func (ccw *Worker) worker() {
 			case *commands.Verify:
 				ccw.log.Debug("Verify cmd")
 				cmdReq.RetCh() <- ccw.Verify(ccw.muxParams, ccw.vk, v.PubM(), v.Sig())
+			case *commands.BlindSign:
+				ccw.log.Debug("Blind sign cmd")
+				if len(v.PubM())+len(v.BlindSignMats().Enc()) > len(ccw.sk.Y()) {
+					ccw.log.Error("Too many params to sign.")
+					cmdReq.RetCh() <- nil
+					continue
+				}
+				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, v.BlindSignMats(), v.Gamma(), v.PubM())
+				if err != nil {
+					ccw.log.Error("Error while signing message")
+					cmdReq.RetCh() <- err
+					continue
+				}
+				ccw.log.Debugf("Writing back blinded signature")
+				cmdReq.RetCh() <- sig
 			}
 		}
 	}

@@ -36,14 +36,17 @@ const (
 	// BIGLen is alias for MB
 	BIGLen = MB
 
-	//ECPLen represents number of bytes each ECP takes
+	// ECPLen represents number of bytes each ECP takes
 	ECPLen = MB + 1
 
-	//ECP2Len represents number of bytes each ECP2 takes
+	// ECP2Len represents number of bytes each ECP2 takes
 	ECP2Len = MB * 4
 
-	//SetupAttrs defines maximum number of attributes IA supports
+	// SetupAttrs defines maximum number of attributes IA supports
 	SetupAttrs = 5
+
+	// RequestTimeout specifies how long server is going to wait for a request to resolve
+	RequestTimeout = 500
 )
 
 var (

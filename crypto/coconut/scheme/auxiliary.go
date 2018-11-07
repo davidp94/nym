@@ -248,7 +248,7 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
 
 	// it depends here if we really care about the 'overhead' (and hence possible compatibility) of 2 bytes
-	// vs slightly more complicated implementation and limitation of maximum of MB attributes (15 for BN, 23 for BLS; basically MB/2-1)
+	// vs slightly more complicated implementation and limitation of maximum of number of attributes (15 for BN, 23 for BLS; basically MB/2-1)
 	if constants.MarshalEmbedHelperData {
 		data := make([]byte, eclen*(1+2*len(bsm.enc))+blen*(2+len(bsm.proof.rk)+len(bsm.proof.rm))+2)
 		bsm.cm.ToBytes(data, true)

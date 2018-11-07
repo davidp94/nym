@@ -5,12 +5,14 @@ import (
 	"io"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
+
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 
 	"net"
 
-	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
@@ -95,13 +97,31 @@ func verify(pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	return true
 }
 
-func main() {
-	G := bpgroup.New()
-	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+func blindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) *coconut.BlindedSignature {
+	cmd := commands.NewBlindSign(blindSignMats, gamma, pubM)
+	resp := makeAndSendPacket(cmd, commands.BlindSignID)
 
-	sig := getSignature(pubM)
+	sig := &coconut.BlindedSignature{}
+	err := sig.UnmarshalBinary(resp.Payload())
+	if err == nil {
+		clientLog.Notice("Successfuly obtained blind signature", utils.ToCoconutString(sig.Sig1()), utils.ToCoconutString(sig.Sig2Tilda().C1()), utils.ToCoconutString(sig.Sig2Tilda().C2()))
+	}
+	return sig
+}
+
+func main() {
+	params, _ := coconut.Setup(constants.SetupAttrs)
+	G := params.G
+	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+	privM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+	d, gamma := elgamal.Keygen(G)
+	blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubM, privM)
+
+	blindSig := blindSign(blindSignMats, gamma, pubM)
+	sig := coconut.Unblind(params, blindSig, d)
+
+	// sig := getSignature(pubM)
 	// time.Sleep(time.Second * 3)
 	// getVks()
-
-	clientLog.Notice("Result:", verify(pubM, sig))
+	clientLog.Notice("Verify Result:", verify(append(privM, pubM...), sig)) // reveal all private attributes
 }

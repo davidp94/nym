@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
@@ -74,7 +75,7 @@ func (l *Listener) worker() {
 func (l *Listener) onNewConn(conn net.Conn) {
 	// todo deadlines etc
 	defer func() {
-		l.log.Debug("Closing Connection")
+		l.log.Debugf("Closing Connection to %v", conn.RemoteAddr())
 		conn.Close()
 	}()
 
@@ -135,8 +136,9 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 		default:
 			l.log.Error("Failed to resolve command")
 		}
+
 	// we can wait up to 500ms to resolve request
-	case <-time.After(500 * time.Millisecond):
+	case <-time.After(constants.RequestTimeout * time.Millisecond):
 		l.log.Error("Failed to resolve request")
 	}
 

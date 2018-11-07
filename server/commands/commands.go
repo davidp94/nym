@@ -31,6 +31,7 @@ const (
 	GetVerificationKeyID CommandID = 100
 	SignID               CommandID = 101
 	VerifyID             CommandID = 102
+	BlindSignID          CommandID = 103
 )
 
 type Command interface {
@@ -82,6 +83,10 @@ func FromBytes(b []byte) Command {
 		verifyCmd := &Verify{}
 		err = verifyCmd.UnmarshalBinary(payload)
 		cmd = verifyCmd
+	case BlindSignID:
+		blindSignCmd := &BlindSign{}
+		err = blindSignCmd.UnmarshalBinary(payload)
+		cmd = blindSignCmd
 	}
 	if err != nil {
 		return nil
@@ -218,5 +223,83 @@ func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
 	return &Verify{
 		pubM: pubM,
 		sig:  sig,
+	}
+}
+
+type BlindSign struct {
+	blindSignMats *coconut.BlindSignMats
+	gamma         *Curve.ECP
+	pubM          []*Curve.BIG
+	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
+}
+
+func (bs *BlindSign) BlindSignMats() *coconut.BlindSignMats {
+	return bs.blindSignMats
+}
+
+func (bs *BlindSign) Gamma() *Curve.ECP {
+	return bs.gamma
+}
+
+func (bs *BlindSign) PubM() []*Curve.BIG {
+	return bs.pubM
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bs *BlindSign) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	pubMLength := data[0]
+	pubM := make([]*Curve.BIG, pubMLength)
+	for i := range pubM {
+		pubM[i] = Curve.FromBytes(data[1+i*blen:])
+	}
+	gamma := Curve.ECP_fromBytes(data[1+len(pubM)*blen:])
+	blindSignMats := &coconut.BlindSignMats{}
+	err := blindSignMats.UnmarshalBinary(data[1+len(pubM)*blen+eclen:])
+	if err != nil {
+		return err
+	}
+	bs.blindSignMats = blindSignMats
+	bs.gamma = gamma
+	bs.pubM = pubM
+	bs.pubMLength = pubMLength
+
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bs *BlindSign) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	// we don't care which method blindSignMats are using for marshaling
+	bsmData, err := bs.blindSignMats.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	data := make([]byte, len(bsmData)+eclen+len(bs.pubM)*blen+1)
+	data[0] = bs.pubMLength
+	for i := range bs.pubM {
+		bs.pubM[i].ToBytes(data[1+i*blen:])
+	}
+	bs.gamma.ToBytes(data[1+len(bs.pubM)*blen:], true)
+	copy(data[1+len(bs.pubM)*blen+eclen:], bsmData)
+
+	return data, nil
+}
+
+func NewBlindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) *BlindSign {
+	if len(pubM) > 255 {
+		return nil
+	}
+	return &BlindSign{
+		blindSignMats: blindSignMats,
+		gamma:         gamma,
+		pubM:          pubM,
+		pubMLength:    uint8(len(pubM)),
 	}
 }
