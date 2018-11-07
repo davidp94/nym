@@ -152,9 +152,7 @@ func (bs *BlindedSignature) MarshalBinary() ([]byte, error) {
 	if err != nil || len(sig2data) != 2*eclen {
 		return nil, err
 	}
-	for i := range sig2data {
-		data[eclen+i] = sig2data[i]
-	}
+	copy(data[eclen:], sig2data)
 	return data, nil
 }
 
@@ -264,17 +262,13 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 			if err != nil || len(enciData) != 2*eclen {
 				return nil, err
 			}
-			for j := range enciData {
-				data[1+eclen*(1+2*i)+j] = enciData[j]
-			}
+			copy(data[1+eclen*(1+2*i):], enciData)
 		}
 		proofdata, err := bsm.proof.MarshalBinary()
 		if err != nil {
 			return nil, err
 		}
-		for i := range proofdata {
-			data[1+eclen*(1+2*len(bsm.enc))+i] = proofdata[i]
-		}
+		copy(data[1+eclen*(1+2*len(bsm.enc)):], proofdata)
 		return data, nil
 
 	} else {
@@ -290,9 +284,7 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 			if err != nil || len(enciData) != 2*eclen {
 				return nil, err
 			}
-			for j := range enciData {
-				data[eclen*(1+2*i)+j] = enciData[j]
-			}
+			copy(data[eclen*(1+2*i):], enciData)
 		}
 
 		// doing proof here rather than calling marshal on it as it is an invalid operation to marshal the proof on itself without embeding array lenghts
@@ -443,9 +435,7 @@ func (bsm *BlindShowMats) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	for i := range proofdata {
-		data[ec2len+eclen+i] = proofdata[i]
-	}
+	copy(data[ec2len+eclen:], proofdata)
 
 	return data, nil
 }
