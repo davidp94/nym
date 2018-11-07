@@ -118,25 +118,16 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 	var payload []byte
 	select {
 	case res := <-resCh:
-		switch resVal := res.(type) {
-		case encoding.BinaryMarshaler: // all coconut structures implement that interface
+		resVal, ok := res.(encoding.BinaryMarshaler) // all coconut structures implement that interface
+		if ok {
 			l.log.Debug("Received non-empty response from the worker")
 			b, err := resVal.MarshalBinary()
 			if err == nil {
 				payload = b
 			}
-		case bool: // only the case for Verify/BlindVerify
-			// todo: some wrapper for bool that implements BinaryMarshaler interface?
-			l.log.Debugf("Verified the signature; valid: %v", resVal)
-			if resVal {
-				payload = []byte{1}
-			} else {
-				payload = []byte{0}
-			}
-		default:
+		} else {
 			l.log.Error("Failed to resolve command")
 		}
-
 	// we can wait up to 500ms to resolve request
 	case <-time.After(constants.RequestTimeout * time.Millisecond):
 		l.log.Error("Failed to resolve request")
@@ -144,20 +135,6 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 
 	return packet.NewPacket(payload)
 }
-
-// case *coconut.Signature:
-// 	l.log.Debug("Received signature from the worker")
-// 	b, err := resVal.MarshalBinary()
-// 	if err == nil {
-// 		payload = b
-// 	}
-// case *coconut.VerificationKey:
-// 	l.log.Debug("Received VK fron the worker")
-// 	b, err := resVal.MarshalBinary()
-// 	if err == nil {
-// 		l.log.Notice("Writing VK response to the client")
-// 		conn.Write(packet)
-// 	}
 
 // New creates a new listener.
 func New(incomingCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {

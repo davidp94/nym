@@ -67,9 +67,9 @@ func signWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sk *coc
 
 func verifyWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if ccw == nil {
-		return coconut.Verify(params.(*coconut.Params), vk, pubM, sig)
+		return coconut.Verify(params.(*coconut.Params), vk, pubM, sig) == true
 	}
-	return ccw.Verify(params.(*coconutclient.MuxParams), vk, pubM, sig)
+	return ccw.Verify(params.(*coconutclient.MuxParams), vk, pubM, sig) == true
 }
 
 func randomizeWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sig *coconut.Signature) *coconut.Signature {
@@ -131,9 +131,9 @@ func blindSignWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sk
 
 func blindVerifyWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
 	if ccw == nil {
-		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, showMats, pubM)
+		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, showMats, pubM) == true
 	}
-	return ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, showMats, pubM)
+	return ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, showMats, pubM) == true
 
 }
 

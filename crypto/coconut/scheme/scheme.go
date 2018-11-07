@@ -306,7 +306,7 @@ func Unblind(params *Params, blindedSignature *BlindedSignature, d *Curve.BIG) *
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed
-func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signature) bool {
+func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signature) VerificationResult {
 	G := params.G
 
 	// should not really fail because as long as key is longer than numAttr,
@@ -336,7 +336,7 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	Gt1 = G.Pair(sig.sig1, K)
 	Gt2 = G.Pair(sig.sig2, vk.g2)
 
-	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
+	return VerificationResult(!sig.sig1.Is_infinity() && Gt1.Equals(Gt2))
 }
 
 // ShowBlindSignature builds cryptographic material required for blind verification.
@@ -368,7 +368,7 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 }
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
-func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, pubM []*Curve.BIG) bool {
+func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, pubM []*Curve.BIG) VerificationResult {
 	G := params.G
 
 	privateLen := len(showMats.proof.rm)
@@ -394,7 +394,7 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 	Gt1 := G.Pair(sig.sig1, t1)
 	Gt2 := G.Pair(t2, vk.g2)
 
-	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
+	return VerificationResult(!sig.sig1.Is_infinity() && Gt1.Equals(Gt2))
 }
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable

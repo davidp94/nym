@@ -66,7 +66,7 @@ func TestBlindVerifyMarshal(t *testing.T) {
 		assert.Zero(t, Curve.Comp(cmd.BlindShowMats().Proof().Rm()[i], blindVerify.BlindShowMats().Proof().Rm()[i]))
 	}
 
-	assert.True(t, coconut.BlindVerify(params, vk, cmd.Sig(), cmd.BlindShowMats(), cmd.PubM()))
-	assert.True(t, coconut.BlindVerify(params, vk, blindVerify.Sig(), blindVerify.BlindShowMats(), blindVerify.PubM()))
+	assert.True(t, true == coconut.BlindVerify(params, vk, cmd.Sig(), cmd.BlindShowMats(), cmd.PubM()))
+	assert.True(t, true == coconut.BlindVerify(params, vk, blindVerify.Sig(), blindVerify.BlindShowMats(), blindVerify.PubM()))
 
 }

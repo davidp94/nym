@@ -315,7 +315,7 @@ func TestBlindShowMatsMarshal(t *testing.T) {
 		}
 
 		// sanity checks
-		assert.True(t, coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig))
-		assert.True(t, coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig))
+		assert.True(t, true == coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig))
+		assert.True(t, true == coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig))
 	}
 }

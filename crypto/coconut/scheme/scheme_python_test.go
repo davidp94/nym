@@ -398,7 +398,7 @@ func TestPointcheval(t *testing.T) {
 	}
 	signature := &Signature{sig1: h, sig2: PointchevalSig}
 	// ensure it actually verifies
-	assert.True(t, Verify(params, vk, []*Curve.BIG{m}, signature))
+	assert.True(t, true == Verify(params, vk, []*Curve.BIG{m}, signature))
 }
 
 func TestCoconut(t *testing.T) {
@@ -565,5 +565,5 @@ func TestCoconut(t *testing.T) {
 	assert.Zero(t, Curve.Comp(rtExp, bsm2.proof.rt))
 
 	// finally for sanity checks ensure the credentials verify
-	assert.True(t, BlindVerify(params, vk, sig, bsm2, pubM))
+	assert.True(t, true == BlindVerify(params, vk, sig, bsm2, pubM))
 }

@@ -23,6 +23,8 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+type VerificationResult bool
+
 // SecretKey represents secret key of a Coconut signing authority.
 type SecretKey struct {
 	x *Curve.BIG
