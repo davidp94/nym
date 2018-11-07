@@ -87,6 +87,9 @@ func (ccw *Worker) worker() {
 				}
 				ccw.log.Debugf("Writing back blinded signature")
 				cmdReq.RetCh() <- sig
+			case *commands.BlindVerify:
+				ccw.log.Debug("Blind verify cmd")
+				cmdReq.RetCh() <- ccw.BlindVerify(ccw.muxParams, ccw.vk, v.Sig(), v.BlindShowMats(), v.PubM())
 			}
 		}
 	}

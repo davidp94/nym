@@ -1,5 +1,7 @@
 package main
 
+// this is not an API or anything of sorts. it's only for testing purposes.
+
 import (
 	"encoding/binary"
 	"io"
@@ -109,6 +111,15 @@ func blindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*C
 	return sig
 }
 
+func blindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) bool {
+	cmd := commands.NewBlindVerify(blindShowMats, sig, pubM)
+	resp := makeAndSendPacket(cmd, commands.BlindVerifyID)
+	if resp.Payload()[0] == 0 {
+		return false
+	}
+	return true
+}
+
 func main() {
 	params, _ := coconut.Setup(constants.SetupAttrs)
 	G := params.G
@@ -119,9 +130,10 @@ func main() {
 
 	blindSig := blindSign(blindSignMats, gamma, pubM)
 	sig := coconut.Unblind(params, blindSig, d)
+	rSig := coconut.Randomize(params, sig)
+	vk := getVks()
+	blindShowMats, _ := coconut.ShowBlindSignature(params, vk, rSig, privM)
 
-	// sig := getSignature(pubM)
-	// time.Sleep(time.Second * 3)
-	// getVks()
-	clientLog.Notice("Verify Result:", verify(append(privM, pubM...), sig)) // reveal all private attributes
+	clientLog.Notice("Verify Result:", verify(append(privM, pubM...), rSig)) // reveal all private attributes
+	clientLog.Notice("BlindVerify Result:", blindVerify(blindShowMats, rSig, pubM))
 }

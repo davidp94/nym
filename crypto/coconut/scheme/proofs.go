@@ -314,5 +314,6 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 		ca[i] = item
 		i++
 	}
+
 	return Curve.Comp(showMats.proof.c, ConstructChallenge(ca)) == 0
 }

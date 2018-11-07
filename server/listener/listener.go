@@ -105,7 +105,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 }
 
 func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
-	l.log.Notice("Replying back to the client")
+	l.log.Noticef("Replying back to the client (%v)", conn.RemoteAddr())
 	b, err := packet.MarshalBinary()
 	if err == nil {
 		conn.Write(b)
@@ -126,8 +126,8 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 				payload = b
 			}
 		case bool: // only the case for Verify/BlindVerify
-			// todo: some wrapper for bool?
-			l.log.Debug("Verified the signature", resVal)
+			// todo: some wrapper for bool that implements BinaryMarshaler interface?
+			l.log.Debugf("Verified the signature; valid: %v", resVal)
 			if resVal {
 				payload = []byte{1}
 			} else {

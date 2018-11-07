@@ -32,6 +32,7 @@ const (
 	SignID               CommandID = 101
 	VerifyID             CommandID = 102
 	BlindSignID          CommandID = 103
+	BlindVerifyID        CommandID = 104
 )
 
 type Command interface {
@@ -87,6 +88,10 @@ func FromBytes(b []byte) Command {
 		blindSignCmd := &BlindSign{}
 		err = blindSignCmd.UnmarshalBinary(payload)
 		cmd = blindSignCmd
+	case BlindVerifyID:
+		blindVerifyCmd := &BlindVerify{}
+		err = blindVerifyCmd.UnmarshalBinary(payload)
+		cmd = blindVerifyCmd
 	}
 	if err != nil {
 		return nil
@@ -299,6 +304,94 @@ func NewBlindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM [
 	return &BlindSign{
 		blindSignMats: blindSignMats,
 		gamma:         gamma,
+		pubM:          pubM,
+		pubMLength:    uint8(len(pubM)),
+	}
+}
+
+type BlindVerify struct {
+	sig           *coconut.Signature
+	blindShowMats *coconut.BlindShowMats
+	pubM          []*Curve.BIG
+	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
+}
+
+func (bv *BlindVerify) BlindShowMats() *coconut.BlindShowMats {
+	return bv.blindShowMats
+}
+
+func (bv *BlindVerify) Sig() *coconut.Signature {
+	return bv.sig
+}
+
+func (bv *BlindVerify) PubM() []*Curve.BIG {
+	return bv.pubM
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	pubMLength := data[0]
+	pubM := make([]*Curve.BIG, pubMLength)
+	for i := range pubM {
+		pubM[i] = Curve.FromBytes(data[1+i*blen:])
+	}
+
+	sig := &coconut.Signature{}
+	err := sig.UnmarshalBinary(data[1+len(pubM)*blen : 1+len(pubM)*blen+2*eclen])
+	if err != nil {
+		return err
+	}
+
+	blindShowMats := &coconut.BlindShowMats{}
+	err = blindShowMats.UnmarshalBinary(data[1+len(pubM)*blen+2*eclen:])
+	if err != nil {
+		return err
+	}
+
+	bv.blindShowMats = blindShowMats
+	bv.sig = sig
+	bv.pubM = pubM
+	bv.pubMLength = pubMLength
+
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bv *BlindVerify) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	bsmData, err := bv.blindShowMats.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	data := make([]byte, len(bsmData)+2*eclen+len(bv.pubM)*blen+1)
+	data[0] = bv.pubMLength
+	for i := range bv.pubM {
+		bv.pubM[i].ToBytes(data[1+i*blen:])
+	}
+	sigData, err := bv.sig.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	copy(data[1+len(bv.pubM)*blen:], sigData)
+	copy(data[1+len(bv.pubM)*blen+2*eclen:], bsmData)
+
+	return data, nil
+}
+
+func NewBlindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) *BlindVerify {
+	if len(pubM) > 255 {
+		return nil
+	}
+	return &BlindVerify{
+		sig:           sig,
+		blindShowMats: blindShowMats,
 		pubM:          pubM,
 		pubMLength:    uint8(len(pubM)),
 	}
