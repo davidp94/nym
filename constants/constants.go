@@ -42,11 +42,9 @@ const (
 	// ECP2Len represents number of bytes each ECP2 takes
 	ECP2Len = MB * 4
 
-	// SetupAttrs defines maximum number of attributes IA supports
-	SetupAttrs = 5
+	SecretKeyType = "COCONUT SECRET KEY"
 
-	// RequestTimeout specifies how long server is going to wait for a request to resolve
-	RequestTimeout = 500
+	VerificationKeyType = "COCONUT VERIFICATION KEY"
 )
 
 var (

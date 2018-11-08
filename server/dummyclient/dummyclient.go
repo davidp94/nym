@@ -7,7 +7,6 @@ import (
 	"io"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -27,7 +26,7 @@ const addr = "127.0.0.1:4000"
 var clientLog *logging.Logger
 
 func init() {
-	log := logger.New()
+	log := logger.New("", "DEBUG", false)
 	clientLog = log.GetLogger("Client")
 }
 
@@ -121,7 +120,8 @@ func blindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, p
 }
 
 func main() {
-	params, _ := coconut.Setup(constants.SetupAttrs)
+	// todo: read from cfg or rather create proper api
+	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
 	privM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}

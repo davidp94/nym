@@ -9,9 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/commands"
+	"github.com/jstuczyn/CoconutGo/server/config"
 	"github.com/jstuczyn/CoconutGo/server/packet"
 
 	"github.com/jstuczyn/CoconutGo/worker"
@@ -22,6 +22,8 @@ import (
 
 // make it unexported like katzenpost? though it uses session which currently is not here
 type Listener struct {
+	cfg *config.Config
+
 	sync.Mutex
 	worker.Worker
 
@@ -80,7 +82,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	}()
 
 	l.log.Debug("onNewConn called")
-	conn.SetDeadline(time.Now().Add(500 * time.Millisecond))
+	conn.SetDeadline(time.Now().Add(time.Duration(l.cfg.Debug.ConnectTimeout) * time.Millisecond))
 
 	var err error
 	tmp := make([]byte, 4) // packetlength
@@ -129,7 +131,8 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 			l.log.Error("Failed to resolve command")
 		}
 	// we can wait up to 500ms to resolve request
-	case <-time.After(constants.RequestTimeout * time.Millisecond):
+	// todo: a way to cancel the request because even though it timeouts, the worker is still working on it
+	case <-time.After(time.Duration(l.cfg.Debug.RequestTimeout) * time.Millisecond):
 		l.log.Error("Failed to resolve request")
 	}
 
@@ -137,10 +140,11 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 }
 
 // New creates a new listener.
-func New(incomingCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
+func New(cfg *config.Config, incomingCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
 	var err error
 
 	listener := &Listener{
+		cfg:        cfg,
 		incomingCh: incomingCh,
 		closeAllCh: make(chan interface{}),
 		log:        l.GetLogger(fmt.Sprintf("Listener:%d", int(id))),
