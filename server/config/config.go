@@ -1,4 +1,20 @@
-// modified version of katzenpost config
+// config.go - config for coconut server
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Package config defines configuration used by coconut server.
 package config
 
 // todo: once all options are figured out, introduce validation
@@ -6,13 +22,13 @@ package config
 import (
 	"errors"
 	"io/ioutil"
+	"path/filepath"
 	"runtime"
 
 	"github.com/BurntSushi/toml"
 )
 
 const (
-	defaultAddress  = ":4000"
 	defaultLogLevel = "NOTICE"
 
 	defaultNumCoconutWorkers = 1
@@ -21,6 +37,7 @@ const (
 	defaultRequestTimeout = 1 * 1000 // 1 sec.
 )
 
+// nolint: gochecknoglobals
 var defaultLogging = Logging{
 	Disable: false,
 	File:    "",
@@ -128,7 +145,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 // LoadFile loads, parses and validates the provided file and returns the Config.
 func LoadFile(f string) (*Config, error) {
-	b, err := ioutil.ReadFile(f)
+	b, err := ioutil.ReadFile(filepath.Clean(f))
 	if err != nil {
 		return nil, err
 	}

@@ -24,7 +24,7 @@ var ccw *coconutclient.Worker
 var log *logger.Logger
 
 func init() {
-	log = logger.New()
+	log = logger.New("", "DEBUG", false)
 
 	jobCh = channels.NewInfiniteChannel()
 
@@ -32,13 +32,6 @@ func init() {
 
 	for i := 0; i < NUM_WORKERS; i++ {
 		workers = append(workers, jobworker.New(jobCh.Out(), uint64(i), log))
-	}
-}
-
-// nolint: unused, megacheck
-func stopWorkers() {
-	for _, worker := range workers {
-		worker.Halt()
 	}
 }
 

@@ -1,10 +1,26 @@
 // todo: tests for all other methods
+
+// commands_test.go - tests for commands for coconut server
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package commands_test
 
 import (
 	"testing"
 
-	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/CoconutGo/server/commands"
@@ -13,10 +29,14 @@ import (
 )
 
 func TestBlindSignMarshal(t *testing.T) {
-	params, _ := coconut.Setup(constants.SetupAttrs)
+	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
-	privM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+	privM := []*Curve.BIG{
+		Curve.Randomnum(G.Order(), G.Rng()),
+		Curve.Randomnum(G.Order(), G.Rng()),
+		Curve.Randomnum(G.Order(), G.Rng()),
+	}
 	_, gamma := elgamal.Keygen(G)
 	blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubM, privM)
 
@@ -30,11 +50,16 @@ func TestBlindSignMarshal(t *testing.T) {
 
 }
 
+// nolint: lll
 func TestBlindVerifyMarshal(t *testing.T) {
-	params, _ := coconut.Setup(constants.SetupAttrs)
+	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
-	privM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
+	privM := []*Curve.BIG{
+		Curve.Randomnum(G.Order(), G.Rng()),
+		Curve.Randomnum(G.Order(), G.Rng()),
+		Curve.Randomnum(G.Order(), G.Rng()),
+	}
 
 	sk, vk, _ := coconut.Keygen(params)
 	d, gamma := elgamal.Keygen(params.G)
@@ -66,7 +91,7 @@ func TestBlindVerifyMarshal(t *testing.T) {
 		assert.Zero(t, Curve.Comp(cmd.BlindShowMats().Proof().Rm()[i], blindVerify.BlindShowMats().Proof().Rm()[i]))
 	}
 
-	assert.True(t, true == coconut.BlindVerify(params, vk, cmd.Sig(), cmd.BlindShowMats(), cmd.PubM()))
-	assert.True(t, true == coconut.BlindVerify(params, vk, blindVerify.Sig(), blindVerify.BlindShowMats(), blindVerify.PubM()))
+	assert.True(t, bool(coconut.BlindVerify(params, vk, cmd.Sig(), cmd.BlindShowMats(), cmd.PubM())))
+	assert.True(t, bool(coconut.BlindVerify(params, vk, blindVerify.Sig(), blindVerify.BlindShowMats(), blindVerify.PubM())))
 
 }

@@ -30,12 +30,18 @@ import (
 )
 
 var (
-	ErrMarshalMethod       = errors.New("Can't marshal this structure")
-	ErrMarshalTooLongArray = errors.New("The array is the struct has more than 255 elements")
-	ErrMarshalBSMArray     = errors.New("There are more than 15/23 private attributes")
-)
+	// ErrMarshalMethod represents generic marshal error/
+	ErrMarshalMethod = errors.New("Can't marshal this structure")
 
-// todo: marshal/unmarshal params?
+	// ErrMarshalTooLongArray is returned if slice to be encoded has more than 255 elements (size of uint8).
+	// There isn't really a point in trying to support longer structures.
+	ErrMarshalTooLongArray = errors.New("The array is the struct has more than 255 elements")
+
+	// ErrMarshalBSMArray is special case of error for marshaling BlindSignMats.
+	// It is only thrown when you try to encode the structure without any overhead
+	// and have more than MB/2-1 private attributes.
+	ErrMarshalBSMArray = errors.New("There are more than 15/23 private attributes")
+)
 
 // getBaseFromAttributes generates the base h from public attributes.
 // It is only used for Sign function that works exlusively on public attributes
@@ -175,7 +181,9 @@ func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
 	}
 	sig1 := Curve.ECP_fromBytes(data)
 	sig2Tilda := &elgamal.Encryption{}
-	sig2Tilda.UnmarshalBinary(data[eclen:])
+	if err := sig2Tilda.UnmarshalBinary(data[eclen:]); err != nil {
+		return err
+	}
 	bs.sig1 = sig1
 	bs.sig2Tilda = sig2Tilda
 	return nil
@@ -257,7 +265,8 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
 
 	// it depends here if we really care about the 'overhead' (and hence possible compatibility) of 2 bytes
-	// vs slightly more complicated implementation and limitation of maximum of number of attributes (15 for BN, 23 for BLS; basically MB/2-1)
+	// vs slightly more complicated implementation and limitation of maximum of number of attributes
+	// (15 for BN, 23 for BLS; basically MB/2-1)
 	if constants.MarshalEmbedHelperData {
 		data := make([]byte, eclen*(1+2*len(bsm.enc))+blen*(2+len(bsm.proof.rk)+len(bsm.proof.rm))+2)
 		bsm.cm.ToBytes(data, true)
@@ -280,39 +289,41 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 		copy(data[1+eclen*(1+2*len(bsm.enc)):], proofdata)
 		return data, nil
 
-	} else {
-		if len(bsm.enc) > constants.MB/2-1 {
-			return nil, ErrMarshalBSMArray
-		}
-		// we need to manually embbed the proof here since it is impossible to infer all its attributes on their own
-		// Cm || enc[0].c1 || enc[0].c2 || ... || rr || rk[0] || ... || rm[0] || ...
-		data := make([]byte, eclen*(1+2*len(bsm.enc))+blen*(2+len(bsm.proof.rk)+len(bsm.proof.rm)))
-		bsm.cm.ToBytes(data, true)
-		for i := range bsm.enc {
-			enciData, err := bsm.enc[i].MarshalBinary()
-			if err != nil || len(enciData) != 2*eclen {
-				return nil, err
-			}
-			copy(data[eclen*(1+2*i):], enciData)
-		}
-
-		// doing proof here rather than calling marshal on it as it is an invalid operation to marshal the proof on itself without embeding array lenghts
-
-		// reference to further in the data array for easier and more readable operations
-		proofdata := data[eclen*(1+2*len(bsm.enc)):]
-
-		bsm.proof.c.ToBytes(proofdata)
-		bsm.proof.rr.ToBytes(proofdata[blen:])
-
-		for i := range bsm.proof.rk {
-			bsm.proof.rk[i].ToBytes(proofdata[blen*(2+i):])
-		}
-		for i := range bsm.proof.rm {
-			bsm.proof.rm[i].ToBytes(proofdata[blen*(2+len(bsm.proof.rk)+i):])
-		}
-
-		return data, nil
 	}
+
+	if len(bsm.enc) > constants.MB/2-1 {
+		return nil, ErrMarshalBSMArray
+	}
+	// we need to manually embbed the proof here since it is impossible to infer all its attributes on their own
+	// Cm || enc[0].c1 || enc[0].c2 || ... || rr || rk[0] || ... || rm[0] || ...
+	data := make([]byte, eclen*(1+2*len(bsm.enc))+blen*(2+len(bsm.proof.rk)+len(bsm.proof.rm)))
+	bsm.cm.ToBytes(data, true)
+	for i := range bsm.enc {
+		enciData, err := bsm.enc[i].MarshalBinary()
+		if err != nil || len(enciData) != 2*eclen {
+			return nil, err
+		}
+		copy(data[eclen*(1+2*i):], enciData)
+	}
+
+	// doing proof here rather than calling marshal on it,
+	// as it is an invalid operation to marshal the proof on itself without embeding array lengths
+
+	// reference to further in the data array for easier and more readable operations
+	proofdata := data[eclen*(1+2*len(bsm.enc)):]
+
+	bsm.proof.c.ToBytes(proofdata)
+	bsm.proof.rr.ToBytes(proofdata[blen:])
+
+	for i := range bsm.proof.rk {
+		bsm.proof.rk[i].ToBytes(proofdata[blen*(2+i):])
+	}
+	for i := range bsm.proof.rm {
+		bsm.proof.rm[i].ToBytes(proofdata[blen*(2+len(bsm.proof.rk)+i):])
+	}
+
+	return data, nil
+
 }
 
 // UnmarshalBinary is an implementation of a method on the
@@ -327,68 +338,63 @@ func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 		enc := make([]*elgamal.Encryption, numEnc)
 		for i := range enc {
 			enc[i] = &elgamal.Encryption{}
-			err := enc[i].UnmarshalBinary(data[1+eclen*(1+i*2):])
-			if err != nil {
+			if err := enc[i].UnmarshalBinary(data[1+eclen*(1+i*2):]); err != nil {
 				return err
 			}
 		}
 		proof := &SignerProof{}
-		err := proof.UnmarshalBinary(data[1+eclen*(1+2*numEnc):])
-		if err != nil {
+		if err := proof.UnmarshalBinary(data[1+eclen*(1+2*numEnc):]); err != nil {
 			return err
 		}
 		bsm.cm = cm
 		bsm.enc = enc
 		bsm.proof = proof
 		return nil
-
-	} else {
-		// corectness of unmarshaling with the method depends on the below
-		if eclen != blen+1 {
-			return errors.New("Eclen != blen + 1 - something is terribly wrong. Changed implementation?")
-		}
-		cm := Curve.ECP_fromBytes(data)
-
-		numEnc := (len(data)%blen - 1) / 2
-		enc := make([]*elgamal.Encryption, numEnc)
-		for i := range enc {
-			enc[i] = &elgamal.Encryption{}
-			err := enc[i].UnmarshalBinary(data[eclen*(1+i*2):])
-			if err != nil {
-				return err
-			}
-		}
-		// reference to further in the data array for easier and more readable operations
-		proofdata := data[eclen*(1+2*numEnc):]
-
-		c := Curve.FromBytes(proofdata)
-		rr := Curve.FromBytes(proofdata[blen:])
-
-		// number of rk is the same as number of enc as both of them correspond to single private attribute
-		rk := make([]*Curve.BIG, numEnc)
-		for i := range rk {
-			rk[i] = Curve.FromBytes(proofdata[blen*(2+i):])
-		}
-
-		// the remaining bytes are used for rm
-		rmLenBytes := len(proofdata[blen*(2+numEnc):])
-		// just a sanity check. Realistically it should never, ever happen
-		if rmLenBytes%blen != 0 {
-			return constants.ErrUnmarshalLength
-		}
-		rmLen := rmLenBytes / blen
-		rm := make([]*Curve.BIG, rmLen)
-
-		for i := range rm {
-			rm[i] = Curve.FromBytes(proofdata[blen*(2+numEnc+i):])
-		}
-
-		proof := NewSignerProof(c, rr, rk, rm)
-		bsm.cm = cm
-		bsm.enc = enc
-		bsm.proof = proof
-		return nil
 	}
+	// corectness of unmarshaling with the method depends on the below
+	if eclen != blen+1 {
+		return errors.New("Eclen != blen + 1 - something is terribly wrong. Changed implementation?")
+	}
+	cm := Curve.ECP_fromBytes(data)
+
+	numEnc := (len(data)%blen - 1) / 2
+	enc := make([]*elgamal.Encryption, numEnc)
+	for i := range enc {
+		enc[i] = &elgamal.Encryption{}
+		if err := enc[i].UnmarshalBinary(data[eclen*(1+i*2):]); err != nil {
+			return err
+		}
+	}
+	// reference to further in the data array for easier and more readable operations
+	proofdata := data[eclen*(1+2*numEnc):]
+
+	c := Curve.FromBytes(proofdata)
+	rr := Curve.FromBytes(proofdata[blen:])
+
+	// number of rk is the same as number of enc as both of them correspond to single private attribute
+	rk := make([]*Curve.BIG, numEnc)
+	for i := range rk {
+		rk[i] = Curve.FromBytes(proofdata[blen*(2+i):])
+	}
+
+	// the remaining bytes are used for rm
+	rmLenBytes := len(proofdata[blen*(2+numEnc):])
+	// just a sanity check. Realistically it should never, ever happen
+	if rmLenBytes%blen != 0 {
+		return constants.ErrUnmarshalLength
+	}
+	rmLen := rmLenBytes / blen
+	rm := make([]*Curve.BIG, rmLen)
+
+	for i := range rm {
+		rm[i] = Curve.FromBytes(proofdata[blen*(2+numEnc+i):])
+	}
+
+	proof := NewSignerProof(c, rr, rk, rm)
+	bsm.cm = cm
+	bsm.enc = enc
+	bsm.proof = proof
+	return nil
 }
 
 // MarshalBinary is an implementation of a method on the
@@ -458,8 +464,7 @@ func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
 	kappa := Curve.ECP2_fromBytes(data)
 	nu := Curve.ECP_fromBytes(data[ec2len:])
 	proof := &VerifierProof{}
-	err := proof.UnmarshalBinary(data[ec2len+eclen:])
-	if err != nil {
+	if err := proof.UnmarshalBinary(data[ec2len+eclen:]); err != nil {
 		return err
 	}
 

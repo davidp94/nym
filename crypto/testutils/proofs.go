@@ -21,12 +21,9 @@ import (
 	"testing"
 
 	"github.com/jstuczyn/CoconutGo/constants"
-
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
-
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
@@ -34,7 +31,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// nolint: errcheck
+// nolint: lll
 func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
 	if ccw == nil {
 		return coconut.ConstructSignerProof(params.(*coconut.Params), gamma, encs, cm, k, r, pubM, privM)
@@ -42,7 +39,7 @@ func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.Schem
 	return ccw.ConstructSignerProof(params.(*coconutclient.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
-// nolint: errcheck
+// nolint: lll
 func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
 	if ccw == nil {
 		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, blindSignMats)
@@ -50,7 +47,7 @@ func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemePa
 	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, blindSignMats)
 }
 
-// nolint: errcheck
+// nolint: lll
 func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
 	if ccw == nil {
 		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, showMats)
@@ -59,6 +56,7 @@ func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.Scheme
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
+// nolint: lll
 func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 	tests := []struct {
 		pub  []string

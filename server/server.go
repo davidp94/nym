@@ -1,4 +1,20 @@
-// todo: change to server
+// server.go - Coconut IA Server
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Package server defines structure for coconut IA server.
 package server
 
 import (
@@ -18,6 +34,7 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+// Server defines all the required attributes for a coconut server.
 type Server struct {
 	cfg *config.Config
 
@@ -88,7 +105,7 @@ func New(cfg *config.Config) (*Server, error) {
 			serverLog.Errorf("Couldn't Load the keys")
 			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
 		}
-
+		serverLog.Notice("Loaded Coconut server keys from the files.")
 		// succesfully loaded keys - create params of appropriate length
 		params, err = coconut.Setup(len(sk.Y()))
 	}
@@ -130,6 +147,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 		haltedCh: make(chan interface{}),
 	}
+	serverLog.Noticef("Started %v Server", cfg.Server.Identifier)
 	return s, nil
 }
 

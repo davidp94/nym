@@ -224,6 +224,7 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 	}
 }
 
+// nolint: lll
 func TestVerifierProofMarshal(t *testing.T) {
 	tests := []struct {
 		pub  []string
@@ -315,7 +316,7 @@ func TestBlindShowMatsMarshal(t *testing.T) {
 		}
 
 		// sanity checks
-		assert.True(t, true == coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig))
-		assert.True(t, true == coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig))
+		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig)))
+		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig)))
 	}
 }

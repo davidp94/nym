@@ -20,7 +20,7 @@ package coconutclient
 import (
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
-	coconut "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"

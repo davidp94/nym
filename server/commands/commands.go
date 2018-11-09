@@ -25,40 +25,55 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: add length to EVERY packet sent, even if it can be easily implied
-
 const (
+	// GetVerificationKeyID is commandID for getting server's verification key.
 	GetVerificationKeyID CommandID = 100
-	SignID               CommandID = 101
-	VerifyID             CommandID = 102
-	BlindSignID          CommandID = 103
-	BlindVerifyID        CommandID = 104
+
+	// SignID is commandID for signing public attributes.
+	SignID CommandID = 101
+
+	// VerifyID is commandID for verifying a signature on public attributes.
+	VerifyID CommandID = 102
+
+	// BlindSignID is commandID for blindly signing public and private attributes.
+	BlindSignID CommandID = 103
+
+	// BlindVerifyID is commandID for verifying a blind signature on public and private attributes.
+	BlindVerifyID CommandID = 104
 )
 
+// Command defines interface that is implemented by all commands defined in the package.
+// todo: is this really restrictive enough?
 type Command interface {
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary(data []byte) error
 }
 
+// CommandID is wrapper for a byte defining ID of particular command.
 type CommandID byte
 
+// RawCommand encapsulates arbitrary marshaled command and ID that defines it.
 type RawCommand struct {
 	id      CommandID
 	payload []byte
 }
 
+// NewRawCommand creates new instance of RawCommand given ID and its payload.
 func NewRawCommand(id CommandID, payload []byte) *RawCommand {
 	return &RawCommand{id, payload}
 }
 
-func (c *RawCommand) Id() CommandID {
+// ID returns CommandID of RawCommand.
+func (c *RawCommand) ID() CommandID {
 	return c.id
 }
 
+// Payload returns Payload of RawCommand.
 func (c *RawCommand) Payload() []byte {
 	return c.payload
 }
 
+// ToBytes marshals RawCommand into a stream of bytes so that it could be turned into a packet.
 func (c *RawCommand) ToBytes() []byte {
 	b := make([]byte, 1+len(c.payload))
 	b[0] = byte(c.id)
@@ -66,6 +81,7 @@ func (c *RawCommand) ToBytes() []byte {
 	return b
 }
 
+// FromBytes creates a given Command object out of stream of bytes.
 func FromBytes(b []byte) Command {
 	id := CommandID(b[0])
 	payload := b[1:]
@@ -99,19 +115,23 @@ func FromBytes(b []byte) Command {
 	return cmd
 }
 
+// CommandRequest defines set of Command and chan that is used by client workers.
 type CommandRequest struct {
 	cmd   Command
 	retCh chan interface{}
 }
 
+// NewCommandRequest creates new instance of CommandRequest.
 func NewCommandRequest(cmd Command, ch chan interface{}) *CommandRequest {
 	return &CommandRequest{cmd: cmd, retCh: ch}
 }
 
+// RetCh returns return channel of CommandRequest.
 func (cr *CommandRequest) RetCh() chan interface{} {
 	return cr.retCh
 }
 
+// Cmd returns command of CommandRequest.
 func (cr *CommandRequest) Cmd() Command {
 	return cr.cmd
 }
@@ -119,14 +139,17 @@ func (cr *CommandRequest) Cmd() Command {
 // all the below commands are recovered from payload field in Command
 // id is used to determine which one to recover
 
+// Sign defines required parameters to perform a sign on public attributes.
 type Sign struct {
 	pubM []*Curve.BIG
 }
 
+// PubM returns set of public attributes from Sign command.
 func (s *Sign) PubM() []*Curve.BIG {
 	return s.pubM
 }
 
+// NewSign returns new instance of Sign command.
 func NewSign(pubM []*Curve.BIG) *Sign {
 	return &Sign{pubM}
 }
@@ -162,21 +185,30 @@ func (s *Sign) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
-// not sure if will end up being used as keys might be shared in a different way
+// Vk defines required parameters to perform a GetVerificationKey command
+// (which are none)
 type Vk struct{}
 
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
-func (v *Vk) MarshalBinary() ([]byte, error)    { return make([]byte, 0), nil }
 
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (v *Vk) MarshalBinary() ([]byte, error) { return make([]byte, 0), nil }
+
+// Verify defines required parameters to perform a verification of signature on public attributes.
 type Verify struct {
 	sig  *coconut.Signature
 	pubM []*Curve.BIG
 }
 
+// Sig returns signature from Verify command.
 func (v *Verify) Sig() *coconut.Signature {
 	return v.sig
 }
 
+// PubM returns public attributes from Verify command.
 func (v *Verify) PubM() []*Curve.BIG {
 	return v.pubM
 }
@@ -224,6 +256,7 @@ func (v *Verify) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
+// NewVerify returns new instance of Verify command.
 func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
 	return &Verify{
 		pubM: pubM,
@@ -231,6 +264,7 @@ func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
 	}
 }
 
+// BlindSign defines required parameters to perform a blind sign on private and public attributes.
 type BlindSign struct {
 	blindSignMats *coconut.BlindSignMats
 	gamma         *Curve.ECP
@@ -238,14 +272,17 @@ type BlindSign struct {
 	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
 }
 
+// BlindSignMats returns BlindSignMats part of BlindSign command.
 func (bs *BlindSign) BlindSignMats() *coconut.BlindSignMats {
 	return bs.blindSignMats
 }
 
+// Gamma returns Gamma part of BlindSign command.
 func (bs *BlindSign) Gamma() *Curve.ECP {
 	return bs.gamma
 }
 
+// PubM returns PubM part of BlindSign command.
 func (bs *BlindSign) PubM() []*Curve.BIG {
 	return bs.pubM
 }
@@ -297,6 +334,7 @@ func (bs *BlindSign) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
+// NewBlindSign returns new instance of a BlindSign command.
 func NewBlindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) *BlindSign {
 	if len(pubM) > 255 {
 		return nil
@@ -309,6 +347,7 @@ func NewBlindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM [
 	}
 }
 
+// BlindVerify defines required parameters to perform a verification of blind signature on private and public attributes
 type BlindVerify struct {
 	sig           *coconut.Signature
 	blindShowMats *coconut.BlindShowMats
@@ -316,14 +355,17 @@ type BlindVerify struct {
 	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
 }
 
+// BlindShowMats returns BlindShowMats part of BlindVerify command.
 func (bv *BlindVerify) BlindShowMats() *coconut.BlindShowMats {
 	return bv.blindShowMats
 }
 
+// Sig returns Sig part of BlindVerify command.
 func (bv *BlindVerify) Sig() *coconut.Signature {
 	return bv.sig
 }
 
+// PubM returns PubM part of BlindVerify command.
 func (bv *BlindVerify) PubM() []*Curve.BIG {
 	return bv.pubM
 }
@@ -385,6 +427,7 @@ func (bv *BlindVerify) MarshalBinary() ([]byte, error) {
 	return data, nil
 }
 
+// NewBlindVerify returns new instance of a BlindVerify command.
 func NewBlindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) *BlindVerify {
 	if len(pubM) > 255 {
 		return nil

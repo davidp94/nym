@@ -23,6 +23,8 @@ import (
 	"github.com/jstuczyn/CoconutGo/constants"
 )
 
+// todo: to be completely replaced by protobuf and grpc?
+
 // to be used by both client and server to send data
 
 const (
@@ -34,6 +36,7 @@ type header struct {
 	packetLength uint32
 }
 
+// Packet encapsulates a packet sent over the wire that contains some payload and a header
 type Packet struct {
 	header  *header
 	payload []byte
@@ -84,17 +87,18 @@ func (p *Packet) MarshalBinary() ([]byte, error) {
 	return b, nil
 }
 
+// Payload returns Payload part of the Packet.
 func (p *Packet) Payload() []byte {
 	return p.payload
 }
 
+// FromBytes parses byte stream and returns a corresponding packet.
 func FromBytes(data []byte) *Packet {
 	packet := &Packet{}
 	if packet.UnmarshalBinary(data) == nil {
 		return packet
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // NewPacket returns new instance of packet with provided payload
@@ -107,6 +111,3 @@ func NewPacket(payload []byte) *Packet {
 		payload: payload,
 	}
 }
-
-// set content
-// etc

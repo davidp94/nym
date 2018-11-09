@@ -42,11 +42,14 @@ const (
 	// ECP2Len represents number of bytes each ECP2 takes
 	ECP2Len = MB * 4
 
+	// SecretKeyType defines PEM Type for Coconut Secret Key
 	SecretKeyType = "COCONUT SECRET KEY"
 
+	// VerificationKeyType defines PEM Type for Coconut Verification Key
 	VerificationKeyType = "COCONUT VERIFICATION KEY"
 )
 
 var (
+	// ErrUnmarshalLength defines error returned when the length of byte stream differs from the expected value
 	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )

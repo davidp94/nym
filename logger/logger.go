@@ -1,3 +1,20 @@
+// logger.go - Coconut server logger.
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Package logger provides the functionalities for logging actions of coconut server.
 package logger
 
 import (
@@ -10,12 +27,9 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// log.Debugf("debug %s", Password("secret"))
-// log.Info("info")
-// log.Notice("notice")
-// log.Warning("warning")
-// log.Error("err")
-// log.Critical("crit")
+const (
+	fmtString = `%{color}%{time:15:04:05.000} %{module}/%{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`
+)
 
 // Logger struct is self-explanatory
 type Logger struct {
@@ -49,8 +63,7 @@ func (l *Logger) GetLogger(module string) *logging.Logger {
 // New returns new instance of logger
 func New(f string, level string, disable bool) *Logger {
 	// for now just constant formatting string; taken from library example
-	logFmt := logging.MustStringFormatter(
-		`%{color}%{time:15:04:05.000} %{module}/%{shortfunc} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}`)
+	logFmt := logging.MustStringFormatter(fmtString)
 
 	lvl, err := logLevelFromString(level)
 	if err != nil {

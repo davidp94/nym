@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/jstuczyn/CoconutGo/constants"
 
@@ -371,6 +372,7 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 }
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
+// nolint: lll
 func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, pubM []*Curve.BIG) VerificationResult {
 	G := params.G
 
@@ -506,7 +508,7 @@ func (sk *SecretKey) ToPEMFile(f string) error {
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
 func (sk *SecretKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(f); err == nil {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
 		blk, rest := pem.Decode(buf)
 		if len(rest) != 0 {
 			return fmt.Errorf("trailing garbage after PEM encoded secret key")
@@ -538,7 +540,7 @@ func (vk *VerificationKey) ToPEMFile(f string) error {
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
 func (vk *VerificationKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(f); err == nil {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
 		blk, rest := pem.Decode(buf)
 		if len(rest) != 0 {
 			return fmt.Errorf("trailing garbage after PEM encoded secret key")

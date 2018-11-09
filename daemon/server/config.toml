@@ -1,4 +1,4 @@
-# Katzenpost server configuration file.
+# Coconut IA server configuration file.
 
 #
 # The Server section contains mandatory information common to all nodes.
@@ -11,7 +11,7 @@
 
   # Addresses are the IP address/port combinations that the server will bind
   # to for incoming connections.
-  Addresses = [ ":4000" ]
+  Addresses = [ "localhost:4000" ]
 
   # MaximumAttributes specifies the maximum number of attributes the server will sign.
   MaximumAttributes = 5
@@ -28,7 +28,7 @@
   Disable = false
 
   # File specifies the log file, if omitted stdout will be used.
-  # File = "/var/log/katzenpost.log"
+  # File = "/var/log/coconutIA.log"
 
   # Level specifies the log level out of `ERROR`, `WARNING`, `NOTICE`,
   # `INFO` and `DEBUG`.
@@ -36,6 +36,3 @@
   # Warning: The `DEBUG` log level is unsafe for production use.
   Level = "DEBUG"
 
-#
-# The Provider secton specifies the Provider configuration.
-#
