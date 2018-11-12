@@ -120,17 +120,17 @@ func TestSignerProofMarshal(t *testing.T) {
 
 		h, _ := utils.HashBytesToG1(amcl.SHA512, b)
 
-		_, gamma := elgamal.Keygen(params.G)
+		_, egPub := elgamal.Keygen(params.G)
 
 		encs := make([]*elgamal.Encryption, len(test.priv))
 		ks := make([]*Curve.BIG, len(test.priv))
 		for i := range test.priv {
-			c, k := elgamal.Encrypt(params.G, gamma, privBig[i], h)
+			c, k := elgamal.Encrypt(params.G, egPub, privBig[i], h)
 			encs[i] = c
 			ks[i] = k
 		}
 
-		signerProof, err := coconut.ConstructSignerProof(params, gamma, encs, cm, ks, r, pubBig, privBig)
+		signerProof, err := coconut.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
 		assert.Nil(t, err)
 
 		data, err := signerProof.MarshalBinary()
@@ -149,8 +149,8 @@ func TestSignerProofMarshal(t *testing.T) {
 		}
 
 		// sanity check
-		assert.True(t, coconut.VerifySignerProof(params, gamma, coconut.NewBlindSignMats(cm, encs, signerProof)))
-		assert.True(t, coconut.VerifySignerProof(params, gamma, coconut.NewBlindSignMats(cm, encs, recoveredProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, signerProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, recoveredProof)))
 
 	}
 }
@@ -189,8 +189,8 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 			privBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.priv[i])
 		}
 
-		_, gamma := elgamal.Keygen(params.G)
-		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
+		_, egPub := elgamal.Keygen(params.G)
+		blindSignMats, _ := coconut.PrepareBlindSign(params, egPub, pubBig, privBig)
 
 		data, err := blindSignMats.MarshalBinary()
 		if !constants.MarshalEmbedHelperData && len(test.priv) > constants.MB/2-1 {
@@ -208,19 +208,19 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 			assert.True(t, blindSignMats.Enc()[i].C2().Equals(recoveredBlindSignMats.Enc()[i].C2()))
 		}
 
-		assert.Zero(t, Curve.Comp(blindSignMats.Proof().C(), blindSignMats.Proof().C()))
-		assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rr(), blindSignMats.Proof().Rr()))
+		assert.Zero(t, Curve.Comp(blindSignMats.Proof().C(), recoveredBlindSignMats.Proof().C()))
+		assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rr(), recoveredBlindSignMats.Proof().Rr()))
 		for i := range blindSignMats.Proof().Rk() {
-			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rk()[i], blindSignMats.Proof().Rk()[i]))
+			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rk()[i], recoveredBlindSignMats.Proof().Rk()[i]))
 		}
 
 		for i := range blindSignMats.Proof().Rm() {
-			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rm()[i], blindSignMats.Proof().Rm()[i]))
+			assert.Zero(t, Curve.Comp(blindSignMats.Proof().Rm()[i], recoveredBlindSignMats.Proof().Rm()[i]))
 		}
 
 		// sanity check
-		assert.True(t, coconut.VerifySignerProof(params, gamma, blindSignMats))
-		assert.True(t, coconut.VerifySignerProof(params, gamma, recoveredBlindSignMats))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, blindSignMats))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, recoveredBlindSignMats))
 	}
 }
 

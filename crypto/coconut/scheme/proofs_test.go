@@ -72,18 +72,18 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 
 				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)
 
-				_, gamma := elgamal.Keygen(params.G)
+				_, egPub := elgamal.Keygen(params.G)
 
 				encs := make([]*elgamal.Encryption, privn)
 				ks := make([]*Curve.BIG, privn)
 				for i := range privs {
-					c, k := elgamal.Encrypt(params.G, gamma, privs[i], h)
+					c, k := elgamal.Encrypt(params.G, egPub, privs[i], h)
 					encs[i] = c
 					ks[i] = k
 				}
 
 				b.StartTimer()
-				_, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				_, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
 				if err != nil {
 					panic(err)
 				}
@@ -117,20 +117,20 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 
 				h, _ := utils.HashBytesToG1(amcl.SHA512, cmb)
 
-				_, gamma := elgamal.Keygen(params.G)
+				_, egPub := elgamal.Keygen(params.G)
 
 				encs := make([]*elgamal.Encryption, privn)
 				ks := make([]*Curve.BIG, privn)
 				for i := range privs {
-					c, k := elgamal.Encrypt(params.G, gamma, privs[i], h)
+					c, k := elgamal.Encrypt(params.G, egPub, privs[i], h)
 					encs[i] = c
 					ks[i] = k
 				}
 
-				signerProof, _ := ConstructSignerProof(params, gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				signerProof, _ := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
 				bsm := NewBlindSignMats(cm, encs, signerProof)
 				b.StartTimer()
-				isValid := VerifySignerProof(params, gamma, bsm)
+				isValid := VerifySignerProof(params, egPub.Gamma, bsm)
 				if !isValid {
 					panic(isValid)
 				}

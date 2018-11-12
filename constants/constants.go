@@ -24,32 +24,38 @@ import (
 )
 
 const (
-	// DEBUG sets debug status
+	// DEBUG sets debug status.
 	DEBUG = true
 
-	// MarshalEmbedHelperData decides whether to embed an additional byte specifying lenghts of embedded arrays
+	// MarshalEmbedHelperData decides whether to embed an additional byte specifying lenghts of embedded arrays.
 	MarshalEmbedHelperData = true
 
-	// MB represents number of bytes each BIG takes
+	// MB represents number of bytes each BIG takes.
 	MB = int(Curve.MODBYTES)
 
-	// BIGLen is alias for MB
+	// BIGLen is alias for MB.
 	BIGLen = MB
 
-	// ECPLen represents number of bytes each ECP takes
+	// ECPLen represents number of bytes each ECP takes.
 	ECPLen = MB + 1
 
-	// ECP2Len represents number of bytes each ECP2 takes
+	// ECP2Len represents number of bytes each ECP2 takes.
 	ECP2Len = MB * 4
 
-	// SecretKeyType defines PEM Type for Coconut Secret Key
+	// SecretKeyType defines PEM Type for Coconut Secret Key.
 	SecretKeyType = "COCONUT SECRET KEY"
 
-	// VerificationKeyType defines PEM Type for Coconut Verification Key
+	// VerificationKeyType defines PEM Type for Coconut Verification Key.
 	VerificationKeyType = "COCONUT VERIFICATION KEY"
+
+	// ElGamalPublicKeyType defines PEM Type for Coconut-specific ElGamal Public Key.
+	ElGamalPublicKeyType = "COCONUT-ELGAMAL PUBLIC KEY"
+
+	// ElGamalPrivateKeyType defines PEM Type for Coconut-specific ElGamal Private Key.
+	ElGamalPrivateKeyType = "COCONUT-ELGAMAL PRIVATE KEY"
 )
 
 var (
-	// ErrUnmarshalLength defines error returned when the length of byte stream differs from the expected value
+	// ErrUnmarshalLength defines error returned when the length of byte stream differs from the expected value.
 	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )

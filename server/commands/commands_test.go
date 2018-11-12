@@ -37,16 +37,43 @@ func TestBlindSignMarshal(t *testing.T) {
 		Curve.Randomnum(G.Order(), G.Rng()),
 		Curve.Randomnum(G.Order(), G.Rng()),
 	}
-	_, gamma := elgamal.Keygen(G)
-	blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubM, privM)
+	_, egPub := elgamal.Keygen(G)
+	blindSignMats, _ := coconut.PrepareBlindSign(params, egPub, pubM, privM)
 
-	cmd := commands.NewBlindSign(blindSignMats, gamma, pubM)
+	cmd := commands.NewBlindSign(blindSignMats, egPub, pubM)
 	data, err := cmd.MarshalBinary()
 	assert.Nil(t, err)
 
 	blindSign := commands.BlindSign{}
 	assert.Nil(t, blindSign.UnmarshalBinary(data))
-	// todo: deep compare of all elems of bs
+
+	for i := range cmd.PubM() {
+		assert.Zero(t, Curve.Comp(cmd.PubM()[i], blindSign.PubM()[i]))
+	}
+
+	assert.True(t, cmd.EgPub().G.Equals(blindSign.EgPub().G))
+	assert.Zero(t, Curve.Comp(cmd.EgPub().P, blindSign.EgPub().P))
+	assert.True(t, cmd.EgPub().Gamma.Equals(blindSign.EgPub().Gamma))
+
+	assert.True(t, cmd.BlindSignMats().Cm().Equals(blindSign.BlindSignMats().Cm()))
+	for i := range cmd.BlindSignMats().Enc() {
+		assert.True(t, cmd.BlindSignMats().Enc()[i].C1().Equals(blindSign.BlindSignMats().Enc()[i].C1()))
+		assert.True(t, cmd.BlindSignMats().Enc()[i].C2().Equals(blindSign.BlindSignMats().Enc()[i].C2()))
+	}
+
+	assert.Zero(t, Curve.Comp(cmd.BlindSignMats().Proof().C(), blindSign.BlindSignMats().Proof().C()))
+	assert.Zero(t, Curve.Comp(cmd.BlindSignMats().Proof().Rr(), blindSign.BlindSignMats().Proof().Rr()))
+	for i := range cmd.BlindSignMats().Proof().Rk() {
+		assert.Zero(t, Curve.Comp(cmd.BlindSignMats().Proof().Rk()[i], blindSign.BlindSignMats().Proof().Rk()[i]))
+	}
+
+	for i := range cmd.BlindSignMats().Proof().Rm() {
+		assert.Zero(t, Curve.Comp(cmd.BlindSignMats().Proof().Rm()[i], blindSign.BlindSignMats().Proof().Rm()[i]))
+	}
+
+	// sanity check
+	assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, blindSignMats))
+	assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, blindSign.BlindSignMats()))
 
 }
 

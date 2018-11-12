@@ -23,11 +23,11 @@ import (
 )
 
 // ElGamalKeygen generates private and public keys required for ElGamal encryption scheme.
-func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
+func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*elgamal.PrivateKey, *elgamal.PublicKey) {
 	params.Lock()
-	d, gamma := elgamal.Keygen(params.Params.G)
+	pk, pub := elgamal.Keygen(params.Params.G)
 	params.Unlock()
-	return d, gamma
+	return pk, pub
 }
 
 // ElGamalEncrypt encrypts the given message in the form of h^m,
@@ -35,12 +35,12 @@ func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*Curve.BIG, *Curve.ECP) {
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
 // nolint: lll
-func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
+func (ccw *Worker) ElGamalEncrypt(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
 	// we had a choice of either having multiple encryptions in parallel or g1muls inside them
 	// having both would require changing entire worker structure to perhaps have some priority queues
 	// and somehow detect deadlocks (say there's a single worker which works on encryption, then it spawns G1mulpacket,
 	// which worker is gonna read it and how if they are stuck waiting for said results?)
-	p, g1, rng := params.P(), params.G1(), params.G.Rng()
+	gamma, p, g1, rng := pub.Gamma, params.P(), params.G1(), params.G.Rng()
 
 	params.Lock()
 	k := Curve.Randomnum(p, rng)
@@ -58,14 +58,14 @@ func (ccw *Worker) ElGamalEncrypt(params *MuxParams, gamma *Curve.ECP, m *Curve.
 // Ideally this method should have been changed into function and placed in jobpacket package,
 // but that would cause a cyclic dependency (coconutclient imports jobpacket already).
 // nolint: lll
-func (ccw *Worker) makeElGamalEncryptionOp(params *MuxParams, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
+func (ccw *Worker) makeElGamalEncryptionOp(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
 	return func() (interface{}, error) {
-		return ccw.ElGamalEncrypt(params, gamma, m, h), nil
+		return ccw.ElGamalEncrypt(params, pub, m, h), nil
 	}
 }
 
 // ElGamalDecrypt takes the ElGamal encryption of a message and returns a point on the G1 curve
 // that represents original h^m.
-func (ccw *Worker) ElGamalDecrypt(params *MuxParams, d *Curve.BIG, enc *elgamal.Encryption) *Curve.ECP {
-	return elgamal.Decrypt(params.Params.G, d, enc)
+func (ccw *Worker) ElGamalDecrypt(params *MuxParams, pk *elgamal.PrivateKey, enc *elgamal.Encryption) *Curve.ECP {
+	return elgamal.Decrypt(params.Params.G, pk, enc)
 }

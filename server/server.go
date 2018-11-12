@@ -85,10 +85,14 @@ func New(cfg *config.Config) (*Server, error) {
 		serverLog.Debug("Generated params")
 
 		sk, vk, err = coconut.Keygen(params)
+		if err != nil {
+			return nil, err
+		}
 		serverLog.Debug("Generated new keys")
 
 		if sk.ToPEMFile(cfg.Server.SecretKeyFile) != nil || vk.ToPEMFile(cfg.Server.VerificationKeyFile) != nil {
 			serverLog.Error("Couldn't write new keys to the files")
+			return nil, errors.New("Couldn't write new keys to the files")
 		}
 
 		serverLog.Notice("Written new keys to the files")
@@ -108,6 +112,9 @@ func New(cfg *config.Config) (*Server, error) {
 		serverLog.Notice("Loaded Coconut server keys from the files.")
 		// succesfully loaded keys - create params of appropriate length
 		params, err = coconut.Setup(len(sk.Y()))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	coconutworkers := make([]*coconutclient.Worker, cfg.Debug.NumCoconutWorkers)

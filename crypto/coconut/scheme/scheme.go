@@ -192,7 +192,8 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 // It returns commitment to the private and public attributes,
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
-func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
+// nolint: lll
+func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
 	G, p, g1, hs, rng := params.G, params.p, params.g1, params.hs, params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -227,12 +228,12 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 	ks := make([]*Curve.BIG, len(privM))
 	// can't easily encrypt in parallel since random number generator object is shared between encryptions
 	for i := range privM {
-		c, k := elgamal.Encrypt(G, gamma, privM[i], h)
+		c, k := elgamal.Encrypt(G, egPub, privM[i], h)
 		encs[i] = c
 		ks[i] = k
 	}
 
-	signerProof, err := ConstructSignerProof(params, gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +246,7 @@ func PrepareBlindSign(params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*BlindedSignature, error) {
+func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindedSignature, error) {
 	// todo: can optimize by calculating first pubM * yj and then do single G1mul rather than two of them
 
 	hs := params.hs
@@ -253,7 +254,7 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 	if len(blindSignMats.enc)+len(pubM) > len(hs) {
 		return nil, ErrBlindSignParams
 	}
-	if !VerifySignerProof(params, gamma, blindSignMats) {
+	if !VerifySignerProof(params, egPub.Gamma, blindSignMats) {
 		return nil, ErrBlindSignProof
 	}
 
@@ -299,9 +300,9 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, gamm
 }
 
 // Unblind unblinds the blinded Coconut credential.
-func Unblind(params *Params, blindedSignature *BlindedSignature, d *Curve.BIG) *Signature {
+func Unblind(params *Params, blindedSignature *BlindedSignature, egPk *elgamal.PrivateKey) *Signature {
 	G := params.G
-	sig2 := elgamal.Decrypt(G, d, blindedSignature.sig2Tilda)
+	sig2 := elgamal.Decrypt(G, egPk, blindedSignature.sig2Tilda)
 	return &Signature{
 		sig1: blindedSignature.sig1,
 		sig2: sig2,

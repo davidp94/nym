@@ -72,7 +72,7 @@ func (ccw *Worker) worker() {
 				}
 				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, v.PubM())
 				if err != nil {
-					ccw.log.Error("Error while signing message")
+					ccw.log.Errorf("Error while signing message: %v", err)
 					cmdReq.RetCh() <- err
 					continue
 				}
@@ -91,9 +91,9 @@ func (ccw *Worker) worker() {
 					cmdReq.RetCh() <- nil
 					continue
 				}
-				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, v.BlindSignMats(), v.Gamma(), v.PubM())
+				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, v.BlindSignMats(), v.EgPub(), v.PubM())
 				if err != nil {
-					ccw.log.Error("Error while signing message")
+					ccw.log.Errorf("Error while signing message: %v", err)
 					cmdReq.RetCh() <- err
 					continue
 				}

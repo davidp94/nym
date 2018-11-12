@@ -165,7 +165,7 @@ func (ccw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
 	p, g1, hs, rng := params.P(), params.G1(), params.Hs(), params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -205,7 +205,7 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []
 
 	for i := range privM {
 		encsChs[i] = make(chan interface{}, 1)
-		ccw.jobQueue <- jobpacket.New(encsChs[i], ccw.makeElGamalEncryptionOp(params, gamma, privM[i], h))
+		ccw.jobQueue <- jobpacket.New(encsChs[i], ccw.makeElGamalEncryptionOp(params, egPub, privM[i], h))
 	}
 
 	for i := range privM {
@@ -216,7 +216,7 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []
 	}
 
 	// TODO: CCW.PROOFS
-	signerProof, err := ccw.ConstructSignerProof(params, gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := ccw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
@@ -225,13 +225,13 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, gamma *Curve.ECP, pubM []
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	p, hs := params.P(), params.Hs()
 
 	if len(blindSignMats.Enc())+len(pubM) > len(hs) {
 		return nil, coconut.ErrBlindSignParams
 	}
-	if !ccw.VerifySignerProof(params, gamma, blindSignMats) {
+	if !ccw.VerifySignerProof(params, egPub.Gamma, blindSignMats) {
 		return nil, coconut.ErrBlindSignProof
 	}
 
@@ -282,9 +282,9 @@ func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSign
 
 // Unblind unblinds the blinded Coconut credential.
 // nolint: lll
-func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, d *Curve.BIG) *coconut.Signature {
+func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPk *elgamal.PrivateKey) *coconut.Signature {
 	// there are no expensive operations that could be parallelized in sign
-	return coconut.Unblind(params.Params, blindedSignature, d)
+	return coconut.Unblind(params.Params, blindedSignature, egPk)
 }
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes

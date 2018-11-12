@@ -35,6 +35,8 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+// todo: onnewconn in goroutine or something to not block on multiple clients
+
 // Listener represents the Coconut Server listener
 type Listener struct {
 	cfg *config.Config
@@ -106,7 +108,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	// todo deadlines etc
 	defer func() {
 		l.log.Debugf("Closing Connection to %v", conn.RemoteAddr())
-		err := l.l.Close()
+		err := conn.Close()
 		if err != nil {
 			l.log.Noticef("%v", err)
 		}
@@ -151,6 +153,7 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 			return
 		}
 	}
+
 	l.log.Error("Couldn't reply to the client") // conn will close regardless after this
 }
 

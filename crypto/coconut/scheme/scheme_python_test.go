@@ -20,14 +20,12 @@ import (
 	"testing"
 
 	"github.com/jstuczyn/CoconutGo/constants"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	"github.com/stretchr/testify/assert"
 )
 
 // todo: wait for George's fix for hashG1 to know which solution to choose
@@ -405,7 +403,6 @@ func TestCoconut(t *testing.T) {
 	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
 		return
 	}
-
 	// secret key components
 	xHex := "076501B5E73FA81B28FAB06EE3F6929E6AE4DB9461A49930C49EF1B28A625DD2"
 	y0Hex := "0CE30F26C29ADBE06AE98D9B49DB3FF323C8100072298E9A58AC347E9BE59F36"
@@ -484,7 +481,11 @@ func TestCoconut(t *testing.T) {
 
 	// elgamal keypair
 	d := BIGFromHex(t, dHex)
+	egPriv := &elgamal.PrivateKey{D: d}
+
 	gamma := Curve.G1mul(g1, d)
+	p := BIGFromHex(t, "2523648240000001BA344D8000000007FF9F800000000010A10000000000000D")
+	egPub := &elgamal.PublicKey{P: p, G: g1, Gamma: gamma}
 
 	r := BIGFromHex(t, rHex)
 	ks := recoverBIGSlice(t, k1Hex, k2Hex)
@@ -523,7 +524,7 @@ func TestCoconut(t *testing.T) {
 	}
 	assert.Zero(t, Curve.Comp(rrSExp, bsm.proof.rr))
 
-	blindedSig, err := BlindSign(params, sk, bsm, gamma, pubM)
+	blindedSig, err := BlindSign(params, sk, bsm, egPub, pubM)
 	assert.Nil(t, err)
 
 	// expected:
@@ -535,7 +536,7 @@ func TestCoconut(t *testing.T) {
 	assert.True(t, blindSig2C1Exp.Equals(blindedSig.sig2Tilda.C1()))
 	assert.True(t, blindSig2C2Exp.Equals(blindedSig.sig2Tilda.C2()))
 
-	sig := Unblind(params, blindedSig, d)
+	sig := Unblind(params, blindedSig, egPriv)
 
 	sig2Exp := ECPFromHex(t, sig2Hex)
 	assert.True(t, blindSig1Exp.Equals(sig.sig1))

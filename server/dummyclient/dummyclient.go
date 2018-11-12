@@ -98,8 +98,8 @@ func verify(pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	return true
 }
 
-func blindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) *coconut.BlindedSignature {
-	cmd := commands.NewBlindSign(blindSignMats, gamma, pubM)
+func blindSign(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) *coconut.BlindedSignature {
+	cmd := commands.NewBlindSign(blindSignMats, egPub, pubM)
 	resp := makeAndSendPacket(cmd, commands.BlindSignID)
 
 	sig := &coconut.BlindedSignature{}
@@ -125,15 +125,29 @@ func main() {
 	G := params.G
 	pubM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
 	privM := []*Curve.BIG{Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng()), Curve.Randomnum(G.Order(), G.Rng())}
-	d, gamma := elgamal.Keygen(G)
-	blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubM, privM)
+	egPriv, egPub := elgamal.Keygen(G)
+	blindSignMats, _ := coconut.PrepareBlindSign(params, egPub, pubM, privM)
 
-	blindSig := blindSign(blindSignMats, gamma, pubM)
-	sig := coconut.Unblind(params, blindSig, d)
+	normalSig := getSignature(pubM)
+	_ = normalSig
+
+	time.Sleep(5 * time.Second)
+
+	blindSig := blindSign(blindSignMats, egPub, pubM)
+
+	time.Sleep(5 * time.Second)
+
+	sig := coconut.Unblind(params, blindSig, egPriv)
 	rSig := coconut.Randomize(params, sig)
 	vk := getVks()
+
+	time.Sleep(5 * time.Second)
+
 	blindShowMats, _ := coconut.ShowBlindSignature(params, vk, rSig, privM)
 
 	clientLog.Notice("Verify Result:", verify(append(privM, pubM...), rSig)) // reveal all private attributes
+
+	time.Sleep(5 * time.Second)
+
 	clientLog.Notice("BlindVerify Result:", blindVerify(blindShowMats, rSig, pubM))
 }

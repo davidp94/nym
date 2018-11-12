@@ -19,7 +19,12 @@
 package elgamal
 
 import (
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -37,6 +42,137 @@ import (
 var (
 	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )
+
+// PublicKey represents an ElGamal public key.
+type PublicKey struct {
+	P     *Curve.BIG // this attribute is redundant as it is implied from the curve used, but is introduced for consistency sake.
+	G     *Curve.ECP // this attribute is redundant as it is implied from the curve used, but is introduced for consistency sake.
+	Gamma *Curve.ECP
+}
+
+// PrivateKey represents an ElGamal private key.
+type PrivateKey struct {
+	D *Curve.BIG
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (pub *PublicKey) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	data := make([]byte, blen+2*eclen)
+	pub.P.ToBytes(data)
+	pub.G.ToBytes(data[blen:], true)
+	pub.Gamma.ToBytes(data[blen+eclen:], true)
+
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (pub *PublicKey) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+
+	if len(data) < blen+2*eclen {
+		return ErrUnmarshalLength
+	}
+	p := Curve.FromBytes(data)
+	g := Curve.ECP_fromBytes(data[blen:])
+	gamma := Curve.ECP_fromBytes(data[blen+eclen:])
+
+	pub.P = p
+	pub.G = g
+	pub.Gamma = gamma
+	return nil
+}
+
+// ToPEMFile writes out the verification key to a PEM file at path f.
+func (pub *PublicKey) ToPEMFile(f string) error {
+	b, err := pub.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	blk := &pem.Block{
+		Type:  constants.ElGamalPublicKeyType,
+		Bytes: b,
+	}
+	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (pub *PublicKey) FromPEMFile(f string) error {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
+		blk, rest := pem.Decode(buf)
+		if len(rest) != 0 {
+			return fmt.Errorf("trailing garbage after PEM encoded secret key")
+		}
+		if blk.Type != constants.ElGamalPublicKeyType {
+			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
+		}
+		if pub.UnmarshalBinary(blk.Bytes) != nil {
+			return errors.New("failed to read public key from PEM file")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (pk *PrivateKey) MarshalBinary() ([]byte, error) {
+	blen := constants.BIGLen
+
+	data := make([]byte, blen)
+	pk.D.ToBytes(data)
+	return data, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (pk *PrivateKey) UnmarshalBinary(data []byte) error {
+	blen := constants.BIGLen
+
+	if len(data) < blen {
+		return ErrUnmarshalLength
+	}
+	pk.D = Curve.FromBytes(data)
+	return nil
+}
+
+// ToPEMFile writes out the secret key to a PEM file at path f.
+func (pk *PrivateKey) ToPEMFile(f string) error {
+	b, err := pk.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	blk := &pem.Block{
+		Type:  constants.ElGamalPrivateKeyType,
+		Bytes: b,
+	}
+	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (pk *PrivateKey) FromPEMFile(f string) error {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
+		blk, rest := pem.Decode(buf)
+		if len(rest) != 0 {
+			return fmt.Errorf("trailing garbage after PEM encoded secret key")
+		}
+		if blk.Type != constants.ElGamalPrivateKeyType {
+			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
+		}
+		if pk.UnmarshalBinary(blk.Bytes) != nil {
+			return errors.New("failed to read private key from PEM file")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}
 
 // EncryptionResult encapsulates entire result of ElGamal encryption, including random k.
 type EncryptionResult struct {
@@ -108,20 +244,20 @@ func NewEncryptionFromPoints(c1 *Curve.ECP, c2 *Curve.ECP) *Encryption {
 // Keygen generates private and public keys required for ElGamal encryption scheme.
 // Passing coconut.Params as an argument would cause issues with cyclic dependencies,
 // passing BpGroup in that case is sufficient.
-func Keygen(G *bpgroup.BpGroup) (*Curve.BIG, *Curve.ECP) {
+func Keygen(G *bpgroup.BpGroup) (*PrivateKey, *PublicKey) {
 	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
 
 	d := Curve.Randomnum(p, rng)
 	gamma := Curve.G1mul(g1, d)
-	return d, gamma
+	return &PrivateKey{d}, &PublicKey{p, g1, gamma}
 }
 
 // Encrypt encrypts the given message in the form of h^m,
 // where h is a point on the G1 curve using the given public key.
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
-func Encrypt(G *bpgroup.BpGroup, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) (*Encryption, *Curve.BIG) {
-	p, g1, rng := G.Order(), G.Gen1(), G.Rng()
+func Encrypt(G *bpgroup.BpGroup, pub *PublicKey, m *Curve.BIG, h *Curve.ECP) (*Encryption, *Curve.BIG) {
+	gamma, p, g1, rng := pub.Gamma, pub.P, pub.G, G.Rng()
 
 	k := Curve.Randomnum(p, rng)
 	a := Curve.G1mul(g1, k)
@@ -133,7 +269,9 @@ func Encrypt(G *bpgroup.BpGroup, gamma *Curve.ECP, m *Curve.BIG, h *Curve.ECP) (
 
 // Decrypt takes the ElGamal encryption of a message and returns a point on the G1 curve
 // that represents original h^m.
-func Decrypt(G *bpgroup.BpGroup, d *Curve.BIG, enc *Encryption) *Curve.ECP {
+func Decrypt(G *bpgroup.BpGroup, pk *PrivateKey, enc *Encryption) *Curve.ECP {
+	d := pk.D
+
 	dec := Curve.NewECP()
 	dec.Copy(enc.c2)
 	dec.Sub(Curve.G1mul(enc.c1, d))

@@ -22,6 +22,7 @@ package commands
 import (
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -267,7 +268,7 @@ func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
 // BlindSign defines required parameters to perform a blind sign on private and public attributes.
 type BlindSign struct {
 	blindSignMats *coconut.BlindSignMats
-	gamma         *Curve.ECP
+	egPub         *elgamal.PublicKey
 	pubM          []*Curve.BIG
 	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
 }
@@ -277,9 +278,14 @@ func (bs *BlindSign) BlindSignMats() *coconut.BlindSignMats {
 	return bs.blindSignMats
 }
 
-// Gamma returns Gamma part of BlindSign command.
-func (bs *BlindSign) Gamma() *Curve.ECP {
-	return bs.gamma
+// // Gamma returns Gamma part of BlindSign command.
+// func (bs *BlindSign) Gamma() *Curve.ECP {
+// 	return bs.gamma
+// }
+
+// EgPub returns client's ElGamal Public Key
+func (bs *BlindSign) EgPub() *elgamal.PublicKey {
+	return bs.egPub
 }
 
 // PubM returns PubM part of BlindSign command.
@@ -298,14 +304,19 @@ func (bs *BlindSign) UnmarshalBinary(data []byte) error {
 	for i := range pubM {
 		pubM[i] = Curve.FromBytes(data[1+i*blen:])
 	}
-	gamma := Curve.ECP_fromBytes(data[1+len(pubM)*blen:])
+	egPub := &elgamal.PublicKey{}
+	err := egPub.UnmarshalBinary(data[1+len(pubM)*blen:])
+	if err != nil {
+		return err
+	}
+
 	blindSignMats := &coconut.BlindSignMats{}
-	err := blindSignMats.UnmarshalBinary(data[1+len(pubM)*blen+eclen:])
+	err = blindSignMats.UnmarshalBinary(data[1+(1+len(pubM))*blen+2*eclen:])
 	if err != nil {
 		return err
 	}
 	bs.blindSignMats = blindSignMats
-	bs.gamma = gamma
+	bs.egPub = egPub
 	bs.pubM = pubM
 	bs.pubMLength = pubMLength
 
@@ -323,25 +334,31 @@ func (bs *BlindSign) MarshalBinary() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	data := make([]byte, len(bsmData)+eclen+len(bs.pubM)*blen+1)
+	data := make([]byte, len(bsmData)+2*eclen+(1+len(bs.pubM))*blen+1)
 	data[0] = bs.pubMLength
 	for i := range bs.pubM {
 		bs.pubM[i].ToBytes(data[1+i*blen:])
 	}
-	bs.gamma.ToBytes(data[1+len(bs.pubM)*blen:], true)
-	copy(data[1+len(bs.pubM)*blen+eclen:], bsmData)
+
+	egPubData, err := bs.egPub.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
+	copy(data[1+len(bs.pubM)*blen:], egPubData)
+	copy(data[1+(1+len(bs.pubM))*blen+2*eclen:], bsmData)
 
 	return data, nil
 }
 
 // NewBlindSign returns new instance of a BlindSign command.
-func NewBlindSign(blindSignMats *coconut.BlindSignMats, gamma *Curve.ECP, pubM []*Curve.BIG) *BlindSign {
+func NewBlindSign(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) *BlindSign {
 	if len(pubM) > 255 {
 		return nil
 	}
 	return &BlindSign{
 		blindSignMats: blindSignMats,
-		gamma:         gamma,
+		egPub:         egPub,
 		pubM:          pubM,
 		pubMLength:    uint8(len(pubM)),
 	}
