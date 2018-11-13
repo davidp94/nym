@@ -50,7 +50,7 @@ func main() {
 	pubM := getRandomAttributes(G, 3)
 
 	sig := c.SignAttributes(pubM)
-
+	_ = sig
 	<-haltCh
 
 	fmt.Println("Received SIGTERM...")

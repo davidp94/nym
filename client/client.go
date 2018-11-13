@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
@@ -38,9 +40,10 @@ type Client struct {
 
 // todo: think about what is going to be used down the line and consider using interface{} instead for channels
 
-type signResponse struct {
-	sig      *coconut.Signature
-	serverID int // will be needed for threshold aggregation
+// all we receive are either vk/sigs/blindsigs and all of them require ID (if treshold is used)
+type response struct {
+	marshaledObj []byte
+	serverID     int // will be needed for threshold aggregation
 }
 
 type request struct {
@@ -80,14 +83,8 @@ func readResponse(conn net.Conn) (*packet.Packet, error) {
 	return packet.FromBytes(packetOutBytes), nil
 }
 
-func (c *Client) sendSignRequests(pubM []*Curve.BIG, sigCh chan<- signResponse, maxRequests int) chan<- request {
+func (c *Client) sendRequests(packetBytes []byte, respCh chan<- response, maxRequests int) chan<- request {
 	ch := make(chan request)
-	cmd := commands.NewSign(pubM)
-	packetBytes := createDataPacket(cmd, commands.SignID)
-	if packetBytes == nil {
-		c.log.Error("Could not create data packet")
-		return nil
-	}
 	for i := 0; i < maxRequests; i++ {
 		go func() {
 			for {
@@ -111,12 +108,7 @@ func (c *Client) sendSignRequests(pubM []*Curve.BIG, sigCh chan<- signResponse, 
 					c.log.Errorf("Received invalid response from %v: %v", req.addr, err)
 					return
 				} else {
-					sig := &coconut.Signature{}
-					if err := sig.UnmarshalBinary(resp.Payload()); err != nil {
-						c.log.Errorf("Received invalid response from %v: %v", req.addr, err)
-					} else {
-						sigCh <- signResponse{sig: sig, serverID: req.serverID}
-					}
+					respCh <- response{marshaledObj: resp.Payload(), serverID: req.serverID}
 				}
 			}
 		}()
@@ -124,47 +116,45 @@ func (c *Client) sendSignRequests(pubM []*Curve.BIG, sigCh chan<- signResponse, 
 	return ch
 }
 
-// returns slice with threshold number of signatures, if threshold = 0, then get all of them
-func getThresholdNumberOfSignatures(sigs []signResponse, threshold int) ([]*coconut.Signature, *coconut.PolynomialPoints) {
-	var count int
-	if threshold > 0 {
-		count = threshold
-	} else {
-		count = countValidSigs(sigs)
+func (c *Client) sendSignRequests(pubM []*Curve.BIG, respCh chan<- response, maxRequests int) chan<- request {
+	cmd := commands.NewSign(pubM)
+	packetBytes := createDataPacket(cmd, commands.SignID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return nil
 	}
+	return c.sendRequests(packetBytes, respCh, maxRequests)
+}
 
-	sigsOut := make([]*coconut.Signature, count)
-	xs := make([]*Curve.BIG, count)
+func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+	validSigs := 0
+	for i := range responses {
+		if len(responses[i].marshaledObj) == 2*constants.ECPLen {
+			validSigs++
+		}
+	}
+	sigs := make([]*coconut.Signature, validSigs)
+	xs := make([]*Curve.BIG, validSigs)
 
 	j := 0
-	for i := range sigs {
-		if sigs[i].sig != nil {
-			sigsOut[j] = sigs[i].sig
-			if threshold > 0 {
-				xs[j] = Curve.NewBIGint(sigs[i].serverID)
+	for i := range responses {
+		if len(responses[i].marshaledObj) == 2*constants.ECPLen {
+			sig := &coconut.Signature{}
+			if sig.UnmarshalBinary(responses[i].marshaledObj) != nil {
+				return nil, nil
+			}
+			sigs[j] = sig
+			if isThreshold {
+				xs[j] = Curve.NewBIGint(responses[i].serverID) // no point in computing that if we won't need it
 			}
 			j++
 		}
-		if j+1 == count {
-			if threshold > 0 {
-				return sigsOut, coconut.NewPP(xs)
-			} else {
-				return sigsOut, nil
-			}
-		}
 	}
-	// never reached because we know there is at least threshold number of 'valid' signatures
-	return nil, nil
-}
-
-func countValidSigs(sigs []signResponse) int {
-	count := 0
-	for i := range sigs {
-		if sigs[i].sig != nil {
-			count++
-		}
+	if isThreshold {
+		return sigs, coconut.NewPP(xs)
+	} else {
+		return sigs, nil
 	}
-	return count
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -177,56 +167,72 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
 	}
 
-	sigResps := make([]signResponse, 0, len(c.cfg.Client.IAAddresses))
-	sigs := make(chan signResponse)
-	sendCh := c.sendSignRequests(pubM, sigs, maxRequests)
+	responses := make([]response, 0, len(c.cfg.Client.IAAddresses))
+
+	respCh := make(chan response)
+	reqCh := c.sendSignRequests(pubM, respCh, maxRequests)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
 		for i := range c.cfg.Client.IAAddresses {
 			c.log.Debug("Sending sign request to %v", c.cfg.Client.IAAddresses[i])
-			sendCh <- request{addr: c.cfg.Client.IAAddresses[i], serverID: c.cfg.Client.IAIDs[i]}
+			reqCh <- request{addr: c.cfg.Client.IAAddresses[i], serverID: c.cfg.Client.IAIDs[i]}
 		}
-		closeOnce.Do(func() { close(sendCh) }) // to terminate the goroutines after they are done
+		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
 
+	i := 0
 waitloop:
 	for {
 		select {
-		case sigResp := <-sigs: // do we care about order of signatures or learn in case some server fails, which one?
+		case resp := <-respCh:
 			c.log.Debug("Received a reply from IA")
-			if sigResp.sig == nil {
-				c.log.Error("Empty signature")
-			} else {
-				sigResps = append(sigResps, sigResp)
-			}
-			if countValidSigs(sigResps) == len(c.cfg.Client.IAAddresses) {
-				c.log.Debug("Got valid responses from all servers")
+			responses = append(responses, resp)
+			i++
+
+			if i == len(c.cfg.Client.IAAddresses) {
+				c.log.Debug("Got responses from all servers")
 				break waitloop
 			}
 		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
 			c.log.Notice("Timed out while sending sign requests")
-			nonNil := countValidSigs(sigResps)
-			if nonNil >= c.cfg.Client.Threshold {
-				c.log.Notice("Number of signatures received is within threshold")
-				break waitloop
-			} else {
-				c.log.Error("Received less than threshold number of signatures")
-				return nil
-			}
+			break waitloop
 		}
 	}
 
 	// in case something weird happened, like it threw and error somewhere it timeout happened before all requests were sent.
-	closeOnce.Do(func() { close(sendCh) })
+	closeOnce.Do(func() { close(reqCh) })
 
-	thresholdSigs, pp := getThresholdNumberOfSignatures(sigResps, c.cfg.Client.Threshold)
+	sigs, pp := parseSignatures(responses, c.cfg.Client.Threshold > 0)
 
-	c.log.Debugf("Aggregated %v signatures", c.cfg.Client.Threshold)
-	aSig := coconut.AggregateSignatures(c.params, thresholdSigs, pp)
+	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
+		c.log.Notice("Number of signatures received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of signatures")
+		return nil
+	}
+
+	// we only want threshold number of them, in future randomly choose them?
+	if c.cfg.Client.Threshold > 0 {
+		sigs = sigs[:c.cfg.Client.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
+	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
+		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
+		// should it continue regardless and assume the servers are down pernamently or just terminate?
+	}
+
+	aSig := coconut.AggregateSignatures(c.params, sigs, pp)
+	c.log.Debugf("Aggregated %v signatures, (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
+
 	rSig := coconut.Randomize(c.params, aSig)
+	c.log.Debug("Randomized the signature")
 
 	return rSig
+}
+
+// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
+func (c *Client) GetThresholdVerificationKey() {
+
 }
 
 // New returns a new Client instance parameterized with the specified configuration.
