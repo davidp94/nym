@@ -3,20 +3,20 @@
 [Server]
 
   # Identifier is the human readable identifier for the node (eg: FQDN).
-  Identifier = "Test IA Server"
+  Identifier = "Test IA Server2"
 
   # Addresses are the IP address/port combinations that the server will bind
   # to for incoming connections.
-  Addresses = [ "127.0.0.1:4000" ]
+  Addresses = [ "127.0.0.1:4001" ]
 
   # MaximumAttributes specifies the maximum number of attributes the server will sign.
   MaximumAttributes = 5
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "verification.pem"
+  VerificationKeyFile = "verification2.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "secret.pem"
+  SecretKeyFile = "secret2.pem"
     
 [Logging]
 
@@ -32,3 +32,7 @@
   # Warning: The `DEBUG` log level is unsafe for production use.
   Level = "DEBUG"
 
+
+[Debug]
+
+  # RegenerateKeys = true

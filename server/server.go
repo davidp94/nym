@@ -108,6 +108,7 @@ func New(cfg *config.Config) (*Server, error) {
 		if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Server.MaximumAttributes {
 			serverLog.Errorf("Couldn't Load the keys")
 			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
+			// todo: check for g^Y() == Beta() for each i
 		}
 		serverLog.Notice("Loaded Coconut server keys from the files.")
 		// succesfully loaded keys - create params of appropriate length
