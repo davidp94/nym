@@ -118,7 +118,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 		l.closeAllWg.Done()
 	}()
 
-	l.log.Debug("onNewConn called")
+	l.log.Noticef("New Connection from %v", conn.RemoteAddr())
 
 	var err error
 	tmp := make([]byte, 4) // packetlength

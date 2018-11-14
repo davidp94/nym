@@ -50,7 +50,9 @@ func main() {
 	pubM := getRandomAttributes(G, 3)
 
 	sig := c.SignAttributes(pubM)
-	_ = sig
+	vk := c.GetAggregateVerificationKey()
+	fmt.Println("Is sig valid:", coconut.Verify(params, vk, pubM, sig))
+
 	<-haltCh
 
 	fmt.Println("Received SIGTERM...")

@@ -198,6 +198,12 @@ func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Vk) MarshalBinary() ([]byte, error) { return make([]byte, 0), nil }
 
+// NewVk returns new instance of Vk command. Introduced for consistency sake and in case
+// implementation changes.
+func NewVk() *Vk {
+	return &Vk{}
+}
+
 // Verify defines required parameters to perform a verification of signature on public attributes.
 type Verify struct {
 	sig  *coconut.Signature

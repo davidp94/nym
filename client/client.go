@@ -83,7 +83,14 @@ func readResponse(conn net.Conn) (*packet.Packet, error) {
 	return packet.FromBytes(packetOutBytes), nil
 }
 
-func (c *Client) sendRequests(packetBytes []byte, respCh chan<- response, maxRequests int) chan<- request {
+func (c *Client) sendRequests(packetBytes []byte, respCh chan<- response) chan<- request {
+	var maxRequests int
+	if c.cfg.Client.MaxRequests > 0 {
+		maxRequests = c.cfg.Client.MaxRequests
+	} else {
+		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+	}
+
 	ch := make(chan request)
 	for i := 0; i < maxRequests; i++ {
 		go func() {
@@ -116,14 +123,41 @@ func (c *Client) sendRequests(packetBytes []byte, respCh chan<- response, maxReq
 	return ch
 }
 
-func (c *Client) sendSignRequests(pubM []*Curve.BIG, respCh chan<- response, maxRequests int) chan<- request {
+func (c *Client) waitForResponses(respCh <-chan response, responses []response) {
+	i := 0
+	for {
+		select {
+		case resp := <-respCh:
+			c.log.Debug("Received a reply from IA")
+			responses[i] = resp
+			i++
+
+			if i == len(c.cfg.Client.IAAddresses) {
+				c.log.Debug("Got responses from all servers")
+				return
+			}
+		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
+			c.log.Notice("Timed out while sending sign requests")
+			return
+		}
+	}
+}
+
+func (c *Client) writeRequestsToChannel(reqCh chan<- request) {
+	for i := range c.cfg.Client.IAAddresses {
+		c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
+		reqCh <- request{addr: c.cfg.Client.IAAddresses[i], serverID: c.cfg.Client.IAIDs[i]}
+	}
+}
+
+func (c *Client) sendSignRequests(pubM []*Curve.BIG, respCh chan<- response) chan<- request {
 	cmd := commands.NewSign(pubM)
 	packetBytes := createDataPacket(cmd, commands.SignID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
 		return nil
 	}
-	return c.sendRequests(packetBytes, respCh, maxRequests)
+	return c.sendRequests(packetBytes, respCh)
 }
 
 func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
@@ -158,49 +192,23 @@ func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signatu
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
+	c.log.Notice("Going to send Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
+
 	var closeOnce sync.Once
 
-	var maxRequests int
-	if c.cfg.Client.MaxRequests > 0 {
-		maxRequests = c.cfg.Client.MaxRequests
-	} else {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
-	responses := make([]response, 0, len(c.cfg.Client.IAAddresses))
-
+	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan response)
-	reqCh := c.sendSignRequests(pubM, respCh, maxRequests)
+	reqCh := c.sendSignRequests(pubM, respCh)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		for i := range c.cfg.Client.IAAddresses {
-			c.log.Debug("Sending sign request to %v", c.cfg.Client.IAAddresses[i])
-			reqCh <- request{addr: c.cfg.Client.IAAddresses[i], serverID: c.cfg.Client.IAIDs[i]}
-		}
+		c.writeRequestsToChannel(reqCh)
 		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
 
-	i := 0
-waitloop:
-	for {
-		select {
-		case resp := <-respCh:
-			c.log.Debug("Received a reply from IA")
-			responses = append(responses, resp)
-			i++
+	c.waitForResponses(respCh, responses)
 
-			if i == len(c.cfg.Client.IAAddresses) {
-				c.log.Debug("Got responses from all servers")
-				break waitloop
-			}
-		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending sign requests")
-			break waitloop
-		}
-	}
-
-	// in case something weird happened, like it threw and error somewhere it timeout happened before all requests were sent.
+	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
 	sigs, pp := parseSignatures(responses, c.cfg.Client.Threshold > 0)
@@ -222,7 +230,7 @@ waitloop:
 	}
 
 	aSig := coconut.AggregateSignatures(c.params, sigs, pp)
-	c.log.Debugf("Aggregated %v signatures, (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
+	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
 
 	rSig := coconut.Randomize(c.params, aSig)
 	c.log.Debug("Randomized the signature")
@@ -230,9 +238,92 @@ waitloop:
 	return rSig
 }
 
-// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
-func (c *Client) GetThresholdVerificationKey() {
+func parseVerificationKeys(responses []response, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+	validVks := 0
+	for i := range responses {
+		if len(responses[i].marshaledObj) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
+			validVks++
+		}
+	}
+	vks := make([]*coconut.VerificationKey, validVks)
+	xs := make([]*Curve.BIG, validVks)
 
+	j := 0
+	for i := range responses {
+		if len(responses[i].marshaledObj) >= 3*constants.ECP2Len {
+			vk := &coconut.VerificationKey{}
+			if vk.UnmarshalBinary(responses[i].marshaledObj) != nil {
+				return nil, nil
+			}
+			vks[j] = vk
+			if isThreshold {
+				xs[j] = Curve.NewBIGint(responses[i].serverID) // no point in computing that if we won't need it
+			}
+			j++
+		}
+	}
+	if isThreshold {
+		return vks, coconut.NewPP(xs)
+	} else {
+		return vks, nil
+	}
+}
+
+func (c *Client) sendVKRequests(respCh chan<- response) chan<- request {
+	cmd := commands.NewVk()
+	packetBytes := createDataPacket(cmd, commands.GetVerificationKeyID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return nil
+	}
+	return c.sendRequests(packetBytes, respCh)
+}
+
+// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
+// If it's going to aggregate results, it will return slice with a single element.
+func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
+	c.log.Notice("Going to send GetVK request to %v IAs", len(c.cfg.Client.IAAddresses))
+
+	var closeOnce sync.Once
+
+	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
+	respCh := make(chan response)
+	reqCh := c.sendVKRequests(respCh)
+
+	// write requests in a goroutine so we wouldn't block when trying to read responses
+	go func() {
+		c.writeRequestsToChannel(reqCh)
+		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
+	}()
+
+	c.waitForResponses(respCh, responses)
+
+	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
+	closeOnce.Do(func() { close(reqCh) })
+
+	vks, pp := parseVerificationKeys(responses, c.cfg.Client.Threshold > 0)
+
+	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
+		c.log.Notice("Number of verification keys received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of verification keys")
+		return nil
+	}
+
+	if shouldAggregate {
+		vks = []*coconut.VerificationKey{coconut.AggregateVerificationKeys(c.params, vks, pp)}
+	}
+	return vks
+}
+
+// basically a wrapper for GetVerificationKeys but returns a single vk rather than slice with one element
+func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
+	vks := c.GetVerificationKeys(true)
+	if vks != nil && len(vks) == 1 {
+		return vks[0]
+	} else {
+		return nil
+	}
 }
 
 // New returns a new Client instance parameterized with the specified configuration.

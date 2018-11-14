@@ -64,7 +64,7 @@ func (ccw *Worker) worker() {
 			cmd := cmdReq.Cmd()
 			switch v := cmd.(type) {
 			case *commands.Sign:
-				ccw.log.Debug("Sign cmd")
+				ccw.log.Notice("Received Sign (NOT blind) command")
 				if len(v.PubM()) > len(ccw.sk.Y()) {
 					ccw.log.Error("Too many params to sign.")
 					cmdReq.RetCh() <- nil
@@ -79,13 +79,13 @@ func (ccw *Worker) worker() {
 				ccw.log.Debugf("Writing back signature")
 				cmdReq.RetCh() <- sig
 			case *commands.Vk:
-				ccw.log.Debug("Get Vk cmd")
+				ccw.log.Notice("Received Get Verification Key command")
 				cmdReq.RetCh() <- ccw.vk
 			case *commands.Verify:
-				ccw.log.Debug("Verify cmd")
+				ccw.log.Notice("Received Verify (NOT blind) command")
 				cmdReq.RetCh() <- ccw.Verify(ccw.muxParams, ccw.vk, v.PubM(), v.Sig())
 			case *commands.BlindSign:
-				ccw.log.Debug("Blind sign cmd")
+				ccw.log.Notice("Received Blind Sign command")
 				if len(v.PubM())+len(v.BlindSignMats().Enc()) > len(ccw.sk.Y()) {
 					ccw.log.Error("Too many params to sign.")
 					cmdReq.RetCh() <- nil
@@ -100,7 +100,7 @@ func (ccw *Worker) worker() {
 				ccw.log.Debugf("Writing back blinded signature")
 				cmdReq.RetCh() <- sig
 			case *commands.BlindVerify:
-				ccw.log.Debug("Blind verify cmd")
+				ccw.log.Notice("Received Blind Verify Command")
 				cmdReq.RetCh() <- ccw.BlindVerify(ccw.muxParams, ccw.vk, v.Sig(), v.BlindShowMats(), v.PubM())
 			}
 		}
