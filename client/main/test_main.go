@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
 
@@ -50,8 +51,14 @@ func main() {
 	pubM := getRandomAttributes(G, 3)
 
 	sig := c.SignAttributes(pubM)
+
+	// I've killed one signer and created new vk (with valid keys) during the time
+	// this will be done in proper tests later
+	time.Sleep(10 * time.Second)
 	vk := c.GetAggregateVerificationKey()
-	fmt.Println("Is sig valid:", coconut.Verify(params, vk, pubM, sig))
+	if vk != nil {
+		fmt.Println("Is sig valid:", coconut.Verify(params, vk, pubM, sig))
+	}
 
 	<-haltCh
 

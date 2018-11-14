@@ -3,20 +3,20 @@
 [Server]
 
   # Identifier is the human readable identifier for the node (eg: FQDN).
-  Identifier = "Test IA Server2"
+  Identifier = "Test IA Server3"
 
   # Addresses are the IP address/port combinations that the server will bind
   # to for incoming connections.
-  Addresses = [ "127.0.0.1:4001" ]
+  Addresses = [ "127.0.0.1:4002" ]
 
   # MaximumAttributes specifies the maximum number of attributes the server will sign.
   MaximumAttributes = 5
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/verification1-n=3-t=2.pem"
+  VerificationKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/verification2-n=3-t=2.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/secret1-n=3-t=2.pem"
+  SecretKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/secret2-n=3-t=2.pem"
     
 [Logging]
 
@@ -32,7 +32,6 @@
   # Warning: The `DEBUG` log level is unsafe for production use.
   Level = "DEBUG"
 
+# [Debug]
 
-[Debug]
-
-  # RegenerateKeys = true
+#   RegenerateKeys = true
