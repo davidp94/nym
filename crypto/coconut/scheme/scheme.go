@@ -323,6 +323,10 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 		return false
 	}
 
+	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+		return false
+	}
+
 	K := Curve.NewECP2()
 	K.Copy(vk.alpha) // K = X
 	tmp := make([]*Curve.ECP2, len(pubM))
@@ -379,6 +383,10 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 
 	privateLen := len(showMats.proof.rm)
 	if len(pubM)+privateLen > len(vk.beta) || !VerifyVerifierProof(params, vk, sig, showMats) {
+		return false
+	}
+
+	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
 		return false
 	}
 

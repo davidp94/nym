@@ -295,6 +295,10 @@ func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM [
 		return false
 	}
 
+	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+		return false
+	}
+
 	K := Curve.NewECP2()
 	K.Copy(vk.Alpha()) // K = X
 
@@ -478,6 +482,10 @@ func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verificatio
 func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) coconut.VerificationResult {
 	privateLen := len(showMats.Proof().Rm())
 	if len(pubM)+privateLen > len(vk.Beta()) || !ccw.VerifyVerifierProof(params, vk, sig, showMats) {
+		return false
+	}
+
+	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
 		return false
 	}
 

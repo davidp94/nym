@@ -25,6 +25,7 @@ import (
 )
 
 // todo: workers? look at what functionality is needed
+// workers for crypto stuff.
 
 // Client represents an user of a Coconut IA server
 type Client struct {
@@ -132,7 +133,7 @@ func (c *Client) waitForResponses(respCh <-chan response, responses []response) 
 			responses[i] = resp
 			i++
 
-			if i == len(c.cfg.Client.IAAddresses) {
+			if i == len(responses) {
 				c.log.Debug("Got responses from all servers")
 				return
 			}
@@ -160,10 +161,14 @@ func (c *Client) sendSignRequests(pubM []*Curve.BIG, respCh chan<- response) cha
 	return c.sendRequests(packetBytes, respCh)
 }
 
-func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+func (c *Client) parseSignatureResponses(responses []response, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+	expectedResponseLength := 2 * constants.ECPLen
+	if isBlind {
+		expectedResponseLength += constants.ECPLen
+	}
 	validSigs := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) == 2*constants.ECPLen {
+		if len(responses[i].marshaledObj) == expectedResponseLength {
 			validSigs++
 		}
 	}
@@ -172,10 +177,18 @@ func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signatu
 
 	j := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) == 2*constants.ECPLen {
+		if len(responses[i].marshaledObj) == expectedResponseLength {
 			sig := &coconut.Signature{}
-			if sig.UnmarshalBinary(responses[i].marshaledObj) != nil {
-				return nil, nil
+			if isBlind {
+				blindedSig := &coconut.BlindedSignature{}
+				if blindedSig.UnmarshalBinary(responses[i].marshaledObj) != nil {
+					return nil, nil
+				}
+				sig = coconut.Unblind(c.params, blindedSig, c.elGamalPrivateKey)
+			} else {
+				if sig.UnmarshalBinary(responses[i].marshaledObj) != nil {
+					return nil, nil
+				}
 			}
 			sigs[j] = sig
 			if isThreshold {
@@ -186,9 +199,9 @@ func parseSignatures(responses []response, isThreshold bool) ([]*coconut.Signatu
 	}
 	if isThreshold {
 		return sigs, coconut.NewPP(xs)
-	} else {
-		return sigs, nil
 	}
+	return sigs, nil
+
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -211,7 +224,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	sigs, pp := parseSignatures(responses, c.cfg.Client.Threshold > 0)
+	sigs, pp := c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, false)
 
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
 		c.log.Notice("Number of signatures received is within threshold")
@@ -238,7 +251,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	return rSig
 }
 
-func parseVerificationKeys(responses []response, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+func (c *Client) parseVerificationKeys(responses []response, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	validVks := 0
 	for i := range responses {
 		if len(responses[i].marshaledObj) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
@@ -301,7 +314,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	vks, pp := parseVerificationKeys(responses, c.cfg.Client.Threshold > 0)
+	vks, pp := c.parseVerificationKeys(responses, c.cfg.Client.Threshold > 0)
 
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
 		c.log.Notice("Number of verification keys received is within threshold")
@@ -321,9 +334,104 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 	vks := c.GetVerificationKeys(true)
 	if vks != nil && len(vks) == 1 {
 		return vks[0]
-	} else {
+	}
+	return nil
+}
+
+func (c *Client) sendBlindSignRequests(blindSignMats *coconut.BlindSignMats, pubM []*Curve.BIG, respCh chan<- response) chan<- request {
+	cmd := commands.NewBlindSign(blindSignMats, c.elGamalPublicKey, pubM)
+	packetBytes := createDataPacket(cmd, commands.BlindSignID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
 		return nil
 	}
+	return c.sendRequests(packetBytes, respCh)
+}
+
+func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coconut.Signature {
+	blindSignMats, err := coconut.PrepareBlindSign(c.params, c.elGamalPublicKey, pubM, privM)
+	if err != nil {
+		c.log.Errorf("Could not create blindSignMats: %v", err)
+		return nil
+	}
+
+	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
+
+	var closeOnce sync.Once
+
+	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
+	respCh := make(chan response)
+	reqCh := c.sendBlindSignRequests(blindSignMats, pubM, respCh)
+
+	// write requests in a goroutine so we wouldn't block when trying to read responses
+	go func() {
+		c.writeRequestsToChannel(reqCh)
+		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
+	}()
+
+	c.waitForResponses(respCh, responses)
+
+	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
+	closeOnce.Do(func() { close(reqCh) })
+
+	sigs, pp := c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, true)
+
+	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
+		c.log.Notice("Number of signatures received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of signatures")
+		return nil
+	}
+
+	// we only want threshold number of them, in future randomly choose them?
+	if c.cfg.Client.Threshold > 0 {
+		sigs = sigs[:c.cfg.Client.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
+	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
+		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
+		// should it continue regardless and assume the servers are down pernamently or just terminate?
+	}
+
+	aSig := coconut.AggregateSignatures(c.params, sigs, pp)
+	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
+
+	rSig := coconut.Randomize(c.params, aSig)
+	c.log.Debug("Randomized the signature")
+
+	return rSig
+}
+
+// depends on future API in regards of type of servers response
+func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
+	cmd := commands.NewVerify(pubM, sig)
+	packetBytes := createDataPacket(cmd, commands.VerifyID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return false
+	}
+
+	c.log.Debugf("Dialing %v", addr)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		c.log.Errorf("Could not dial %v", addr)
+		return false
+	}
+
+	conn.Write(packetBytes)
+	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+
+	resp, err := readResponse(conn)
+	if err != nil {
+		c.log.Errorf("Received invalid response from %v: %v", addr, err)
+	} else if resp.Payload()[0] == 1 {
+		return true
+	}
+	return false
+}
+
+// depends on future API in regards of type of servers response
+func (c *Client) SendCredentialsForBlindVerification() bool {
+	return false
 }
 
 // New returns a new Client instance parameterized with the specified configuration.
