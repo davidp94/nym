@@ -1,18 +1,15 @@
 package client
 
 import (
-	"encoding/binary"
 	"errors"
-	"io"
-	"net"
 	"sync"
-	"time"
+
+	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 
 	"github.com/jstuczyn/CoconutGo/constants"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
-	"github.com/jstuczyn/CoconutGo/server/packet"
 
 	"github.com/jstuczyn/CoconutGo/client/config"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -39,136 +36,22 @@ type Client struct {
 	elGamalPublicKey  *elgamal.PublicKey
 }
 
-// todo: think about what is going to be used down the line and consider using interface{} instead for channels
-
-// all we receive are either vk/sigs/blindsigs and all of them require ID (if treshold is used)
-type response struct {
-	marshaledObj []byte
-	serverID     int // will be needed for threshold aggregation
-}
-
-type request struct {
-	addr     string
-	serverID int
-}
-
-// will be replaced/modified once whole thing is changed to use protobuf
-func createDataPacket(cmd commands.Command, cmdID commands.CommandID) []byte {
-	payloadBytes, err := cmd.MarshalBinary()
-	if err != nil {
-		return nil
-	}
-	rawCmd := commands.NewRawCommand(cmdID, payloadBytes)
-	cmdBytes := rawCmd.ToBytes()
-
-	packetIn := packet.NewPacket(cmdBytes)
-	packetBytes, err := packetIn.MarshalBinary()
-	if err != nil {
-		return nil
-	}
-	return packetBytes
-}
-
-func readResponse(conn net.Conn) (*packet.Packet, error) {
-	var err error
-	tmp := make([]byte, 4) // packetlength
-	if _, err = io.ReadFull(conn, tmp); err != nil {
-		return nil, err
-	}
-	packetOutLength := binary.BigEndian.Uint32(tmp)
-	packetOutBytes := make([]byte, packetOutLength)
-	copy(packetOutBytes, tmp)
-	if _, err = io.ReadFull(conn, packetOutBytes[4:]); err != nil {
-		return nil, err
-	}
-	return packet.FromBytes(packetOutBytes), nil
-}
-
-func (c *Client) sendRequests(packetBytes []byte, respCh chan<- response) chan<- request {
-	var maxRequests int
-	if c.cfg.Client.MaxRequests > 0 {
-		maxRequests = c.cfg.Client.MaxRequests
-	} else {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
-	ch := make(chan request)
-	for i := 0; i < maxRequests; i++ {
-		go func() {
-			for {
-				req, ok := <-ch
-				if !ok {
-					return
-				}
-
-				c.log.Debugf("Dialing %v", req.addr)
-				conn, err := net.Dial("tcp", req.addr)
-				if err != nil {
-					c.log.Errorf("Could not dial %v", req.addr)
-					return
-				}
-
-				conn.Write(packetBytes)
-				conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
-
-				resp, err := readResponse(conn)
-				if err != nil {
-					c.log.Errorf("Received invalid response from %v: %v", req.addr, err)
-					return
-				} else {
-					respCh <- response{marshaledObj: resp.Payload(), serverID: req.serverID}
-				}
-			}
-		}()
-	}
-	return ch
-}
-
-func (c *Client) waitForResponses(respCh <-chan response, responses []response) {
-	i := 0
-	for {
-		select {
-		case resp := <-respCh:
-			c.log.Debug("Received a reply from IA")
-			responses[i] = resp
-			i++
-
-			if i == len(responses) {
-				c.log.Debug("Got responses from all servers")
-				return
-			}
-		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending sign requests")
-			return
-		}
-	}
-}
-
-func (c *Client) writeRequestsToChannel(reqCh chan<- request) {
+func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
 	for i := range c.cfg.Client.IAAddresses {
 		c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
-		reqCh <- request{addr: c.cfg.Client.IAAddresses[i], serverID: c.cfg.Client.IAIDs[i]}
+		reqCh <- &utils.ServerRequest{MarshaledData: data, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
 	}
 }
 
-func (c *Client) sendSignRequests(pubM []*Curve.BIG, respCh chan<- response) chan<- request {
-	cmd := commands.NewSign(pubM)
-	packetBytes := createDataPacket(cmd, commands.SignID)
-	if packetBytes == nil {
-		c.log.Error("Could not create data packet")
-		return nil
-	}
-	return c.sendRequests(packetBytes, respCh)
-}
-
-func (c *Client) parseSignatureResponses(responses []response, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	expectedResponseLength := 2 * constants.ECPLen
 	if isBlind {
 		expectedResponseLength += constants.ECPLen
 	}
 	validSigs := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) == expectedResponseLength {
+		// first check guarantees we will be able to check second expression without memory violation
+		if responses[i] != nil && len(responses[i].MarshaledData) == expectedResponseLength {
 			validSigs++
 		}
 	}
@@ -177,22 +60,22 @@ func (c *Client) parseSignatureResponses(responses []response, isThreshold bool,
 
 	j := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) == expectedResponseLength {
+		if responses[i] != nil && len(responses[i].MarshaledData) == expectedResponseLength {
 			sig := &coconut.Signature{}
 			if isBlind {
 				blindedSig := &coconut.BlindedSignature{}
-				if blindedSig.UnmarshalBinary(responses[i].marshaledObj) != nil {
+				if blindedSig.UnmarshalBinary(responses[i].MarshaledData) != nil {
 					return nil, nil
 				}
 				sig = coconut.Unblind(c.params, blindedSig, c.elGamalPrivateKey)
 			} else {
-				if sig.UnmarshalBinary(responses[i].marshaledObj) != nil {
+				if sig.UnmarshalBinary(responses[i].MarshaledData) != nil {
 					return nil, nil
 				}
 			}
 			sigs[j] = sig
 			if isThreshold {
-				xs[j] = Curve.NewBIGint(responses[i].serverID) // no point in computing that if we won't need it
+				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
 			}
 			j++
 		}
@@ -205,21 +88,40 @@ func (c *Client) parseSignatureResponses(responses []response, isThreshold bool,
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
+	maxRequests := c.cfg.Client.MaxRequests
+	if c.cfg.Client.MaxRequests <= 0 {
+		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+	}
+
+	cmd := commands.NewSign(pubM)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return nil
+	}
+
 	c.log.Notice("Going to send Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	var closeOnce sync.Once
 
-	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan response)
-	reqCh := c.sendSignRequests(pubM, respCh)
+	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
+	respCh := make(chan *utils.ServerResponse)
+	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		c.writeRequestsToChannel(reqCh)
+		defer func() {
+			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
+			// the client won't crash
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+			}
+		}()
+		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
 		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
 
-	c.waitForResponses(respCh, responses)
+	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
 
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
@@ -251,10 +153,10 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	return rSig
 }
 
-func (c *Client) parseVerificationKeys(responses []response, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+func (c *Client) parseVerificationKeys(responses []*utils.ServerResponse, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	validVks := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
+		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
 			validVks++
 		}
 	}
@@ -263,14 +165,14 @@ func (c *Client) parseVerificationKeys(responses []response, isThreshold bool) (
 
 	j := 0
 	for i := range responses {
-		if len(responses[i].marshaledObj) >= 3*constants.ECP2Len {
+		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len {
 			vk := &coconut.VerificationKey{}
-			if vk.UnmarshalBinary(responses[i].marshaledObj) != nil {
+			if vk.UnmarshalBinary(responses[i].MarshaledData) != nil {
 				return nil, nil
 			}
 			vks[j] = vk
 			if isThreshold {
-				xs[j] = Curve.NewBIGint(responses[i].serverID) // no point in computing that if we won't need it
+				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
 			}
 			j++
 		}
@@ -282,34 +184,42 @@ func (c *Client) parseVerificationKeys(responses []response, isThreshold bool) (
 	}
 }
 
-func (c *Client) sendVKRequests(respCh chan<- response) chan<- request {
+// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
+// If it's going to aggregate results, it will return slice with a single element.
+func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
+	maxRequests := c.cfg.Client.MaxRequests
+	if c.cfg.Client.MaxRequests <= 0 {
+		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+	}
+
 	cmd := commands.NewVk()
-	packetBytes := createDataPacket(cmd, commands.GetVerificationKeyID)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
 		return nil
 	}
-	return c.sendRequests(packetBytes, respCh)
-}
 
-// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
-// If it's going to aggregate results, it will return slice with a single element.
-func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
 	c.log.Notice("Going to send GetVK request to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	var closeOnce sync.Once
 
-	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan response)
-	reqCh := c.sendVKRequests(respCh)
+	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
+	respCh := make(chan *utils.ServerResponse)
+	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		c.writeRequestsToChannel(reqCh)
+		defer func() {
+			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
+			// the client won't crash
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+			}
+		}()
+		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
 		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
-
-	c.waitForResponses(respCh, responses)
+	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
 
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
@@ -338,20 +248,23 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 	return nil
 }
 
-func (c *Client) sendBlindSignRequests(blindSignMats *coconut.BlindSignMats, pubM []*Curve.BIG, respCh chan<- response) chan<- request {
-	cmd := commands.NewBlindSign(blindSignMats, c.elGamalPublicKey, pubM)
-	packetBytes := createDataPacket(cmd, commands.BlindSignID)
-	if packetBytes == nil {
-		c.log.Error("Could not create data packet")
-		return nil
-	}
-	return c.sendRequests(packetBytes, respCh)
-}
-
 func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coconut.Signature {
+	maxRequests := c.cfg.Client.MaxRequests
+	if c.cfg.Client.MaxRequests <= 0 {
+
+		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+	}
+
 	blindSignMats, err := coconut.PrepareBlindSign(c.params, c.elGamalPublicKey, pubM, privM)
 	if err != nil {
 		c.log.Errorf("Could not create blindSignMats: %v", err)
+		return nil
+	}
+
+	cmd := commands.NewBlindSign(blindSignMats, c.elGamalPublicKey, pubM)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
 		return nil
 	}
 
@@ -359,17 +272,24 @@ func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coc
 
 	var closeOnce sync.Once
 
-	responses := make([]response, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan response)
-	reqCh := c.sendBlindSignRequests(blindSignMats, pubM, respCh)
+	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
+	respCh := make(chan *utils.ServerResponse)
+	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		c.writeRequestsToChannel(reqCh)
+		defer func() {
+			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
+			// the client won't crash
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+			}
+		}()
+		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
 		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
 
-	c.waitForResponses(respCh, responses)
+	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
 
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
@@ -403,29 +323,29 @@ func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coc
 
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
-	cmd := commands.NewVerify(pubM, sig)
-	packetBytes := createDataPacket(cmd, commands.VerifyID)
-	if packetBytes == nil {
-		c.log.Error("Could not create data packet")
-		return false
-	}
+	// cmd := commands.NewVerify(pubM, sig)
+	// packetBytes := utils.CommandToMarshaledPacket(cmd, commands.VerifyID)
+	// if packetBytes == nil {
+	// 	c.log.Error("Could not create data packet")
+	// 	return false
+	// }
 
-	c.log.Debugf("Dialing %v", addr)
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		c.log.Errorf("Could not dial %v", addr)
-		return false
-	}
+	// c.log.Debugf("Dialing %v", addr)
+	// conn, err := net.Dial("tcp", addr)
+	// if err != nil {
+	// 	c.log.Errorf("Could not dial %v", addr)
+	// 	return false
+	// }
 
-	conn.Write(packetBytes)
-	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+	// conn.Write(packetBytes)
+	// conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 
-	resp, err := readResponse(conn)
-	if err != nil {
-		c.log.Errorf("Received invalid response from %v: %v", addr, err)
-	} else if resp.Payload()[0] == 1 {
-		return true
-	}
+	// resp, err := utils.ReadPacketFromConn(conn)
+	// if err != nil {
+	// 	c.log.Errorf("Received invalid response from %v: %v", addr, err)
+	// } else if resp.Payload()[0] == 1 {
+	// 	return true
+	// }
 	return false
 }
 
@@ -494,6 +414,7 @@ func New(cfg *config.Config) (*Client, error) {
 
 		params: params,
 	}
+
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)
 	return c, nil
 }
