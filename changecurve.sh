@@ -19,7 +19,11 @@ else
     exit
 fi
 
-find ./crypto/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
-find ./server/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./client/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./constants/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./crypto/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./daemon/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./logger/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./server/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./ttp/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./worker/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
