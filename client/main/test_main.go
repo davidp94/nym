@@ -47,29 +47,32 @@ func main() {
 		os.Exit(-1)
 	}
 
+	go func() {
+		for {
+			<-haltCh
+			fmt.Println("Received SIGTERM...")
+			os.Exit(0)
+		}
+	}()
+
 	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := getRandomAttributes(G, 3)
-	// privM := getRandomAttributes(G, 2)
+	privM := getRandomAttributes(G, 2)
 
-	sig := c.SignAttributes(pubM)
-	// sig := c.BlindSignAttributes(privM, pubM)
+	// sig := c.SignAttributes(pubM)
+	sigBlind := c.BlindSignAttributes(privM, pubM)
 
 	// I've killed one signer and created new vk (with valid keys) during the time
 	// this will be done in proper tests later
 	// time.Sleep(10 * time.Second)
 	vk := c.GetAggregateVerificationKey()
-	isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
-	// vks := c.GetVerificationKeys(false)
+	// isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
+	isValidBlind2 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
 	if vk != nil {
-		fmt.Println("Is sig valid:", isValid)
-		// fmt.Println("Is sig valid:", coconut.BlindVerify(params, vk, sig, blindShowMats, pubM))
-		// fmt.Println("Is sig valid:", coconut.Verify(params, vk, append(privM, pubM...), sig))
-		fmt.Println("Is sig valid:2", coconut.Verify(params, vk, pubM, sig))
-
+		// fmt.Println("Is sig valid:", isValid)
+		fmt.Println("Is sig validBlind1:", isValidBlind1)
+		fmt.Println("Is sig validBlind2:", isValidBlind2)
 	}
-
-	<-haltCh
-
-	fmt.Println("Received SIGTERM...")
 }

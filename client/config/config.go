@@ -30,7 +30,7 @@ import (
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultConnectTimeout = 1 * 1000 // 1 sec.
+	defaultConnectTimeout = 2 * 1000 // 1 sec.
 	defaultRequestTimeout = 5 * 1000 // 5 sec.
 	defaultMaxRequests    = 3
 )

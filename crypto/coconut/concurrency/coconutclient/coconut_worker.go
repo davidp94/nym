@@ -114,6 +114,8 @@ func (ccw *Worker) worker() {
 					ccw.log.Error("The aggregate verification key is nil. Is the server a provider?")
 					cmdReq.RetCh() <- nil
 				}
+			default:
+				ccw.log.Critical("Received Invalid Command")
 			}
 		}
 	}

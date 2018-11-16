@@ -322,7 +322,45 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 }
 
 // depends on future API in regards of type of servers response
-func (c *Client) SendCredentialsForBlindVerification() bool {
+// if vk is nil, first the client will try to obtain it
+func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
+	if vk == nil {
+		vk = c.GetAggregateVerificationKey()
+		if vk == nil {
+			c.log.Error("Could not obtain aggregate verification key required to create proofs for verification")
+			return false
+		}
+	}
+
+	blindShowMats, err := coconut.ShowBlindSignature(c.params, vk, sig, privM)
+	if err != nil {
+		c.log.Errorf("Failed when creating proofs for verification: %v", err)
+		return false
+	}
+
+	cmd := commands.NewBlindVerify(blindShowMats, sig, pubM)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindVerifyID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return false
+	}
+
+	c.log.Debugf("Dialing %v", addr)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		c.log.Errorf("Could not dial %v", addr)
+		return false
+	}
+
+	conn.Write(packetBytes)
+	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+
+	resp, err := utils.ReadPacketFromConn(conn)
+	if err != nil {
+		c.log.Errorf("Received invalid response from %v: %v", addr, err)
+	} else if resp.Payload()[0] == 1 {
+		return true
+	}
 	return false
 }
 
