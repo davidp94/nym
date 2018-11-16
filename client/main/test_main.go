@@ -61,7 +61,7 @@ func main() {
 	privM := getRandomAttributes(G, 2)
 
 	// sig := c.SignAttributes(pubM)
-	sigBlind := c.BlindSignAttributes(privM, pubM)
+	sigBlind := c.BlindSignAttributes(pubM, privM)
 
 	// I've killed one signer and created new vk (with valid keys) during the time
 	// this will be done in proper tests later

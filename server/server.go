@@ -72,11 +72,11 @@ func (s *Server) GetIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		return nil, nil
 	}
 
-	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Server.IAAddresses))
+	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
 	var closeOnce sync.Once
 
-	responses := make([]*utils.ServerResponse, len(s.cfg.Server.IAAddresses)) // can't possibly get more results
+	responses := make([]*utils.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
 	receivedResponses := make(map[string]bool)
 
@@ -100,10 +100,10 @@ outLoop:
 						s.log.Critical("Recovered: %v", r)
 					}
 				}()
-				for i := range s.cfg.Server.IAAddresses {
-					if _, ok := receivedResponses[s.cfg.Server.IAAddresses[i]]; !ok {
-						s.log.Debug("Writing request to %v", s.cfg.Server.IAAddresses[i])
-						reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: s.cfg.Server.IAAddresses[i], ServerID: s.cfg.Server.IAIDs[i]}
+				for i := range s.cfg.Provider.IAAddresses {
+					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
+						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
+						reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: s.cfg.Provider.IAAddresses[i], ServerID: s.cfg.Provider.IAIDs[i]}
 					}
 				}
 				closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
@@ -117,14 +117,14 @@ outLoop:
 				}
 			}
 
-			if len(receivedResponses) == len(s.cfg.Server.IAAddresses) {
+			if len(receivedResponses) == len(s.cfg.Provider.IAAddresses) {
 				s.log.Notice("Received Verification Keys from all IAs")
 				break outLoop
-			} else if len(receivedResponses) >= s.cfg.Server.Threshold {
+			} else if len(receivedResponses) >= s.cfg.Provider.Threshold {
 				s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
 				break outLoop
 			} else {
-				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)", len(receivedResponses), s.cfg.Server.Threshold)
+				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)", len(receivedResponses), s.cfg.Provider.Threshold)
 			}
 
 		case <-timeout:
@@ -134,9 +134,9 @@ outLoop:
 	}
 	retryTicker.Stop()
 
-	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Server.Threshold > 0)
+	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0)
 
-	if len(vks) >= s.cfg.Server.Threshold && len(vks) > 0 {
+	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
 		s.log.Notice("Number of verification keys received is within threshold")
 	} else {
 		s.log.Error("Received less than threshold number of verification keys")
@@ -171,9 +171,9 @@ func New(cfg *config.Config) (*Server, error) {
 	// if it's not an issuer, we don't care about own keys, because they are not going to be used anyway (for now).
 	if cfg.Server.IsIssuer {
 		// todo: allow for empty verification key if secret key is set
-		if cfg.Debug.RegenerateKeys || cfg.Server.SecretKeyFile == "" || cfg.Server.VerificationKeyFile == "" {
+		if cfg.Debug.RegenerateKeys || cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
 			serverLog.Notice("Generating new sk/vk coconut keypair")
-			params, err = coconut.Setup(cfg.Server.MaximumAttributes)
+			params, err = coconut.Setup(cfg.Issuer.MaximumAttributes)
 			if err != nil {
 				return nil, err
 			}
@@ -185,22 +185,22 @@ func New(cfg *config.Config) (*Server, error) {
 			}
 			serverLog.Debug("Generated new keys")
 
-			if sk.ToPEMFile(cfg.Server.SecretKeyFile) != nil || vk.ToPEMFile(cfg.Server.VerificationKeyFile) != nil {
+			if sk.ToPEMFile(cfg.Issuer.SecretKeyFile) != nil || vk.ToPEMFile(cfg.Issuer.VerificationKeyFile) != nil {
 				serverLog.Error("Couldn't write new keys to the files")
 				return nil, errors.New("Couldn't write new keys to the files")
 			}
 
 			serverLog.Notice("Written new keys to the files")
 		} else {
-			err = sk.FromPEMFile(cfg.Server.SecretKeyFile)
+			err = sk.FromPEMFile(cfg.Issuer.SecretKeyFile)
 			if err != nil {
 				return nil, err
 			}
-			err = vk.FromPEMFile(cfg.Server.VerificationKeyFile)
+			err = vk.FromPEMFile(cfg.Issuer.VerificationKeyFile)
 			if err != nil {
 				return nil, err
 			}
-			if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Server.MaximumAttributes {
+			if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Issuer.MaximumAttributes {
 				serverLog.Errorf("Couldn't Load the keys")
 				return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
 				// todo: check for g^Y() == Beta() for each i
@@ -214,7 +214,7 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	} else {
 		// even if it's not an issuer, it needs params to credential verification
-		params, err = coconut.Setup(cfg.Server.MaximumAttributes)
+		params, err = coconut.Setup(cfg.Issuer.MaximumAttributes)
 		if err != nil {
 			return nil, err
 		}

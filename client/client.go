@@ -219,7 +219,7 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 	return nil
 }
 
-func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coconut.Signature {
+func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
 	maxRequests := c.cfg.Client.MaxRequests
 	if c.cfg.Client.MaxRequests <= 0 {
 

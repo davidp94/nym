@@ -57,15 +57,6 @@ type Server struct {
 	// Addresses are the IP address:port combinations that the server will bind	to for incoming connections.
 	Addresses []string
 
-	// MaximumAttributes specifies the maximum number of attributes the server will sign.
-	MaximumAttributes int
-
-	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
-	VerificationKeyFile string
-
-	// SecretKeyFile specifies the file containing the Coconut Secret Key.
-	SecretKeyFile string
-
 	// Will definitely be useful later, but for now, no need for that.
 	// // DataDir is the absolute path to the server's state files.
 	// DataDir string
@@ -77,7 +68,23 @@ type Server struct {
 	// IsIssuer specifies whether the server is a credential issuer.
 	// Currently it means it should be able to sign attributes it receives.
 	IsIssuer bool
+}
 
+type Issuer struct {
+	// MaximumAttributes specifies the maximum number of attributes the server will sign.
+	MaximumAttributes int
+
+	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
+	VerificationKeyFile string
+
+	// SecretKeyFile specifies the file containing the Coconut Secret Key.
+	SecretKeyFile string
+}
+
+// todo: change name?
+// Provider is the Coconut provider server configuration.
+// At this point it is only responsible for verifying credentials it receives.
+type Provider struct {
 	// IAAddresses are the IP address:port combinations of all Authority Servers.
 	// Required if the server is a provider.
 	IAAddresses []string
@@ -161,34 +168,45 @@ type Logging struct {
 
 // Config is the top level Coconut IA server configuration.
 type Config struct {
-	Server  *Server
-	Logging *Logging
-
-	Debug *Debug
+	Server   *Server
+	Logging  *Logging
+	Issuer   *Issuer
+	Provider *Provider
+	Debug    *Debug
 }
 
 func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Server == nil {
 		return errors.New("config: No Server block was present")
 	}
-	// does not care if files are empty, if so, new keys will be generated and written there
-	if cfg.Server.SecretKeyFile == "" || cfg.Server.VerificationKeyFile == "" {
-		return errors.New("config: No key files were provided")
-	}
-	if cfg.Server.MaximumAttributes <= 0 || cfg.Server.MaximumAttributes > 255 {
-		return errors.New("config: Invalid number of allowed attributes")
-	}
+
 	if !cfg.Server.IsProvider && !cfg.Server.IsIssuer {
-		return errors.New("config: server is neither issuer nor provider")
+		return errors.New("config: server is neither Issuer nor Provider")
 	}
 	if cfg.Server.IsProvider {
-		if len(cfg.Server.IAIDs) <= 0 {
-			IAIDs := make([]int, len(cfg.Server.IAAddresses))
-			for i := range cfg.Server.IAAddresses {
+		if cfg.Provider == nil {
+			return errors.New("config: Provider block not set when server is a Provider")
+		}
+		if len(cfg.Provider.IAIDs) <= 0 {
+			IAIDs := make([]int, len(cfg.Provider.IAAddresses))
+			for i := range cfg.Provider.IAAddresses {
 				IAIDs[i] = i + 1
 			}
-		} else if len(cfg.Server.IAIDs) != len(cfg.Server.IAAddresses) || len(cfg.Server.IAAddresses) <= 0 {
-			return errors.New("config: Invalid server configuration")
+		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) <= 0 {
+			return errors.New("config: Invalid provider - IA Servers configuration")
+		}
+	}
+
+	if cfg.Server.IsIssuer {
+		if cfg.Issuer == nil {
+			return errors.New("config: Issuer block not set when server is an Issuer")
+		}
+		// does not care if files are empty, if so, new keys will be generated and written there
+		if cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
+			return errors.New("config: No key files were provided")
+		}
+		if cfg.Issuer.MaximumAttributes <= 0 || cfg.Issuer.MaximumAttributes > 255 {
+			return errors.New("config: Invalid number of allowed attributes")
 		}
 	}
 
