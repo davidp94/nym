@@ -8,8 +8,11 @@ import (
 	"net"
 	"time"
 
+	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -92,12 +95,14 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 	return ch
 }
 
+// used by both clients and providers
 func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerResponse, log *logging.Logger, requestTimeout int) {
+	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
 	i := 0
 	for {
 		select {
 		case resp := <-respCh:
-			log.Debug("Received a reply from IA")
+			log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
 			responses[i] = resp
 			i++
 
@@ -105,9 +110,39 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 				log.Debug("Got responses from all servers")
 				return
 			}
-		case <-time.After(time.Duration(requestTimeout) * time.Millisecond):
+		case <-timeout:
 			log.Notice("Timed out while sending requests")
 			return
 		}
 	}
+}
+
+func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+	validVks := 0
+	for i := range responses {
+		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
+			validVks++
+		}
+	}
+	vks := make([]*coconut.VerificationKey, validVks)
+	xs := make([]*Curve.BIG, validVks)
+
+	j := 0
+	for i := range responses {
+		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len {
+			vk := &coconut.VerificationKey{}
+			if vk.UnmarshalBinary(responses[i].MarshaledData) != nil {
+				return nil, nil
+			}
+			vks[j] = vk
+			if isThreshold {
+				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
+			}
+			j++
+		}
+	}
+	if isThreshold {
+		return vks, coconut.NewPP(xs)
+	}
+	return vks, nil
 }

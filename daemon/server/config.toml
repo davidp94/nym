@@ -17,6 +17,25 @@
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
   SecretKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/secret0-n=3-t=2.pem"
+
+  # IsProvider specifies whether the server is a provider.
+	# Currently it means it should be able to verify credentials it receives.
+	IsProvider = true
+
+	# IsIssuer specifies whether the server is a credential issuer.
+	# Currently it means it should be able to sign attributes it receives.
+	IsIssuer = true
+
+	# IAAddresses are the IP address:port combinations of all Authority Servers.
+	# Required if the server is a provider.
+  IAAddresses = [ "127.0.0.1:4000", "127.0.0.1:4001", "127.0.0.1:4002" ]
+
+  # IAIDs are IDs of the servers used during generation of threshold keys.
+  IAIDs = [ 1, 2, 3 ]
+
+  # Threshold defines minimum number of verification keys provider needs to obtain. Default = len(IAAddresses).
+  # TODO: should it be server or debug property?
+  Threshold = 2
     
 [Logging]
 

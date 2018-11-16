@@ -15,7 +15,7 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-const providerAddress = "127.0.0.1:4001"
+const providerAddress = "127.0.0.1:4000"
 
 func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 	attrs := make([]*Curve.BIG, n)

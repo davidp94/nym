@@ -19,14 +19,13 @@ package listener
 
 import (
 	"encoding"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"time"
 
 	"github.com/jstuczyn/CoconutGo/logger"
+	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/config"
 	"github.com/jstuczyn/CoconutGo/server/packet"
@@ -119,20 +118,11 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	}()
 
 	l.log.Noticef("New Connection from %v", conn.RemoteAddr())
-
-	var err error
-	tmp := make([]byte, 4) // packetlength
-	if _, err = io.ReadFull(conn, tmp); err != nil {
-		panic(err)
+	inPacket, err := utils.ReadPacketFromConn(conn)
+	if err != nil {
+		l.log.Errorf("Failed to read received packet: %v", err)
+		return
 	}
-	packetLength := binary.BigEndian.Uint32(tmp)
-	packetBytes := make([]byte, packetLength)
-	copy(packetBytes, tmp)
-	if _, err = io.ReadFull(conn, packetBytes[4:]); err != nil {
-		panic(err)
-	}
-	// currently rather redundant as we recover nothing useful, but might be needed when headers are expanded
-	inPacket := packet.FromBytes(packetBytes)
 
 	cmd := commands.FromBytes(inPacket.Payload())
 	resCh := make(chan interface{}, 1)

@@ -2,7 +2,9 @@ package client
 
 import (
 	"errors"
+	"net"
 	"sync"
+	"time"
 
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 
@@ -153,37 +155,6 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	return rSig
 }
 
-func (c *Client) parseVerificationKeys(responses []*utils.ServerResponse, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
-	validVks := 0
-	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
-			validVks++
-		}
-	}
-	vks := make([]*coconut.VerificationKey, validVks)
-	xs := make([]*Curve.BIG, validVks)
-
-	j := 0
-	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len {
-			vk := &coconut.VerificationKey{}
-			if vk.UnmarshalBinary(responses[i].MarshaledData) != nil {
-				return nil, nil
-			}
-			vks[j] = vk
-			if isThreshold {
-				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
-			}
-			j++
-		}
-	}
-	if isThreshold {
-		return vks, coconut.NewPP(xs)
-	} else {
-		return vks, nil
-	}
-}
-
 // more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
 // If it's going to aggregate results, it will return slice with a single element.
 func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
@@ -224,7 +195,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	vks, pp := c.parseVerificationKeys(responses, c.cfg.Client.Threshold > 0)
+	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0)
 
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
 		c.log.Notice("Number of verification keys received is within threshold")
@@ -323,29 +294,30 @@ func (c *Client) BlindSignAttributes(privM []*Curve.BIG, pubM []*Curve.BIG) *coc
 
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
-	// cmd := commands.NewVerify(pubM, sig)
-	// packetBytes := utils.CommandToMarshaledPacket(cmd, commands.VerifyID)
-	// if packetBytes == nil {
-	// 	c.log.Error("Could not create data packet")
-	// 	return false
-	// }
+	cmd := commands.NewVerify(pubM, sig)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.VerifyID)
+	if packetBytes == nil {
+		c.log.Error("Could not create data packet")
+		return false
+	}
 
-	// c.log.Debugf("Dialing %v", addr)
-	// conn, err := net.Dial("tcp", addr)
-	// if err != nil {
-	// 	c.log.Errorf("Could not dial %v", addr)
-	// 	return false
-	// }
+	c.log.Debugf("Dialing %v", addr)
+	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		c.log.Errorf("Could not dial %v", addr)
+		return false
+	}
 
-	// conn.Write(packetBytes)
-	// conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+	conn.Write(packetBytes)
+	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 
-	// resp, err := utils.ReadPacketFromConn(conn)
-	// if err != nil {
-	// 	c.log.Errorf("Received invalid response from %v: %v", addr, err)
-	// } else if resp.Payload()[0] == 1 {
-	// 	return true
-	// }
+	resp, err := utils.ReadPacketFromConn(conn)
+	c.log.Notice("%v", resp)
+	if err != nil {
+		c.log.Errorf("Received invalid response from %v: %v", addr, err)
+	} else if resp.Payload()[0] == 1 {
+		return true
+	}
 	return false
 }
 

@@ -28,13 +28,18 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
+// todo: separate config entry for provider related things?
+
 const (
 	defaultLogLevel = "NOTICE"
 
 	defaultNumCoconutWorkers = 1
 
-	defaultConnectTimeout = 5 * 1000 // 5 sec.
-	defaultRequestTimeout = 1 * 1000 // 1 sec.
+	defaultConnectTimeout               = 5 * 1000  // 5 sec.
+	defaultRequestTimeout               = 1 * 1000  // 1 sec.
+	defaultProviderStartupTimeout       = 30 * 1000 // 30 sec.
+	defaultProviderStartupRetryInterval = 5 * 1000  // 5s.
+	defaultProviderMaxRequests          = 16
 )
 
 // nolint: gochecknoglobals
@@ -64,6 +69,27 @@ type Server struct {
 	// Will definitely be useful later, but for now, no need for that.
 	// // DataDir is the absolute path to the server's state files.
 	// DataDir string
+
+	// IsProvider specifies whether the server is a provider.
+	// Currently it means it should be able to verify credentials it receives.
+	IsProvider bool
+
+	// IsIssuer specifies whether the server is a credential issuer.
+	// Currently it means it should be able to sign attributes it receives.
+	IsIssuer bool
+
+	// IAAddresses are the IP address:port combinations of all Authority Servers.
+	// Required if the server is a provider.
+	IAAddresses []string
+
+	// IAIDs are IDs of the servers used during generation of threshold keys.
+	// If empty, it is going to be assumed that IAAddresses are ordered correctly.
+	IAIDs []int
+
+	// Threshold defines minimum number of verification keys provider needs to obtain.
+	// Default = len(IAAddresses).
+	// 0 = no threshold
+	Threshold int
 }
 
 // Debug is the Coconut IA server debug configuration.
@@ -82,6 +108,19 @@ type Debug struct {
 
 	// RegenerateKeys specifies whether to generate new Coconut keypair and overwrite existing files.
 	RegenerateKeys bool
+
+	// ProviderStartupTimeout specifies how long the provider is going to keep retrying to start up before giving up.
+	// Useful when all the servers are started at different orders.
+	ProviderStartupTimeout int
+
+	// ProviderStartupRetryInterval specifies retry interval for the provider during the start up.
+	// Currently it involves retrying to obtain verification keys of all IAs.
+	ProviderStartupRetryInterval int
+
+	// MaxRequests defines maximum number of concurrent requests each provider can make.
+	// only applicable to obtain verification keys of all IAs
+	// -1 indicates no limit
+	ProviderMaxRequests int
 }
 
 func (dCfg *Debug) applyDefaults() {
@@ -96,6 +135,15 @@ func (dCfg *Debug) applyDefaults() {
 	}
 	if dCfg.RequestTimeout <= 0 {
 		dCfg.RequestTimeout = defaultRequestTimeout
+	}
+	if dCfg.ProviderStartupTimeout <= 0 {
+		dCfg.ProviderStartupTimeout = defaultProviderStartupTimeout
+	}
+	if dCfg.ProviderStartupRetryInterval <= 0 {
+		dCfg.ProviderStartupRetryInterval = defaultProviderStartupRetryInterval
+	}
+	if dCfg.ProviderMaxRequests <= 0 {
+		dCfg.ProviderMaxRequests = defaultProviderMaxRequests
 	}
 }
 
@@ -129,6 +177,19 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	}
 	if cfg.Server.MaximumAttributes <= 0 || cfg.Server.MaximumAttributes > 255 {
 		return errors.New("config: Invalid number of allowed attributes")
+	}
+	if !cfg.Server.IsProvider && !cfg.Server.IsIssuer {
+		return errors.New("config: server is neither issuer nor provider")
+	}
+	if cfg.Server.IsProvider {
+		if len(cfg.Server.IAIDs) <= 0 {
+			IAIDs := make([]int, len(cfg.Server.IAAddresses))
+			for i := range cfg.Server.IAAddresses {
+				IAIDs[i] = i + 1
+			}
+		} else if len(cfg.Server.IAIDs) != len(cfg.Server.IAAddresses) || len(cfg.Server.IAAddresses) <= 0 {
+			return errors.New("config: Invalid server configuration")
+		}
 	}
 
 	if cfg.Debug == nil {
