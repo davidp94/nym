@@ -155,6 +155,7 @@ func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
 		if ok {
 			l.log.Debug("Received non-empty response from the worker")
 			b, err := resVal.MarshalBinary()
+			// todo: check if use protobuf and put to protobuf instead, though return type...
 			if err == nil {
 				payload = b
 			}

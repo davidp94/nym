@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package coconut;
+// used for serializing data to send them over the wire. It is assumed each BIG, ECP, ECP2, etc 
+// were already converted to byte slices using amcl's ToBytes methods.
+
+
+// in principle should never be used as secret key would never be sent over the wire,
+// but the definition is included for completion sake
+message ProtoSecretKey {
+    bytes X = 1;
+    repeated bytes Y = 2;
+}
+
+message ProtoVerificationKey {
+    bytes G2 = 1;
+    bytes Alpha = 2;
+    repeated bytes Beta = 3; // order is preserved
+}
+
+

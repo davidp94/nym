@@ -53,6 +53,11 @@ const (
 
 	// ElGamalPrivateKeyType defines PEM Type for Coconut-specific ElGamal Private Key.
 	ElGamalPrivateKeyType = "COCONUT-ELGAMAL PRIVATE KEY"
+
+	// ProtobufSerialization specifies whether to use protobuf to serialize coconut data structures
+	// or whether to use the original implementation.
+	// It can't be in config as the constant needs to be accessed by objects of given type.
+	ProtobufSerialization = true
 )
 
 var (

@@ -24,10 +24,10 @@
   MaximumAttributes = 5
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/verification0-n=3-t=2.pem"
+  VerificationKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys7501/verification0-n=3-t=2.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys3871/secret0-n=3-t=2.pem"
+  SecretKeyFile = "/home/jedrzej/go/src/github.com/jstuczyn/CoconutGo/ttp/keys7501/secret0-n=3-t=2.pem"
 
 
 [Provider]

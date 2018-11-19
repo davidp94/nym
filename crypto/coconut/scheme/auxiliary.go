@@ -21,10 +21,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
-
+	proto "github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -102,6 +102,23 @@ func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (vk *VerificationKey) MarshalBinary() ([]byte, error) {
 	ec2len := constants.ECP2Len
+	if constants.ProtobufSerialization {
+		g2b := make([]byte, ec2len)
+		alphab := make([]byte, ec2len)
+		betab := make([][]byte, len(vk.Beta()))
+		for i := range betab {
+			betab[i] = make([]byte, ec2len)
+			vk.Beta()[i].ToBytes(betab[i])
+		}
+		vk.G2().ToBytes(g2b)
+		vk.Alpha().ToBytes(alphab)
+		protoVk := &ProtoVerificationKey{
+			G2:    g2b,
+			Alpha: alphab,
+			Beta:  betab,
+		}
+		return proto.Marshal(protoVk)
+	}
 	// sk consists of len(beta) + 2 values which are all of same, constant, length
 	data := make([]byte, (ec2len * (len(vk.beta) + 2)))
 	vk.g2.ToBytes(data)
@@ -116,6 +133,20 @@ func (vk *VerificationKey) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 	ec2len := constants.ECP2Len
+	if constants.ProtobufSerialization {
+		protoVk := &ProtoVerificationKey{}
+		err := proto.Unmarshal(data, protoVk)
+		if err != nil {
+			return err
+		}
+		vk.g2 = Curve.ECP2_fromBytes(protoVk.G2)
+		vk.alpha = Curve.ECP2_fromBytes(protoVk.Alpha)
+		vk.beta = make([]*Curve.ECP2, len(protoVk.Beta))
+		for i := range protoVk.Beta {
+			vk.beta[i] = Curve.ECP2_fromBytes(protoVk.Beta[i])
+		}
+		return nil
+	}
 
 	if len(data)%ec2len != 0 || len(data) < 3*ec2len {
 		return constants.ErrUnmarshalLength
