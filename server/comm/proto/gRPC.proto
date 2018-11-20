@@ -13,3 +13,7 @@ message VerificationKeyResponse {
 service Issuer {
     rpc GetVerificationKey(VerificationKeyRequest) returns (VerificationKeyResponse);
 }
+
+// service Provider {
+    // rpc 
+// }

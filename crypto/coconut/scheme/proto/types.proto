@@ -1,6 +1,8 @@
 syntax = "proto3";
+import "crypto/elgamal/proto/types.proto";
 
 package coconut;
+option go_package = "github.com/jstuczyn/CoconutGo/crypto/coconut";
 // used for serializing data to send them over the wire. It is assumed each BIG, ECP, ECP2, etc 
 // were already converted to byte slices using amcl's ToBytes methods.
 
@@ -18,4 +20,12 @@ message ProtoVerificationKey {
     repeated bytes Beta = 3; // order is preserved
 }
 
+message ProtoSignature {
+    bytes sig1 = 1;
+    bytes sig2 = 2;
+}
 
+message ProtoBlindedSignature {
+    bytes sig1 = 1;
+    elgamal.ProtoEncryption sig2Tilda = 2; 
+}

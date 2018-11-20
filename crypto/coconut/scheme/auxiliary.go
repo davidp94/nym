@@ -72,6 +72,20 @@ func (vr VerificationResult) MarshalBinary() ([]byte, error) {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sk *SecretKey) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		xb := make([]byte, blen)
+		sk.x.ToBytes(xb)
+		yb := make([][]byte, len(sk.y))
+		for i := range yb {
+			yb[i] = make([]byte, blen)
+			sk.y[i].ToBytes(yb[i])
+		}
+		protoSk := &ProtoSecretKey{
+			X: xb,
+			Y: yb,
+		}
+		return proto.Marshal(protoSk)
+	}
 	// sk consists of len(ys) + 1 values which are all of same, constant, length
 	data := make([]byte, blen*(len(sk.y)+1))
 	sk.x.ToBytes(data)
@@ -85,6 +99,19 @@ func (sk *SecretKey) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		protoSk := &ProtoSecretKey{}
+		if err := proto.Unmarshal(data, protoSk); err != nil {
+			return err
+		}
+		sk.x = Curve.FromBytes(protoSk.X)
+		sk.y = make([]*Curve.BIG, len(protoSk.Y))
+		for i := range sk.y {
+			sk.y[i] = Curve.FromBytes(protoSk.Y[i])
+		}
+		return nil
+	}
+
 	if len(data)%blen != 0 || len(data) < 2*blen {
 		return constants.ErrUnmarshalLength
 	}
@@ -135,8 +162,8 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 	ec2len := constants.ECP2Len
 	if constants.ProtobufSerialization {
 		protoVk := &ProtoVerificationKey{}
-		err := proto.Unmarshal(data, protoVk)
-		if err != nil {
+		if err := proto.Unmarshal(data, protoVk); err != nil {
+
 			return err
 		}
 		vk.g2 = Curve.ECP2_fromBytes(protoVk.G2)
@@ -167,6 +194,17 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sig *Signature) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		sig1b := make([]byte, eclen)
+		sig2b := make([]byte, eclen)
+		sig.sig1.ToBytes(sig1b, true)
+		sig.sig2.ToBytes(sig2b, true)
+		protoSig := &ProtoSignature{
+			Sig1: sig1b,
+			Sig2: sig2b,
+		}
+		return proto.Marshal(protoSig)
+	}
 	data := make([]byte, eclen*2)
 	sig.sig1.ToBytes(data, true)
 	sig.sig2.ToBytes(data[eclen:], true)
@@ -177,6 +215,15 @@ func (sig *Signature) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (sig *Signature) UnmarshalBinary(data []byte) error {
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoSig := &ProtoSignature{}
+		if err := proto.Unmarshal(data, protoSig); err != nil {
+			return err
+		}
+		sig.sig1 = Curve.ECP_fromBytes(protoSig.Sig1)
+		sig.sig2 = Curve.ECP_fromBytes(protoSig.Sig2)
+		return nil
+	}
 	if len(data) != 2*eclen {
 		return constants.ErrUnmarshalLength
 	}

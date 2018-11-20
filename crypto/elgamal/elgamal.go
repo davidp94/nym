@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 
+	proto "github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
 
@@ -211,6 +212,17 @@ func (e *Encryption) C2() *Curve.ECP {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (e *Encryption) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		c1b := make([]byte, eclen)
+		c2b := make([]byte, eclen)
+		e.c1.ToBytes(c1b, true)
+		e.c2.ToBytes(c2b, true)
+		protoEnc := &ProtoEncryption{
+			C1: c1b,
+			C2: c2b,
+		}
+		return proto.Marshal(protoEnc)
+	}
 
 	data := make([]byte, eclen*2)
 	e.c1.ToBytes(data, true)
@@ -222,6 +234,15 @@ func (e *Encryption) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (e *Encryption) UnmarshalBinary(data []byte) error {
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoEnc := &ProtoEncryption{}
+		if err := proto.Unmarshal(data, protoEnc); err != nil {
+			return err
+		}
+		e.c1 = Curve.ECP_fromBytes(protoEnc.C1)
+		e.c2 = Curve.ECP_fromBytes(protoEnc.C2)
+		return nil
+	}
 
 	if len(data) < 2*eclen {
 		return ErrUnmarshalLength
