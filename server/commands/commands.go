@@ -20,6 +20,7 @@
 package commands
 
 import (
+	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
@@ -137,6 +138,15 @@ func (cr *CommandRequest) Cmd() Command {
 	return cr.cmd
 }
 
+//
+//
+// LITERALLY EVERYTHING BELOW IS DEPRECATED AND WILL BE REMOVED
+// PROTOBUFS ARE TEMPORARILY WRAPPER IN EXISTING TYPES JUST TO CHECK THEIR VIABILITY;
+// CURRENTLY A LOT OF UNNEEDED MARSHALING/UNMARSHALING IS PRESENT
+// WHOLE COMMANDS/PACKET PACKAGES WILL BE REFACTORED
+//
+//
+
 // all the below commands are recovered from payload field in Command
 // id is used to determine which one to recover
 
@@ -229,6 +239,21 @@ func (v *Verify) PubM() []*Curve.BIG {
 func (v *Verify) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		verifyRequest := &VerifyRequest{}
+		if err := proto.Unmarshal(data, verifyRequest); err != nil {
+			return err
+		}
+		sig := &coconut.Signature{}
+		sig.FromProto(verifyRequest.Sig)
+		pubM := make([]*Curve.BIG, len(verifyRequest.PubM))
+		for i := range pubM {
+			pubM[i] = Curve.FromBytes(verifyRequest.PubM[i])
+		}
+		v.sig = sig
+		v.pubM = pubM
+		return nil
+	}
 
 	if !constants.ProtobufSerialization && (len(data)-2*eclen)%blen != 0 {
 		return constants.ErrUnmarshalLength
@@ -254,7 +279,22 @@ func (v *Verify) UnmarshalBinary(data []byte) error {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Verify) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
-	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoSig, err := v.sig.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		pubMb := make([][]byte, len(v.pubM))
+		for i := range pubMb {
+			pubMb[i] = make([]byte, blen)
+			v.pubM[i].ToBytes(pubMb[i])
+		}
+		verifyRequest := &VerifyRequest{
+			Sig:  protoSig,
+			PubM: pubMb,
+		}
+		return proto.Marshal(verifyRequest)
+	}
 
 	sigB, err := v.sig.MarshalBinary()
 	if err != nil {

@@ -1,0 +1,10 @@
+syntax = "proto3";
+import "crypto/coconut/scheme/proto/types.proto";
+ 
+package commands;
+option go_package = "github.com/jstuczyn/CoconutGo/server/commands";
+
+message VerifyRequest {
+    coconut.ProtoSignature sig = 1;
+    repeated bytes pubM = 2;
+}  
