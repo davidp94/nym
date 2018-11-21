@@ -73,16 +73,9 @@ func (vr VerificationResult) MarshalBinary() ([]byte, error) {
 func (sk *SecretKey) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	if constants.ProtobufSerialization {
-		xb := make([]byte, blen)
-		sk.x.ToBytes(xb)
-		yb := make([][]byte, len(sk.y))
-		for i := range yb {
-			yb[i] = make([]byte, blen)
-			sk.y[i].ToBytes(yb[i])
-		}
-		protoSk := &ProtoSecretKey{
-			X: xb,
-			Y: yb,
+		protoSk, err := sk.ToProto()
+		if err != nil {
+			return nil, err
 		}
 		return proto.Marshal(protoSk)
 	}
@@ -104,12 +97,7 @@ func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 		if err := proto.Unmarshal(data, protoSk); err != nil {
 			return err
 		}
-		sk.x = Curve.FromBytes(protoSk.X)
-		sk.y = make([]*Curve.BIG, len(protoSk.Y))
-		for i := range sk.y {
-			sk.y[i] = Curve.FromBytes(protoSk.Y[i])
-		}
-		return nil
+		return sk.FromProto(protoSk)
 	}
 
 	if len(data)%blen != 0 || len(data) < 2*blen {
@@ -125,24 +113,41 @@ func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (sk *SecretKey) ToProto() (*ProtoSecretKey, error) {
+	blen := constants.BIGLen
+	xb := make([]byte, blen)
+	sk.x.ToBytes(xb)
+	yb := make([][]byte, len(sk.y))
+	for i := range yb {
+		yb[i] = make([]byte, blen)
+		sk.y[i].ToBytes(yb[i])
+	}
+	return &ProtoSecretKey{
+		X: xb,
+		Y: yb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (sk *SecretKey) FromProto(psk *ProtoSecretKey) error {
+	sk.x = Curve.FromBytes(psk.X)
+	sk.y = make([]*Curve.BIG, len(psk.Y))
+	for i := range sk.y {
+		sk.y[i] = Curve.FromBytes(psk.Y[i])
+	}
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (vk *VerificationKey) MarshalBinary() ([]byte, error) {
 	ec2len := constants.ECP2Len
 	if constants.ProtobufSerialization {
-		g2b := make([]byte, ec2len)
-		alphab := make([]byte, ec2len)
-		betab := make([][]byte, len(vk.Beta()))
-		for i := range betab {
-			betab[i] = make([]byte, ec2len)
-			vk.Beta()[i].ToBytes(betab[i])
-		}
-		vk.G2().ToBytes(g2b)
-		vk.Alpha().ToBytes(alphab)
-		protoVk := &ProtoVerificationKey{
-			G2:    g2b,
-			Alpha: alphab,
-			Beta:  betab,
+		protoVk, err := vk.ToProto()
+		if err != nil {
+			return nil, err
 		}
 		return proto.Marshal(protoVk)
 	}
@@ -163,16 +168,9 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 	if constants.ProtobufSerialization {
 		protoVk := &ProtoVerificationKey{}
 		if err := proto.Unmarshal(data, protoVk); err != nil {
-
 			return err
 		}
-		vk.g2 = Curve.ECP2_fromBytes(protoVk.G2)
-		vk.alpha = Curve.ECP2_fromBytes(protoVk.Alpha)
-		vk.beta = make([]*Curve.ECP2, len(protoVk.Beta))
-		for i := range protoVk.Beta {
-			vk.beta[i] = Curve.ECP2_fromBytes(protoVk.Beta[i])
-		}
-		return nil
+		return vk.FromProto(protoVk)
 	}
 
 	if len(data)%ec2len != 0 || len(data) < 3*ec2len {
@@ -190,18 +188,45 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
+	ec2len := constants.ECP2Len
+	g2b := make([]byte, ec2len)
+	alphab := make([]byte, ec2len)
+	betab := make([][]byte, len(vk.Beta()))
+	for i := range betab {
+		betab[i] = make([]byte, ec2len)
+		vk.Beta()[i].ToBytes(betab[i])
+	}
+	vk.G2().ToBytes(g2b)
+	vk.Alpha().ToBytes(alphab)
+	return &ProtoVerificationKey{
+		G2:    g2b,
+		Alpha: alphab,
+		Beta:  betab,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (vk *VerificationKey) FromProto(pvk *ProtoVerificationKey) error {
+	vk.g2 = Curve.ECP2_fromBytes(pvk.G2)
+	vk.alpha = Curve.ECP2_fromBytes(pvk.Alpha)
+	vk.beta = make([]*Curve.ECP2, len(pvk.Beta))
+	for i := range pvk.Beta {
+		vk.beta[i] = Curve.ECP2_fromBytes(pvk.Beta[i])
+	}
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sig *Signature) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
 	if constants.ProtobufSerialization {
-		sig1b := make([]byte, eclen)
-		sig2b := make([]byte, eclen)
-		sig.sig1.ToBytes(sig1b, true)
-		sig.sig2.ToBytes(sig2b, true)
-		protoSig := &ProtoSignature{
-			Sig1: sig1b,
-			Sig2: sig2b,
+		protoSig, err := sig.ToProto()
+		if err != nil {
+			return nil, err
 		}
 		return proto.Marshal(protoSig)
 	}
@@ -220,9 +245,7 @@ func (sig *Signature) UnmarshalBinary(data []byte) error {
 		if err := proto.Unmarshal(data, protoSig); err != nil {
 			return err
 		}
-		sig.sig1 = Curve.ECP_fromBytes(protoSig.Sig1)
-		sig.sig2 = Curve.ECP_fromBytes(protoSig.Sig2)
-		return nil
+		return sig.FromProto(protoSig)
 	}
 	if len(data) != 2*eclen {
 		return constants.ErrUnmarshalLength
@@ -234,10 +257,38 @@ func (sig *Signature) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (sig *Signature) ToProto() (*ProtoSignature, error) {
+	eclen := constants.ECPLen
+	sig1b := make([]byte, eclen)
+	sig2b := make([]byte, eclen)
+	sig.sig1.ToBytes(sig1b, true)
+	sig.sig2.ToBytes(sig2b, true)
+	return &ProtoSignature{
+		Sig1: sig1b,
+		Sig2: sig2b,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (sig *Signature) FromProto(psig *ProtoSignature) error {
+	sig.sig1 = Curve.ECP_fromBytes(psig.Sig1)
+	sig.sig2 = Curve.ECP_fromBytes(psig.Sig2)
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (bs *BlindedSignature) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoBlindedSig, err := bs.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoBlindedSig)
+	}
 
 	data := make([]byte, eclen*3)
 	bs.sig1.ToBytes(data, true)
@@ -254,6 +305,14 @@ func (bs *BlindedSignature) MarshalBinary() ([]byte, error) {
 func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
 	eclen := constants.ECPLen
 
+	if constants.ProtobufSerialization {
+		protoBlindedSig := &ProtoBlindedSignature{}
+		if err := proto.Unmarshal(data, protoBlindedSig); err != nil {
+			return err
+		}
+		return bs.FromProto(protoBlindedSig)
+	}
+
 	if len(data) != 3*eclen {
 		return constants.ErrUnmarshalLength
 	}
@@ -267,10 +326,47 @@ func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (bs *BlindedSignature) ToProto() (*ProtoBlindedSignature, error) {
+	eclen := constants.ECPLen
+
+	sig1b := make([]byte, eclen)
+	bs.sig1.ToBytes(sig1b, true)
+	sig2TildaProto, err := bs.sig2Tilda.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return &ProtoBlindedSignature{
+		Sig1:      sig1b,
+		Sig2Tilda: sig2TildaProto,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (bs *BlindedSignature) FromProto(pbs *ProtoBlindedSignature) error {
+	sig1 := Curve.ECP_fromBytes(pbs.Sig1)
+	enc := &elgamal.Encryption{}
+	if err := enc.FromProto(pbs.Sig2Tilda); err != nil {
+		return err
+	}
+
+	bs.sig1 = sig1
+	bs.sig2Tilda = enc
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sp *SignerProof) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		protoSignerProof, err := sp.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoSignerProof)
+	}
 	if !constants.MarshalEmbedHelperData {
 		// without embedding array sizes, it is impossible (or at least I could not figure it out)
 		// how to distinguish two arrays so that they could be unmarshaled later
@@ -300,6 +396,14 @@ func (sp *SignerProof) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (sp *SignerProof) UnmarshalBinary(data []byte) error {
+	if constants.ProtobufSerialization {
+		protoSignerProof := &ProtoSignerProof{}
+		if err := proto.Unmarshal(data, protoSignerProof); err != nil {
+			return err
+		}
+		return sp.FromProto(protoSignerProof)
+	}
+
 	if !constants.MarshalEmbedHelperData {
 		// same reasoning as above
 		return ErrMarshalMethod
@@ -336,11 +440,59 @@ func (sp *SignerProof) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
+	blen := constants.BIGLen
+	cb := make([]byte, blen)
+	rrb := make([]byte, blen)
+	rkb := make([][]byte, len(sp.rk))
+	rmb := make([][]byte, len(sp.rm))
+	sp.c.ToBytes(cb)
+	sp.rr.ToBytes(rrb)
+	for i := range rkb {
+		rkb[i] = make([]byte, blen)
+		sp.rk[i].ToBytes(rkb[i])
+	}
+	for i := range rmb {
+		rmb[i] = make([]byte, blen)
+		sp.rm[i].ToBytes(rmb[i])
+	}
+	return &ProtoSignerProof{
+		C:  cb,
+		Rr: rrb,
+		Rk: rkb,
+		Rm: rmb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (sp *SignerProof) FromProto(psp *ProtoSignerProof) error {
+	sp.c = Curve.FromBytes(psp.C)
+	sp.rr = Curve.FromBytes(psp.Rr)
+	sp.rk = make([]*Curve.BIG, len(psp.Rk))
+	sp.rm = make([]*Curve.BIG, len(psp.Rm))
+	for i := range psp.Rk {
+		sp.rk[i] = Curve.FromBytes(psp.Rk[i])
+	}
+	for i := range psp.Rm {
+		sp.rm[i] = Curve.FromBytes(psp.Rm[i])
+	}
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoBlindSignMats, err := bsm.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoBlindSignMats)
+	}
 
 	// it depends here if we really care about the 'overhead' (and hence possible compatibility) of 2 bytes
 	// vs slightly more complicated implementation and limitation of maximum of number of attributes
@@ -409,6 +561,13 @@ func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
 func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoBlindSignMats := &ProtoBlindSignMats{}
+		if err := proto.Unmarshal(data, protoBlindSignMats); err != nil {
+			return err
+		}
+		return bsm.FromProto(protoBlindSignMats)
+	}
 
 	if constants.MarshalEmbedHelperData {
 		cm := Curve.ECP_fromBytes(data)
@@ -475,10 +634,66 @@ func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
+	eclen := constants.ECPLen
+
+	cmb := make([]byte, eclen)
+	bsm.cm.ToBytes(cmb, true)
+
+	enc := make([]*elgamal.ProtoEncryption, len(bsm.enc))
+	for i := range enc {
+		protoEnc, err := bsm.enc[i].ToProto()
+		if err != nil {
+			return nil, err
+		}
+		enc[i] = protoEnc
+	}
+
+	protoSignerProof, err := bsm.proof.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProtoBlindSignMats{
+		Cm:    cmb,
+		Enc:   enc,
+		Proof: protoSignerProof,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (bsm *BlindSignMats) FromProto(pbsm *ProtoBlindSignMats) error {
+	bsm.cm = Curve.ECP_fromBytes(pbsm.Cm)
+	enc := make([]*elgamal.Encryption, len(pbsm.Enc))
+	for i := range enc {
+		enci := &elgamal.Encryption{}
+		if err := enci.FromProto(pbsm.Enc[i]); err != nil {
+			return err
+		}
+		enc[i] = enci
+	}
+	bsm.enc = enc
+	proof := &SignerProof{}
+	if err := proof.FromProto(pbsm.Proof); err != nil {
+		return err
+	}
+	bsm.proof = proof
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (vp *VerifierProof) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		protoVerifierProof, err := vp.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoVerifierProof)
+	}
 	data := make([]byte, blen*(2+len(vp.rm)))
 	vp.c.ToBytes(data)
 	vp.rt.ToBytes(data[blen:])
@@ -492,6 +707,14 @@ func (vp *VerifierProof) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (vp *VerifierProof) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		protoVerifierProof := &ProtoVerifierProof{}
+		if err := proto.Unmarshal(data, protoVerifierProof); err != nil {
+			return err
+		}
+		return vp.FromProto(protoVerifierProof)
+	}
+
 	if len(data)%blen != 0 || len(data) < 3*blen {
 		return constants.ErrUnmarshalLength
 	}
@@ -514,12 +737,53 @@ func (vp *VerifierProof) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// ToProto creates a protobuf representation of the object.
+func (vp *VerifierProof) ToProto() (*ProtoVerifierProof, error) {
+	blen := constants.BIGLen
+	cb := make([]byte, blen)
+	vp.c.ToBytes(cb)
+
+	rmb := make([][]byte, len(vp.rm))
+	for i := range rmb {
+		rmb[i] = make([]byte, blen)
+		vp.rm[i].ToBytes(rmb[i])
+	}
+
+	rtb := make([]byte, blen)
+	vp.rt.ToBytes(rtb)
+
+	return &ProtoVerifierProof{
+		C:  cb,
+		Rm: rmb,
+		Rt: rtb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (vp *VerifierProof) FromProto(pvp *ProtoVerifierProof) error {
+	vp.c = Curve.FromBytes(pvp.C)
+	vp.rt = Curve.FromBytes(pvp.Rt)
+	vp.rm = make([]*Curve.BIG, len(pvp.Rm))
+	for i := range pvp.Rm {
+		vp.rm[i] = Curve.FromBytes(pvp.Rm[i])
+	}
+	return nil
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (bsm *BlindShowMats) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
+	if constants.ProtobufSerialization {
+		protoBlindShowMats, err := bsm.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoBlindShowMats)
+	}
 
 	data := make([]byte, ec2len+eclen+blen*(2+len(bsm.proof.rm)))
 	bsm.kappa.ToBytes(data)
@@ -538,6 +802,13 @@ func (bsm *BlindShowMats) MarshalBinary() ([]byte, error) {
 func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
+	if constants.ProtobufSerialization {
+		protoBlindShowMats := &ProtoBlindShowMats{}
+		if err := proto.Unmarshal(data, protoBlindShowMats); err != nil {
+			return err
+		}
+		return bsm.FromProto(protoBlindShowMats)
+	}
 
 	kappa := Curve.ECP2_fromBytes(data)
 	nu := Curve.ECP_fromBytes(data[ec2len:])
@@ -550,5 +821,40 @@ func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
 	bsm.nu = nu
 	bsm.proof = proof
 
+	return nil
+}
+
+// ToProto creates a protobuf representation of the object.
+func (bsm *BlindShowMats) ToProto() (*ProtoBlindShowMats, error) {
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+
+	kappab := make([]byte, ec2len)
+	bsm.kappa.ToBytes(kappab)
+	nub := make([]byte, eclen)
+	bsm.nu.ToBytes(nub, true)
+
+	proof, err := bsm.proof.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProtoBlindShowMats{
+		Kappa: kappab,
+		Nu:    nub,
+		Proof: proof,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
+	bsm.kappa = Curve.ECP2_fromBytes(pbsm.Kappa)
+	bsm.nu = Curve.ECP_fromBytes(pbsm.Nu)
+	proof := &VerifierProof{}
+	if err := proof.FromProto(pbsm.Proof); err != nil {
+		return err
+	}
+	bsm.proof = proof
 	return nil
 }

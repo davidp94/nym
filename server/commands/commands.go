@@ -155,13 +155,13 @@ func NewSign(pubM []*Curve.BIG) *Sign {
 	return &Sign{pubM}
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (s *Sign) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 
 	if len(data)%blen != 0 {
-		// this really, really, really needs to be moved to other package
 		return constants.ErrUnmarshalLength
 	}
 
@@ -174,6 +174,7 @@ func (s *Sign) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (s *Sign) MarshalBinary() ([]byte, error) {
@@ -190,10 +191,12 @@ func (s *Sign) MarshalBinary() ([]byte, error) {
 // (which are none)
 type Vk struct{}
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Vk) MarshalBinary() ([]byte, error) { return make([]byte, 0), nil }
@@ -220,13 +223,14 @@ func (v *Verify) PubM() []*Curve.BIG {
 	return v.pubM
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Verify) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
 
-	if (len(data)-2*eclen)%blen != 0 {
+	if !constants.ProtobufSerialization && (len(data)-2*eclen)%blen != 0 {
 		return constants.ErrUnmarshalLength
 	}
 
@@ -245,20 +249,21 @@ func (v *Verify) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (v *Verify) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
 
-	data := make([]byte, 2*eclen+blen*len(v.pubM))
 	sigB, err := v.sig.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
+	data := make([]byte, len(sigB)+blen*len(v.pubM))
 	copy(data, sigB)
 	for i := range v.pubM {
-		v.pubM[i].ToBytes(data[2*eclen+i*blen:])
+		v.pubM[i].ToBytes(data[len(sigB)+i*blen:])
 	}
 	return data, nil
 }
@@ -299,6 +304,7 @@ func (bs *BlindSign) PubM() []*Curve.BIG {
 	return bs.pubM
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (bs *BlindSign) UnmarshalBinary(data []byte) error {
@@ -329,6 +335,7 @@ func (bs *BlindSign) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (bs *BlindSign) MarshalBinary() ([]byte, error) {
@@ -393,6 +400,7 @@ func (bv *BlindVerify) PubM() []*Curve.BIG {
 	return bv.pubM
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
@@ -425,6 +433,7 @@ func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (bv *BlindVerify) MarshalBinary() ([]byte, error) {

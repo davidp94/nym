@@ -213,13 +213,9 @@ func (e *Encryption) C2() *Curve.ECP {
 func (e *Encryption) MarshalBinary() ([]byte, error) {
 	eclen := constants.ECPLen
 	if constants.ProtobufSerialization {
-		c1b := make([]byte, eclen)
-		c2b := make([]byte, eclen)
-		e.c1.ToBytes(c1b, true)
-		e.c2.ToBytes(c2b, true)
-		protoEnc := &ProtoEncryption{
-			C1: c1b,
-			C2: c2b,
+		protoEnc, err := e.ToProto()
+		if err != nil {
+			return nil, err
 		}
 		return proto.Marshal(protoEnc)
 	}
@@ -239,9 +235,7 @@ func (e *Encryption) UnmarshalBinary(data []byte) error {
 		if err := proto.Unmarshal(data, protoEnc); err != nil {
 			return err
 		}
-		e.c1 = Curve.ECP_fromBytes(protoEnc.C1)
-		e.c2 = Curve.ECP_fromBytes(protoEnc.C2)
-		return nil
+		return e.FromProto(protoEnc)
 	}
 
 	if len(data) < 2*eclen {
@@ -251,6 +245,27 @@ func (e *Encryption) UnmarshalBinary(data []byte) error {
 	c2 := Curve.ECP_fromBytes(data[eclen:])
 	e.c1 = c1
 	e.c2 = c2
+	return nil
+}
+
+// ToProto creates a protobuf representation of the object.
+func (e *Encryption) ToProto() (*ProtoEncryption, error) {
+	eclen := constants.ECPLen
+	c1b := make([]byte, eclen)
+	c2b := make([]byte, eclen)
+	e.c1.ToBytes(c1b, true)
+	e.c2.ToBytes(c2b, true)
+	return &ProtoEncryption{
+		C1: c1b,
+		C2: c2b,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (e *Encryption) FromProto(pe *ProtoEncryption) error {
+	e.c1 = Curve.ECP_fromBytes(pe.C1)
+	e.c2 = Curve.ECP_fromBytes(pe.C2)
 	return nil
 }
 

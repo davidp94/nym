@@ -46,14 +46,15 @@ func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, 
 }
 
 func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
-	expectedResponseLength := 2 * constants.ECPLen
+	// if protobuf is used, it is at least that + headers
+	expectedMinimumReponseLength := 2 * constants.ECPLen
 	if isBlind {
-		expectedResponseLength += constants.ECPLen
+		expectedMinimumReponseLength += constants.ECPLen
 	}
 	validSigs := 0
 	for i := range responses {
 		// first check guarantees we will be able to check second expression without memory violation
-		if responses[i] != nil && len(responses[i].MarshaledData) == expectedResponseLength {
+		if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
 			validSigs++
 		}
 	}
@@ -62,7 +63,7 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 
 	j := 0
 	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) == expectedResponseLength {
+		if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
 			sig := &coconut.Signature{}
 			if isBlind {
 				blindedSig := &coconut.BlindedSignature{}
