@@ -18,11 +18,13 @@
 package listener
 
 import (
-	"encoding"
 	"fmt"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/golang/protobuf/proto"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
@@ -36,7 +38,7 @@ import (
 
 // todo: onnewconn in goroutine or something to not block on multiple clients
 
-// Listener represents the Coconut Server listener
+// Listener represents the Coconut Server listener (listening on TCP socket, not for gRPC via HTTP2)
 type Listener struct {
 	cfg *config.Config
 
@@ -124,12 +126,16 @@ func (l *Listener) onNewConn(conn net.Conn) {
 		return
 	}
 
-	cmd := commands.FromBytes(inPacket.Payload())
-	resCh := make(chan interface{}, 1)
+	cmd, err := commands.FromBytes(inPacket.Payload())
+	if err != nil {
+		l.log.Errorf("Error while parsing packet: %v", err)
+		return
+	}
+	resCh := make(chan *commands.Response, 1)
 	cmdReq := commands.NewCommandRequest(cmd, resCh)
 
 	l.incomingCh <- cmdReq
-	outPacket := l.resolveCommand(resCh)
+	outPacket := l.resolveCommand(cmd, resCh)
 	l.replyToClient(outPacket, conn)
 }
 
@@ -147,28 +153,68 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 	l.log.Error("Couldn't reply to the client") // conn will close regardless after this
 }
 
-func (l *Listener) resolveCommand(resCh chan interface{}) *packet.Packet {
-	var payload []byte
+func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
+	var data interface{}
+	protoStatus := &commands.Status{}
+
 	select {
-	case res := <-resCh:
-		resVal, ok := res.(encoding.BinaryMarshaler) // all coconut structures implement that interface
-		if ok {
-			l.log.Debug("Received non-empty response from the worker")
-			b, err := resVal.MarshalBinary()
-			// todo: check if use protobuf and put to protobuf instead, though return type...
-			if err == nil {
-				payload = b
-			}
-		} else {
-			l.log.Error("Failed to resolve command")
+	case resp := <-resCh:
+		// var resVal *proto.Message
+		l.log.Debug("Received response from the worker")
+		if resp.Data != nil && len(resp.ErrorMessage) == 0 && resp.ErrorStatus == commands.StatusCode_UNKNOWN {
+			resp.ErrorStatus = commands.StatusCode_OK
 		}
+
+		data = resp.Data
+		protoStatus.Code = int32(resp.ErrorStatus)
+		protoStatus.Message = resp.ErrorMessage
+
 	// we can wait up to 500ms to resolve request
 	// todo: a way to cancel the request because even though it timeouts, the worker is still working on it
 	case <-time.After(time.Duration(l.cfg.Debug.RequestTimeout) * time.Millisecond):
-		l.log.Error("Failed to resolve request")
+		protoStatus.Code = int32(commands.StatusCode_REQUEST_TIMEOUT)
+		protoStatus.Message = "Request took too long to resolve."
+		l.log.Error("Failed to resolve request - timeout")
 	}
 
-	return packet.NewPacket(payload)
+	var protoResp proto.Message
+	var err error
+	switch cmd.(type) {
+	case *commands.Sign:
+		protoSig := &coconut.ProtoSignature{}
+		if data != nil {
+			protoSig, err = data.(*coconut.Signature).ToProto()
+			if err != nil {
+				l.log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+
+		}
+		protoResp = &commands.SignResponse{
+			Sig:    protoSig,
+			Status: protoStatus,
+		}
+	case *commands.Vk:
+		l.log.Fatal("NOT IMPLEMENTED")
+	case *commands.Verify:
+		l.log.Fatal("NOT IMPLEMENTED")
+	case *commands.BlindSign:
+		l.log.Fatal("NOT IMPLEMENTED")
+	case *commands.BlindVerify:
+		l.log.Fatal("NOT IMPLEMENTED")
+	default:
+		l.log.Fatal("NOT IMPLEMENTED")
+		// return nil and dont reply
+	}
+
+	b, err := proto.Marshal(protoResp)
+	if err != nil {
+		l.log.Errorf("Error while marshaling proto response: %v", err)
+		// we can't do much more with it anyway...
+	}
+
+	return packet.NewPacket(b)
 }
 
 // New creates a new listener.

@@ -20,6 +20,8 @@
 package commands
 
 import (
+	"errors"
+
 	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -49,6 +51,10 @@ const (
 type Command interface {
 	MarshalBinary() ([]byte, error)
 	UnmarshalBinary(data []byte) error
+	// basically generated protocol buffer messages
+	// Reset()
+	// String() string
+	// ProtoMessage()
 }
 
 // CommandID is wrapper for a byte defining ID of particular command.
@@ -83,59 +89,76 @@ func (c *RawCommand) ToBytes() []byte {
 	return b
 }
 
-// FromBytes creates a given Command object out of stream of bytes.
-func FromBytes(b []byte) Command {
-	id := CommandID(b[0])
-	payload := b[1:]
-	var cmd Command
-	var err error
-	switch id {
-	case GetVerificationKeyID:
-		vkCmd := &Vk{}
-		err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
-		cmd = vkCmd
-	case SignID:
-		signCmd := &Sign{}
-		err = signCmd.UnmarshalBinary(payload)
-		cmd = signCmd
-	case VerifyID:
-		verifyCmd := &Verify{}
-		err = verifyCmd.UnmarshalBinary(payload)
-		cmd = verifyCmd
-	case BlindSignID:
-		blindSignCmd := &BlindSign{}
-		err = blindSignCmd.UnmarshalBinary(payload)
-		cmd = blindSignCmd
-	case BlindVerifyID:
-		blindVerifyCmd := &BlindVerify{}
-		err = blindVerifyCmd.UnmarshalBinary(payload)
-		cmd = blindVerifyCmd
-	}
-	if err != nil {
-		return nil
-	}
-	return cmd
-}
-
 // CommandRequest defines set of Command and chan that is used by client workers.
 type CommandRequest struct {
 	cmd   Command
-	retCh chan interface{}
+	retCh chan *Response
 }
 
 // NewCommandRequest creates new instance of CommandRequest.
-func NewCommandRequest(cmd Command, ch chan interface{}) *CommandRequest {
+func NewCommandRequest(cmd Command, ch chan *Response) *CommandRequest {
 	return &CommandRequest{cmd: cmd, retCh: ch}
 }
 
 // RetCh returns return channel of CommandRequest.
-func (cr *CommandRequest) RetCh() chan interface{} {
+func (cr *CommandRequest) RetCh() chan *Response {
 	return cr.retCh
 }
 
 // Cmd returns command of CommandRequest.
 func (cr *CommandRequest) Cmd() Command {
 	return cr.cmd
+}
+
+type Response struct {
+	Data         interface{}
+	ErrorStatus  StatusCode
+	ErrorMessage string
+}
+
+// FromBytes creates a given Command object out of stream of bytes.
+func FromBytes(b []byte) (Command, error) {
+	id := CommandID(b[0])
+	payload := b[1:]
+	var cmd Command
+	var err error
+	switch id {
+	case GetVerificationKeyID:
+		return nil, errors.New("Not Implemented")
+		// vkCmd := &Vk{}
+		// err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
+		// cmd = vkCmd
+	case SignID:
+		// return nil, errors.New("Not Implemented")
+
+		signCmd := &Sign{}
+		err = signCmd.UnmarshalBinary(payload)
+		cmd = signCmd
+	case VerifyID:
+		return nil, errors.New("Not Implemented")
+
+		// verifyCmd := &Verify{}
+		// err = verifyCmd.UnmarshalBinary(payload)
+		// cmd = verifyCmd
+	case BlindSignID:
+		return nil, errors.New("Not Implemented")
+
+		// blindSignCmd := &BlindSign{}
+		// err = blindSignCmd.UnmarshalBinary(payload)
+		// cmd = blindSignCmd
+	case BlindVerifyID:
+		return nil, errors.New("Not Implemented")
+
+		// blindVerifyCmd := &BlindVerify{}
+		// err = blindVerifyCmd.UnmarshalBinary(payload)
+		// cmd = blindVerifyCmd
+	default:
+		return nil, errors.New("Unknown CommandID")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 //
@@ -169,8 +192,19 @@ func NewSign(pubM []*Curve.BIG) *Sign {
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (s *Sign) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		signRequest := &SignRequest{}
+		if err := proto.Unmarshal(data, signRequest); err != nil {
+			return err
+		}
+		s.pubM = make([]*Curve.BIG, len(signRequest.PubM))
+		for i := range s.pubM {
+			s.pubM[i] = Curve.FromBytes(signRequest.PubM[i])
+		}
+		return nil
+	}
 
+	blen := constants.BIGLen
 	if len(data)%blen != 0 {
 		return constants.ErrUnmarshalLength
 	}
@@ -190,10 +224,21 @@ func (s *Sign) UnmarshalBinary(data []byte) error {
 func (s *Sign) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 
+	if constants.ProtobufSerialization {
+		pubMb := make([][]byte, len(s.pubM))
+		for i := range pubMb {
+			pubMb[i] = make([]byte, blen)
+			s.pubM[i].ToBytes(pubMb[i])
+		}
+		signRequest := &SignRequest{PubM: pubMb}
+		return proto.Marshal(signRequest)
+	}
+
 	data := make([]byte, blen*len(s.pubM))
 	for i := range s.pubM {
 		s.pubM[i].ToBytes(data[i*blen:])
 	}
+
 	return data, nil
 }
 

@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/server/comm/utils"
+	"github.com/golang/protobuf/proto"
 
-	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
@@ -46,47 +46,84 @@ func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, 
 }
 
 func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
-	// if protobuf is used, it is at least that + headers
-	expectedMinimumReponseLength := 2 * constants.ECPLen
-	if isBlind {
-		expectedMinimumReponseLength += constants.ECPLen
-	}
-	validSigs := 0
-	for i := range responses {
-		// first check guarantees we will be able to check second expression without memory violation
-		if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
-			validSigs++
-		}
-	}
-	sigs := make([]*coconut.Signature, validSigs)
-	xs := make([]*Curve.BIG, validSigs)
+	// todo: possibly split sigs and blind sigs
 
-	j := 0
+	sigs := make([]*coconut.Signature, 0, len(responses))
+	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
+		if responses[i] != nil {
+			resp := &commands.SignResponse{}
+			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
+				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
+				continue
+			}
+			if resp.Status.Code != int32(commands.StatusCode_OK) {
+				c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.Status.Code, resp.Status.Message)
+				continue
+			}
 			sig := &coconut.Signature{}
-			if isBlind {
-				blindedSig := &coconut.BlindedSignature{}
-				if blindedSig.UnmarshalBinary(responses[i].MarshaledData) != nil {
-					return nil, nil
-				}
-				sig = coconut.Unblind(c.params, blindedSig, c.elGamalPrivateKey)
-			} else {
-				if sig.UnmarshalBinary(responses[i].MarshaledData) != nil {
-					return nil, nil
-				}
+			if err := sig.FromProto(resp.Sig); err != nil {
+				c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
+				continue // can still succeed with >= threshold sigs
 			}
-			sigs[j] = sig
+			sigs = append(sigs, sig)
 			if isThreshold {
-				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
+				xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 			}
-			j++
 		}
 	}
+
 	if isThreshold {
 		return sigs, coconut.NewPP(xs)
 	}
+	if len(sigs) != len(responses) {
+		c.log.Errorf("This is not threshold system and some of the received responses were invalid")
+		return nil, nil
+	}
 	return sigs, nil
+
+	// if protobuf is used, it is at least that + headers
+	// expectedMinimumReponseLength := 2 * constants.ECPLen
+	// if isBlind {
+	// 	expectedMinimumReponseLength += constants.ECPLen
+	// }
+	// validSigs := 0
+	// for i := range responses {
+	// 	// first check guarantees we will be able to check second expression without memory violation
+	// 	if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
+	// 		validSigs++
+
+	// 	}
+	// }
+	// sigs := make([]*coconut.Signature, validSigs)
+	// xs := make([]*Curve.BIG, validSigs)
+
+	// j := 0
+	// for i := range responses {
+	// 	if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
+	// 		sig := &coconut.Signature{}
+	// 		if isBlind {
+	// 			blindedSig := &coconut.BlindedSignature{}
+	// 			if blindedSig.UnmarshalBinary(responses[i].MarshaledData) != nil {
+	// 				return nil, nil
+	// 			}
+	// 			sig = coconut.Unblind(c.params, blindedSig, c.elGamalPrivateKey)
+	// 		} else {
+	// 			if sig.UnmarshalBinary(responses[i].MarshaledData) != nil {
+	// 				return nil, nil
+	// 			}
+	// 		}
+	// 		sigs[j] = sig
+	// 		if isThreshold {
+	// 			xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
+	// 		}
+	// 		j++
+	// 	}
+	// }
+	// if isThreshold {
+	// 	return sigs, coconut.NewPP(xs)
+	// }
+	// return sigs, nil
 
 }
 

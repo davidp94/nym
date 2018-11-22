@@ -64,58 +64,84 @@ func (ccw *Worker) worker() {
 		case e := <-ccw.incomingCh:
 			cmdReq = e.(*commands.CommandRequest)
 			cmd := cmdReq.Cmd()
+			var respData interface{}
+			respStatus := commands.StatusCode_UNKNOWN
+			errMsg := ""
+
 			switch v := cmd.(type) {
 			case *commands.Sign:
 				ccw.log.Notice("Received Sign (NOT blind) command")
 				if len(v.PubM()) > len(ccw.sk.Y()) {
-					ccw.log.Error("Too many params to sign.")
-					cmdReq.RetCh() <- nil
+					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM()), len(ccw.sk.Y()))
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_INVALID_ARGUMENTS
 					continue
 				}
 				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, v.PubM())
 				if err != nil {
-					ccw.log.Errorf("Error while signing message: %v", err)
-					cmdReq.RetCh() <- err
+					// todo: should client really know those details?
+					errMsg = fmt.Sprintf("Error while signing message: %v", err)
+					ccw.log.Errorf(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_PROCESSING_ERROR
 					continue
 				}
 				ccw.log.Debugf("Writing back signature")
-				cmdReq.RetCh() <- sig
+				respData = sig
 			case *commands.Vk:
 				ccw.log.Notice("Received Get Verification Key command")
-				cmdReq.RetCh() <- ccw.vk
+				respData = ccw.vk
 			case *commands.Verify:
 				ccw.log.Notice("Received Verify (NOT blind) command")
 				if ccw.avk != nil {
-					cmdReq.RetCh() <- ccw.Verify(ccw.muxParams, ccw.avk, v.PubM(), v.Sig())
+					respData = ccw.Verify(ccw.muxParams, ccw.avk, v.PubM(), v.Sig())
 				} else {
-					ccw.log.Error("The aggregate verification key is nil. Is the server a provider?")
-					cmdReq.RetCh() <- nil
+					errMsg = "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_UNAVAILABLE
 				}
 			case *commands.BlindSign:
 				ccw.log.Notice("Received Blind Sign command")
 				if len(v.PubM())+len(v.BlindSignMats().Enc()) > len(ccw.sk.Y()) {
-					ccw.log.Error("Too many params to sign.")
-					cmdReq.RetCh() <- nil
+					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM())+len(v.BlindSignMats().Enc()), len(ccw.sk.Y()))
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_INVALID_ARGUMENTS
 					continue
 				}
 				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, v.BlindSignMats(), v.EgPub(), v.PubM())
 				if err != nil {
-					ccw.log.Errorf("Error while signing message: %v", err)
-					cmdReq.RetCh() <- err
+					// todo: should client really know those details?
+					errMsg = fmt.Sprintf("Error while signing message: %v", err)
+					ccw.log.Errorf(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_PROCESSING_ERROR
 					continue
 				}
 				ccw.log.Debugf("Writing back blinded signature")
-				cmdReq.RetCh() <- sig
+				respData = sig
 			case *commands.BlindVerify:
 				ccw.log.Notice("Received Blind Verify Command")
 				if ccw.avk != nil {
-					cmdReq.RetCh() <- ccw.BlindVerify(ccw.muxParams, ccw.avk, v.Sig(), v.BlindShowMats(), v.PubM())
+					respData = ccw.BlindVerify(ccw.muxParams, ccw.avk, v.Sig(), v.BlindShowMats(), v.PubM())
 				} else {
-					ccw.log.Error("The aggregate verification key is nil. Is the server a provider?")
-					cmdReq.RetCh() <- nil
+					errMsg = "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_UNAVAILABLE
 				}
 			default:
-				ccw.log.Critical("Received Invalid Command")
+				errMsg = "Received Invalid Command"
+				ccw.log.Critical(errMsg)
+				respStatus = commands.StatusCode_INVALID_COMMAND
+			}
+
+			cmdReq.RetCh() <- &commands.Response{
+				Data:         respData,
+				ErrorStatus:  respStatus,
+				ErrorMessage: errMsg,
 			}
 		}
 	}

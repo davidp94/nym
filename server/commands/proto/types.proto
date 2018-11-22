@@ -4,7 +4,33 @@ import "crypto/coconut/scheme/proto/types.proto";
 package commands;
 option go_package = "github.com/jstuczyn/CoconutGo/server/commands";
 
+enum StatusCode {
+    OK = 0;
+    UNKNOWN = 1;
+    INVALID_COMMAND = 2;
+    INVALID_ARGUMENTS = 3;
+    PROCESSING_ERROR = 4;
+    NOT_IMPLEMENTED = 5;
+    REQUEST_TIMEOUT = 6;
+    UNAVAILABLE = 7;
+}
+
+message Status {
+    int32 code = 1;
+    string message = 2;
+}
+
+message SignRequest {
+    repeated bytes pubM = 1;
+}
+
+message SignResponse {
+    coconut.ProtoSignature sig = 1;
+    Status status = 2;
+}
+
 message VerifyRequest {
     coconut.ProtoSignature sig = 1;
     repeated bytes pubM = 2;
-}  
+}
+

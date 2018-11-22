@@ -61,18 +61,19 @@ func main() {
 	// privM := getRandomAttributes(G, 2)
 
 	sig := c.SignAttributes(pubM)
+	fmt.Println(sig)
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
 
 	// I've killed one signer and created new vk (with valid keys) during the time
 	// this will be done in proper tests later
 	// time.Sleep(10 * time.Second)
-	vk := c.GetAggregateVerificationKey()
-	isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	// vk := c.GetAggregateVerificationKey()
+	// isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
 	// isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
 	// isValidBlind2 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
-	if vk != nil {
-		fmt.Println("Is sig valid:", isValid)
-		// fmt.Println("Is sig validBlind1:", isValidBlind1)
-		// fmt.Println("Is sig validBlind2:", isValidBlind2)
-	}
+	// if vk != nil {
+	// fmt.Println("Is sig valid:", isValid)
+	// fmt.Println("Is sig validBlind1:", isValidBlind1)
+	// fmt.Println("Is sig validBlind2:", isValidBlind2)
+	// }
 }
