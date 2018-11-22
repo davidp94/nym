@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/constants"
+	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
@@ -118,32 +118,43 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 	}
 }
 
-func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
-	validVks := 0
-	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len { // each vk has to have AT LEAST 3 G2 elems
-			validVks++
-		}
-	}
-	vks := make([]*coconut.VerificationKey, validVks)
-	xs := make([]*Curve.BIG, validVks)
+// todo: similarly to WaitForServerResponses(), pass a logger?
+func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 
-	j := 0
+	vks := make([]*coconut.VerificationKey, 0, len(responses))
+	xs := make([]*Curve.BIG, 0, len(responses))
+
 	for i := range responses {
-		if responses[i] != nil && len(responses[i].MarshaledData) >= 3*constants.ECP2Len {
+		if responses[i] != nil {
+			resp := &commands.VerificationKeyResponse{}
+			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
+				log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
+				continue
+			}
+			if resp.Status.Code != int32(commands.StatusCode_OK) {
+				log.Errorf("Received invalid response with status: %v. Error: %v", resp.Status.Code, resp.Status.Message)
+				continue
+			}
 			vk := &coconut.VerificationKey{}
-			if vk.UnmarshalBinary(responses[i].MarshaledData) != nil {
-				return nil, nil
+			if err := vk.FromProto(resp.Vk); err != nil {
+				log.Errorf("Failed to unmarshal received verification key from %v", responses[i].ServerAddress)
+				continue // can still succeed with >= threshold vk
 			}
-			vks[j] = vk
+			vks = append(vks, vk)
 			if isThreshold {
-				xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
+				xs = append(xs, Curve.NewBIGint(responses[i].ServerID)) // no point in computing that if we won't need it
 			}
-			j++
 		}
 	}
+
 	if isThreshold {
 		return vks, coconut.NewPP(xs)
 	}
+
+	if len(vks) != len(responses) {
+		log.Errorf("This is not threshold system and some of the received responses were invalid")
+		return nil, nil
+	}
+
 	return vks, nil
 }

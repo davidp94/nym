@@ -47,6 +47,9 @@ func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, 
 
 func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	// todo: possibly split sigs and blind sigs
+	if isBlind {
+		c.log.Fatal("BLIND SIGNATURES NOT REIMPLEMENTED YET")
+	}
 
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
@@ -233,7 +236,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0)
+	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
 		c.log.Notice("Number of verification keys received is within threshold")

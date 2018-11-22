@@ -124,13 +124,10 @@ func FromBytes(b []byte) (Command, error) {
 	var err error
 	switch id {
 	case GetVerificationKeyID:
-		return nil, errors.New("Not Implemented")
-		// vkCmd := &Vk{}
-		// err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
-		// cmd = vkCmd
+		vkCmd := &Vk{}
+		err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
+		cmd = vkCmd
 	case SignID:
-		// return nil, errors.New("Not Implemented")
-
 		signCmd := &Sign{}
 		err = signCmd.UnmarshalBinary(payload)
 		cmd = signCmd
@@ -249,12 +246,27 @@ type Vk struct{}
 // TODO: REPLACE WITH GRPC + protobuf message for that
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Vk) UnmarshalBinary(data []byte) error { return nil }
+func (v *Vk) UnmarshalBinary(data []byte) error {
+	if constants.ProtobufSerialization {
+		vkRequest := &VerificationKeyRequest{}
+		if err := proto.Unmarshal(data, vkRequest); err != nil {
+			return err
+		}
+		return nil
+	}
+	return nil
+}
 
 // TODO: REPLACE WITH GRPC + protobuf message for that
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Vk) MarshalBinary() ([]byte, error) { return make([]byte, 0), nil }
+func (v *Vk) MarshalBinary() ([]byte, error) {
+	if constants.ProtobufSerialization {
+		vkRequest := &VerificationKeyRequest{}
+		return proto.Marshal(vkRequest)
+	}
+	return make([]byte, 0), nil
+}
 
 // NewVk returns new instance of Vk command. Introduced for consistency sake and in case
 // implementation changes.

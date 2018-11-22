@@ -136,7 +136,7 @@ outLoop:
 	}
 	retryTicker.Stop()
 
-	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0)
+	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
 
 	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
 		s.log.Notice("Number of verification keys received is within threshold")

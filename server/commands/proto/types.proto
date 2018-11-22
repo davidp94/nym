@@ -29,6 +29,16 @@ message SignResponse {
     Status status = 2;
 }
 
+message VerificationKeyRequest {
+
+}
+
+message VerificationKeyResponse {
+    coconut.ProtoVerificationKey vk = 1;
+    Status status = 2;
+}
+
+
 message VerifyRequest {
     coconut.ProtoSignature sig = 1;
     repeated bytes pubM = 2;

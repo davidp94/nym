@@ -189,14 +189,25 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
 				protoStatus.Message = "Failed to marshal response"
 			}
-
 		}
 		protoResp = &commands.SignResponse{
 			Sig:    protoSig,
 			Status: protoStatus,
 		}
 	case *commands.Vk:
-		l.log.Fatal("NOT IMPLEMENTED")
+		protoVk := &coconut.ProtoVerificationKey{}
+		if data != nil {
+			protoVk, err = data.(*coconut.VerificationKey).ToProto()
+			if err != nil {
+				l.log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+		}
+		protoResp = &commands.VerificationKeyResponse{
+			Vk:     protoVk,
+			Status: protoStatus,
+		}
 	case *commands.Verify:
 		l.log.Fatal("NOT IMPLEMENTED")
 	case *commands.BlindSign:
