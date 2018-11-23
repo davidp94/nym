@@ -59,48 +59,21 @@ type PrivateKey struct {
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (pub *PublicKey) MarshalBinary() ([]byte, error) {
-	if constants.ProtobufSerialization {
-		protoPub, err := pub.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		return proto.Marshal(protoPub)
+	protoPub, err := pub.ToProto()
+	if err != nil {
+		return nil, err
 	}
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-
-	data := make([]byte, blen+2*eclen)
-	pub.P.ToBytes(data)
-	pub.G.ToBytes(data[blen:], true)
-	pub.Gamma.ToBytes(data[blen+eclen:], true)
-
-	return data, nil
+	return proto.Marshal(protoPub)
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (pub *PublicKey) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		protoPub := &ProtoPublicKey{}
-		if err := proto.Unmarshal(data, protoPub); err != nil {
-			return err
-		}
-		return pub.FromProto(protoPub)
+	protoPub := &ProtoPublicKey{}
+	if err := proto.Unmarshal(data, protoPub); err != nil {
+		return err
 	}
-
-	if len(data) < blen+2*eclen {
-		return ErrUnmarshalLength
-	}
-	p := Curve.FromBytes(data)
-	g := Curve.ECP_fromBytes(data[blen:])
-	gamma := Curve.ECP_fromBytes(data[blen+eclen:])
-
-	pub.P = p
-	pub.G = g
-	pub.Gamma = gamma
-	return nil
+	return pub.FromProto(protoPub)
 }
 
 // ToProto creates a protobuf representation of the object.
@@ -164,36 +137,21 @@ func (pub *PublicKey) FromPEMFile(f string) error {
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (pk *PrivateKey) MarshalBinary() ([]byte, error) {
-	blen := constants.BIGLen
-	if constants.ProtobufSerialization {
-		protoPriv, err := pk.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		return proto.Marshal(protoPriv)
+	protoPriv, err := pk.ToProto()
+	if err != nil {
+		return nil, err
 	}
-	data := make([]byte, blen)
-	pk.D.ToBytes(data)
-	return data, nil
+	return proto.Marshal(protoPriv)
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (pk *PrivateKey) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
-	if constants.ProtobufSerialization {
-		protoPriv := &ProtoPrivateKey{}
-		if err := proto.Unmarshal(data, protoPriv); err != nil {
-			return err
-		}
-		return pk.FromProto(protoPriv)
+	protoPriv := &ProtoPrivateKey{}
+	if err := proto.Unmarshal(data, protoPriv); err != nil {
+		return err
 	}
-
-	if len(data) < blen {
-		return ErrUnmarshalLength
-	}
-	pk.D = Curve.FromBytes(data)
-	return nil
+	return pk.FromProto(protoPriv)
 }
 
 // ToPEMFile writes out the secret key to a PEM file at path f.
@@ -281,41 +239,21 @@ func (e *Encryption) C2() *Curve.ECP {
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (e *Encryption) MarshalBinary() ([]byte, error) {
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		protoEnc, err := e.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		return proto.Marshal(protoEnc)
+	protoEnc, err := e.ToProto()
+	if err != nil {
+		return nil, err
 	}
-
-	data := make([]byte, eclen*2)
-	e.c1.ToBytes(data, true)
-	e.c2.ToBytes(data[eclen:], true)
-	return data, nil
+	return proto.Marshal(protoEnc)
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (e *Encryption) UnmarshalBinary(data []byte) error {
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		protoEnc := &ProtoEncryption{}
-		if err := proto.Unmarshal(data, protoEnc); err != nil {
-			return err
-		}
-		return e.FromProto(protoEnc)
+	protoEnc := &ProtoEncryption{}
+	if err := proto.Unmarshal(data, protoEnc); err != nil {
+		return err
 	}
-
-	if len(data) < 2*eclen {
-		return ErrUnmarshalLength
-	}
-	c1 := Curve.ECP_fromBytes(data)
-	c2 := Curve.ECP_fromBytes(data[eclen:])
-	e.c1 = c1
-	e.c2 = c2
-	return nil
+	return e.FromProto(protoEnc)
 }
 
 // ToProto creates a protobuf representation of the object.
