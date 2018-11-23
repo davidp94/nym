@@ -59,6 +59,13 @@ type PrivateKey struct {
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (pub *PublicKey) MarshalBinary() ([]byte, error) {
+	if constants.ProtobufSerialization {
+		protoPub, err := pub.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoPub)
+	}
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
 
@@ -75,6 +82,13 @@ func (pub *PublicKey) MarshalBinary() ([]byte, error) {
 func (pub *PublicKey) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoPub := &ProtoPublicKey{}
+		if err := proto.Unmarshal(data, protoPub); err != nil {
+			return err
+		}
+		return pub.FromProto(protoPub)
+	}
 
 	if len(data) < blen+2*eclen {
 		return ErrUnmarshalLength
@@ -86,6 +100,32 @@ func (pub *PublicKey) UnmarshalBinary(data []byte) error {
 	pub.P = p
 	pub.G = g
 	pub.Gamma = gamma
+	return nil
+}
+
+// ToProto creates a protobuf representation of the object.
+func (pub *PublicKey) ToProto() (*ProtoPublicKey, error) {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+	pb := make([]byte, blen)
+	gb := make([]byte, eclen)
+	gammab := make([]byte, eclen)
+	pub.P.ToBytes(pb)
+	pub.G.ToBytes(gb, true)
+	pub.Gamma.ToBytes(gammab, true)
+	return &ProtoPublicKey{
+		P:     pb,
+		G:     gb,
+		Gamma: gammab,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (pub *PublicKey) FromProto(ppub *ProtoPublicKey) error {
+	pub.P = Curve.FromBytes(ppub.P)
+	pub.G = Curve.ECP_fromBytes(ppub.G)
+	pub.Gamma = Curve.ECP_fromBytes(ppub.Gamma)
 	return nil
 }
 
@@ -125,7 +165,13 @@ func (pub *PublicKey) FromPEMFile(f string) error {
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (pk *PrivateKey) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
-
+	if constants.ProtobufSerialization {
+		protoPriv, err := pk.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		return proto.Marshal(protoPriv)
+	}
 	data := make([]byte, blen)
 	pk.D.ToBytes(data)
 	return data, nil
@@ -135,6 +181,13 @@ func (pk *PrivateKey) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (pk *PrivateKey) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
+	if constants.ProtobufSerialization {
+		protoPriv := &ProtoPrivateKey{}
+		if err := proto.Unmarshal(data, protoPriv); err != nil {
+			return err
+		}
+		return pk.FromProto(protoPriv)
+	}
 
 	if len(data) < blen {
 		return ErrUnmarshalLength
@@ -154,6 +207,23 @@ func (pk *PrivateKey) ToPEMFile(f string) error {
 		Bytes: b,
 	}
 	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+}
+
+// ToProto creates a protobuf representation of the object.
+func (pk *PrivateKey) ToProto() (*ProtoPrivateKey, error) {
+	blen := constants.BIGLen
+	db := make([]byte, blen)
+	pk.D.ToBytes(db)
+	return &ProtoPrivateKey{
+		D: db,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (pk *PrivateKey) FromProto(ppk *ProtoPrivateKey) error {
+	pk.D = Curve.FromBytes(ppk.D)
+	return nil
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.

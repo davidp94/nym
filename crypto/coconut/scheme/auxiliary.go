@@ -29,6 +29,10 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+// todo: once everything is working with proto wrappers,
+// create interface with ToProto FromProto to simplify siginificantly
+// Marshaling and unmarshaling by having a single method
+
 var (
 	// ErrMarshalMethod represents generic marshal error/
 	ErrMarshalMethod = errors.New("Can't marshal this structure")

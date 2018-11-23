@@ -21,6 +21,7 @@ package commands
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
@@ -28,6 +29,8 @@ import (
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+// todo: once everything works with protobuf simplify everything by removing the alternative
 
 const (
 	// GetVerificationKeyID is commandID for getting server's verification key.
@@ -136,11 +139,9 @@ func FromBytes(b []byte) (Command, error) {
 		err = verifyCmd.UnmarshalBinary(payload)
 		cmd = verifyCmd
 	case BlindSignID:
-		return nil, errors.New("Not Implemented")
-
-		// blindSignCmd := &BlindSign{}
-		// err = blindSignCmd.UnmarshalBinary(payload)
-		// cmd = blindSignCmd
+		blindSignCmd := &BlindSign{}
+		err = blindSignCmd.UnmarshalBinary(payload)
+		cmd = blindSignCmd
 	case BlindVerifyID:
 		return nil, errors.New("Not Implemented")
 
@@ -154,6 +155,13 @@ func FromBytes(b []byte) (Command, error) {
 		return nil, err
 	}
 	return cmd, nil
+}
+
+type ProtoResponse interface {
+	Reset()
+	String() string
+	ProtoMessage()
+	GetStatus() *Status
 }
 
 //
@@ -405,6 +413,28 @@ func (bs *BlindSign) PubM() []*Curve.BIG {
 func (bs *BlindSign) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		blindSignRequest := &BlindSignRequest{}
+		if err := proto.Unmarshal(data, blindSignRequest); err != nil {
+			fmt.Println(err)
+			return err
+		}
+		blindSignMats := &coconut.BlindSignMats{}
+		blindSignMats.FromProto(blindSignRequest.BlindSignMats)
+		egPub := &elgamal.PublicKey{}
+		egPub.FromProto(blindSignRequest.EgPub)
+
+		pubM := make([]*Curve.BIG, len(blindSignRequest.PubM))
+		for i := range pubM {
+			pubM[i] = Curve.FromBytes(blindSignRequest.PubM[i])
+		}
+
+		bs.pubM = pubM
+		bs.egPub = egPub
+		bs.blindSignMats = blindSignMats
+		bs.pubMLength = uint8(len(pubM)) // will be removed
+		return nil
+	}
 
 	pubMLength := data[0]
 	pubM := make([]*Curve.BIG, pubMLength)
@@ -436,6 +466,29 @@ func (bs *BlindSign) UnmarshalBinary(data []byte) error {
 func (bs *BlindSign) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoEgPub, err := bs.egPub.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		protoBlindSignMats, err := bs.blindSignMats.ToProto()
+		if err != nil {
+			return nil, err
+		}
+
+		pubMb := make([][]byte, len(bs.pubM))
+		for i := range pubMb {
+			pubMb[i] = make([]byte, blen)
+			bs.pubM[i].ToBytes(pubMb[i])
+		}
+
+		blindSignRequest := &BlindSignRequest{
+			PubM:          pubMb,
+			BlindSignMats: protoBlindSignMats,
+			EgPub:         protoEgPub,
+		}
+		return proto.Marshal(blindSignRequest)
+	}
 
 	// we don't care which method blindSignMats are using for marshaling
 	bsmData, err := bs.blindSignMats.MarshalBinary()

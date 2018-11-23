@@ -67,21 +67,122 @@ func (m *ProtoEncryption) GetC2() []byte {
 	return nil
 }
 
+type ProtoPublicKey struct {
+	P                    []byte   `protobuf:"bytes,1,opt,name=P,proto3" json:"P,omitempty"`
+	G                    []byte   `protobuf:"bytes,2,opt,name=G,proto3" json:"G,omitempty"`
+	Gamma                []byte   `protobuf:"bytes,3,opt,name=Gamma,proto3" json:"Gamma,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ProtoPublicKey) Reset()         { *m = ProtoPublicKey{} }
+func (m *ProtoPublicKey) String() string { return proto.CompactTextString(m) }
+func (*ProtoPublicKey) ProtoMessage()    {}
+func (*ProtoPublicKey) Descriptor() ([]byte, []int) {
+	return fileDescriptor_a4e4601cca9348f7, []int{1}
+}
+
+func (m *ProtoPublicKey) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ProtoPublicKey.Unmarshal(m, b)
+}
+func (m *ProtoPublicKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ProtoPublicKey.Marshal(b, m, deterministic)
+}
+func (m *ProtoPublicKey) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ProtoPublicKey.Merge(m, src)
+}
+func (m *ProtoPublicKey) XXX_Size() int {
+	return xxx_messageInfo_ProtoPublicKey.Size(m)
+}
+func (m *ProtoPublicKey) XXX_DiscardUnknown() {
+	xxx_messageInfo_ProtoPublicKey.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ProtoPublicKey proto.InternalMessageInfo
+
+func (m *ProtoPublicKey) GetP() []byte {
+	if m != nil {
+		return m.P
+	}
+	return nil
+}
+
+func (m *ProtoPublicKey) GetG() []byte {
+	if m != nil {
+		return m.G
+	}
+	return nil
+}
+
+func (m *ProtoPublicKey) GetGamma() []byte {
+	if m != nil {
+		return m.Gamma
+	}
+	return nil
+}
+
+// just to keep it consistent when/if writing to a PEM file
+type ProtoPrivateKey struct {
+	D                    []byte   `protobuf:"bytes,1,opt,name=D,proto3" json:"D,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ProtoPrivateKey) Reset()         { *m = ProtoPrivateKey{} }
+func (m *ProtoPrivateKey) String() string { return proto.CompactTextString(m) }
+func (*ProtoPrivateKey) ProtoMessage()    {}
+func (*ProtoPrivateKey) Descriptor() ([]byte, []int) {
+	return fileDescriptor_a4e4601cca9348f7, []int{2}
+}
+
+func (m *ProtoPrivateKey) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_ProtoPrivateKey.Unmarshal(m, b)
+}
+func (m *ProtoPrivateKey) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_ProtoPrivateKey.Marshal(b, m, deterministic)
+}
+func (m *ProtoPrivateKey) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ProtoPrivateKey.Merge(m, src)
+}
+func (m *ProtoPrivateKey) XXX_Size() int {
+	return xxx_messageInfo_ProtoPrivateKey.Size(m)
+}
+func (m *ProtoPrivateKey) XXX_DiscardUnknown() {
+	xxx_messageInfo_ProtoPrivateKey.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ProtoPrivateKey proto.InternalMessageInfo
+
+func (m *ProtoPrivateKey) GetD() []byte {
+	if m != nil {
+		return m.D
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*ProtoEncryption)(nil), "elgamal.ProtoEncryption")
+	proto.RegisterType((*ProtoPublicKey)(nil), "elgamal.ProtoPublicKey")
+	proto.RegisterType((*ProtoPrivateKey)(nil), "elgamal.ProtoPrivateKey")
 }
 
 func init() { proto.RegisterFile("crypto/elgamal/proto/types.proto", fileDescriptor_a4e4601cca9348f7) }
 
 var fileDescriptor_a4e4601cca9348f7 = []byte{
-	// 137 bytes of a gzipped FileDescriptorProto
+	// 200 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x52, 0x48, 0x2e, 0xaa, 0x2c,
 	0x28, 0xc9, 0xd7, 0x4f, 0xcd, 0x49, 0x4f, 0xcc, 0x4d, 0xcc, 0xd1, 0x2f, 0x28, 0xca, 0x2f, 0xc9,
 	0xd7, 0x2f, 0xa9, 0x2c, 0x48, 0x2d, 0xd6, 0x03, 0xb3, 0x85, 0xd8, 0xa1, 0x52, 0x4a, 0x86, 0x5c,
 	0xfc, 0x01, 0x20, 0x11, 0xd7, 0x3c, 0xb0, 0x9e, 0xcc, 0xfc, 0x3c, 0x21, 0x3e, 0x2e, 0x26, 0x67,
 	0x43, 0x09, 0x46, 0x05, 0x46, 0x0d, 0x9e, 0x20, 0x26, 0x67, 0x43, 0x30, 0xdf, 0x48, 0x82, 0x09,
-	0xca, 0x37, 0x72, 0xd2, 0x8b, 0xd2, 0x49, 0xcf, 0x2c, 0xc9, 0x28, 0x4d, 0xd2, 0x4b, 0xce, 0xcf,
-	0xd5, 0xcf, 0x2a, 0x2e, 0x29, 0x4d, 0xae, 0xaa, 0xcc, 0xd3, 0x77, 0xce, 0x4f, 0xce, 0xcf, 0x2b,
-	0x2d, 0x71, 0xcf, 0xd7, 0x47, 0xb5, 0x3d, 0x89, 0x0d, 0x6c, 0xa5, 0x31, 0x20, 0x00, 0x00, 0xff,
-	0xff, 0xd0, 0x56, 0x47, 0x80, 0x96, 0x00, 0x00, 0x00,
+	0xca, 0x37, 0x52, 0x72, 0xe2, 0xe2, 0x03, 0x6b, 0x09, 0x28, 0x4d, 0xca, 0xc9, 0x4c, 0xf6, 0x4e,
+	0xad, 0x14, 0xe2, 0xe1, 0x62, 0x0c, 0x80, 0x6a, 0x60, 0x0c, 0x00, 0xf1, 0xdc, 0xa1, 0xca, 0x19,
+	0xdd, 0x85, 0x44, 0xb8, 0x58, 0xdd, 0x13, 0x73, 0x73, 0x13, 0x25, 0x98, 0xc1, 0x22, 0x10, 0x8e,
+	0x92, 0x3c, 0xd4, 0xda, 0x80, 0xa2, 0xcc, 0xb2, 0xc4, 0x92, 0x54, 0xa8, 0x21, 0x2e, 0x30, 0x43,
+	0x5c, 0x9c, 0xf4, 0xa2, 0x74, 0xd2, 0x33, 0x4b, 0x32, 0x4a, 0x93, 0xf4, 0x92, 0xf3, 0x73, 0xf5,
+	0xb3, 0x8a, 0x4b, 0x4a, 0x93, 0xab, 0x2a, 0xf3, 0xf4, 0x9d, 0xf3, 0x93, 0xf3, 0xf3, 0x4a, 0x4b,
+	0xdc, 0xf3, 0xf5, 0x51, 0xbd, 0x98, 0xc4, 0x06, 0xf6, 0x97, 0x31, 0x20, 0x00, 0x00, 0xff, 0xff,
+	0x16, 0xe2, 0x98, 0x98, 0xfb, 0x00, 0x00, 0x00,
 }

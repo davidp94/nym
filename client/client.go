@@ -48,28 +48,41 @@ func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, 
 
 func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	// todo: possibly split sigs and blind sigs
-	if isBlind {
-		c.log.Fatal("BLIND SIGNATURES NOT REIMPLEMENTED YET")
-	}
-
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
 		if responses[i] != nil {
-			resp := &commands.SignResponse{}
+			var resp commands.ProtoResponse
+			if isBlind {
+				resp = &commands.BlindSignResponse{}
+			} else {
+				resp = &commands.SignResponse{}
+			}
+
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
 				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
 				continue
 			}
-			if resp.Status.Code != int32(commands.StatusCode_OK) {
-				c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.Status.Code, resp.Status.Message)
+			if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
+				c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
 				continue
 			}
-			sig := &coconut.Signature{}
-			if err := sig.FromProto(resp.Sig); err != nil {
-				c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
-				continue // can still succeed with >= threshold sigs
+			var sig *coconut.Signature
+			if isBlind {
+				blindSig := &coconut.BlindedSignature{}
+				if err := blindSig.FromProto(resp.(*commands.BlindSignResponse).Sig); err != nil {
+					c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
+					continue // can still succeed with >= threshold sigs
+				}
+				sig = coconut.Unblind(c.params, blindSig, c.elGamalPrivateKey)
+			} else {
+				sig = &coconut.Signature{}
+				if err := sig.FromProto(resp.(*commands.SignResponse).Sig); err != nil {
+					c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
+					continue // can still succeed with >= threshold sigs
+				}
 			}
+
 			sigs = append(sigs, sig)
 			if isThreshold {
 				xs = append(xs, Curve.NewBIGint(responses[i].ServerID))

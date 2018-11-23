@@ -216,7 +216,19 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 		}
 		l.log.Debugf("Was the received credential valid: %v", isValid)
 	case *commands.BlindSign:
-		l.log.Fatal("NOT IMPLEMENTED")
+		protoBlindSig := &coconut.ProtoBlindedSignature{}
+		if data != nil {
+			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
+			if err != nil {
+				l.log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+		}
+		protoResp = &commands.BlindSignResponse{
+			Sig:    protoBlindSig,
+			Status: protoStatus,
+		}
 	case *commands.BlindVerify:
 		l.log.Fatal("NOT IMPLEMENTED")
 	default:

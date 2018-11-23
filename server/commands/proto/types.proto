@@ -1,6 +1,7 @@
 syntax = "proto3";
 import "crypto/coconut/scheme/proto/types.proto";
- 
+import "crypto/elgamal/proto/types.proto";
+
 package commands;
 option go_package = "github.com/jstuczyn/CoconutGo/server/commands";
 
@@ -45,5 +46,16 @@ message VerifyRequest {
 
 message VerifyResponse {
     bool isValid = 1;
+    Status status = 2;
+}
+
+message BlindSignRequest {
+    repeated bytes pubM = 1;
+    coconut.ProtoBlindSignMats blindSignMats = 2;
+    elgamal.ProtoPublicKey egPub = 3;
+}
+
+message BlindSignResponse {
+    coconut.ProtoBlindedSignature sig = 1;
     Status status = 2;
 }
