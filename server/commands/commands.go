@@ -21,7 +21,6 @@ package commands
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/constants"
@@ -143,11 +142,9 @@ func FromBytes(b []byte) (Command, error) {
 		err = blindSignCmd.UnmarshalBinary(payload)
 		cmd = blindSignCmd
 	case BlindVerifyID:
-		return nil, errors.New("Not Implemented")
-
-		// blindVerifyCmd := &BlindVerify{}
-		// err = blindVerifyCmd.UnmarshalBinary(payload)
-		// cmd = blindVerifyCmd
+		blindVerifyCmd := &BlindVerify{}
+		err = blindVerifyCmd.UnmarshalBinary(payload)
+		cmd = blindVerifyCmd
 	default:
 		return nil, errors.New("Unknown CommandID")
 	}
@@ -416,7 +413,6 @@ func (bs *BlindSign) UnmarshalBinary(data []byte) error {
 	if constants.ProtobufSerialization {
 		blindSignRequest := &BlindSignRequest{}
 		if err := proto.Unmarshal(data, blindSignRequest); err != nil {
-			fmt.Println(err)
 			return err
 		}
 		blindSignMats := &coconut.BlindSignMats{}
@@ -554,6 +550,27 @@ func (bv *BlindVerify) PubM() []*Curve.BIG {
 func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		blindVerifyRequest := &BlindVerifyRequest{}
+		if err := proto.Unmarshal(data, blindVerifyRequest); err != nil {
+			return err
+		}
+		blindShowMats := &coconut.BlindShowMats{}
+		blindShowMats.FromProto(blindVerifyRequest.BlindShowMats)
+		sig := &coconut.Signature{}
+		sig.FromProto(blindVerifyRequest.Sig)
+
+		pubM := make([]*Curve.BIG, len(blindVerifyRequest.PubM))
+		for i := range pubM {
+			pubM[i] = Curve.FromBytes(blindVerifyRequest.PubM[i])
+		}
+
+		bv.pubM = pubM
+		bv.sig = sig
+		bv.blindShowMats = blindShowMats
+		bv.pubMLength = uint8(len(pubM)) // will be removed
+		return nil
+	}
 
 	pubMLength := data[0]
 	pubM := make([]*Curve.BIG, pubMLength)
@@ -587,6 +604,29 @@ func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
 func (bv *BlindVerify) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
+	if constants.ProtobufSerialization {
+		protoSig, err := bv.sig.ToProto()
+		if err != nil {
+			return nil, err
+		}
+		protoBlindShowMats, err := bv.blindShowMats.ToProto()
+		if err != nil {
+			return nil, err
+		}
+
+		pubMb := make([][]byte, len(bv.pubM))
+		for i := range pubMb {
+			pubMb[i] = make([]byte, blen)
+			bv.pubM[i].ToBytes(pubMb[i])
+		}
+
+		blindVerifyRequest := &BlindVerifyRequest{
+			PubM:          pubMb,
+			BlindShowMats: protoBlindShowMats,
+			Sig:           protoSig,
+		}
+		return proto.Marshal(blindVerifyRequest)
+	}
 
 	bsmData, err := bv.blindShowMats.MarshalBinary()
 	if err != nil {

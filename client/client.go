@@ -338,6 +338,15 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	return c.parseVerifyResponse(resp)
 }
 
+func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) bool {
+	blindVerifyResponse := &commands.BlindVerifyResponse{}
+	if err := proto.Unmarshal(packetResponse.Payload(), blindVerifyResponse); err != nil {
+		c.log.Errorf("Failed to recover verification result: %v", err)
+		return false
+	}
+	return blindVerifyResponse.IsValid
+}
+
 // depends on future API in regards of type of servers response
 // if vk is nil, first the client will try to obtain it
 func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
@@ -373,12 +382,7 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 
 	resp, err := utils.ReadPacketFromConn(conn)
-	if err != nil {
-		c.log.Errorf("Received invalid response from %v: %v", addr, err)
-	} else if resp.Payload()[0] == 1 {
-		return true
-	}
-	return false
+	return c.parseBlindVerifyResponse(resp)
 }
 
 // New returns a new Client instance parameterized with the specified configuration.

@@ -230,7 +230,12 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 			Status: protoStatus,
 		}
 	case *commands.BlindVerify:
-		l.log.Fatal("NOT IMPLEMENTED")
+		isValid := data.(bool)
+		protoResp = &commands.BlindVerifyResponse{
+			IsValid: isValid,
+			Status:  protoStatus,
+		}
+		l.log.Debugf("Was the received credential valid: %v", isValid)
 	default:
 		l.log.Fatal("NOT IMPLEMENTED")
 		// return nil and dont reply

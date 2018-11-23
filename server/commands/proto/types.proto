@@ -59,3 +59,14 @@ message BlindSignResponse {
     coconut.ProtoBlindedSignature sig = 1;
     Status status = 2;
 }
+
+message BlindVerifyRequest {
+    coconut.ProtoSignature sig = 1;
+    repeated bytes pubM = 2;
+    coconut.ProtoBlindShowMats blindShowMats = 3;
+}
+
+message BlindVerifyResponse {
+    bool isValid = 1;
+    Status status = 2; 
+}
