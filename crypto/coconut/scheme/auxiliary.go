@@ -853,3 +853,21 @@ func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
 	bsm.proof = proof
 	return nil
 }
+
+func BigSliceFromProto(b [][]byte) []*Curve.BIG {
+	bigs := make([]*Curve.BIG, len(b))
+	for i := range b {
+		bigs[i] = Curve.FromBytes(b[i])
+	}
+	return bigs
+}
+
+func BigSliceToProto(s []*Curve.BIG) [][]byte {
+	blen := constants.BIGLen
+	b := make([][]byte, len(s))
+	for i := range b {
+		b[i] = make([]byte, blen)
+		s[i].ToBytes(b[i])
+	}
+	return b
+}

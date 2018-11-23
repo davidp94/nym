@@ -47,7 +47,7 @@ func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 // will be replaced/modified once whole thing is changed to use protobuf
 // todo: should return nil if cmdID doesnt match cmd.
 func CommandToMarshaledPacket(cmd commands.Command, cmdID commands.CommandID) []byte {
-	payloadBytes, err := cmd.MarshalBinary()
+	payloadBytes, err := proto.Marshal(cmd)
 	if err != nil {
 		return nil
 	}

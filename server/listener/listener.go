@@ -180,7 +180,7 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 	var protoResp proto.Message
 	var err error
 	switch cmd.(type) {
-	case *commands.Sign:
+	case *commands.SignRequest:
 		protoSig := &coconut.ProtoSignature{}
 		if data != nil {
 			protoSig, err = data.(*coconut.Signature).ToProto()
@@ -194,7 +194,7 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 			Sig:    protoSig,
 			Status: protoStatus,
 		}
-	case *commands.Vk:
+	case *commands.VerificationKeyRequest:
 		protoVk := &coconut.ProtoVerificationKey{}
 		if data != nil {
 			protoVk, err = data.(*coconut.VerificationKey).ToProto()
@@ -208,14 +208,14 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 			Vk:     protoVk,
 			Status: protoStatus,
 		}
-	case *commands.Verify:
+	case *commands.VerifyRequest:
 		isValid := data.(bool)
 		protoResp = &commands.VerifyResponse{
 			IsValid: isValid,
 			Status:  protoStatus,
 		}
 		l.log.Debugf("Was the received credential valid: %v", isValid)
-	case *commands.BlindSign:
+	case *commands.BlindSignRequest:
 		protoBlindSig := &coconut.ProtoBlindedSignature{}
 		if data != nil {
 			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
@@ -229,7 +229,7 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 			Sig:    protoBlindSig,
 			Status: protoStatus,
 		}
-	case *commands.BlindVerify:
+	case *commands.BlindVerifyRequest:
 		isValid := data.(bool)
 		protoResp = &commands.BlindVerifyResponse{
 			IsValid: isValid,

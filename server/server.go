@@ -67,7 +67,11 @@ func (s *Server) GetIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
 	}
 
-	cmd := commands.NewVk()
+	cmd, err := commands.NewVerificationKeyRequest()
+	if err != nil {
+		s.log.Errorf("Failed to create Vk request: %v", err)
+		return nil, nil
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
 	if packetBytes == nil {
 		s.log.Error("Could not create VK data packet") // should never happen...

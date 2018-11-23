@@ -23,7 +23,6 @@ import (
 	"errors"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -51,12 +50,10 @@ const (
 // Command defines interface that is implemented by all commands defined in the package.
 // todo: is this really restrictive enough?
 type Command interface {
-	MarshalBinary() ([]byte, error)
-	UnmarshalBinary(data []byte) error
 	// basically generated protocol buffer messages
-	// Reset()
-	// String() string
-	// ProtoMessage()
+	Reset()
+	String() string
+	ProtoMessage()
 }
 
 // CommandID is wrapper for a byte defining ID of particular command.
@@ -123,34 +120,25 @@ func FromBytes(b []byte) (Command, error) {
 	id := CommandID(b[0])
 	payload := b[1:]
 	var cmd Command
-	var err error
 	switch id {
 	case GetVerificationKeyID:
-		vkCmd := &Vk{}
-		err = vkCmd.UnmarshalBinary(payload) // in case implementation changes
-		cmd = vkCmd
+		cmd = &VerificationKeyRequest{}
 	case SignID:
-		signCmd := &Sign{}
-		err = signCmd.UnmarshalBinary(payload)
-		cmd = signCmd
+		cmd = &SignRequest{}
 	case VerifyID:
-		verifyCmd := &Verify{}
-		err = verifyCmd.UnmarshalBinary(payload)
-		cmd = verifyCmd
+		cmd = &VerifyRequest{}
 	case BlindSignID:
-		blindSignCmd := &BlindSign{}
-		err = blindSignCmd.UnmarshalBinary(payload)
-		cmd = blindSignCmd
+		cmd = &BlindSignRequest{}
 	case BlindVerifyID:
-		blindVerifyCmd := &BlindVerify{}
-		err = blindVerifyCmd.UnmarshalBinary(payload)
-		cmd = blindVerifyCmd
+		cmd = &BlindVerifyRequest{}
 	default:
 		return nil, errors.New("Unknown CommandID")
 	}
-	if err != nil {
+
+	if err := proto.Unmarshal(payload, cmd); err != nil {
 		return nil, err
 	}
+
 	return cmd, nil
 }
 
@@ -170,492 +158,545 @@ type ProtoResponse interface {
 //
 //
 
+func NewSignRequest(pubM []*Curve.BIG) (*SignRequest, error) {
+	return &SignRequest{
+		PubM: coconut.BigSliceToProto(pubM),
+	}, nil
+}
+
+func NewVerificationKeyRequest() (*VerificationKeyRequest, error) {
+	return &VerificationKeyRequest{}, nil
+}
+
+func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest, error) {
+	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return &VerifyRequest{
+		Sig:  protoSig,
+		PubM: coconut.BigSliceToProto(pubM),
+	}, nil
+}
+
+func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindSignRequest, error) {
+	protoBlindSignMats, err := blindSignMats.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	protoEgPub, err := egPub.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return &BlindSignRequest{
+		BlindSignMats: protoBlindSignMats,
+		EgPub:         protoEgPub,
+		PubM:          coconut.BigSliceToProto(pubM),
+	}, nil
+}
+
+func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) (*BlindVerifyRequest, error) {
+	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	protoBlindShowMats, err := blindShowMats.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return &BlindVerifyRequest{
+		BlindShowMats: protoBlindShowMats,
+		Sig:           protoSig,
+		PubM:          coconut.BigSliceToProto(pubM),
+	}, nil
+}
+
 // all the below commands are recovered from payload field in Command
 // id is used to determine which one to recover
 
 // Sign defines required parameters to perform a sign on public attributes.
-type Sign struct {
-	pubM []*Curve.BIG
-}
-
-// PubM returns set of public attributes from Sign command.
-func (s *Sign) PubM() []*Curve.BIG {
-	return s.pubM
-}
-
-// NewSign returns new instance of Sign command.
-func NewSign(pubM []*Curve.BIG) *Sign {
-	return &Sign{pubM}
-}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// UnmarshalBinary is an implementation of a method on the
-// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (s *Sign) UnmarshalBinary(data []byte) error {
-	if constants.ProtobufSerialization {
-		signRequest := &SignRequest{}
-		if err := proto.Unmarshal(data, signRequest); err != nil {
-			return err
-		}
-		s.pubM = make([]*Curve.BIG, len(signRequest.PubM))
-		for i := range s.pubM {
-			s.pubM[i] = Curve.FromBytes(signRequest.PubM[i])
-		}
-		return nil
-	}
-
-	blen := constants.BIGLen
-	if len(data)%blen != 0 {
-		return constants.ErrUnmarshalLength
-	}
-
-	n := len(data) / blen
-	pubM := make([]*Curve.BIG, n)
-	for i := range pubM {
-		pubM[i] = Curve.FromBytes(data[i*blen:])
-	}
-	s.pubM = pubM
-	return nil
-}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (s *Sign) MarshalBinary() ([]byte, error) {
-	blen := constants.BIGLen
-
-	if constants.ProtobufSerialization {
-		pubMb := make([][]byte, len(s.pubM))
-		for i := range pubMb {
-			pubMb[i] = make([]byte, blen)
-			s.pubM[i].ToBytes(pubMb[i])
-		}
-		signRequest := &SignRequest{PubM: pubMb}
-		return proto.Marshal(signRequest)
-	}
-
-	data := make([]byte, blen*len(s.pubM))
-	for i := range s.pubM {
-		s.pubM[i].ToBytes(data[i*blen:])
-	}
-
-	return data, nil
-}
-
-// Vk defines required parameters to perform a GetVerificationKey command
-// (which are none)
-type Vk struct{}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// UnmarshalBinary is an implementation of a method on the
-// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Vk) UnmarshalBinary(data []byte) error {
-	if constants.ProtobufSerialization {
-		vkRequest := &VerificationKeyRequest{}
-		if err := proto.Unmarshal(data, vkRequest); err != nil {
-			return err
-		}
-		return nil
-	}
-	return nil
-}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Vk) MarshalBinary() ([]byte, error) {
-	if constants.ProtobufSerialization {
-		vkRequest := &VerificationKeyRequest{}
-		return proto.Marshal(vkRequest)
-	}
-	return make([]byte, 0), nil
-}
-
-// NewVk returns new instance of Vk command. Introduced for consistency sake and in case
-// implementation changes.
-func NewVk() *Vk {
-	return &Vk{}
-}
-
-// Verify defines required parameters to perform a verification of signature on public attributes.
-type Verify struct {
-	sig  *coconut.Signature
-	pubM []*Curve.BIG
-}
-
-// Sig returns signature from Verify command.
-func (v *Verify) Sig() *coconut.Signature {
-	return v.sig
-}
-
-// PubM returns public attributes from Verify command.
-func (v *Verify) PubM() []*Curve.BIG {
-	return v.pubM
-}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// UnmarshalBinary is an implementation of a method on the
-// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Verify) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		verifyRequest := &VerifyRequest{}
-		if err := proto.Unmarshal(data, verifyRequest); err != nil {
-			return err
-		}
-		sig := &coconut.Signature{}
-		sig.FromProto(verifyRequest.Sig)
-		pubM := make([]*Curve.BIG, len(verifyRequest.PubM))
-		for i := range pubM {
-			pubM[i] = Curve.FromBytes(verifyRequest.PubM[i])
-		}
-		v.sig = sig
-		v.pubM = pubM
-		return nil
-	}
-
-	if !constants.ProtobufSerialization && (len(data)-2*eclen)%blen != 0 {
-		return constants.ErrUnmarshalLength
-	}
-
-	sig := &coconut.Signature{}
-	err := sig.UnmarshalBinary(data[:2*eclen])
-	if err != nil {
-		return err
-	}
-	n := (len(data) - 2*eclen) / blen
-	pubM := make([]*Curve.BIG, n)
-	for i := range pubM {
-		pubM[i] = Curve.FromBytes(data[2*eclen+i*blen:])
-	}
-	v.sig = sig
-	v.pubM = pubM
-	return nil
-}
-
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (v *Verify) MarshalBinary() ([]byte, error) {
-	blen := constants.BIGLen
-	if constants.ProtobufSerialization {
-		protoSig, err := v.sig.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		pubMb := make([][]byte, len(v.pubM))
-		for i := range pubMb {
-			pubMb[i] = make([]byte, blen)
-			v.pubM[i].ToBytes(pubMb[i])
-		}
-		verifyRequest := &VerifyRequest{
-			Sig:  protoSig,
-			PubM: pubMb,
-		}
-		return proto.Marshal(verifyRequest)
-	}
-
-	sigB, err := v.sig.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	data := make([]byte, len(sigB)+blen*len(v.pubM))
-	copy(data, sigB)
-	for i := range v.pubM {
-		v.pubM[i].ToBytes(data[len(sigB)+i*blen:])
-	}
-	return data, nil
-}
-
-// NewVerify returns new instance of Verify command.
-func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
-	return &Verify{
-		pubM: pubM,
-		sig:  sig,
-	}
-}
-
-// BlindSign defines required parameters to perform a blind sign on private and public attributes.
-type BlindSign struct {
-	blindSignMats *coconut.BlindSignMats
-	egPub         *elgamal.PublicKey
-	pubM          []*Curve.BIG
-	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
-}
-
-// BlindSignMats returns BlindSignMats part of BlindSign command.
-func (bs *BlindSign) BlindSignMats() *coconut.BlindSignMats {
-	return bs.blindSignMats
-}
-
-// // Gamma returns Gamma part of BlindSign command.
-// func (bs *BlindSign) Gamma() *Curve.ECP {
-// 	return bs.gamma
+// type Sign struct {
+// 	pubM []*Curve.BIG
 // }
 
-// EgPub returns client's ElGamal Public Key
-func (bs *BlindSign) EgPub() *elgamal.PublicKey {
-	return bs.egPub
-}
+// // PubM returns set of public attributes from Sign command.
+// func (s *Sign) PubM() []*Curve.BIG {
+// 	return s.pubM
+// }
 
-// PubM returns PubM part of BlindSign command.
-func (bs *BlindSign) PubM() []*Curve.BIG {
-	return bs.pubM
-}
+// // NewSign returns new instance of Sign command.
+// func NewSign(pubM []*Curve.BIG) *Sign {
+// 	return &Sign{pubM}
+// }
 
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// UnmarshalBinary is an implementation of a method on the
-// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (bs *BlindSign) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		blindSignRequest := &BlindSignRequest{}
-		if err := proto.Unmarshal(data, blindSignRequest); err != nil {
-			return err
-		}
-		blindSignMats := &coconut.BlindSignMats{}
-		blindSignMats.FromProto(blindSignRequest.BlindSignMats)
-		egPub := &elgamal.PublicKey{}
-		egPub.FromProto(blindSignRequest.EgPub)
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // UnmarshalBinary is an implementation of a method on the
+// // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+// func (s *Sign) UnmarshalBinary(data []byte) error {
+// 	if constants.ProtobufSerialization {
+// 		signRequest := &SignRequest{}
+// 		if err := proto.Unmarshal(data, signRequest); err != nil {
+// 			return err
+// 		}
+// 		s.pubM = make([]*Curve.BIG, len(signRequest.PubM))
+// 		for i := range s.pubM {
+// 			s.pubM[i] = Curve.FromBytes(signRequest.PubM[i])
+// 		}
+// 		return nil
+// 	}
 
-		pubM := make([]*Curve.BIG, len(blindSignRequest.PubM))
-		for i := range pubM {
-			pubM[i] = Curve.FromBytes(blindSignRequest.PubM[i])
-		}
+// 	blen := constants.BIGLen
+// 	if len(data)%blen != 0 {
+// 		return constants.ErrUnmarshalLength
+// 	}
 
-		bs.pubM = pubM
-		bs.egPub = egPub
-		bs.blindSignMats = blindSignMats
-		bs.pubMLength = uint8(len(pubM)) // will be removed
-		return nil
-	}
+// 	n := len(data) / blen
+// 	pubM := make([]*Curve.BIG, n)
+// 	for i := range pubM {
+// 		pubM[i] = Curve.FromBytes(data[i*blen:])
+// 	}
+// 	s.pubM = pubM
+// 	return nil
+// }
 
-	pubMLength := data[0]
-	pubM := make([]*Curve.BIG, pubMLength)
-	for i := range pubM {
-		pubM[i] = Curve.FromBytes(data[1+i*blen:])
-	}
-	egPub := &elgamal.PublicKey{}
-	err := egPub.UnmarshalBinary(data[1+len(pubM)*blen:])
-	if err != nil {
-		return err
-	}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // MarshalBinary is an implementation of a method on the
+// // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+// func (s *Sign) MarshalBinary() ([]byte, error) {
+// 	blen := constants.BIGLen
 
-	blindSignMats := &coconut.BlindSignMats{}
-	err = blindSignMats.UnmarshalBinary(data[1+(1+len(pubM))*blen+2*eclen:])
-	if err != nil {
-		return err
-	}
-	bs.blindSignMats = blindSignMats
-	bs.egPub = egPub
-	bs.pubM = pubM
-	bs.pubMLength = pubMLength
+// 	if constants.ProtobufSerialization {
+// 		pubMb := make([][]byte, len(s.pubM))
+// 		for i := range pubMb {
+// 			pubMb[i] = make([]byte, blen)
+// 			s.pubM[i].ToBytes(pubMb[i])
+// 		}
+// 		signRequest := &SignRequest{PubM: pubMb}
+// 		return proto.Marshal(signRequest)
+// 	}
 
-	return nil
-}
+// 	data := make([]byte, blen*len(s.pubM))
+// 	for i := range s.pubM {
+// 		s.pubM[i].ToBytes(data[i*blen:])
+// 	}
 
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (bs *BlindSign) MarshalBinary() ([]byte, error) {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		protoEgPub, err := bs.egPub.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		protoBlindSignMats, err := bs.blindSignMats.ToProto()
-		if err != nil {
-			return nil, err
-		}
+// 	return data, nil
+// }
 
-		pubMb := make([][]byte, len(bs.pubM))
-		for i := range pubMb {
-			pubMb[i] = make([]byte, blen)
-			bs.pubM[i].ToBytes(pubMb[i])
-		}
+// // Vk defines required parameters to perform a GetVerificationKey command
+// // (which are none)
+// type Vk struct{}
 
-		blindSignRequest := &BlindSignRequest{
-			PubM:          pubMb,
-			BlindSignMats: protoBlindSignMats,
-			EgPub:         protoEgPub,
-		}
-		return proto.Marshal(blindSignRequest)
-	}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // UnmarshalBinary is an implementation of a method on the
+// // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+// func (v *Vk) UnmarshalBinary(data []byte) error {
+// 	if constants.ProtobufSerialization {
+// 		vkRequest := &VerificationKeyRequest{}
+// 		if err := proto.Unmarshal(data, vkRequest); err != nil {
+// 			return err
+// 		}
+// 		return nil
+// 	}
+// 	return nil
+// }
 
-	// we don't care which method blindSignMats are using for marshaling
-	bsmData, err := bs.blindSignMats.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	data := make([]byte, len(bsmData)+2*eclen+(1+len(bs.pubM))*blen+1)
-	data[0] = bs.pubMLength
-	for i := range bs.pubM {
-		bs.pubM[i].ToBytes(data[1+i*blen:])
-	}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // MarshalBinary is an implementation of a method on the
+// // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+// func (v *Vk) MarshalBinary() ([]byte, error) {
+// 	if constants.ProtobufSerialization {
+// 		vkRequest := &VerificationKeyRequest{}
+// 		return proto.Marshal(vkRequest)
+// 	}
+// 	return make([]byte, 0), nil
+// }
 
-	egPubData, err := bs.egPub.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
+// // NewVk returns new instance of Vk command. Introduced for consistency sake and in case
+// // implementation changes.
+// func NewVk() *Vk {
+// 	return &Vk{}
+// }
 
-	copy(data[1+len(bs.pubM)*blen:], egPubData)
-	copy(data[1+(1+len(bs.pubM))*blen+2*eclen:], bsmData)
+// // Verify defines required parameters to perform a verification of signature on public attributes.
+// type Verify struct {
+// 	sig  *coconut.Signature
+// 	pubM []*Curve.BIG
+// }
 
-	return data, nil
-}
+// // Sig returns signature from Verify command.
+// func (v *Verify) Sig() *coconut.Signature {
+// 	return v.sig
+// }
 
-// NewBlindSign returns new instance of a BlindSign command.
-func NewBlindSign(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) *BlindSign {
-	if len(pubM) > 255 {
-		return nil
-	}
-	return &BlindSign{
-		blindSignMats: blindSignMats,
-		egPub:         egPub,
-		pubM:          pubM,
-		pubMLength:    uint8(len(pubM)),
-	}
-}
+// // PubM returns public attributes from Verify command.
+// func (v *Verify) PubM() []*Curve.BIG {
+// 	return v.pubM
+// }
 
-// BlindVerify defines required parameters to perform a verification of blind signature on private and public attributes
-type BlindVerify struct {
-	sig           *coconut.Signature
-	blindShowMats *coconut.BlindShowMats
-	pubM          []*Curve.BIG
-	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
-}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // UnmarshalBinary is an implementation of a method on the
+// // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+// func (v *Verify) UnmarshalBinary(data []byte) error {
+// 	blen := constants.BIGLen
+// 	eclen := constants.ECPLen
+// 	if constants.ProtobufSerialization {
+// 		verifyRequest := &VerifyRequest{}
+// 		if err := proto.Unmarshal(data, verifyRequest); err != nil {
+// 			return err
+// 		}
+// 		sig := &coconut.Signature{}
+// 		sig.FromProto(verifyRequest.Sig)
+// 		pubM := make([]*Curve.BIG, len(verifyRequest.PubM))
+// 		for i := range pubM {
+// 			pubM[i] = Curve.FromBytes(verifyRequest.PubM[i])
+// 		}
+// 		v.sig = sig
+// 		v.pubM = pubM
+// 		return nil
+// 	}
 
-// BlindShowMats returns BlindShowMats part of BlindVerify command.
-func (bv *BlindVerify) BlindShowMats() *coconut.BlindShowMats {
-	return bv.blindShowMats
-}
+// 	if !constants.ProtobufSerialization && (len(data)-2*eclen)%blen != 0 {
+// 		return constants.ErrUnmarshalLength
+// 	}
 
-// Sig returns Sig part of BlindVerify command.
-func (bv *BlindVerify) Sig() *coconut.Signature {
-	return bv.sig
-}
+// 	sig := &coconut.Signature{}
+// 	err := sig.UnmarshalBinary(data[:2*eclen])
+// 	if err != nil {
+// 		return err
+// 	}
+// 	n := (len(data) - 2*eclen) / blen
+// 	pubM := make([]*Curve.BIG, n)
+// 	for i := range pubM {
+// 		pubM[i] = Curve.FromBytes(data[2*eclen+i*blen:])
+// 	}
+// 	v.sig = sig
+// 	v.pubM = pubM
+// 	return nil
+// }
 
-// PubM returns PubM part of BlindVerify command.
-func (bv *BlindVerify) PubM() []*Curve.BIG {
-	return bv.pubM
-}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // MarshalBinary is an implementation of a method on the
+// // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+// func (v *Verify) MarshalBinary() ([]byte, error) {
+// 	blen := constants.BIGLen
+// 	if constants.ProtobufSerialization {
+// 		protoSig, err := v.sig.ToProto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		pubMb := make([][]byte, len(v.pubM))
+// 		for i := range pubMb {
+// 			pubMb[i] = make([]byte, blen)
+// 			v.pubM[i].ToBytes(pubMb[i])
+// 		}
+// 		verifyRequest := &VerifyRequest{
+// 			Sig:  protoSig,
+// 			PubM: pubMb,
+// 		}
+// 		return proto.Marshal(verifyRequest)
+// 	}
 
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// UnmarshalBinary is an implementation of a method on the
-// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		blindVerifyRequest := &BlindVerifyRequest{}
-		if err := proto.Unmarshal(data, blindVerifyRequest); err != nil {
-			return err
-		}
-		blindShowMats := &coconut.BlindShowMats{}
-		blindShowMats.FromProto(blindVerifyRequest.BlindShowMats)
-		sig := &coconut.Signature{}
-		sig.FromProto(blindVerifyRequest.Sig)
+// 	sigB, err := v.sig.MarshalBinary()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	data := make([]byte, len(sigB)+blen*len(v.pubM))
+// 	copy(data, sigB)
+// 	for i := range v.pubM {
+// 		v.pubM[i].ToBytes(data[len(sigB)+i*blen:])
+// 	}
+// 	return data, nil
+// }
 
-		pubM := make([]*Curve.BIG, len(blindVerifyRequest.PubM))
-		for i := range pubM {
-			pubM[i] = Curve.FromBytes(blindVerifyRequest.PubM[i])
-		}
+// // NewVerify returns new instance of Verify command.
+// func NewVerify(pubM []*Curve.BIG, sig *coconut.Signature) *Verify {
+// 	return &Verify{
+// 		pubM: pubM,
+// 		sig:  sig,
+// 	}
+// }
 
-		bv.pubM = pubM
-		bv.sig = sig
-		bv.blindShowMats = blindShowMats
-		bv.pubMLength = uint8(len(pubM)) // will be removed
-		return nil
-	}
+// // BlindSign defines required parameters to perform a blind sign on private and public attributes.
+// type BlindSign struct {
+// 	blindSignMats *coconut.BlindSignMats
+// 	egPub         *elgamal.PublicKey
+// 	pubM          []*Curve.BIG
+// 	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
+// }
 
-	pubMLength := data[0]
-	pubM := make([]*Curve.BIG, pubMLength)
-	for i := range pubM {
-		pubM[i] = Curve.FromBytes(data[1+i*blen:])
-	}
+// // BlindSignMats returns BlindSignMats part of BlindSign command.
+// func (bs *BlindSign) BlindSignMats() *coconut.BlindSignMats {
+// 	return bs.blindSignMats
+// }
 
-	sig := &coconut.Signature{}
-	err := sig.UnmarshalBinary(data[1+len(pubM)*blen : 1+len(pubM)*blen+2*eclen])
-	if err != nil {
-		return err
-	}
+// // // Gamma returns Gamma part of BlindSign command.
+// // func (bs *BlindSign) Gamma() *Curve.ECP {
+// // 	return bs.gamma
+// // }
 
-	blindShowMats := &coconut.BlindShowMats{}
-	err = blindShowMats.UnmarshalBinary(data[1+len(pubM)*blen+2*eclen:])
-	if err != nil {
-		return err
-	}
+// // EgPub returns client's ElGamal Public Key
+// func (bs *BlindSign) EgPub() *elgamal.PublicKey {
+// 	return bs.egPub
+// }
 
-	bv.blindShowMats = blindShowMats
-	bv.sig = sig
-	bv.pubM = pubM
-	bv.pubMLength = pubMLength
+// // PubM returns PubM part of BlindSign command.
+// func (bs *BlindSign) PubM() []*Curve.BIG {
+// 	return bs.pubM
+// }
 
-	return nil
-}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // UnmarshalBinary is an implementation of a method on the
+// // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+// func (bs *BlindSign) UnmarshalBinary(data []byte) error {
+// 	blen := constants.BIGLen
+// 	eclen := constants.ECPLen
+// 	if constants.ProtobufSerialization {
+// 		blindSignRequest := &BlindSignRequest{}
+// 		if err := proto.Unmarshal(data, blindSignRequest); err != nil {
+// 			return err
+// 		}
+// 		blindSignMats := &coconut.BlindSignMats{}
+// 		blindSignMats.FromProto(blindSignRequest.BlindSignMats)
+// 		egPub := &elgamal.PublicKey{}
+// 		egPub.FromProto(blindSignRequest.EgPub)
 
-// TODO: REPLACE WITH GRPC + protobuf message for that
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (bv *BlindVerify) MarshalBinary() ([]byte, error) {
-	blen := constants.BIGLen
-	eclen := constants.ECPLen
-	if constants.ProtobufSerialization {
-		protoSig, err := bv.sig.ToProto()
-		if err != nil {
-			return nil, err
-		}
-		protoBlindShowMats, err := bv.blindShowMats.ToProto()
-		if err != nil {
-			return nil, err
-		}
+// 		pubM := make([]*Curve.BIG, len(blindSignRequest.PubM))
+// 		for i := range pubM {
+// 			pubM[i] = Curve.FromBytes(blindSignRequest.PubM[i])
+// 		}
 
-		pubMb := make([][]byte, len(bv.pubM))
-		for i := range pubMb {
-			pubMb[i] = make([]byte, blen)
-			bv.pubM[i].ToBytes(pubMb[i])
-		}
+// 		bs.pubM = pubM
+// 		bs.egPub = egPub
+// 		bs.blindSignMats = blindSignMats
+// 		bs.pubMLength = uint8(len(pubM)) // will be removed
+// 		return nil
+// 	}
 
-		blindVerifyRequest := &BlindVerifyRequest{
-			PubM:          pubMb,
-			BlindShowMats: protoBlindShowMats,
-			Sig:           protoSig,
-		}
-		return proto.Marshal(blindVerifyRequest)
-	}
+// 	pubMLength := data[0]
+// 	pubM := make([]*Curve.BIG, pubMLength)
+// 	for i := range pubM {
+// 		pubM[i] = Curve.FromBytes(data[1+i*blen:])
+// 	}
+// 	egPub := &elgamal.PublicKey{}
+// 	err := egPub.UnmarshalBinary(data[1+len(pubM)*blen:])
+// 	if err != nil {
+// 		return err
+// 	}
 
-	bsmData, err := bv.blindShowMats.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	data := make([]byte, len(bsmData)+2*eclen+len(bv.pubM)*blen+1)
-	data[0] = bv.pubMLength
-	for i := range bv.pubM {
-		bv.pubM[i].ToBytes(data[1+i*blen:])
-	}
-	sigData, err := bv.sig.MarshalBinary()
-	if err != nil {
-		return nil, err
-	}
-	copy(data[1+len(bv.pubM)*blen:], sigData)
-	copy(data[1+len(bv.pubM)*blen+2*eclen:], bsmData)
+// 	blindSignMats := &coconut.BlindSignMats{}
+// 	err = blindSignMats.UnmarshalBinary(data[1+(1+len(pubM))*blen+2*eclen:])
+// 	if err != nil {
+// 		return err
+// 	}
+// 	bs.blindSignMats = blindSignMats
+// 	bs.egPub = egPub
+// 	bs.pubM = pubM
+// 	bs.pubMLength = pubMLength
 
-	return data, nil
-}
+// 	return nil
+// }
 
-// NewBlindVerify returns new instance of a BlindVerify command.
-func NewBlindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) *BlindVerify {
-	if len(pubM) > 255 {
-		return nil
-	}
-	return &BlindVerify{
-		sig:           sig,
-		blindShowMats: blindShowMats,
-		pubM:          pubM,
-		pubMLength:    uint8(len(pubM)),
-	}
-}
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // MarshalBinary is an implementation of a method on the
+// // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+// func (bs *BlindSign) MarshalBinary() ([]byte, error) {
+// 	blen := constants.BIGLen
+// 	eclen := constants.ECPLen
+// 	if constants.ProtobufSerialization {
+// 		protoEgPub, err := bs.egPub.ToProto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		protoBlindSignMats, err := bs.blindSignMats.ToProto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		pubMb := make([][]byte, len(bs.pubM))
+// 		for i := range pubMb {
+// 			pubMb[i] = make([]byte, blen)
+// 			bs.pubM[i].ToBytes(pubMb[i])
+// 		}
+
+// 		blindSignRequest := &BlindSignRequest{
+// 			PubM:          pubMb,
+// 			BlindSignMats: protoBlindSignMats,
+// 			EgPub:         protoEgPub,
+// 		}
+// 		return proto.Marshal(blindSignRequest)
+// 	}
+
+// 	// we don't care which method blindSignMats are using for marshaling
+// 	bsmData, err := bs.blindSignMats.MarshalBinary()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	data := make([]byte, len(bsmData)+2*eclen+(1+len(bs.pubM))*blen+1)
+// 	data[0] = bs.pubMLength
+// 	for i := range bs.pubM {
+// 		bs.pubM[i].ToBytes(data[1+i*blen:])
+// 	}
+
+// 	egPubData, err := bs.egPub.MarshalBinary()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	copy(data[1+len(bs.pubM)*blen:], egPubData)
+// 	copy(data[1+(1+len(bs.pubM))*blen+2*eclen:], bsmData)
+
+// 	return data, nil
+// }
+
+// // NewBlindSign returns new instance of a BlindSign command.
+// func NewBlindSign(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) *BlindSign {
+// 	if len(pubM) > 255 {
+// 		return nil
+// 	}
+// 	return &BlindSign{
+// 		blindSignMats: blindSignMats,
+// 		egPub:         egPub,
+// 		pubM:          pubM,
+// 		pubMLength:    uint8(len(pubM)),
+// 	}
+// }
+
+// // BlindVerify defines required parameters to perform a verification of blind signature on private and public attributes
+// type BlindVerify struct {
+// 	sig           *coconut.Signature
+// 	blindShowMats *coconut.BlindShowMats
+// 	pubM          []*Curve.BIG
+// 	pubMLength    uint8 // 1 byte of overhead to significantly simplify marshaling/unmarshaling
+// }
+
+// // BlindShowMats returns BlindShowMats part of BlindVerify command.
+// func (bv *BlindVerify) BlindShowMats() *coconut.BlindShowMats {
+// 	return bv.blindShowMats
+// }
+
+// // Sig returns Sig part of BlindVerify command.
+// func (bv *BlindVerify) Sig() *coconut.Signature {
+// 	return bv.sig
+// }
+
+// // PubM returns PubM part of BlindVerify command.
+// func (bv *BlindVerify) PubM() []*Curve.BIG {
+// 	return bv.pubM
+// }
+
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // UnmarshalBinary is an implementation of a method on the
+// // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+// func (bv *BlindVerify) UnmarshalBinary(data []byte) error {
+// 	blen := constants.BIGLen
+// 	eclen := constants.ECPLen
+// 	if constants.ProtobufSerialization {
+// 		blindVerifyRequest := &BlindVerifyRequest{}
+// 		if err := proto.Unmarshal(data, blindVerifyRequest); err != nil {
+// 			return err
+// 		}
+// 		blindShowMats := &coconut.BlindShowMats{}
+// 		blindShowMats.FromProto(blindVerifyRequest.BlindShowMats)
+// 		sig := &coconut.Signature{}
+// 		sig.FromProto(blindVerifyRequest.Sig)
+
+// 		pubM := make([]*Curve.BIG, len(blindVerifyRequest.PubM))
+// 		for i := range pubM {
+// 			pubM[i] = Curve.FromBytes(blindVerifyRequest.PubM[i])
+// 		}
+
+// 		bv.pubM = pubM
+// 		bv.sig = sig
+// 		bv.blindShowMats = blindShowMats
+// 		bv.pubMLength = uint8(len(pubM)) // will be removed
+// 		return nil
+// 	}
+
+// 	pubMLength := data[0]
+// 	pubM := make([]*Curve.BIG, pubMLength)
+// 	for i := range pubM {
+// 		pubM[i] = Curve.FromBytes(data[1+i*blen:])
+// 	}
+
+// 	sig := &coconut.Signature{}
+// 	err := sig.UnmarshalBinary(data[1+len(pubM)*blen : 1+len(pubM)*blen+2*eclen])
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	blindShowMats := &coconut.BlindShowMats{}
+// 	err = blindShowMats.UnmarshalBinary(data[1+len(pubM)*blen+2*eclen:])
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	bv.blindShowMats = blindShowMats
+// 	bv.sig = sig
+// 	bv.pubM = pubM
+// 	bv.pubMLength = pubMLength
+
+// 	return nil
+// }
+
+// // TODO: REPLACE WITH GRPC + protobuf message for that
+// // MarshalBinary is an implementation of a method on the
+// // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+// func (bv *BlindVerify) MarshalBinary() ([]byte, error) {
+// 	blen := constants.BIGLen
+// 	eclen := constants.ECPLen
+// 	if constants.ProtobufSerialization {
+// 		protoSig, err := bv.sig.ToProto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		protoBlindShowMats, err := bv.blindShowMats.ToProto()
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		pubMb := make([][]byte, len(bv.pubM))
+// 		for i := range pubMb {
+// 			pubMb[i] = make([]byte, blen)
+// 			bv.pubM[i].ToBytes(pubMb[i])
+// 		}
+
+// 		blindVerifyRequest := &BlindVerifyRequest{
+// 			PubM:          pubMb,
+// 			BlindShowMats: protoBlindShowMats,
+// 			Sig:           protoSig,
+// 		}
+// 		return proto.Marshal(blindVerifyRequest)
+// 	}
+
+// 	bsmData, err := bv.blindShowMats.MarshalBinary()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	data := make([]byte, len(bsmData)+2*eclen+len(bv.pubM)*blen+1)
+// 	data[0] = bv.pubMLength
+// 	for i := range bv.pubM {
+// 		bv.pubM[i].ToBytes(data[1+i*blen:])
+// 	}
+// 	sigData, err := bv.sig.MarshalBinary()
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	copy(data[1+len(bv.pubM)*blen:], sigData)
+// 	copy(data[1+len(bv.pubM)*blen+2*eclen:], bsmData)
+
+// 	return data, nil
+// }
+
+// // NewBlindVerify returns new instance of a BlindVerify command.
+// func NewBlindVerify(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) *BlindVerify {
+// 	if len(pubM) > 255 {
+// 		return nil
+// 	}
+// 	return &BlindVerify{
+// 		sig:           sig,
+// 		blindShowMats: blindShowMats,
+// 		pubM:          pubM,
+// 		pubMLength:    uint8(len(pubM)),
+// 	}
+// }

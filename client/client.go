@@ -7,19 +7,14 @@ import (
 	"time"
 
 	"github.com/golang/protobuf/proto"
-
-	"github.com/jstuczyn/CoconutGo/server/comm/utils"
-	"github.com/jstuczyn/CoconutGo/server/packet"
-
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/server/commands"
-
 	"github.com/jstuczyn/CoconutGo/client/config"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
-	"github.com/jstuczyn/CoconutGo/logger"
-
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
-
+	"github.com/jstuczyn/CoconutGo/logger"
+	"github.com/jstuczyn/CoconutGo/server/comm/utils"
+	"github.com/jstuczyn/CoconutGo/server/commands"
+	"github.com/jstuczyn/CoconutGo/server/packet"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -106,7 +101,11 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
 	}
 
-	cmd := commands.NewSign(pubM)
+	cmd, err := commands.NewSignRequest(pubM)
+	if err != nil {
+		c.log.Errorf("Failed to create Sign request: %v", err)
+		return nil
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
@@ -174,7 +173,11 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
 	}
 
-	cmd := commands.NewVk()
+	cmd, err := commands.NewVerificationKeyRequest()
+	if err != nil {
+		c.log.Errorf("Failed to create Vk request: %v", err)
+		return nil
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
@@ -243,7 +246,11 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 		return nil
 	}
 
-	cmd := commands.NewBlindSign(blindSignMats, c.elGamalPublicKey, pubM)
+	cmd, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	if err != nil {
+		c.log.Errorf("Failed to create BlindSign request: %v", err)
+		return nil
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
@@ -314,7 +321,11 @@ func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) bool {
 
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
-	cmd := commands.NewVerify(pubM, sig)
+	cmd, err := commands.NewVerifyRequest(pubM, sig)
+	if err != nil {
+		c.log.Errorf("Failed to create Verify request: %v", err)
+		return false
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.VerifyID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
@@ -364,7 +375,11 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 		return false
 	}
 
-	cmd := commands.NewBlindVerify(blindShowMats, sig, pubM)
+	cmd, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
+	if err != nil {
+		c.log.Errorf("Failed to create BlindVerify request: %v", err)
+		return false
+	}
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindVerifyID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")

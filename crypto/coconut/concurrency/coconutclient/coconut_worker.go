@@ -26,6 +26,7 @@ import (
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/worker"
 )
@@ -54,6 +55,8 @@ func (ccw *Worker) AddToJobQueue(jobpacket *jobpacket.JobPacket) {
 	ccw.jobQueue <- jobpacket
 }
 
+// todo: clean up in next iteration, error handling is way too messy right now
+
 func (ccw *Worker) worker() {
 	for {
 		var cmdReq *commands.CommandRequest
@@ -69,16 +72,16 @@ func (ccw *Worker) worker() {
 			errMsg := ""
 
 			switch v := cmd.(type) {
-			case *commands.Sign:
+			case *commands.SignRequest:
 				ccw.log.Notice("Received Sign (NOT blind) command")
-				if len(v.PubM()) > len(ccw.sk.Y()) {
-					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM()), len(ccw.sk.Y()))
+				if len(v.PubM) > len(ccw.sk.Y()) {
+					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM), len(ccw.sk.Y()))
 					ccw.log.Error(errMsg)
 					respData = nil
 					respStatus = commands.StatusCode_INVALID_ARGUMENTS
 					continue
 				}
-				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, v.PubM())
+				sig, err := ccw.Sign(ccw.muxParams, ccw.sk, coconut.BigSliceFromProto(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg = fmt.Sprintf("Error while signing message: %v", err)
@@ -89,29 +92,53 @@ func (ccw *Worker) worker() {
 				}
 				ccw.log.Debugf("Writing back signature")
 				respData = sig
-			case *commands.Vk:
+			case *commands.VerificationKeyRequest:
 				ccw.log.Notice("Received Get Verification Key command")
 				respData = ccw.vk
-			case *commands.Verify:
+			case *commands.VerifyRequest:
 				ccw.log.Notice("Received Verify (NOT blind) command")
 				if ccw.avk != nil {
-					respData = ccw.Verify(ccw.muxParams, ccw.avk, v.PubM(), v.Sig())
+					sig := &coconut.Signature{}
+					if err := sig.FromProto(v.Sig); err != nil {
+						errMsg = "Could not recover received signature."
+						ccw.log.Error(errMsg)
+						respData = nil
+						respStatus = commands.StatusCode_INVALID_ARGUMENTS
+						break
+					}
+					respData = ccw.Verify(ccw.muxParams, ccw.avk, coconut.BigSliceFromProto(v.PubM), sig)
 				} else {
 					errMsg = "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
 					ccw.log.Error(errMsg)
 					respData = nil
 					respStatus = commands.StatusCode_UNAVAILABLE
 				}
-			case *commands.BlindSign:
+			case *commands.BlindSignRequest:
 				ccw.log.Notice("Received Blind Sign command")
-				if len(v.PubM())+len(v.BlindSignMats().Enc()) > len(ccw.sk.Y()) {
-					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM())+len(v.BlindSignMats().Enc()), len(ccw.sk.Y()))
+				bsm := &coconut.BlindSignMats{}
+				if err := bsm.FromProto(v.BlindSignMats); err != nil {
+					errMsg = "Could not recover received blindSignMats."
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_INVALID_ARGUMENTS
+					break
+				}
+				if len(v.PubM)+len(bsm.Enc()) > len(ccw.sk.Y()) {
+					errMsg = fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM)+len(bsm.Enc()), len(ccw.sk.Y()))
 					ccw.log.Error(errMsg)
 					respData = nil
 					respStatus = commands.StatusCode_INVALID_ARGUMENTS
 					continue
 				}
-				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, v.BlindSignMats(), v.EgPub(), v.PubM())
+				egPub := &elgamal.PublicKey{}
+				if err := egPub.FromProto(v.EgPub); err != nil {
+					errMsg = "Could not recover received blindSignMats."
+					ccw.log.Error(errMsg)
+					respData = nil
+					respStatus = commands.StatusCode_INVALID_ARGUMENTS
+					break
+				}
+				sig, err := ccw.BlindSign(ccw.muxParams, ccw.sk, bsm, egPub, coconut.BigSliceFromProto(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg = fmt.Sprintf("Error while signing message: %v", err)
@@ -122,10 +149,26 @@ func (ccw *Worker) worker() {
 				}
 				ccw.log.Debugf("Writing back blinded signature")
 				respData = sig
-			case *commands.BlindVerify:
+			case *commands.BlindVerifyRequest:
 				ccw.log.Notice("Received Blind Verify Command")
 				if ccw.avk != nil {
-					respData = ccw.BlindVerify(ccw.muxParams, ccw.avk, v.Sig(), v.BlindShowMats(), v.PubM())
+					sig := &coconut.Signature{}
+					if err := sig.FromProto(v.Sig); err != nil {
+						errMsg = "Could not recover received signature."
+						ccw.log.Error(errMsg)
+						respData = nil
+						respStatus = commands.StatusCode_INVALID_ARGUMENTS
+						break
+					}
+					bsm := &coconut.BlindShowMats{}
+					if err := bsm.FromProto(v.BlindShowMats); err != nil {
+						errMsg = "Could not recover received blindSignMats."
+						ccw.log.Error(errMsg)
+						respData = nil
+						respStatus = commands.StatusCode_INVALID_ARGUMENTS
+						break
+					}
+					respData = ccw.BlindVerify(ccw.muxParams, ccw.avk, sig, bsm, coconut.BigSliceFromProto(v.PubM))
 				} else {
 					errMsg = "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
 					ccw.log.Error(errMsg)
