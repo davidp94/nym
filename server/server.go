@@ -22,8 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/constants"
-
 	"github.com/eapache/channels"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
@@ -249,12 +247,6 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 	serverLog.Noticef("Started %v listener(s)", len(cfg.Server.Addresses))
-
-	if constants.ProtobufSerialization {
-		serverLog.Info("Using protobuf for data serialization")
-	} else {
-		serverLog.Info("DEPRACATED: Using old method for data serialization")
-	}
 
 	s := &Server{
 		cfg: cfg,

@@ -193,10 +193,6 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 		blindSignMats, _ := coconut.PrepareBlindSign(params, egPub, pubBig, privBig)
 
 		data, err := blindSignMats.MarshalBinary()
-		if !constants.MarshalEmbedHelperData && len(test.priv) > constants.MB/2-1 {
-			assert.NotNil(t, err)
-			continue
-		}
 
 		assert.Nil(t, err)
 		recoveredBlindSignMats := &coconut.BlindSignMats{}
