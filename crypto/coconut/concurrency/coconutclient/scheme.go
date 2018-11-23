@@ -290,7 +290,7 @@ func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedS
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed.
 // nolint: lll
-func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) coconut.VerificationResult {
+func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if len(pubM) > len(vk.Beta()) {
 		return false
 	}
@@ -325,7 +325,7 @@ func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM [
 	gt1 := res1.(*Curve.FP12)
 	gt2 := res2.(*Curve.FP12)
 
-	return coconut.VerificationResult(!sig.Sig1().Is_infinity() && gt1.Equals(gt2))
+	return !sig.Sig1().Is_infinity() && gt1.Equals(gt2)
 }
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
@@ -479,7 +479,7 @@ func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verificatio
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 // nolint: lll
-func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) coconut.VerificationResult {
+func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
 	privateLen := len(showMats.Proof().Rm())
 	if len(pubM)+privateLen > len(vk.Beta()) || !ccw.VerifyVerifierProof(params, vk, sig, showMats) {
 		return false
@@ -521,5 +521,5 @@ func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, s
 	gt1 := res1.(*Curve.FP12)
 	gt2 := res2.(*Curve.FP12)
 
-	return coconut.VerificationResult(!sig.Sig1().Is_infinity() && gt1.Equals(gt2))
+	return !sig.Sig1().Is_infinity() && gt1.Equals(gt2)
 }

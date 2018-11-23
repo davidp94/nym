@@ -68,12 +68,12 @@ func main() {
 	// time.Sleep(10 * time.Second)
 	vk := c.GetAggregateVerificationKey()
 	fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
-	// isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
 	// isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
 	// isValidBlind2 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
-	// if vk != nil {
-	// fmt.Println("Is sig valid:", isValid)
-	// fmt.Println("Is sig validBlind1:", isValidBlind1)
-	// fmt.Println("Is sig validBlind2:", isValidBlind2)
-	// }
+	if vk != nil {
+		fmt.Println("Is sig valid:", isValid)
+		// fmt.Println("Is sig validBlind1:", isValidBlind1)
+		// fmt.Println("Is sig validBlind2:", isValidBlind2)
+	}
 }

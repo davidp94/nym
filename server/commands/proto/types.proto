@@ -38,9 +38,12 @@ message VerificationKeyResponse {
     Status status = 2;
 }
 
-
 message VerifyRequest {
     coconut.ProtoSignature sig = 1;
     repeated bytes pubM = 2;
 }
 
+message VerifyResponse {
+    bool isValid = 1;
+    Status status = 2;
+}

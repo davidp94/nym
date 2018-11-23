@@ -9,6 +9,7 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
+	"github.com/jstuczyn/CoconutGo/server/packet"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/server/commands"
@@ -84,50 +85,6 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 		return nil, nil
 	}
 	return sigs, nil
-
-	// if protobuf is used, it is at least that + headers
-	// expectedMinimumReponseLength := 2 * constants.ECPLen
-	// if isBlind {
-	// 	expectedMinimumReponseLength += constants.ECPLen
-	// }
-	// validSigs := 0
-	// for i := range responses {
-	// 	// first check guarantees we will be able to check second expression without memory violation
-	// 	if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
-	// 		validSigs++
-
-	// 	}
-	// }
-	// sigs := make([]*coconut.Signature, validSigs)
-	// xs := make([]*Curve.BIG, validSigs)
-
-	// j := 0
-	// for i := range responses {
-	// 	if responses[i] != nil && len(responses[i].MarshaledData) >= expectedMinimumReponseLength {
-	// 		sig := &coconut.Signature{}
-	// 		if isBlind {
-	// 			blindedSig := &coconut.BlindedSignature{}
-	// 			if blindedSig.UnmarshalBinary(responses[i].MarshaledData) != nil {
-	// 				return nil, nil
-	// 			}
-	// 			sig = coconut.Unblind(c.params, blindedSig, c.elGamalPrivateKey)
-	// 		} else {
-	// 			if sig.UnmarshalBinary(responses[i].MarshaledData) != nil {
-	// 				return nil, nil
-	// 			}
-	// 		}
-	// 		sigs[j] = sig
-	// 		if isThreshold {
-	// 			xs[j] = Curve.NewBIGint(responses[i].ServerID) // no point in computing that if we won't need it
-	// 		}
-	// 		j++
-	// 	}
-	// }
-	// if isThreshold {
-	// 	return sigs, coconut.NewPP(xs)
-	// }
-	// return sigs, nil
-
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -333,6 +290,15 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 	return rSig
 }
 
+func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) bool {
+	verifyResponse := &commands.VerifyResponse{}
+	if err := proto.Unmarshal(packetResponse.Payload(), verifyResponse); err != nil {
+		c.log.Errorf("Failed to recover verification result: %v", err)
+		return false
+	}
+	return verifyResponse.IsValid
+}
+
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
 	cmd := commands.NewVerify(pubM, sig)
@@ -353,13 +319,10 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 
 	resp, err := utils.ReadPacketFromConn(conn)
-	c.log.Notice("%v", resp)
 	if err != nil {
 		c.log.Errorf("Received invalid response from %v: %v", addr, err)
-	} else if resp.Payload()[0] == 1 {
-		return true
 	}
-	return false
+	return c.parseVerifyResponse(resp)
 }
 
 // depends on future API in regards of type of servers response

@@ -209,7 +209,12 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 			Status: protoStatus,
 		}
 	case *commands.Verify:
-		l.log.Fatal("NOT IMPLEMENTED")
+		isValid := data.(bool)
+		protoResp = &commands.VerifyResponse{
+			IsValid: isValid,
+			Status:  protoStatus,
+		}
+		l.log.Debugf("Was the received credential valid: %v", isValid)
 	case *commands.BlindSign:
 		l.log.Fatal("NOT IMPLEMENTED")
 	case *commands.BlindVerify:

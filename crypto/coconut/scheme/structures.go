@@ -23,9 +23,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// VerificationResult is a wrapper for a bool so that it could implement BinaryMarshaler interface
-type VerificationResult bool
-
 // SecretKey represents secret key of a Coconut signing authority.
 type SecretKey struct {
 	x *Curve.BIG

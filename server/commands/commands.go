@@ -132,11 +132,9 @@ func FromBytes(b []byte) (Command, error) {
 		err = signCmd.UnmarshalBinary(payload)
 		cmd = signCmd
 	case VerifyID:
-		return nil, errors.New("Not Implemented")
-
-		// verifyCmd := &Verify{}
-		// err = verifyCmd.UnmarshalBinary(payload)
-		// cmd = verifyCmd
+		verifyCmd := &Verify{}
+		err = verifyCmd.UnmarshalBinary(payload)
+		cmd = verifyCmd
 	case BlindSignID:
 		return nil, errors.New("Not Implemented")
 

@@ -61,15 +61,6 @@ func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
 
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (vr VerificationResult) MarshalBinary() ([]byte, error) {
-	if vr {
-		return []byte{1}, nil
-	}
-	return []byte{0}, nil
-}
-
-// MarshalBinary is an implementation of a method on the
-// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sk *SecretKey) MarshalBinary() ([]byte, error) {
 	blen := constants.BIGLen
 	if constants.ProtobufSerialization {
