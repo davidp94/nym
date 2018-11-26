@@ -118,7 +118,6 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 	}
 }
 
-// todo: similarly to WaitForServerResponses(), pass a logger?
 func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 
 	vks := make([]*coconut.VerificationKey, 0, len(responses))

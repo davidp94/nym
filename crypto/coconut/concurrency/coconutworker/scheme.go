@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package coconutclient provides the functionalities required to use the Coconut scheme concurrently.
-package coconutclient
+// Package coconutworker provides the functionalities required to use the Coconut scheme concurrently.
+package coconutworker
 
 import (
 	"sync"
@@ -42,7 +42,7 @@ type MuxParams struct {
 
 // Setup generates the public parameters required by the Coconut scheme.
 // q indicates the maximum number of attributes that can be embed in the credentials.
-func (ccw *Worker) Setup(q int) (*MuxParams, error) {
+func (cw *Worker) Setup(q int) (*MuxParams, error) {
 	// each hashing operation takes ~3ms, which is not necessarily worth parallelizing
 	// due to increased code complexity especially since Setup is only run once
 	params, err := coconut.Setup(q)
@@ -54,7 +54,7 @@ func (ccw *Worker) Setup(q int) (*MuxParams, error) {
 
 // Keygen generates a single Coconut keypair ((x, y1, y2...), (g2, g2^x, g2^y1, ...)).
 // It is not suitable for threshold credentials as all generated keys are independent of each other.
-func (ccw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+func (cw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -70,7 +70,7 @@ func (ccw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.Verif
 	sk := coconut.NewSk(x, y)
 
 	alphaCh := make(chan interface{}, 1)
-	ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, g2, x)
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, g2, x)
 
 	// unlike other G2muls where results are then added together,
 	// ordering matters here, so we can't just use buffered channels
@@ -78,7 +78,7 @@ func (ccw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.Verif
 	betaChs := make([]chan interface{}, q)
 	for i := range betaChs {
 		betaChs[i] = make(chan interface{}, 1)
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i], g2, y[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i], g2, y[i])
 	}
 
 	// all jobs are in the queue, so it doesn't matter in which order we read results
@@ -99,7 +99,7 @@ func (ccw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.Verif
 // such that they support threshold aggregation of t parties.
 // It is expected that this procedure is executed by a Trusted Third Party.
 // nolint: lll
-func (ccw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+func (cw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -130,12 +130,12 @@ func (ccw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.Secret
 	betaChs := make([][]chan interface{}, n)
 	for i := range sks {
 		alphaChs[i] = make(chan interface{}, 1)
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, sks[i].X())
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, sks[i].X())
 
 		betaChs[i] = make([]chan interface{}, q)
 		for j, yj := range sks[i].Y() {
 			betaChs[i][j] = make(chan interface{}, 1)
-			ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i][j], g2, yj)
+			cw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i][j], g2, yj)
 		}
 	}
 
@@ -155,7 +155,7 @@ func (ccw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.Secret
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
-func (ccw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+func (cw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Sign(params.Params, sk, pubM)
 }
@@ -165,7 +165,7 @@ func (ccw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (cw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
 	p, g1, hs, rng := params.P(), params.G1(), params.Hs(), params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -182,9 +182,9 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey,
 
 	cm := Curve.NewECP()
 	cmCh := make(chan interface{}, 1+len(attributes))
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, g1, r)
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, g1, r)
 	for i := range attributes {
-		ccw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, hs[i], attributes[i])
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(cmCh, hs[i], attributes[i])
 	}
 	for i := 0; i <= len(attributes); i++ {
 		cmElemRes := <-cmCh
@@ -205,7 +205,7 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey,
 
 	for i := range privM {
 		encsChs[i] = make(chan interface{}, 1)
-		ccw.jobQueue <- jobpacket.New(encsChs[i], ccw.makeElGamalEncryptionOp(params, egPub, privM[i], h))
+		cw.jobQueue <- jobpacket.New(encsChs[i], cw.makeElGamalEncryptionOp(params, egPub, privM[i], h))
 	}
 
 	for i := range privM {
@@ -215,8 +215,8 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey,
 		ks[i] = encFull.K()
 	}
 
-	// TODO: CCW.PROOFS
-	signerProof, err := ccw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
+	// TODO: cw.PROOFS
+	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
@@ -225,13 +225,13 @@ func (ccw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey,
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func (cw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	p, hs := params.P(), params.Hs()
 
 	if len(blindSignMats.Enc())+len(pubM) > len(hs) {
 		return nil, coconut.ErrBlindSignParams
 	}
-	if !ccw.VerifySignerProof(params, egPub.Gamma, blindSignMats) {
+	if !cw.VerifySignerProof(params, egPub.Gamma, blindSignMats) {
 		return nil, coconut.ErrBlindSignProof
 	}
 
@@ -256,15 +256,15 @@ func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSign
 	}
 
 	for i := range blindSignMats.Enc() {
-		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t2Ch, blindSignMats.Enc()[i].C1(), sk.Y()[i]) // g1 ^ (k * yi)
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(t2Ch, blindSignMats.Enc()[i].C1(), sk.Y()[i]) // g1 ^ (k * yi)
 	}
 
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, sk.X())
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, sk.X())
 	for i := range blindSignMats.Enc() {
-		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, blindSignMats.Enc()[i].C2(), sk.Y()[i]) // privs
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, blindSignMats.Enc()[i].C2(), sk.Y()[i]) // privs
 	}
 	for i := range t1 {
-		ccw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, t1[i]) // pubs
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, t1[i]) // pubs
 	}
 
 	for range blindSignMats.Enc() {
@@ -282,7 +282,7 @@ func (ccw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSign
 
 // Unblind unblinds the blinded Coconut credential.
 // nolint: lll
-func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPk *elgamal.PrivateKey) *coconut.Signature {
+func (cw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPk *elgamal.PrivateKey) *coconut.Signature {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Unblind(params.Params, blindedSignature, egPk)
 }
@@ -290,7 +290,7 @@ func (ccw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedS
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed.
 // nolint: lll
-func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+func (cw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if len(pubM) > len(vk.Beta()) {
 		return false
 	}
@@ -308,7 +308,7 @@ func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM [
 
 	// in this case ordering does not matter at all, since we're adding all results together
 	for i := 0; i < len(pubM); i++ {
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(outChG2Mul, vk.Beta()[i], pubM[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(outChG2Mul, vk.Beta()[i], pubM[i])
 	}
 	for i := 0; i < len(pubM); i++ {
 		res := <-outChG2Mul
@@ -317,8 +317,8 @@ func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM [
 	}
 
 	outChPair := make(chan interface{}, 2)
-	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), K)
-	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig2(), vk.G2())
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), K)
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig2(), vk.G2())
 
 	res1 := <-outChPair
 	res2 := <-outChPair
@@ -330,7 +330,7 @@ func (ccw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM [
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
 // from a fresh credential on different attributes
-func (ccw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
+func (cw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
 	p, rng := params.P(), params.G.Rng()
 
 	params.Lock()
@@ -340,8 +340,8 @@ func (ccw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut
 	sig1Ch := make(chan interface{}, 1)
 	sig2Ch := make(chan interface{}, 1)
 
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig1Ch, sig.Sig1(), t)
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sig.Sig2(), t)
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(sig1Ch, sig.Sig1(), t)
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sig.Sig2(), t)
 
 	sig1Res := <-sig1Ch
 	sig2Res := <-sig2Ch
@@ -352,7 +352,7 @@ func (ccw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut
 // AggregateVerificationKeys aggregates verification keys of the signing authorities.
 // Optionally it does so in a threshold manner.
 // nolint: lll
-func (ccw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+func (cw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateVerificationKeys(params.Params, vks, nil)
@@ -384,9 +384,9 @@ func (ccw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.V
 		betaChs[i] = make(chan interface{}, t)
 	}
 	for i := 0; i < t; i++ {
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, vks[i].Alpha(), li[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(alphaCh, vks[i].Alpha(), li[i])
 		for j, betaj := range vks[i].Beta() {
-			ccw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[j], betaj, li[i])
+			cw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[j], betaj, li[i])
 		}
 	}
 
@@ -409,7 +409,7 @@ func (ccw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.V
 // that were produced by multiple signing authorities.
 // Optionally it does so in a threshold manner.
 // nolint: lll
-func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+func (cw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateSignatures(params.Params, sigs, nil)
@@ -425,7 +425,7 @@ func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signat
 
 	sig2Ch := make(chan interface{}, t)
 	for i := 0; i < t; i++ {
-		ccw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sigs[i].Sig2(), l[i])
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(sig2Ch, sigs[i].Sig2(), l[i])
 	}
 
 	for i := 0; i < t; i++ {
@@ -440,7 +440,7 @@ func (ccw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signat
 // It returns kappa and nu - group elements needed to perform verification
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	p, rng := params.P(), params.G.Rng()
 
 	if len(privM) <= 0 || len(privM) > len(vk.Beta()) {
@@ -452,13 +452,13 @@ func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verificatio
 	params.Unlock()
 
 	kappaCh := make(chan interface{}, len(privM)+1)
-	ccw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.G2(), t)
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.G2(), t)
 	for i := range privM {
-		ccw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.Beta()[i], privM[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.Beta()[i], privM[i])
 	}
 
 	nuCh := make(chan interface{}, 1)
-	ccw.jobQueue <- jobpacket.MakeG1MulPacket(nuCh, sig.Sig1(), t)
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(nuCh, sig.Sig1(), t)
 
 	kappa := Curve.NewECP2()
 	kappa.Copy(vk.Alpha())
@@ -472,16 +472,16 @@ func (ccw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verificatio
 	nu := nuRes.(*Curve.ECP)
 
 	// todo: put ConstructVerifierProof to jobpacket (like elgamalencrypt)
-	verifierProof := ccw.ConstructVerifierProof(params, vk, sig, privM, t)
+	verifierProof := cw.ConstructVerifierProof(params, vk, sig, privM, t)
 
 	return coconut.NewBlindShowMats(kappa, nu, verifierProof), nil
 }
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 // nolint: lll
-func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
-	privateLen := len(showMats.Proof().Rm())
-	if len(pubM)+privateLen > len(vk.Beta()) || !ccw.VerifyVerifierProof(params, vk, sig, showMats) {
+func (cw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+	privateLen := len(blindShowMats.Proof().Rm())
+	if len(pubM)+privateLen > len(vk.Beta()) || !cw.VerifyVerifierProof(params, vk, sig, blindShowMats) {
 		return false
 	}
 
@@ -493,16 +493,16 @@ func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, s
 	// the other one depends on resolution of aggr
 	t1 := Curve.NewECP()
 	t1.Copy(sig.Sig2())
-	t1.Add(showMats.Nu())
+	t1.Add(blindShowMats.Nu())
 
 	outChPair := make(chan interface{}, 2)
-	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, t1, vk.G2())
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, t1, vk.G2())
 
 	aggr := Curve.NewECP2() // new point is at infinity
 	if len(pubM) > 0 {
 		aggrCh := make(chan interface{}, len(pubM))
 		for i := 0; i < len(pubM); i++ {
-			ccw.jobQueue <- jobpacket.MakeG2MulPacket(aggrCh, vk.Beta()[i+privateLen], pubM[i])
+			cw.jobQueue <- jobpacket.MakeG2MulPacket(aggrCh, vk.Beta()[i+privateLen], pubM[i])
 		}
 		for i := 0; i < len(pubM); i++ {
 			aggrRes := <-aggrCh
@@ -511,10 +511,10 @@ func (ccw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, s
 	}
 
 	t2 := Curve.NewECP2()
-	t2.Copy(showMats.Kappa())
+	t2.Copy(blindShowMats.Kappa())
 	t2.Add(aggr)
 
-	ccw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), t2)
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), t2)
 
 	res1 := <-outChPair
 	res2 := <-outChPair

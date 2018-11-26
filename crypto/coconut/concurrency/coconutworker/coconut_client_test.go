@@ -1,4 +1,4 @@
-package coconutclient_test
+package coconutworker_test
 
 // import (
 // 	"testing"

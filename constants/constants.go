@@ -18,8 +18,6 @@
 package constants
 
 import (
-	"errors"
-
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -50,9 +48,4 @@ const (
 
 	// ElGamalPrivateKeyType defines PEM Type for Coconut-specific ElGamal Private Key.
 	ElGamalPrivateKeyType = "COCONUT-ELGAMAL PRIVATE KEY"
-)
-
-var (
-	// ErrUnmarshalLength defines error returned when the length of byte stream differs from the expected value.
-	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )

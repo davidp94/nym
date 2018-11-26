@@ -19,8 +19,7 @@ package packet
 
 import (
 	"encoding/binary"
-
-	"github.com/jstuczyn/CoconutGo/constants"
+	"errors"
 )
 
 // todo: to be completely replaced by protobuf and grpc?
@@ -46,7 +45,7 @@ type Packet struct {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (h *header) UnmarshalBinary(data []byte) error {
 	if len(data) != headerLength {
-		return constants.ErrUnmarshalLength
+		return errors.New("The byte array provided is incomplete")
 	}
 	h.packetLength = binary.BigEndian.Uint32(data)
 	return nil

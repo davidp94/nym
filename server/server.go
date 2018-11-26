@@ -24,13 +24,13 @@ import (
 
 	"github.com/eapache/channels"
 
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/logger"
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/config"
+	"github.com/jstuczyn/CoconutGo/server/cryptoworker"
 	"github.com/jstuczyn/CoconutGo/server/listener"
 
 	"gopkg.in/op/go-logging.v1"
@@ -50,9 +50,9 @@ type Server struct {
 	jobCh *channels.InfiniteChannel
 	log   *logging.Logger
 
-	coconutWorkers []*coconutclient.Worker
-	listeners      []*listener.Listener
-	jobWorkers     []*jobworker.Worker
+	cryptoWorkers []*cryptoworker.Worker
+	listeners     []*listener.Listener
+	jobWorkers    []*jobworker.Worker
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -226,9 +226,9 @@ func New(cfg *config.Config) (*Server, error) {
 
 	avk := &coconut.VerificationKey{}
 
-	coconutworkers := make([]*coconutclient.Worker, cfg.Debug.NumCoconutWorkers)
-	for i := range coconutworkers {
-		coconutworkers[i] = coconutclient.New(jobCh.In(), cmdCh.Out(), uint64(i+1), log, params, sk, vk, avk)
+	cryptoWorkers := make([]*cryptoworker.Worker, cfg.Debug.NumCoconutWorkers)
+	for i := range cryptoWorkers {
+		cryptoWorkers[i] = cryptoworker.New(jobCh.In(), cmdCh.Out(), uint64(i+1), log, params, sk, vk, avk)
 	}
 	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCoconutWorkers)
 
@@ -257,9 +257,9 @@ func New(cfg *config.Config) (*Server, error) {
 		jobCh: jobCh,
 		log:   serverLog,
 
-		coconutWorkers: coconutworkers,
-		listeners:      listeners,
-		jobWorkers:     jobworkers,
+		cryptoWorkers: cryptoWorkers,
+		listeners:     listeners,
+		jobWorkers:    jobworkers,
 
 		haltedCh: make(chan interface{}),
 	}
@@ -272,9 +272,8 @@ func New(cfg *config.Config) (*Server, error) {
 		if vks == nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
-		// todo: take a random worker if the are multiple
-		// todo: nicer call to make the aggregate
-		*avk = *coconutworkers[0].AggregateVerificationKeys(&coconutclient.MuxParams{Params: params, Mutex: sync.Mutex{}}, vks, pp)
+		// todo: take a random worker if the are multiple ?
+		*avk = *cryptoWorkers[0].CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
 
@@ -303,10 +302,10 @@ func (s *Server) halt() {
 		}
 	}
 
-	for i, w := range s.coconutWorkers {
+	for i, w := range s.cryptoWorkers {
 		if w != nil {
 			w.Halt()
-			s.coconutWorkers[i] = nil
+			s.cryptoWorkers[i] = nil
 		}
 	}
 

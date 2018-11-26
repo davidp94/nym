@@ -136,7 +136,9 @@ func (l *Listener) onNewConn(conn net.Conn) {
 
 	l.incomingCh <- cmdReq
 	outPacket := l.resolveCommand(cmd, resCh)
-	l.replyToClient(outPacket, conn)
+	if outPacket != nil {
+		l.replyToClient(outPacket, conn)
+	}
 }
 
 // nolint: interfacer
@@ -237,8 +239,8 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 		}
 		l.log.Debugf("Was the received credential valid: %v", isValid)
 	default:
-		l.log.Fatal("NOT IMPLEMENTED")
-		// return nil and dont reply
+		l.log.Errorf("Received an unrecognized command.")
+		return nil
 	}
 
 	b, err := proto.Marshal(protoResp)
