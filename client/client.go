@@ -6,12 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/eapache/channels"
 	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/client/config"
 	"github.com/jstuczyn/CoconutGo/client/cryptoworker"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/CoconutGo/logger"
@@ -34,7 +32,6 @@ type Client struct {
 	elGamalPublicKey  *elgamal.PublicKey
 
 	cryptoworker *cryptoworker.Worker
-	jobWorkers   []*jobworker.Worker
 }
 
 func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
@@ -406,14 +403,7 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 // Stop stops client instance
 func (c *Client) Stop() {
 	c.log.Notice("Starting graceful shutdown.")
-
-	for i, w := range c.jobWorkers {
-		if w != nil {
-			w.Halt()
-			c.jobWorkers[i] = nil
-		}
-	}
-
+	c.cryptoworker.Halt()
 	c.log.Notice("Shutdown complete.")
 }
 
@@ -462,21 +452,13 @@ func New(cfg *config.Config) (*Client, error) {
 		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
 	}
 
-	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
-
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
 		return nil, errors.New("Error while generating params")
 	}
 
-	cryptoworker := cryptoworker.New(jobCh.In(), uint64(1), log, params)
+	cryptoworker := cryptoworker.New(uint64(1), log, params, cfg.Debug.NumJobWorkers)
 	clientLog.Noticef("Started Coconut Worker")
-
-	jobworkers := make([]*jobworker.Worker, cfg.Debug.NumJobWorkers)
-	for i := range jobworkers {
-		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), log)
-	}
-	clientLog.Noticef("Started %v Job Worker(s)", cfg.Debug.NumJobWorkers)
 
 	c := &Client{
 		cfg: cfg,
@@ -486,7 +468,6 @@ func New(cfg *config.Config) (*Client, error) {
 		elGamalPublicKey:  elGamalPublicKey,
 
 		cryptoworker: cryptoworker,
-		jobWorkers:   jobworkers,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

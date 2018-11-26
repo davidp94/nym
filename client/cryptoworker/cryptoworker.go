@@ -18,13 +18,15 @@
 package cryptoworker
 
 import (
-	"github.com/jstuczyn/CoconutGo/logger"
+	"github.com/eapache/channels"
 	"gopkg.in/op/go-logging.v1"
 
 	"fmt"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"github.com/jstuczyn/CoconutGo/logger"
 )
 
 // Worker allows writing coconut actions to a shared job queue,
@@ -33,22 +35,41 @@ type Worker struct {
 	cw  *coconutworker.Worker
 	log *logging.Logger
 	id  uint64
+
+	jobWorkers []*jobworker.Worker
 }
 
 func (w *Worker) CoconutWorker() *coconutworker.Worker {
 	return w.cw
 }
 
+func (cw *Worker) Halt() {
+	for i, w := range cw.jobWorkers {
+		if w != nil {
+			w.Halt()
+			cw.jobWorkers[i] = nil
+		}
+	}
+	cw.log.Notice("Stopped all job workers.")
+}
+
 // New creates new instance of a coconutWorker.
 // nolint: lll
-func New(jobQueue chan<- interface{}, id uint64, l *logger.Logger, params *coconut.Params) *Worker {
-	cw := coconutworker.New(jobQueue, params)
+func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *Worker {
+	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+	cw := coconutworker.New(jobCh.In(), params)
 
 	w := &Worker{
 		cw:  cw,
 		log: l.GetLogger(fmt.Sprintf("Clientcryptoworker:%d", int(id))),
 		id:  id,
 	}
+
+	jobworkers := make([]*jobworker.Worker, numWorkers)
+	for i := range jobworkers {
+		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), l)
+	}
+	w.log.Noticef("Started %v Job Worker(s)", numWorkers)
 
 	// no need of having a forever loop
 	return w
