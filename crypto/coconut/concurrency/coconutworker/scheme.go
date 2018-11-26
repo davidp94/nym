@@ -282,9 +282,9 @@ func (cw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignM
 
 // Unblind unblinds the blinded Coconut credential.
 // nolint: lll
-func (cw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPk *elgamal.PrivateKey) *coconut.Signature {
+func (cw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPub *elgamal.PrivateKey) *coconut.Signature {
 	// there are no expensive operations that could be parallelized in sign
-	return coconut.Unblind(params.Params, blindedSignature, egPk)
+	return coconut.Unblind(params.Params, blindedSignature, egPub)
 }
 
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes

@@ -6,9 +6,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eapache/channels"
 	"github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/CoconutGo/client/config"
+	"github.com/jstuczyn/CoconutGo/client/cryptoworker"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/CoconutGo/logger"
@@ -25,13 +28,13 @@ import (
 // Client represents an user of a Coconut IA server
 type Client struct {
 	cfg *config.Config
-
 	log *logging.Logger
-
-	params *coconut.Params
 
 	elGamalPrivateKey *elgamal.PrivateKey
 	elGamalPublicKey  *elgamal.PublicKey
+
+	cryptoworker *cryptoworker.Worker
+	jobWorkers   []*jobworker.Worker
 }
 
 func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
@@ -69,7 +72,7 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 					c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
 					continue // can still succeed with >= threshold sigs
 				}
-				sig = coconut.Unblind(c.params, blindSig, c.elGamalPrivateKey)
+				sig = c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey)
 			} else {
 				sig = &coconut.Signature{}
 				if err := sig.FromProto(resp.(*commands.SignResponse).Sig); err != nil {
@@ -156,10 +159,10 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 		// should it continue regardless and assume the servers are down pernamently or just terminate?
 	}
 
-	aSig := coconut.AggregateSignatures(c.params, sigs, pp)
+	aSig := c.cryptoworker.CoconutWorker().AggregateSignaturesWrapper(sigs, pp)
 	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
 
-	rSig := coconut.Randomize(c.params, aSig)
+	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
 	c.log.Debug("Randomized the signature")
 
 	return rSig
@@ -219,7 +222,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	}
 
 	if shouldAggregate {
-		vks = []*coconut.VerificationKey{coconut.AggregateVerificationKeys(c.params, vks, pp)}
+		vks = []*coconut.VerificationKey{c.cryptoworker.CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)}
 	}
 	return vks
 }
@@ -240,7 +243,7 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
 	}
 
-	blindSignMats, err := coconut.PrepareBlindSign(c.params, c.elGamalPublicKey, pubM, privM)
+	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
 		c.log.Errorf("Could not create blindSignMats: %v", err)
 		return nil
@@ -301,10 +304,10 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 		// should it continue regardless and assume the servers are down pernamently or just terminate?
 	}
 
-	aSig := coconut.AggregateSignatures(c.params, sigs, pp)
+	aSig := c.cryptoworker.CoconutWorker().AggregateSignaturesWrapper(sigs, pp)
 	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
 
-	rSig := coconut.Randomize(c.params, aSig)
+	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
 	c.log.Debug("Randomized the signature")
 
 	return rSig
@@ -369,7 +372,7 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 		}
 	}
 
-	blindShowMats, err := coconut.ShowBlindSignature(c.params, vk, sig, privM)
+	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
 	if err != nil {
 		c.log.Errorf("Failed when creating proofs for verification: %v", err)
 		return false
@@ -398,6 +401,20 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 
 	resp, err := utils.ReadPacketFromConn(conn)
 	return c.parseBlindVerifyResponse(resp)
+}
+
+// Stop stops client instance
+func (c *Client) Stop() {
+	c.log.Notice("Starting graceful shutdown.")
+
+	for i, w := range c.jobWorkers {
+		if w != nil {
+			w.Halt()
+			c.jobWorkers[i] = nil
+		}
+	}
+
+	c.log.Notice("Shutdown complete.")
 }
 
 // New returns a new Client instance parameterized with the specified configuration.
@@ -445,11 +462,21 @@ func New(cfg *config.Config) (*Client, error) {
 		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
 	}
 
-	// todo: if worker then make mux params
+	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
 		return nil, errors.New("Error while generating params")
 	}
+
+	cryptoworker := cryptoworker.New(jobCh.In(), uint64(1), log, params)
+	clientLog.Noticef("Started Coconut Worker")
+
+	jobworkers := make([]*jobworker.Worker, cfg.Debug.NumJobWorkers)
+	for i := range jobworkers {
+		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), log)
+	}
+	clientLog.Noticef("Started %v Job Worker(s)", cfg.Debug.NumJobWorkers)
 
 	c := &Client{
 		cfg: cfg,
@@ -458,7 +485,8 @@ func New(cfg *config.Config) (*Client, error) {
 		elGamalPrivateKey: elGamalPrivateKey,
 		elGamalPublicKey:  elGamalPublicKey,
 
-		params: params,
+		cryptoworker: cryptoworker,
+		jobWorkers:   jobworkers,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

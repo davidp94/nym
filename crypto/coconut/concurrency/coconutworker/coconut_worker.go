@@ -40,6 +40,22 @@ func (cw *Worker) AggregateSignaturesWrapper(sigs []*coconut.Signature, pp *coco
 	return cw.AggregateSignatures(cw.muxParams, sigs, pp)
 }
 
+func (cw *Worker) UnblindWrapper(blindedSignature *coconut.BlindedSignature, egPub *elgamal.PrivateKey) *coconut.Signature {
+	return cw.Unblind(cw.muxParams, blindedSignature, egPub)
+}
+
+func (cw *Worker) RandomizeWrapper(sig *coconut.Signature) *coconut.Signature {
+	return cw.Randomize(cw.muxParams, sig)
+}
+
+func (cw *Worker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
+}
+
+func (cw *Worker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+	return cw.ShowBlindSignature(cw.muxParams, vk, sig, privM)
+}
+
 // New creates new instance of a coconutWorker.
 func New(jobQueue chan<- interface{}, params *coconut.Params) *Worker {
 	muxParams := &MuxParams{params, sync.Mutex{}}

@@ -300,9 +300,9 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, egPu
 }
 
 // Unblind unblinds the blinded Coconut credential.
-func Unblind(params *Params, blindedSignature *BlindedSignature, egPk *elgamal.PrivateKey) *Signature {
+func Unblind(params *Params, blindedSignature *BlindedSignature, egPub *elgamal.PrivateKey) *Signature {
 	G := params.G
-	sig2 := elgamal.Decrypt(G, egPk, blindedSignature.sig2Tilda)
+	sig2 := elgamal.Decrypt(G, egPub, blindedSignature.sig2Tilda)
 	return &Signature{
 		sig1: blindedSignature.sig1,
 		sig2: sig2,

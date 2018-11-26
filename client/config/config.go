@@ -23,6 +23,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"path/filepath"
+	"runtime"
 
 	"github.com/BurntSushi/toml"
 )
@@ -77,6 +78,9 @@ type Client struct {
 
 // Debug is the Coconut Client debug configuration.
 type Debug struct {
+	// NumJobWorkers specifies the number of worker instances to use for jobpacket processing.
+
+	NumJobWorkers int
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
 
@@ -88,6 +92,9 @@ type Debug struct {
 }
 
 func (dCfg *Debug) applyDefaults() {
+	if dCfg.NumJobWorkers <= 0 {
+		dCfg.NumJobWorkers = runtime.NumCPU()
+	}
 	if dCfg.ConnectTimeout <= 0 {
 		dCfg.ConnectTimeout = defaultConnectTimeout
 	}
