@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -36,7 +36,7 @@ func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func setupWrapper(ccw *coconutclient.Worker, q int) (coconut.SchemeParams, error) {
+func setupWrapper(ccw *coconutworker.Worker, q int) (coconut.SchemeParams, error) {
 	if ccw == nil {
 		return coconut.Setup(q)
 	}
@@ -44,109 +44,109 @@ func setupWrapper(ccw *coconutclient.Worker, q int) (coconut.SchemeParams, error
 }
 
 // nolint: lll
-func keygenWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+func keygenWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
 	if ccw == nil {
 		return coconut.Keygen(params.(*coconut.Params))
 	}
-	return ccw.Keygen(params.(*coconutclient.MuxParams))
+	return ccw.Keygen(params.(*coconutworker.MuxParams))
 }
 
 // nolint: lll
-func ttpKeygenWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+func ttpKeygenWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
 	if ccw == nil {
 		return coconut.TTPKeygen(params.(*coconut.Params), t, n)
 	}
-	return ccw.TTPKeygen(params.(*coconutclient.MuxParams), t, n)
+	return ccw.TTPKeygen(params.(*coconutworker.MuxParams), t, n)
 
 }
 
 // nolint: lll
-func signWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+func signWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
 	if ccw == nil {
 		return coconut.Sign(params.(*coconut.Params), sk, pubM)
 	}
-	return ccw.Sign(params.(*coconutclient.MuxParams), sk, pubM)
+	return ccw.Sign(params.(*coconutworker.MuxParams), sk, pubM)
 }
 
 // nolint: lll
-func verifyWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+func verifyWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if ccw == nil {
 		return coconut.Verify(params.(*coconut.Params), vk, pubM, sig)
 	}
-	return ccw.Verify(params.(*coconutclient.MuxParams), vk, pubM, sig)
+	return ccw.Verify(params.(*coconutworker.MuxParams), vk, pubM, sig)
 }
 
 // nolint: lll
-func randomizeWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sig *coconut.Signature) *coconut.Signature {
+func randomizeWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, sig *coconut.Signature) *coconut.Signature {
 	if ccw == nil {
 		return coconut.Randomize(params.(*coconut.Params), sig)
 	}
-	return ccw.Randomize(params.(*coconutclient.MuxParams), sig)
+	return ccw.Randomize(params.(*coconutworker.MuxParams), sig)
 }
 
 // nolint: lll
-func aggregateSignaturesWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+func aggregateSignaturesWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	if ccw == nil {
 		return coconut.AggregateSignatures(params.(*coconut.Params), sigs, pp)
 
 	}
-	return ccw.AggregateSignatures(params.(*coconutclient.MuxParams), sigs, pp)
+	return ccw.AggregateSignatures(params.(*coconutworker.MuxParams), sigs, pp)
 }
 
 // nolint: lll
-func aggregateVerificationKeysWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+func aggregateVerificationKeysWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
 	if ccw == nil {
 		return coconut.AggregateVerificationKeys(params.(*coconut.Params), vks, pp)
 	}
-	return ccw.AggregateVerificationKeys(params.(*coconutclient.MuxParams), vks, pp)
+	return ccw.AggregateVerificationKeys(params.(*coconutworker.MuxParams), vks, pp)
 }
 
 // nolint: lll
-func elGamalKeygenWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams) (*elgamal.PrivateKey, *elgamal.PublicKey) {
+func elGamalKeygenWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams) (*elgamal.PrivateKey, *elgamal.PublicKey) {
 	if ccw == nil {
 		return elgamal.Keygen(params.(*coconut.Params).G)
 	}
-	return ccw.ElGamalKeygen(params.(*coconutclient.MuxParams))
+	return ccw.ElGamalKeygen(params.(*coconutworker.MuxParams))
 }
 
 // nolint: lll
-func prepareBlindSignWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func prepareBlindSignWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
 	if ccw == nil {
 		return coconut.PrepareBlindSign(params.(*coconut.Params), egPub, pubM, privM)
 	}
-	return ccw.PrepareBlindSign(params.(*coconutclient.MuxParams), egPub, pubM, privM)
+	return ccw.PrepareBlindSign(params.(*coconutworker.MuxParams), egPub, pubM, privM)
 }
 
 // nolint: lll
-func unblindWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, blindedSignature *coconut.BlindedSignature, egPriv *elgamal.PrivateKey) *coconut.Signature {
+func unblindWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, blindedSignature *coconut.BlindedSignature, egPriv *elgamal.PrivateKey) *coconut.Signature {
 	if ccw == nil {
 		return coconut.Unblind(params.(*coconut.Params), blindedSignature, egPriv)
 	}
-	return ccw.Unblind(params.(*coconutclient.MuxParams), blindedSignature, egPriv)
+	return ccw.Unblind(params.(*coconutworker.MuxParams), blindedSignature, egPriv)
 }
 
 // nolint: lll
-func showBlindSignatureWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func showBlindSignatureWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	if ccw == nil {
 		return coconut.ShowBlindSignature(params.(*coconut.Params), vk, sig, privM)
 	}
-	return ccw.ShowBlindSignature(params.(*coconutclient.MuxParams), vk, sig, privM)
+	return ccw.ShowBlindSignature(params.(*coconutworker.MuxParams), vk, sig, privM)
 }
 
 // nolint: lll
-func blindSignWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func blindSignWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	if ccw == nil {
 		return coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, egPub, pubM)
 	}
-	return ccw.BlindSign(params.(*coconutclient.MuxParams), sk, blindSignMats, egPub, pubM)
+	return ccw.BlindSign(params.(*coconutworker.MuxParams), sk, blindSignMats, egPub, pubM)
 }
 
 // nolint: lll
-func blindVerifyWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+func blindVerifyWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
 	if ccw == nil {
 		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, showMats, pubM)
 	}
-	return ccw.BlindVerify(params.(*coconutclient.MuxParams), vk, sig, showMats, pubM)
+	return ccw.BlindVerify(params.(*coconutworker.MuxParams), vk, sig, showMats, pubM)
 
 }
 
@@ -274,7 +274,7 @@ func TestTTPKeygenProperties(t *testing.T, params coconut.SchemeParams, sks []*c
 }
 
 // TestSign verifies whether a coconut signature was correctly constructed
-func TestSign(t *testing.T, ccw *coconutclient.Worker) {
+func TestSign(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		q     int
 		attrs []string
@@ -324,7 +324,7 @@ func TestSign(t *testing.T, ccw *coconutclient.Worker) {
 }
 
 // TestVerify checks whether only a valid coconut signature successfully verifies.
-func TestVerify(t *testing.T, ccw *coconutclient.Worker) {
+func TestVerify(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		attrs          []string
 		maliciousAttrs []string
@@ -374,7 +374,7 @@ func TestVerify(t *testing.T, ccw *coconutclient.Worker) {
 }
 
 // TestRandomize checks if randomizing a signature still produces a valid coconut signature.
-func TestRandomize(t *testing.T, ccw *coconutclient.Worker) {
+func TestRandomize(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		attrs []string
 		msg   string
@@ -405,7 +405,7 @@ func TestRandomize(t *testing.T, ccw *coconutclient.Worker) {
 
 // TestKeyAggregation checks correctness of aggregating single verification key.
 // Aggregation of multiple verification keys is implicitly checked in other tests.
-func TestKeyAggregation(t *testing.T, ccw *coconutclient.Worker) {
+func TestKeyAggregation(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		attrs []string
 		pp    *coconut.PolynomialPoints
@@ -446,7 +446,7 @@ func TestKeyAggregation(t *testing.T, ccw *coconutclient.Worker) {
 // TestAggregateVerification checks whether signatures and verification keys from multiple authorities
 // can be correctly aggregated and verified.
 // This particular test does not test the threshold property, it is tested in separate test.
-func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
+func TestAggregateVerification(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		attrs          []string
 		authorities    int
@@ -561,7 +561,7 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 				if ccw == nil {
 					sig, err = coconut.Sign(params.(*coconut.Params), msks[i], mAttrsBig)
 				} else {
-					sig, err = ccw.Sign(params.(*coconutclient.MuxParams), msks[i], mAttrsBig)
+					sig, err = ccw.Sign(params.(*coconutworker.MuxParams), msks[i], mAttrsBig)
 				}
 				mSignatures[i] = sig
 				assert.Nil(t, err)
@@ -585,7 +585,7 @@ func TestAggregateVerification(t *testing.T, ccw *coconutclient.Worker) {
 }
 
 // TestBlindVerify checks whether only a valid coconut signature successfully verifies (includes private attributes).
-func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
+func TestBlindVerify(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		q    int
 		pub  []string
@@ -673,7 +673,7 @@ func TestBlindVerify(t *testing.T, ccw *coconutclient.Worker) {
 // TestThresholdAuthorities checks the threshold property of the appropriate keys, as in whether
 // any subset of t verification keys can be used to verify aggregate credential created out of
 // any different subset of t issued credentials.
-func TestThresholdAuthorities(t *testing.T, ccw *coconutclient.Worker) {
+func TestThresholdAuthorities(t *testing.T, ccw *coconutworker.Worker) {
 	// for this purpose those randoms don't need to be securely generated
 	repeat := 3
 	tests := []struct {

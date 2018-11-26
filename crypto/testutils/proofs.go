@@ -22,7 +22,7 @@ import (
 
 	"github.com/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
+	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
@@ -32,32 +32,32 @@ import (
 )
 
 // nolint: lll
-func constructSignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
+func constructSignerProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
 	if ccw == nil {
 		return coconut.ConstructSignerProof(params.(*coconut.Params), gamma, encs, cm, k, r, pubM, privM)
 	}
-	return ccw.ConstructSignerProof(params.(*coconutclient.MuxParams), gamma, encs, cm, k, r, pubM, privM)
+	return ccw.ConstructSignerProof(params.(*coconutworker.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
 // nolint: lll
-func verifySignerProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
+func verifySignerProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
 	if ccw == nil {
 		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, blindSignMats)
 	}
-	return ccw.VerifySignerProof(params.(*coconutclient.MuxParams), gamma, blindSignMats)
+	return ccw.VerifySignerProof(params.(*coconutworker.MuxParams), gamma, blindSignMats)
 }
 
 // nolint: lll
-func verifyVerifierProofWrapper(ccw *coconutclient.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+func verifyVerifierProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
 	if ccw == nil {
 		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, showMats)
 	}
-	return ccw.VerifyVerifierProof(params.(*coconutclient.MuxParams), vk, sig, showMats)
+	return ccw.VerifyVerifierProof(params.(*coconutworker.MuxParams), vk, sig, showMats)
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
 // nolint: lll
-func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
+func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		pub  []string
 		priv []string
@@ -81,7 +81,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 		if ccw == nil {
 			G = params.(*coconut.Params).G
 		} else {
-			G = params.(*coconutclient.MuxParams).G
+			G = params.(*coconutworker.MuxParams).G
 		}
 		p, g1, hs, rng := params.P(), params.G1(), params.Hs(), G.Rng()
 
@@ -150,7 +150,7 @@ func TestSignerProof(t *testing.T, ccw *coconutclient.Worker) {
 }
 
 // TestVerifierProof tests properties of the appropriate NIZK
-func TestVerifierProof(t *testing.T, ccw *coconutclient.Worker) {
+func TestVerifierProof(t *testing.T, ccw *coconutworker.Worker) {
 	tests := []struct {
 		pub  []string
 		priv []string
