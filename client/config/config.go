@@ -51,6 +51,9 @@ type Client struct {
 	// IAAddresses are the IP address:port combinations of Issuing Authority Servers.
 	IAAddresses []string
 
+	// IAAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
+	IAgRPCAddresses []string
+
 	// IAIDs are IDs of the servers used during generation of threshold keys.
 	// If empty, it is going to be assumed that IAAddresses are ordered correctly.
 	IAIDs []int

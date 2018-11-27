@@ -62,10 +62,12 @@ func main() {
 	pubM := getRandomAttributes(G, 3)
 	// privM := getRandomAttributes(G, 2)
 
-	sig := c.SignAttributes_grpc(pubM)
-	// sig := c.SignAttributes(pubM)
+	sig_grpc := c.SignAttributes_grpc(pubM)
+	sig := c.SignAttributes(pubM)
+
+	areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
+	fmt.Printf("Are received sigs equal: %v\n", areEqual)
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
-	_ = sig
 	// // I've killed one signer and created new vk (with valid keys) during the time
 	// // this will be done in proper tests later
 	// // time.Sleep(10 * time.Second)

@@ -37,11 +37,26 @@ type Client struct {
 	cryptoworker *cryptoworker.Worker
 }
 
+var grpcDialOptions []grpc.DialOption
+
 func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
 	for i := range c.cfg.Client.IAAddresses {
 		c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
 		reqCh <- &utils.ServerRequest{MarshaledData: data, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
 	}
+}
+
+func (c *Client) parseSignResponse(resp *commands.SignResponse) *coconut.Signature {
+	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
+		c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
+		return nil
+	}
+	sig := &coconut.Signature{}
+	if err := sig.FromProto(resp.Sig); err != nil {
+		c.log.Errorf("Failed to unmarshal received signature")
+		return nil
+	}
+	return sig
 }
 
 func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
@@ -57,6 +72,7 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 				resp = &commands.SignResponse{}
 			}
 
+			// todo: use parsesignresponses etc
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
 				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
 				continue
@@ -98,26 +114,127 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 	return sigs, nil
 }
 
-func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
-	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
-	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
-	if err != nil {
-		c.log.Fatal(err)
+func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
+		c.log.Notice("Number of signatures received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of signatures")
+		return nil
 	}
-	defer conn.Close()
-	cc := pb.NewIssuerClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	signRequest := &commands.SignRequest{
-		PubM: coconut.BigSliceToProto(pubM),
+	// we only want threshold number of them, in future randomly choose them?
+	if c.cfg.Client.Threshold > 0 {
+		sigs = sigs[:c.cfg.Client.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
+	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
+		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
+		// should it continue regardless and assume the servers are down pernamently or just terminate?
 	}
-	r, err := cc.SignAttributes(ctx, signRequest)
+
+	aSig := c.cryptoworker.CoconutWorker().AggregateSignaturesWrapper(sigs, pp)
+	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
+
+	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
+	c.log.Debug("Randomized the signature")
+
+	// just to check in test_main if outsigs are equal. next commit removes it
+	rSig = aSig
+	return rSig
+}
+
+// todo: like previous TCP methods, break that one down
+func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
+	isThreshold := c.cfg.Client.Threshold > 0
+
+	maxRequests := c.cfg.Client.MaxRequests
+	if c.cfg.Client.MaxRequests <= 0 {
+		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+	}
+
+	signRequest, err := commands.NewSignRequest(pubM)
 	if err != nil {
-		c.log.Fatal(err)
+		c.log.Errorf("Failed to create Sign request: %v", err)
+		return nil
 	}
-	_ = r
-	return nil
+
+	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
+	reqCh := make(chan struct {
+		string
+		int
+	})
+
+	allDone := make(chan struct{})
+	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
+	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+	appendLock := &sync.Mutex{}
+
+	for i := 0; i < maxRequests; i++ {
+		go func() {
+			for {
+				req, ok := <-reqCh
+				if !ok {
+					return
+				}
+				c.log.Debugf("Dialing %v", req.string)
+				conn, err := grpc.Dial(req.string, grpcDialOptions...)
+				if err != nil {
+					c.log.Errorf("Could not dial %v", req.string)
+				}
+				defer conn.Close()
+				cc := pb.NewIssuerClient(conn)
+
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+
+				r, err := cc.SignAttributes(ctx, signRequest)
+				if err != nil {
+					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.string, err)
+				} else {
+					sig := c.parseSignResponse(r)
+					var x *Curve.BIG
+					if isThreshold {
+						x = Curve.NewBIGint(req.int)
+					}
+
+					appendLock.Lock()
+					sigs = append(sigs, sig)
+					if isThreshold {
+						xs = append(xs, x)
+					}
+					if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
+						close(allDone)
+					}
+					appendLock.Unlock()
+				}
+			}
+		}()
+	}
+
+	for i, addr := range c.cfg.Client.IAgRPCAddresses {
+		reqCh <- struct {
+			string
+			int
+		}{addr, c.cfg.Client.IAIDs[i]}
+	}
+
+waitLoop:
+	for {
+		select {
+		case <-allDone:
+			c.log.Debug("Got responses from all servers")
+			break waitLoop
+		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
+			c.log.Notice("Timed out while sending requests")
+			break waitLoop
+		}
+	}
+
+	close(reqCh)
+
+	if isThreshold {
+		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	}
+	return c.handleReceivedSignatures(sigs, nil)
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -137,7 +254,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 		return nil
 	}
 
-	c.log.Notice("Going to send Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
+	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	var closeOnce sync.Once
 
@@ -163,31 +280,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	sigs, pp := c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, false)
-
-	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
-		c.log.Notice("Number of signatures received is within threshold")
-	} else {
-		c.log.Error("Received less than threshold number of signatures")
-		return nil
-	}
-
-	// we only want threshold number of them, in future randomly choose them?
-	if c.cfg.Client.Threshold > 0 {
-		sigs = sigs[:c.cfg.Client.Threshold]
-		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
-		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
-		// should it continue regardless and assume the servers are down pernamently or just terminate?
-	}
-
-	aSig := c.cryptoworker.CoconutWorker().AggregateSignaturesWrapper(sigs, pp)
-	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
-
-	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
-	c.log.Debug("Randomized the signature")
-
-	return rSig
+	return c.handleReceivedSignatures(c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
 
 // more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
@@ -511,6 +604,11 @@ func New(cfg *config.Config) (*Client, error) {
 		elGamalPublicKey:  elGamalPublicKey,
 
 		cryptoworker: cryptoworker,
+	}
+
+	// todo: timeouts etc
+	grpcDialOptions = []grpc.DialOption{
+		grpc.WithInsecure(),
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

@@ -77,7 +77,6 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 				conn, err := net.Dial("tcp", req.ServerAddress)
 				if err != nil {
 					log.Errorf("Could not dial %v", req.ServerAddress)
-					return
 				}
 
 				conn.Write(req.MarshaledData)
@@ -86,7 +85,6 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 				resp, err := ReadPacketFromConn(conn)
 				if err != nil {
 					log.Errorf("Received invalid response from %v: %v", req.ServerAddress, err)
-					return
 				} else {
 					respCh <- &ServerResponse{MarshaledData: resp.Payload(), ServerID: req.ServerID, ServerAddress: req.ServerAddress}
 				}

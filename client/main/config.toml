@@ -12,6 +12,9 @@
   # IAAddresses are the IP address:port combinations of Issuing Authority Servers.
   IAAddresses = [ "127.0.0.1:4000", "127.0.0.1:4001", "127.0.0.1:4002" ]
 
+  # IAgRPCAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
+  IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
+
   # IAIDs are IDs of the servers used during generation of threshold keys.
   IAIDs = [ 1, 2, 3 ]
 
