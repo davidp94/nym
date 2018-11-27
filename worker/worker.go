@@ -20,8 +20,6 @@
 // Package worker provides background worker tasks.
 package worker
 
-// todo: move it to a higher level directory
-
 import "sync"
 
 // Worker is a set of managed background go routines.

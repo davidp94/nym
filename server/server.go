@@ -27,12 +27,12 @@ import (
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/logger"
+	grpclistener "github.com/jstuczyn/CoconutGo/server/comm/grpc/listener"
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/config"
 	"github.com/jstuczyn/CoconutGo/server/cryptoworker"
 	"github.com/jstuczyn/CoconutGo/server/listener"
-
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -52,6 +52,7 @@ type Server struct {
 
 	cryptoWorkers []*cryptoworker.Worker
 	listeners     []*listener.Listener
+	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.Worker
 
 	haltedCh chan interface{}
@@ -248,6 +249,17 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v listener(s)", len(cfg.Server.Addresses))
 
+	grpclisteners := make([]*grpclistener.Listener, len(cfg.Server.GRPCAddresses))
+	for i, addr := range cfg.Server.GRPCAddresses {
+		grpclisteners[i], err = grpclistener.New(cfg, cmdCh.In(), uint64(i+1), log, addr)
+		if err != nil {
+			serverLog.Errorf("Failed to spawn listener on address: %v (%v).", addr, err)
+			return nil, err
+		}
+	}
+
+	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
+
 	s := &Server{
 		cfg: cfg,
 
@@ -259,6 +271,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 		cryptoWorkers: cryptoWorkers,
 		listeners:     listeners,
+		grpclisteners: grpclisteners,
 		jobWorkers:    jobworkers,
 
 		haltedCh: make(chan interface{}),
@@ -293,6 +306,13 @@ func (s *Server) Shutdown() {
 
 func (s *Server) halt() {
 	s.log.Notice("Starting graceful shutdown.")
+
+	for i, l := range s.grpclisteners {
+		if l != nil {
+			l.Halt()
+			s.grpclisteners[i] = nil
+		}
+	}
 
 	// Stop the listener(s), close all incoming connections.
 	for i, l := range s.listeners {

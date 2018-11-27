@@ -1,0 +1,24 @@
+syntax = "proto3";
+import "server/commands/proto/types.proto";
+
+package services;
+option go_package = "github.com/jstuczyn/CoconutGo/server/comm/grpc/services";
+
+message dummyRequest {
+    string hello = 1;
+}
+
+message dummyResponse {
+    string echo = 1;
+    string world = 2;
+}
+
+service Issuer {
+    // rpc GetVerificationKey(commands.VerificationKeyRequest) returns (commands.VerificationKeyResponse);
+    rpc DummyRpc(dummyRequest) returns (dummyResponse);
+    rpc SignAttributes(commands.SignRequest) returns (commands.SignResponse);
+}
+
+// service Provider {
+    // rpc 
+// }

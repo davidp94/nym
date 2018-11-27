@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -13,10 +14,12 @@ import (
 	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/CoconutGo/logger"
+	pb "github.com/jstuczyn/CoconutGo/server/comm/grpc/services"
 	"github.com/jstuczyn/CoconutGo/server/comm/utils"
 	"github.com/jstuczyn/CoconutGo/server/commands"
 	"github.com/jstuczyn/CoconutGo/server/packet"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	"google.golang.org/grpc"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -93,6 +96,28 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 		return nil, nil
 	}
 	return sigs, nil
+}
+
+func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
+	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
+	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
+	if err != nil {
+		c.log.Fatal(err)
+	}
+	defer conn.Close()
+	cc := pb.NewIssuerClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	signRequest := &commands.SignRequest{
+		PubM: coconut.BigSliceToProto(pubM),
+	}
+	r, err := cc.SignAttributes(ctx, signRequest)
+	if err != nil {
+		c.log.Fatal(err)
+	}
+	_ = r
+	return nil
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -398,6 +423,24 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 
 	resp, err := utils.ReadPacketFromConn(conn)
 	return c.parseBlindVerifyResponse(resp)
+}
+
+func (c *Client) SendDummy(msg string) {
+	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
+	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
+	if err != nil {
+		c.log.Fatal(err)
+	}
+	defer conn.Close()
+	cc := pb.NewIssuerClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := cc.DummyRpc(ctx, &pb.DummyRequest{Hello: "Hello"})
+	if err != nil {
+		c.log.Fatal(err)
+	}
+	c.log.Fatalf("%v %v", r.Echo, r.World)
 }
 
 // Stop stops client instance

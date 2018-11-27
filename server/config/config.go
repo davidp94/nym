@@ -57,6 +57,9 @@ type Server struct {
 	// Addresses are the IP address:port combinations that the server will bind	to for incoming connections.
 	Addresses []string
 
+	// GRPCAddresses are the IP address:port combinations that the server will bind	to for incoming grpcs.
+	GRPCAddresses []string
+
 	// Will definitely be useful later, but for now, no need for that.
 	// // DataDir is the absolute path to the server's state files.
 	// DataDir string

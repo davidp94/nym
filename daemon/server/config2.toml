@@ -9,6 +9,10 @@
   # to for incoming connections.
   Addresses = [ "127.0.0.1:4001" ]
 
+  # GRPCAddresses are the IP address:port combinations that the server will bind
+  # to for incoming grpcs.
+	GRPCAddresses = [ "127.0.0.1:5001" ]
+
   # IsProvider specifies whether the server is a provider.
 	# Currently it means it should be able to verify credentials it receives.
 	IsProvider = false

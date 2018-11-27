@@ -119,7 +119,6 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 }
 
 func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
-
 	vks := make([]*coconut.VerificationKey, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 
@@ -156,4 +155,96 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 	}
 
 	return vks, nil
+}
+
+func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, log *logging.Logger, requestTimeout int) proto.Message {
+	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
+
+	var data interface{}
+	protoStatus := &commands.Status{}
+
+	select {
+	case resp := <-resCh:
+		// var resVal *proto.Message
+		log.Debug("Received response from the worker")
+		if resp.Data != nil && len(resp.ErrorMessage) == 0 && resp.ErrorStatus == commands.StatusCode_UNKNOWN {
+			resp.ErrorStatus = commands.StatusCode_OK
+		}
+
+		data = resp.Data
+		protoStatus.Code = int32(resp.ErrorStatus)
+		protoStatus.Message = resp.ErrorMessage
+
+	// we can wait up to 500ms to resolve request
+	// todo: a way to cancel the request because even though it timeouts, the worker is still working on it
+	case <-timeout:
+		protoStatus.Code = int32(commands.StatusCode_REQUEST_TIMEOUT)
+		protoStatus.Message = "Request took too long to resolve."
+		log.Error("Failed to resolve request - timeout")
+	}
+
+	var protoResp proto.Message
+	var err error
+	switch cmd.(type) {
+	case *commands.SignRequest:
+		protoSig := &coconut.ProtoSignature{}
+		if data != nil {
+			protoSig, err = data.(*coconut.Signature).ToProto()
+			if err != nil {
+				log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+		}
+		protoResp = &commands.SignResponse{
+			Sig:    protoSig,
+			Status: protoStatus,
+		}
+	case *commands.VerificationKeyRequest:
+		protoVk := &coconut.ProtoVerificationKey{}
+		if data != nil {
+			protoVk, err = data.(*coconut.VerificationKey).ToProto()
+			if err != nil {
+				log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+		}
+		protoResp = &commands.VerificationKeyResponse{
+			Vk:     protoVk,
+			Status: protoStatus,
+		}
+	case *commands.VerifyRequest:
+		isValid := data.(bool)
+		protoResp = &commands.VerifyResponse{
+			IsValid: isValid,
+			Status:  protoStatus,
+		}
+		log.Debugf("Was the received credential valid: %v", isValid)
+	case *commands.BlindSignRequest:
+		protoBlindSig := &coconut.ProtoBlindedSignature{}
+		if data != nil {
+			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
+			if err != nil {
+				log.Errorf("Error while creating response: %v", err)
+				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
+				protoStatus.Message = "Failed to marshal response"
+			}
+		}
+		protoResp = &commands.BlindSignResponse{
+			Sig:    protoBlindSig,
+			Status: protoStatus,
+		}
+	case *commands.BlindVerifyRequest:
+		isValid := data.(bool)
+		protoResp = &commands.BlindVerifyResponse{
+			IsValid: isValid,
+			Status:  protoStatus,
+		}
+		log.Debugf("Was the received credential valid: %v", isValid)
+	default:
+		log.Errorf("Received an unrecognized command.")
+		return nil
+	}
+	return protoResp
 }
