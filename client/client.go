@@ -565,6 +565,37 @@ func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) bool {
 	return verifyResponse.IsValid
 }
 
+func (c *Client) SendCredentialsForVerification_grpc(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
+	grpcDialOptions := c.defaultDialOptions
+
+	verifyRequest, err := commands.NewVerifyRequest(pubM, sig)
+	if err != nil {
+		c.log.Errorf("Failed to create Verify request: %v", err)
+		return false
+	}
+
+	c.log.Debugf("Dialing %v", addr)
+	conn, err := grpc.Dial(addr, grpcDialOptions...)
+	if err != nil {
+		c.log.Errorf("Could not dial %v", addr)
+	}
+	defer conn.Close()
+	cc := pb.NewProviderClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+	defer cancel()
+
+	r, err := cc.VerifyCredentials(ctx, verifyRequest)
+	if err != nil {
+		c.log.Errorf("Failed to receive response to verification request: %v", err)
+		return false
+	} else if r.GetStatus().Code != int32(commands.StatusCode_OK) {
+		c.log.Errorf("Received invalid response with status: %v. Error: %v", r.GetStatus().Code, r.GetStatus().Message)
+		return false
+	}
+	return r.GetIsValid()
+}
+
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
 	cmd, err := commands.NewVerifyRequest(pubM, sig)

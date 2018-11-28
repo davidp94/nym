@@ -40,15 +40,26 @@ func (l *Listener) worker() {
 	}
 }
 
-func (l *Listener) DummyRpc(ctx context.Context, req *pb.DummyRequest) (*pb.DummyResponse, error) {
-	return &pb.DummyResponse{
-		Echo:  req.Hello,
-		World: "World!",
-	}, nil
+// func (l *Listener) DummyRpc(ctx context.Context, req *pb.DummyRequest) (*pb.DummyResponse, error) {
+// 	return &pb.DummyResponse{
+// 		Echo:  req.Hello,
+// 		World: "World!",
+// 	}, nil
+// }
+
+func (l *Listener) VerifyCredentials(ctx context.Context, req *commands.VerifyRequest) (*commands.VerifyResponse, error) {
+	// todo: do anything with ctx?
+	verifyResponse := l.resolveCommand(req).(*commands.VerifyResponse)
+	return verifyResponse, nil
+}
+
+func (l *Listener) GetVerificationKey(ctx context.Context, req *commands.VerificationKeyRequest) (*commands.VerificationKeyResponse, error) {
+	// todo: do anything with ctx?
+	vkResponse := l.resolveCommand(req).(*commands.VerificationKeyResponse)
+	return vkResponse, nil
 }
 
 func (l *Listener) SignAttributes(ctx context.Context, req *commands.SignRequest) (*commands.SignResponse, error) {
-	// todo: do anything with ctx?
 	signResponse := l.resolveCommand(req).(*commands.SignResponse)
 	return signResponse, nil
 }
@@ -82,8 +93,14 @@ func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logge
 	}
 	listener.log.Noticef("Listening on: %v", addr)
 
-	pb.RegisterIssuerServer(listener.grpcServer, listener)
-	listener.log.Debug("Registered gRPC Service")
+	if cfg.Server.IsIssuer {
+		pb.RegisterIssuerServer(listener.grpcServer, listener)
+		listener.log.Debug("Registered gRPC Service for Issuer")
+	}
+	if cfg.Server.IsProvider {
+		pb.RegisterProviderServer(listener.grpcServer, listener)
+		listener.log.Debug("Registered gRPC Service for Provider")
+	}
 
 	// if serve is not put in a gouroutine, server will block
 	go func() {

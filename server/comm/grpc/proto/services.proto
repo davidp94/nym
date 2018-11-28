@@ -18,6 +18,6 @@ service Issuer {
     rpc SignAttributes(commands.SignRequest) returns (commands.SignResponse);
 }
 
-// service Provider {
-    // rpc 
-// }
+service Provider {
+    rpc VerifyCredentials(commands.VerifyRequest) returns (commands.VerifyResponse);
+}

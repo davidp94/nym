@@ -16,6 +16,7 @@ import (
 )
 
 const providerAddress = "127.0.0.1:4000"
+const providerAddress_grpc = "127.0.0.1:5000"
 
 func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 	attrs := make([]*Curve.BIG, n)
@@ -64,7 +65,6 @@ func main() {
 
 	sig_grpc := c.SignAttributes_grpc(pubM)
 	// sig := c.SignAttributes(pubM)
-	_ = sig_grpc
 	// areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
 	// fmt.Printf("Are received sigs equal: %v\n", areEqual)
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
@@ -72,6 +72,10 @@ func main() {
 	// // this will be done in proper tests later
 	// // time.Sleep(10 * time.Second)
 	// vk := c.GetAggregateVerificationKey()
+	vk_grpc := c.GetAggregateVerificationKey_grpc()
+	isValid_grpc := c.SendCredentialsForVerification_grpc(pubM, sig_grpc, providerAddress_grpc)
+	fmt.Println("Is valid: ", isValid_grpc)
+	fmt.Println("Is valid local:", coconut.Verify(params, vk_grpc, pubM, sig_grpc))
 	// // fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
 	// // isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
 	// isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
