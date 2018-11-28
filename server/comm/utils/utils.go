@@ -62,6 +62,7 @@ func CommandToMarshaledPacket(cmd commands.Command, cmdID commands.CommandID) []
 	return packetBytes
 }
 
+// todo: way to close all open conns on timeout
 // used by both clients and providers
 func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *logging.Logger, connectTimeout int) chan<- *ServerRequest {
 	ch := make(chan *ServerRequest)

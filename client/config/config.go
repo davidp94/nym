@@ -31,9 +31,10 @@ import (
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultConnectTimeout = 2 * 1000 // 1 sec.
+	defaultConnectTimeout = 1 * 1000 // 1 sec.
 	defaultRequestTimeout = 5 * 1000 // 5 sec.
 	defaultMaxRequests    = 3
+	noLimitMaxRequests    = 16
 )
 
 // nolint: gochecknoglobals
@@ -137,6 +138,8 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if cfg.Client.MaxRequests == 0 {
 		cfg.Client.MaxRequests = defaultMaxRequests
+	} else if cfg.Client.MaxRequests < 0 {
+		cfg.Client.MaxRequests = noLimitMaxRequests
 	}
 
 	if len(cfg.Client.IAIDs) <= 0 {

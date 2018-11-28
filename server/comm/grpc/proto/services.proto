@@ -14,8 +14,7 @@ message dummyResponse {
 }
 
 service Issuer {
-    // rpc GetVerificationKey(commands.VerificationKeyRequest) returns (commands.VerificationKeyResponse);
-    rpc DummyRpc(dummyRequest) returns (dummyResponse);
+    rpc GetVerificationKey(commands.VerificationKeyRequest) returns (commands.VerificationKeyResponse);
     rpc SignAttributes(commands.SignRequest) returns (commands.SignResponse);
 }
 

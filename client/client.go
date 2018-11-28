@@ -23,8 +23,7 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// todo: workers? look at what functionality is needed
-// workers for crypto stuff.
+// todo: deal with bunch of duplicate code in multiple _grpc methods
 
 // Client represents an user of a Coconut IA server
 type Client struct {
@@ -34,16 +33,28 @@ type Client struct {
 	elGamalPrivateKey *elgamal.PrivateKey
 	elGamalPublicKey  *elgamal.PublicKey
 
-	cryptoworker *cryptoworker.Worker
+	cryptoworker       *cryptoworker.Worker
+	defaultDialOptions []grpc.DialOption
 }
-
-var grpcDialOptions []grpc.DialOption
 
 func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
 	for i := range c.cfg.Client.IAAddresses {
 		c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
 		reqCh <- &utils.ServerRequest{MarshaledData: data, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
 	}
+}
+
+func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) *coconut.VerificationKey {
+	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
+		c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
+		return nil
+	}
+	vk := &coconut.VerificationKey{}
+	if err := vk.FromProto(resp.Vk); err != nil {
+		c.log.Errorf("Failed to unmarshal received verification key")
+		return nil
+	}
+	return vk
 }
 
 func (c *Client) parseSignResponse(resp *commands.SignResponse) *coconut.Signature {
@@ -137,19 +148,13 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
 	c.log.Debug("Randomized the signature")
 
-	// just to check in test_main if outsigs are equal. next commit removes it
-	rSig = aSig
 	return rSig
 }
 
 // todo: like previous TCP methods, break that one down
 func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
+	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
-
-	maxRequests := c.cfg.Client.MaxRequests
-	if c.cfg.Client.MaxRequests <= 0 {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
 
 	signRequest, err := commands.NewSignRequest(pubM)
 	if err != nil {
@@ -166,9 +171,10 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 	allDone := make(chan struct{})
 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
 	appendLock := &sync.Mutex{}
 
-	for i := 0; i < maxRequests; i++ {
+	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
 		go func() {
 			for {
 				req, ok := <-reqCh
@@ -183,7 +189,10 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 				defer conn.Close()
 				cc := pb.NewIssuerClient(conn)
 
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+				appendLock.Lock()
+				cancelFuncs = append(cancelFuncs, cancel)
+				appendLock.Unlock()
 				defer cancel()
 
 				r, err := cc.SignAttributes(ctx, signRequest)
@@ -210,12 +219,22 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 		}()
 	}
 
-	for i, addr := range c.cfg.Client.IAgRPCAddresses {
-		reqCh <- struct {
-			string
-			int
-		}{addr, c.cfg.Client.IAIDs[i]}
-	}
+	go func() {
+		defer func() {
+			// could only happen on a timeout.
+			// todo: some better handling of that...
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+				return
+			}
+		}()
+		for i, addr := range c.cfg.Client.IAgRPCAddresses {
+			reqCh <- struct {
+				string
+				int
+			}{addr, c.cfg.Client.IAIDs[i]}
+		}
+	}()
 
 waitLoop:
 	for {
@@ -225,6 +244,9 @@ waitLoop:
 			break waitLoop
 		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
 			c.log.Notice("Timed out while sending requests")
+			for _, cancel := range cancelFuncs {
+				cancel()
+			}
 			break waitLoop
 		}
 	}
@@ -238,11 +260,6 @@ waitLoop:
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
-	maxRequests := c.cfg.Client.MaxRequests
-	if c.cfg.Client.MaxRequests <= 0 {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
 	cmd, err := commands.NewSignRequest(pubM)
 	if err != nil {
 		c.log.Errorf("Failed to create Sign request: %v", err)
@@ -260,7 +277,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
+	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
@@ -283,14 +300,122 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	return c.handleReceivedSignatures(c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
 
-// more for debug purposes to check if the signature verifies, but might also be useful if client wants to make local checks
-// If it's going to aggregate results, it will return slice with a single element.
-func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
-	maxRequests := c.cfg.Client.MaxRequests
-	if c.cfg.Client.MaxRequests <= 0 {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
+func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.VerificationKey {
+	grpcDialOptions := c.defaultDialOptions
+	isThreshold := c.cfg.Client.Threshold > 0
+
+	verificationKeyRequest, err := commands.NewVerificationKeyRequest()
+	if err != nil {
+		c.log.Errorf("Failed to create Vk request: %v", err)
+		return nil
 	}
 
+	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
+	reqCh := make(chan struct {
+		string
+		int
+	})
+
+	allDone := make(chan struct{})
+	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
+	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
+	appendLock := &sync.Mutex{}
+
+	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
+		go func() {
+			for {
+				req, ok := <-reqCh
+				if !ok {
+					return
+				}
+				c.log.Debugf("Dialing %v", req.string)
+				conn, err := grpc.Dial(req.string, grpcDialOptions...)
+				if err != nil {
+					c.log.Errorf("Could not dial %v", req.string)
+				}
+				defer conn.Close()
+				cc := pb.NewIssuerClient(conn)
+
+				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+				appendLock.Lock()
+				cancelFuncs = append(cancelFuncs, cancel)
+				appendLock.Unlock()
+				defer cancel()
+
+				r, err := cc.GetVerificationKey(ctx, verificationKeyRequest)
+				if err != nil {
+					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.string, err)
+				} else {
+					vk := c.parseGetVkResponse(r)
+					var x *Curve.BIG
+					if isThreshold {
+						x = Curve.NewBIGint(req.int)
+					}
+
+					appendLock.Lock()
+					vks = append(vks, vk)
+					if isThreshold {
+						xs = append(xs, x)
+					}
+					if len(vks) == len(c.cfg.Client.IAgRPCAddresses) {
+						close(allDone)
+					}
+					appendLock.Unlock()
+				}
+			}
+		}()
+	}
+
+	go func() {
+		defer func() {
+			// could only happen on a timeout.
+			// todo: some better handling of that...
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+				return
+			}
+		}()
+		for i, addr := range c.cfg.Client.IAgRPCAddresses {
+			reqCh <- struct {
+				string
+				int
+			}{addr, c.cfg.Client.IAIDs[i]}
+		}
+	}()
+
+waitLoop:
+	for {
+		select {
+		case <-allDone:
+			c.log.Debug("Got responses from all servers")
+			break waitLoop
+		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
+			c.log.Notice("Timed out while sending requests")
+			for _, cancel := range cancelFuncs {
+				cancel()
+			}
+			break waitLoop
+		}
+	}
+
+	close(reqCh)
+
+	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
+		c.log.Notice("Number of verification keys received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of verification keys")
+		return nil
+	}
+
+	if shouldAggregate {
+		vks = []*coconut.VerificationKey{c.cryptoworker.CoconutWorker().AggregateVerificationKeysWrapper(vks, coconut.NewPP(xs))}
+	}
+	return vks
+}
+
+// If it's going to aggregate results, it will return slice with a single element.
+func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
 	cmd, err := commands.NewVerificationKeyRequest()
 	if err != nil {
 		c.log.Errorf("Failed to create Vk request: %v", err)
@@ -302,13 +427,13 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 		return nil
 	}
 
-	c.log.Notice("Going to send GetVK request to %v IAs", len(c.cfg.Client.IAAddresses))
+	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	var closeOnce sync.Once
 
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
+	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
@@ -343,6 +468,15 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 }
 
 // basically a wrapper for GetVerificationKeys but returns a single vk rather than slice with one element
+func (c *Client) GetAggregateVerificationKey_grpc() *coconut.VerificationKey {
+	vks := c.GetVerificationKeys_grpc(true)
+	if vks != nil && len(vks) == 1 {
+		return vks[0]
+	}
+	return nil
+}
+
+// basically a wrapper for GetVerificationKeys but returns a single vk rather than slice with one element
 func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 	vks := c.GetVerificationKeys(true)
 	if vks != nil && len(vks) == 1 {
@@ -352,12 +486,6 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 }
 
 func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
-	maxRequests := c.cfg.Client.MaxRequests
-	if c.cfg.Client.MaxRequests <= 0 {
-
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
 	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
 		c.log.Errorf("Could not create blindSignMats: %v", err)
@@ -381,7 +509,7 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, maxRequests, c.log, c.cfg.Debug.ConnectTimeout)
+	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
@@ -518,23 +646,23 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 	return c.parseBlindVerifyResponse(resp)
 }
 
-func (c *Client) SendDummy(msg string) {
-	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
-	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
-	if err != nil {
-		c.log.Fatal(err)
-	}
-	defer conn.Close()
-	cc := pb.NewIssuerClient(conn)
+// func (c *Client) SendDummy(msg string) {
+// 	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
+// 	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
+// 	if err != nil {
+// 		c.log.Fatal(err)
+// 	}
+// 	defer conn.Close()
+// 	cc := pb.NewIssuerClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := cc.DummyRpc(ctx, &pb.DummyRequest{Hello: "Hello"})
-	if err != nil {
-		c.log.Fatal(err)
-	}
-	c.log.Fatalf("%v %v", r.Echo, r.World)
-}
+// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+// 	defer cancel()
+// 	r, err := cc.DummyRpc(ctx, &pb.DummyRequest{Hello: "Hello"})
+// 	if err != nil {
+// 		c.log.Fatal(err)
+// 	}
+// 	c.log.Fatalf("%v %v", r.Echo, r.World)
+// }
 
 // Stop stops client instance
 func (c *Client) Stop() {
@@ -604,11 +732,11 @@ func New(cfg *config.Config) (*Client, error) {
 		elGamalPublicKey:  elGamalPublicKey,
 
 		cryptoworker: cryptoworker,
-	}
 
-	// todo: timeouts etc
-	grpcDialOptions = []grpc.DialOption{
-		grpc.WithInsecure(),
+		// todo: timeouts etc
+		defaultDialOptions: []grpc.DialOption{
+			grpc.WithInsecure(), // TODO: CERTS!!
+		},
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)
