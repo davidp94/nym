@@ -6,8 +6,8 @@ package commands
 import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	scheme "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	elgamal "github.com/jstuczyn/CoconutGo/crypto/elgamal"
+	scheme "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	elgamal "0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	math "math"
 )
 

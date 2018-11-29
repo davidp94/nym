@@ -10,8 +10,8 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/jstuczyn/CoconutGo/server"
-	"github.com/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/server"
+	"0xacab.org/jstuczyn/CoconutGo/server/config"
 )
 
 func main() {

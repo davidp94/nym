@@ -6,7 +6,7 @@ package services
 import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	commands "github.com/jstuczyn/CoconutGo/server/commands"
+	commands "0xacab.org/jstuczyn/CoconutGo/server/commands"
 	context "golang.org/x/net/context"
 	grpc "google.golang.org/grpc"
 	math "math"

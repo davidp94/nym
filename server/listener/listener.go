@@ -25,13 +25,13 @@ import (
 
 	"github.com/golang/protobuf/proto"
 
-	"github.com/jstuczyn/CoconutGo/logger"
-	"github.com/jstuczyn/CoconutGo/server/comm/utils"
-	"github.com/jstuczyn/CoconutGo/server/commands"
-	"github.com/jstuczyn/CoconutGo/server/config"
-	"github.com/jstuczyn/CoconutGo/server/packet"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
+	"0xacab.org/jstuczyn/CoconutGo/server/commands"
+	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/server/packet"
 
-	"github.com/jstuczyn/CoconutGo/worker"
+	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
 )
 

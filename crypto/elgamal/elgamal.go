@@ -26,9 +26,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	proto "github.com/golang/protobuf/proto"
-	"github.com/jstuczyn/CoconutGo/constants"
-	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
 
 	// The named import is used to be able to easily update curve being used
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"

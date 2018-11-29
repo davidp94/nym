@@ -21,9 +21,9 @@ package commands_test
 import (
 	_ "testing"
 
-	_ "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	_ "github.com/jstuczyn/CoconutGo/crypto/elgamal"
-	_ "github.com/jstuczyn/CoconutGo/server/commands"
+	_ "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	_ "0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	_ "0xacab.org/jstuczyn/CoconutGo/server/commands"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	_ "github.com/stretchr/testify/assert"
 )

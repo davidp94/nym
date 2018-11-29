@@ -6,12 +6,12 @@ import (
 	"net"
 
 	"github.com/golang/protobuf/proto"
-	"github.com/jstuczyn/CoconutGo/logger"
-	pb "github.com/jstuczyn/CoconutGo/server/comm/grpc/services"
-	"github.com/jstuczyn/CoconutGo/server/comm/utils"
-	"github.com/jstuczyn/CoconutGo/server/commands"
-	"github.com/jstuczyn/CoconutGo/server/config"
-	"github.com/jstuczyn/CoconutGo/worker"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
+	pb "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services"
+	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
+	"0xacab.org/jstuczyn/CoconutGo/server/commands"
+	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"google.golang.org/grpc"
 	"gopkg.in/op/go-logging.v1"
 )

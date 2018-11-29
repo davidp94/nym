@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 
-	. "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
-	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
-	. "github.com/jstuczyn/CoconutGo/crypto/testutils"
+	. "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	. "0xacab.org/jstuczyn/CoconutGo/crypto/testutils"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )

@@ -2,7 +2,7 @@ syntax = "proto3";
 import "server/commands/proto/types.proto";
 
 package services;
-option go_package = "github.com/jstuczyn/CoconutGo/server/comm/grpc/services";
+option go_package = "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services";
 
 message dummyRequest {
     string hello = 1;

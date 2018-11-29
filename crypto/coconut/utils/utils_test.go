@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )

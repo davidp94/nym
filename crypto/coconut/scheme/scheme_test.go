@@ -18,8 +18,8 @@ package coconut_test
 import (
 	"testing"
 
-	. "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	. "github.com/jstuczyn/CoconutGo/crypto/testutils"
+	. "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	. "0xacab.org/jstuczyn/CoconutGo/crypto/testutils"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -1,8 +1,14 @@
+<!-- Github -> 0xacab
+SRCA="github.com\/jstuczyn\/CoconutGo"
+DSTA="0xacab.org\/jstuczyn\/CoconutGo"
+
+find ./CoconutGo/ -type f -exec sed -i -e "s/$SRCA/$DSTA/g" {} \; 
+ -->
 # CoconutGo
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/jstuczyn/CoconutGo/blob/master/LICENSE)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://0xacab.org/jstuczyn/CoconutGo/blob/master/LICENSE)
 [![Build Status](https://travis-ci.com/jstuczyn/CoconutGo.svg?branch=master)](https://travis-ci.com/jstuczyn/CoconutGo)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/jstuczyn/CoconutGo)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/0xacab.org/jstuczyn/CoconutGo)
 [![Coverage Status](http://codecov.io/github/jstuczyn/CoconutGo/coverage.svg?branch=master)](http://codecov.io/github/jstuczyn/CoconutGo?branch=master)
 
 This is a Go implementation of the Coconut selective disclosure cerendtial scheme by Sonnino et al.: [https://arxiv.org/pdf/1802.07344.pdf](https://arxiv.org/pdf/1802.07344.pdf).

@@ -23,10 +23,10 @@ import (
 
 	"fmt"
 
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 )
 
 // Worker allows writing coconut actions to a shared job queue,

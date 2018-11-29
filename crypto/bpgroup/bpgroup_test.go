@@ -18,7 +18,7 @@ package bpgroup_test
 import (
 	"testing"
 
-	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )

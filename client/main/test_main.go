@@ -7,11 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/jstuczyn/CoconutGo/crypto/bpgroup"
-	coconut "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 
-	"github.com/jstuczyn/CoconutGo/client"
-	"github.com/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/client"
+	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 

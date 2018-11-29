@@ -21,9 +21,9 @@ import (
 	"strings"
 
 	proto "github.com/golang/protobuf/proto"
-	"github.com/jstuczyn/CoconutGo/constants"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/utils"
-	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )

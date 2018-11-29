@@ -18,16 +18,16 @@
 package cryptoworker
 
 import (
-	"github.com/jstuczyn/CoconutGo/logger"
-	"github.com/jstuczyn/CoconutGo/worker"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
 
 	"fmt"
 
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
-	"github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"github.com/jstuczyn/CoconutGo/crypto/elgamal"
-	"github.com/jstuczyn/CoconutGo/server/commands"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 )
 
 // Worker allows writing coconut actions to a shared job queue,

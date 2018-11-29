@@ -6,7 +6,7 @@ package coconut
 import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
-	elgamal "github.com/jstuczyn/CoconutGo/crypto/elgamal"
+	elgamal "0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	math "math"
 )
 

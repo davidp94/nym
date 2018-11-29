@@ -3,13 +3,13 @@ package coconutworker_test
 // import (
 // 	"testing"
 
-// 	"github.com/jstuczyn/CoconutGo/logger"
+// 	"0xacab.org/jstuczyn/CoconutGo/logger"
 
 // 	"github.com/eapache/channels"
-// 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
-// 	"github.com/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
-// 	coconut "github.com/jstuczyn/CoconutGo/crypto/coconut/scheme"
-// 	. "github.com/jstuczyn/CoconutGo/crypto/testutils"
+// 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutclient"
+// 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
+// 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+// 	. "0xacab.org/jstuczyn/CoconutGo/crypto/testutils"
 // 	"github.com/stretchr/testify/assert"
 // )
 

@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package elgamal;
-option go_package = "github.com/jstuczyn/CoconutGo/crypto/elgamal";
+option go_package = "0xacab.org/jstuczyn/CoconutGo/crypto/elgamal";
 
 // used for serializing data to send them over the wire. It is assumed each BIG, ECP, ECP2, etc 
 // were already converted to byte slices using amcl's ToBytes methods.
