@@ -16,6 +16,7 @@ message dummyResponse {
 service Issuer {
     rpc GetVerificationKey(commands.VerificationKeyRequest) returns (commands.VerificationKeyResponse);
     rpc SignAttributes(commands.SignRequest) returns (commands.SignResponse);
+    rpc BlindSignAttributes(commands.BlindSignRequest) returns (commands.BlindSignResponse);
 }
 
 service Provider {
