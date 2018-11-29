@@ -8,10 +8,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/golang/protobuf/proto"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/packet"
+	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -78,6 +78,7 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 				conn, err := net.Dial("tcp", req.ServerAddress)
 				if err != nil {
 					log.Errorf("Could not dial %v", req.ServerAddress)
+					continue
 				}
 
 				conn.Write(req.MarshaledData)
