@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"os"
 	"sync"
 	"time"
 
@@ -887,6 +888,13 @@ func New(cfg *config.Config) (*Client, error) {
 			clientLog.Notice("Written new keys to the files")
 		}
 	} else {
+		if _, err := os.Stat(cfg.Client.PrivateKeyFile); os.IsNotExist(err) {
+			return nil, errors.New("The config did not specify to regenerate the keys and the files do not exist.")
+		}
+		if _, err := os.Stat(cfg.Client.PublicKeyFile); os.IsNotExist(err) {
+			return nil, errors.New("The config did not specify to regenerate the keys and the files do not exist.")
+		}
+
 		err = elGamalPrivateKey.FromPEMFile(cfg.Client.PrivateKeyFile)
 		if err != nil {
 			return nil, err

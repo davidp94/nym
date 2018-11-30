@@ -70,9 +70,6 @@ func main() {
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
 	sigBlind_grpc := c.BlindSignAttributes_grpc(pubM, privM)
 
-	// // I've killed one signer and created new vk (with valid keys) during the time
-	// // this will be done in proper tests later
-	// // time.Sleep(10 * time.Second)
 	// vk := c.GetAggregateVerificationKey()
 	vk_grpc := c.GetAggregateVerificationKey_grpc()
 	// isValid_grpc := c.SendCredentialsForVerification_grpc(pubM, sig_grpc, providerAddress_grpc)
