@@ -64,9 +64,9 @@ func main() {
 	// privM := getRandomAttributes(G, 2)
 
 	sig_grpc := c.SignAttributes_grpc(pubM)
-	// sig := c.SignAttributes(pubM)
-	// areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
-	// fmt.Printf("Are received sigs equal: %v\n", areEqual)
+	sig := c.SignAttributes(pubM)
+	areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
+	fmt.Printf("Are received sigs equal: %v\n", areEqual)
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
 	// sigBlind_grpc := c.BlindSignAttributes_grpc(pubM, privM)
 

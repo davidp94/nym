@@ -38,13 +38,6 @@ type Client struct {
 	defaultDialOptions []grpc.DialOption
 }
 
-func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, data []byte) {
-	for i := range c.cfg.Client.IAAddresses {
-		c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
-		reqCh <- &utils.ServerRequest{MarshaledData: data, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-	}
-}
-
 func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) *coconut.VerificationKey {
 	if resp == nil {
 		c.log.Error("Received respons was nil")
@@ -154,7 +147,8 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 				switch reqt := req.Message.(type) {
 				case *commands.SignRequest:
 					resp, errgrpc = cc.SignAttributes(ctx, reqt)
-
+				default:
+					c.log.Fatal("NOT IMPLEMENTED YET")
 				}
 				if errgrpc != nil {
 					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerAddress, err)
@@ -186,11 +180,11 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 
 			var sig *coconut.Signature
 			if isBlind {
-				if sig = c.parseSignResponse(resp.(*commands.SignResponse)); sig == nil {
+				if sig = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse)); sig == nil {
 					continue
 				}
 			} else {
-				if sig = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse)); sig == nil {
+				if sig = c.parseSignResponse(resp.(*commands.SignResponse)); sig == nil {
 					continue
 				}
 			}
@@ -278,44 +272,6 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 		}
 	}
 	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-
-	// sig := c.parseSignResponse(r)
-	// var x *Curve.BIG
-	// if isThreshold {
-	// 	x = Curve.NewBIGint(req.int)
-	// }
-
-	// appendLock.Lock()
-	// sigs = append(sigs, sig)
-	// if isThreshold {
-	// 	xs = append(xs, x)
-	// }
-	// if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
-	// 	close(allDone)
-	// }
-	// appendLock.Unlock()
-
-	// go func() {
-	// 	defer func() {
-	// 		// could only happen on a timeout.
-	// 		// todo: some better handling of that...
-	// 		if r := recover(); r != nil {
-	// 			c.log.Critical("Recovered: %v", r)
-	// 			return
-	// 		}
-	// 	}()
-	// 	for i, addr := range c.cfg.Client.IAgRPCAddresses {
-	// 		reqCh <- struct {
-	// 			string
-	// 			int
-	// 		}{addr, c.cfg.Client.IAIDs[i]}
-	// 	}
-	// }()
-
-	// if isThreshold {
-	// 	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-	// }
-	// return c.handleReceivedSignatures(sigs, nil)
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -332,31 +288,20 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	var closeOnce sync.Once
-
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
 	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		defer func() {
-			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
-			// the client won't crash
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-			}
-		}()
-		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
-
-		// todo: remove this one and only try to close after receiving all/timeout?
-		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
+		for i := range c.cfg.Client.IAAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
+			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
+		}
 	}()
 
 	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-
-	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
-	closeOnce.Do(func() { close(reqCh) })
+	close(reqCh)
 
 	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
@@ -487,10 +432,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 		c.log.Error("Could not create data packet")
 		return nil
 	}
-
 	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
-
-	var closeOnce sync.Once
 
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
@@ -498,20 +440,13 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		defer func() {
-			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
-			// the client won't crash
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-			}
-		}()
-		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
-		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
+		for i := range c.cfg.Client.IAAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
+			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
+		}
 	}()
 	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-
-	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
-	closeOnce.Do(func() { close(reqCh) })
+	close(reqCh)
 
 	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 
@@ -680,29 +615,20 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 
 	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	var closeOnce sync.Once
-
 	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
 	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		defer func() {
-			// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
-			// the client won't crash
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-			}
-		}()
-		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
-		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
+		for i := range c.cfg.Client.IAAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
+			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
+		}
 	}()
 
 	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-
-	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
-	closeOnce.Do(func() { close(reqCh) })
+	close(reqCh)
 
 	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
 
