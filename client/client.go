@@ -762,6 +762,52 @@ func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) bool {
 	return blindVerifyResponse.IsValid
 }
 
+// todo: code nearly identical to public verification...
+func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
+	grpcDialOptions := c.defaultDialOptions
+
+	if vk == nil {
+		vk = c.GetAggregateVerificationKey_grpc()
+		if vk == nil {
+			c.log.Error("Could not obtain aggregate verification key required to create proofs for verification")
+			return false
+		}
+	}
+
+	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
+	if err != nil {
+		c.log.Errorf("Failed when creating proofs for verification: %v", err)
+		return false
+	}
+
+	blindVerifyRequest, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
+	if err != nil {
+		c.log.Errorf("Failed to create BlindVerify request: %v", err)
+		return false
+	}
+
+	c.log.Debugf("Dialing %v", addr)
+	conn, err := grpc.Dial(addr, grpcDialOptions...)
+	if err != nil {
+		c.log.Errorf("Could not dial %v", addr)
+	}
+	defer conn.Close()
+	cc := pb.NewProviderClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+	defer cancel()
+
+	r, err := cc.BlindVerifyCredentials(ctx, blindVerifyRequest)
+	if err != nil {
+		c.log.Errorf("Failed to receive response to verification request: %v", err)
+		return false
+	} else if r.GetStatus().Code != int32(commands.StatusCode_OK) {
+		c.log.Errorf("Received invalid response with status: %v. Error: %v", r.GetStatus().Code, r.GetStatus().Message)
+		return false
+	}
+	return r.GetIsValid()
+}
+
 // depends on future API in regards of type of servers response
 // if vk is nil, first the client will try to obtain it
 func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
@@ -803,24 +849,6 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 	resp, err := utils.ReadPacketFromConn(conn)
 	return c.parseBlindVerifyResponse(resp)
 }
-
-// func (c *Client) SendDummy(msg string) {
-// 	// in our case no point in keeping the connection alive as we will only send at most couple of rpcs per epoch
-// 	conn, err := grpc.Dial("127.0.0.1:5000", grpc.WithInsecure())
-// 	if err != nil {
-// 		c.log.Fatal(err)
-// 	}
-// 	defer conn.Close()
-// 	cc := pb.NewIssuerClient(conn)
-
-// 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-// 	defer cancel()
-// 	r, err := cc.DummyRpc(ctx, &pb.DummyRequest{Hello: "Hello"})
-// 	if err != nil {
-// 		c.log.Fatal(err)
-// 	}
-// 	c.log.Fatalf("%v %v", r.Echo, r.World)
-// }
 
 // Stop stops client instance
 func (c *Client) Stop() {

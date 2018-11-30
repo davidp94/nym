@@ -47,6 +47,12 @@ func (l *Listener) worker() {
 // 	}, nil
 // }
 
+func (l *Listener) BlindVerifyCredentials(ctx context.Context, req *commands.BlindVerifyRequest) (*commands.BlindVerifyResponse, error) {
+	// todo: do anything with ctx?
+	blindVerifyResponse := l.resolveCommand(req).(*commands.BlindVerifyResponse)
+	return blindVerifyResponse, nil
+}
+
 func (l *Listener) BlindSignAttributes(ctx context.Context, req *commands.BlindSignRequest) (*commands.BlindSignResponse, error) {
 	// todo: do anything with ctx?
 	blindSignResponse := l.resolveCommand(req).(*commands.BlindSignResponse)
