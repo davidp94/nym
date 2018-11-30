@@ -29,6 +29,18 @@ type ServerRequest struct {
 	ServerID      int
 }
 
+type ServerResponse_grpc struct {
+	Message       proto.Message
+	ServerAddress string // not really needed, but might be useful for auditing
+	ServerID      int    // will be needed for threshold aggregation
+}
+
+type ServerRequest_grpc struct {
+	Message       proto.Message
+	ServerAddress string
+	ServerID      int
+}
+
 func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 	var err error
 	tmp := make([]byte, 4) // packetlength
@@ -76,6 +88,7 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 
 				log.Debugf("Dialing %v", req.ServerAddress)
 				conn, err := net.Dial("tcp", req.ServerAddress)
+				defer conn.Close()
 				if err != nil {
 					log.Errorf("Could not dial %v", req.ServerAddress)
 					continue

@@ -46,6 +46,10 @@ func (c *Client) writeRequestsToIAsToChannel(reqCh chan<- *utils.ServerRequest, 
 }
 
 func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) *coconut.VerificationKey {
+	if resp == nil {
+		c.log.Error("Received respons was nil")
+		return nil
+	}
 	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
 		c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
 		return nil
@@ -59,6 +63,10 @@ func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) *coc
 }
 
 func (c *Client) parseSignResponse(resp *commands.SignResponse) *coconut.Signature {
+	if resp == nil {
+		c.log.Error("Received respons was nil")
+		return nil
+	}
 	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
 		c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
 		return nil
@@ -72,6 +80,10 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) *coconut.Signatu
 }
 
 func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) *coconut.Signature {
+	if resp == nil {
+		c.log.Error("Received respons was nil")
+		return nil
+	}
 	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
 		c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
 		return nil
@@ -84,7 +96,55 @@ func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) *cocon
 	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey)
 }
 
-func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+// it's not in utils as in principle servers should never create grpcs; only reply to them
+func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions []grpc.DialOption) (chan<- *utils.ServerRequest_grpc, []context.CancelFunc) {
+	reqCh := make(chan *utils.ServerRequest_grpc)
+
+	// there can be at most that many connections active at given time,
+	// as each goroutine can only access a single index and will overwrite its previous entry
+	cancelFuncs := make([]context.CancelFunc, c.cfg.Client.MaxRequests)
+
+	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
+		go func(i int) {
+			for {
+				req, ok := <-reqCh
+				if !ok {
+					return
+				}
+				c.log.Debugf("Dialing %v", req.ServerAddress)
+				conn, err := grpc.Dial(req.ServerAddress, dialOptions...)
+				if err != nil {
+					c.log.Errorf("Could not dial %v", req.ServerAddress)
+				}
+				defer conn.Close()
+
+				cc := pb.NewIssuerClient(conn)
+				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+				cancelFuncs[i] = cancel
+				defer func() {
+					cancelFuncs[i] = nil
+					cancel()
+				}()
+
+				var resp proto.Message
+				var errgrpc error
+				switch reqt := req.Message.(type) {
+				case *commands.SignRequest:
+					resp, errgrpc = cc.SignAttributes(ctx, reqt)
+
+				}
+				if errgrpc != nil {
+					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerAddress, err)
+				} else {
+					respCh <- &utils.ServerResponse_grpc{Message: resp, ServerID: req.ServerID, ServerAddress: req.ServerAddress}
+				}
+			}
+		}(i)
+	}
+	return reqCh, cancelFuncs
+}
+
+func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	// todo: possibly split sigs and blind sigs
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
@@ -96,29 +156,19 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 			} else {
 				resp = &commands.SignResponse{}
 			}
-
-			// todo: use parsesignresponses etc
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
 				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
 				continue
 			}
-			if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
-				c.log.Errorf("Received invalid response with status: %v. Error: %v", resp.GetStatus().Code, resp.GetStatus().Message)
-				continue
-			}
+
 			var sig *coconut.Signature
 			if isBlind {
-				blindSig := &coconut.BlindedSignature{}
-				if err := blindSig.FromProto(resp.(*commands.BlindSignResponse).Sig); err != nil {
-					c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
-					continue // can still succeed with >= threshold sigs
+				if sig = c.parseSignResponse(resp.(*commands.SignResponse)); sig == nil {
+					continue
 				}
-				sig = c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey)
 			} else {
-				sig = &coconut.Signature{}
-				if err := sig.FromProto(resp.(*commands.SignResponse).Sig); err != nil {
-					c.log.Errorf("Failed to unmarshal received signature from %v", responses[i].ServerAddress)
-					continue // can still succeed with >= threshold sigs
+				if sig = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse)); sig == nil {
+					continue
 				}
 			}
 
@@ -128,7 +178,6 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 			}
 		}
 	}
-
 	if isThreshold {
 		return sigs, coconut.NewPP(xs)
 	}
@@ -141,6 +190,10 @@ func (c *Client) parseSignatureResponses(responses []*utils.ServerResponse, isTh
 
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
+		if len(sigs) != len(pp.Xs()) {
+			c.log.Errorf("Inconsistent response, sigs: %v, pp: %v\n", len(sigs), len(pp.Xs()))
+			return nil
+		}
 		c.log.Notice("Number of signatures received is within threshold")
 	} else {
 		c.log.Error("Received less than threshold number of signatures")
@@ -177,100 +230,89 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 	}
 
 	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-	reqCh := make(chan struct {
-		string
-		int
-	})
 
-	allDone := make(chan struct{})
-	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
-	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
-	appendLock := &sync.Mutex{}
-
-	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
-		go func() {
-			for {
-				req, ok := <-reqCh
-				if !ok {
-					return
-				}
-				c.log.Debugf("Dialing %v", req.string)
-				conn, err := grpc.Dial(req.string, grpcDialOptions...)
-				if err != nil {
-					c.log.Errorf("Could not dial %v", req.string)
-				}
-				defer conn.Close()
-				cc := pb.NewIssuerClient(conn)
-
-				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
-				appendLock.Lock()
-				cancelFuncs = append(cancelFuncs, cancel)
-				appendLock.Unlock()
-				defer cancel()
-
-				r, err := cc.SignAttributes(ctx, signRequest)
-				if err != nil {
-					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.string, err)
-				} else {
-					sig := c.parseSignResponse(r)
-					var x *Curve.BIG
-					if isThreshold {
-						x = Curve.NewBIGint(req.int)
-					}
-
-					appendLock.Lock()
-					sigs = append(sigs, sig)
-					if isThreshold {
-						xs = append(xs, x)
-					}
-					if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
-						close(allDone)
-					}
-					appendLock.Unlock()
-				}
-			}
-		}()
-	}
+	responses := make([]*utils.ServerResponse_grpc, len(c.cfg.Client.IAgRPCAddresses))
+	respCh := make(chan *utils.ServerResponse_grpc)
+	reqCh, cancelFuncs := c.sendGRPCs(respCh, grpcDialOptions)
 
 	go func() {
-		defer func() {
-			// could only happen on a timeout.
-			// todo: some better handling of that...
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-				return
-			}
-		}()
-		for i, addr := range c.cfg.Client.IAgRPCAddresses {
-			reqCh <- struct {
-				string
-				int
-			}{addr, c.cfg.Client.IAIDs[i]}
+		for i := range c.cfg.Client.IAgRPCAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
+			reqCh <- &utils.ServerRequest_grpc{Message: signRequest, ServerAddress: c.cfg.Client.IAgRPCAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
 		}
 	}()
 
+	j := 0
 waitLoop:
 	for {
 		select {
-		case <-allDone:
-			c.log.Debug("Got responses from all servers")
-			break waitLoop
+		case resp := <-respCh:
+			c.log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
+			responses[j] = resp
+			j++
+
+			if j == len(responses) {
+				c.log.Debug("Got responses from all servers")
+				break waitLoop
+			}
 		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending requests")
+			c.log.Notice("Timed out while sending requests. Cancelling all requests in progress.")
 			for _, cancel := range cancelFuncs {
 				cancel()
 			}
 			break waitLoop
 		}
 	}
-
 	close(reqCh)
 
-	if isThreshold {
-		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
+	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+
+	for i := range responses {
+		sigs = append(sigs, c.parseSignResponse(responses[i].Message.(*commands.SignResponse)))
+		if isThreshold {
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
+		}
 	}
-	return c.handleReceivedSignatures(sigs, nil)
+	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+
+	// sig := c.parseSignResponse(r)
+	// var x *Curve.BIG
+	// if isThreshold {
+	// 	x = Curve.NewBIGint(req.int)
+	// }
+
+	// appendLock.Lock()
+	// sigs = append(sigs, sig)
+	// if isThreshold {
+	// 	xs = append(xs, x)
+	// }
+	// if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
+	// 	close(allDone)
+	// }
+	// appendLock.Unlock()
+
+	// go func() {
+	// 	defer func() {
+	// 		// could only happen on a timeout.
+	// 		// todo: some better handling of that...
+	// 		if r := recover(); r != nil {
+	// 			c.log.Critical("Recovered: %v", r)
+	// 			return
+	// 		}
+	// 	}()
+	// 	for i, addr := range c.cfg.Client.IAgRPCAddresses {
+	// 		reqCh <- struct {
+	// 			string
+	// 			int
+	// 		}{addr, c.cfg.Client.IAIDs[i]}
+	// 	}
+	// }()
+
+	// if isThreshold {
+	// 	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	// }
+	// return c.handleReceivedSignatures(sigs, nil)
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
@@ -303,6 +345,8 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 			}
 		}()
 		c.writeRequestsToIAsToChannel(reqCh, packetBytes)
+
+		// todo: remove this one and only try to close after receiving all/timeout?
 		closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 	}()
 
@@ -311,7 +355,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	return c.handleReceivedSignatures(c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, false))
+	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
 
 func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.VerificationKey {
@@ -657,7 +701,7 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 	// in case something weird happened, like it threw an error somewhere or a timeout happened before all requests were sent.
 	closeOnce.Do(func() { close(reqCh) })
 
-	sigs, pp := c.parseSignatureResponses(responses, c.cfg.Client.Threshold > 0, true)
+	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
 
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
 		c.log.Notice("Number of signatures received is within threshold")
