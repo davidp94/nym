@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/golang/protobuf/proto"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	pb "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services"
 	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
+	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -46,6 +46,12 @@ func (l *Listener) worker() {
 // 		World: "World!",
 // 	}, nil
 // }
+
+func (l *Listener) BlindSignAttributes(ctx context.Context, req *commands.BlindSignRequest) (*commands.BlindSignResponse, error) {
+	// todo: do anything with ctx?
+	blindSignResponse := l.resolveCommand(req).(*commands.BlindSignResponse)
+	return blindSignResponse, nil
+}
 
 func (l *Listener) VerifyCredentials(ctx context.Context, req *commands.VerifyRequest) (*commands.VerifyResponse, error) {
 	// todo: do anything with ctx?

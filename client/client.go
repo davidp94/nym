@@ -498,118 +498,119 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 	return nil
 }
 
-// func (c *Client) BlindSignAttributes_grpc(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
-// 	grpcDialOptions := c.defaultDialOptions
-// 	isThreshold := c.cfg.Client.Threshold > 0
+// todo: so much repeating code with SignAttributes_grpc
+func (c *Client) BlindSignAttributes_grpc(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
+	grpcDialOptions := c.defaultDialOptions
+	isThreshold := c.cfg.Client.Threshold > 0
 
-// 	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
-// 	if err != nil {
-// 		c.log.Errorf("Could not create blindSignMats: %v", err)
-// 		return nil
-// 	}
+	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	if err != nil {
+		c.log.Errorf("Could not create blindSignMats: %v", err)
+		return nil
+	}
 
-// 	blindSignRequest, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
-// 	if err != nil {
-// 		c.log.Errorf("Failed to create BlindSign request: %v", err)
-// 		return nil
-// 	}
+	blindSignRequest, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	if err != nil {
+		c.log.Errorf("Failed to create BlindSign request: %v", err)
+		return nil
+	}
 
-// 	c.log.Notice("Going to send Blind Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-// 	reqCh := make(chan struct {
-// 		string
-// 		int
-// 	})
+	c.log.Notice("Going to send Blind Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
+	reqCh := make(chan struct {
+		string
+		int
+	})
 
-// 	allDone := make(chan struct{})
-// 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
-// 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-// 	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
-// 	appendLock := &sync.Mutex{}
+	allDone := make(chan struct{})
+	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
+	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
+	appendLock := &sync.Mutex{}
 
-// 	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
-// 		go func() {
-// 			for {
-// 				req, ok := <-reqCh
-// 				if !ok {
-// 					return
-// 				}
-// 				c.log.Debugf("Dialing %v", req.string)
-// 				conn, err := grpc.Dial(req.string, grpcDialOptions...)
-// 				if err != nil {
-// 					c.log.Errorf("Could not dial %v", req.string)
-// 				}
-// 				defer conn.Close()
-// 				cc := pb.NewIssuerClient(conn)
+	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
+		go func() {
+			for {
+				req, ok := <-reqCh
+				if !ok {
+					return
+				}
+				c.log.Debugf("Dialing %v", req.string)
+				conn, err := grpc.Dial(req.string, grpcDialOptions...)
+				if err != nil {
+					c.log.Errorf("Could not dial %v", req.string)
+				}
+				defer conn.Close()
+				cc := pb.NewIssuerClient(conn)
 
-// 				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
-// 				appendLock.Lock()
-// 				cancelFuncs = append(cancelFuncs, cancel)
-// 				appendLock.Unlock()
-// 				defer cancel()
+				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+				appendLock.Lock()
+				cancelFuncs = append(cancelFuncs, cancel)
+				appendLock.Unlock()
+				defer cancel()
 
-// 				r, err := cc.SignAttributes(ctx, signRequest)
-// 				if err != nil {
-// 					c.log.Errorf("Failed to obtain blind signature from %v, err: %v", req.string, err)
-// 				} else {
-// 					sig := c.parseSignResponse(r)
-// 					var x *Curve.BIG
-// 					if isThreshold {
-// 						x = Curve.NewBIGint(req.int)
-// 					}
+				r, err := cc.BlindSignAttributes(ctx, blindSignRequest)
+				if err != nil {
+					c.log.Errorf("Failed to obtain blind signature from %v, err: %v", req.string, err)
+				} else {
+					sig := c.parseBlindSignResponse(r)
+					var x *Curve.BIG
+					if isThreshold {
+						x = Curve.NewBIGint(req.int)
+					}
 
-// 					appendLock.Lock()
-// 					sigs = append(sigs, sig)
-// 					if isThreshold {
-// 						xs = append(xs, x)
-// 					}
-// 					if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
-// 						close(allDone)
-// 					}
-// 					appendLock.Unlock()
-// 				}
-// 			}
-// 		}()
-// 	}
+					appendLock.Lock()
+					sigs = append(sigs, sig)
+					if isThreshold {
+						xs = append(xs, x)
+					}
+					if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
+						close(allDone)
+					}
+					appendLock.Unlock()
+				}
+			}
+		}()
+	}
 
-// 	go func() {
-// 		defer func() {
-// 			// could only happen on a timeout.
-// 			// todo: some better handling of that...
-// 			if r := recover(); r != nil {
-// 				c.log.Critical("Recovered: %v", r)
-// 				return
-// 			}
-// 		}()
-// 		for i, addr := range c.cfg.Client.IAgRPCAddresses {
-// 			reqCh <- struct {
-// 				string
-// 				int
-// 			}{addr, c.cfg.Client.IAIDs[i]}
-// 		}
-// 	}()
+	go func() {
+		defer func() {
+			// could only happen on a timeout.
+			// todo: some better handling of that...
+			if r := recover(); r != nil {
+				c.log.Critical("Recovered: %v", r)
+				return
+			}
+		}()
+		for i, addr := range c.cfg.Client.IAgRPCAddresses {
+			reqCh <- struct {
+				string
+				int
+			}{addr, c.cfg.Client.IAIDs[i]}
+		}
+	}()
 
-// waitLoop:
-// 	for {
-// 		select {
-// 		case <-allDone:
-// 			c.log.Debug("Got responses from all servers")
-// 			break waitLoop
-// 		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-// 			c.log.Notice("Timed out while sending requests")
-// 			for _, cancel := range cancelFuncs {
-// 				cancel()
-// 			}
-// 			break waitLoop
-// 		}
-// 	}
+waitLoop:
+	for {
+		select {
+		case <-allDone:
+			c.log.Debug("Got responses from all servers")
+			break waitLoop
+		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
+			c.log.Notice("Timed out while sending requests")
+			for _, cancel := range cancelFuncs {
+				cancel()
+			}
+			break waitLoop
+		}
+	}
 
-// 	close(reqCh)
+	close(reqCh)
 
-// 	if isThreshold {
-// 		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-// 	}
-// 	return c.handleReceivedSignatures(sigs, nil)
-// }
+	if isThreshold {
+		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	}
+	return c.handleReceivedSignatures(sigs, nil)
+}
 
 func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
 	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
