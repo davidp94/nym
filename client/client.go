@@ -96,6 +96,29 @@ func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) *cocon
 	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey)
 }
 
+func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponse_grpc, responses []*utils.ServerResponse_grpc, cancelFuncs []context.CancelFunc) {
+	i := 0
+	for {
+		select {
+		case resp := <-respCh:
+			c.log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
+			responses[i] = resp
+			i++
+
+			if i == len(responses) {
+				c.log.Debug("Got responses from all servers")
+				return
+			}
+		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
+			c.log.Notice("Timed out while sending requests. Cancelling all requests in progress.")
+			for _, cancel := range cancelFuncs {
+				cancel()
+			}
+			return
+		}
+	}
+}
+
 // it's not in utils as in principle servers should never create grpcs; only reply to them
 func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions []grpc.DialOption) (chan<- *utils.ServerRequest_grpc, []context.CancelFunc) {
 	reqCh := make(chan *utils.ServerRequest_grpc)
@@ -242,27 +265,7 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 		}
 	}()
 
-	j := 0
-waitLoop:
-	for {
-		select {
-		case resp := <-respCh:
-			c.log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
-			responses[j] = resp
-			j++
-
-			if j == len(responses) {
-				c.log.Debug("Got responses from all servers")
-				break waitLoop
-			}
-		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending requests. Cancelling all requests in progress.")
-			for _, cancel := range cancelFuncs {
-				cancel()
-			}
-			break waitLoop
-		}
-	}
+	c.waitForGrpcResponses(respCh, responses, cancelFuncs)
 	close(reqCh)
 
 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
