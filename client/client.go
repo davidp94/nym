@@ -134,6 +134,7 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 				}
 				defer conn.Close()
 
+				// in the case of a provider, it will be sent to a single server so no need to make it possible to include it in the loop
 				cc := pb.NewIssuerClient(conn)
 				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
 				cancelFuncs[i] = cancel
@@ -147,6 +148,8 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 				switch reqt := req.Message.(type) {
 				case *commands.SignRequest:
 					resp, errgrpc = cc.SignAttributes(ctx, reqt)
+				case *commands.VerificationKeyRequest:
+					resp, errgrpc = cc.GetVerificationKey(ctx, reqt)
 				default:
 					c.log.Fatal("NOT IMPLEMENTED YET")
 				}
@@ -162,7 +165,6 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 }
 
 func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
-	// todo: possibly split sigs and blind sigs
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
@@ -235,7 +237,6 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	return rSig
 }
 
-// todo: like previous TCP methods, break that one down
 func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
@@ -317,95 +318,30 @@ func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.Verif
 	}
 
 	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-	reqCh := make(chan struct {
-		string
-		int
-	})
 
-	allDone := make(chan struct{})
-	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
-	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
-	appendLock := &sync.Mutex{}
-
-	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
-		go func() {
-			for {
-				req, ok := <-reqCh
-				if !ok {
-					return
-				}
-				c.log.Debugf("Dialing %v", req.string)
-				conn, err := grpc.Dial(req.string, grpcDialOptions...)
-				if err != nil {
-					c.log.Errorf("Could not dial %v", req.string)
-				}
-				defer conn.Close()
-				cc := pb.NewIssuerClient(conn)
-
-				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
-				appendLock.Lock()
-				cancelFuncs = append(cancelFuncs, cancel)
-				appendLock.Unlock()
-				defer cancel()
-
-				r, err := cc.GetVerificationKey(ctx, verificationKeyRequest)
-				if err != nil {
-					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.string, err)
-				} else {
-					vk := c.parseGetVkResponse(r)
-					var x *Curve.BIG
-					if isThreshold {
-						x = Curve.NewBIGint(req.int)
-					}
-
-					appendLock.Lock()
-					vks = append(vks, vk)
-					if isThreshold {
-						xs = append(xs, x)
-					}
-					if len(vks) == len(c.cfg.Client.IAgRPCAddresses) {
-						close(allDone)
-					}
-					appendLock.Unlock()
-				}
-			}
-		}()
-	}
+	responses := make([]*utils.ServerResponse_grpc, len(c.cfg.Client.IAgRPCAddresses))
+	respCh := make(chan *utils.ServerResponse_grpc)
+	reqCh, cancelFuncs := c.sendGRPCs(respCh, grpcDialOptions)
 
 	go func() {
-		defer func() {
-			// could only happen on a timeout.
-			// todo: some better handling of that...
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-				return
-			}
-		}()
-		for i, addr := range c.cfg.Client.IAgRPCAddresses {
-			reqCh <- struct {
-				string
-				int
-			}{addr, c.cfg.Client.IAIDs[i]}
+		for i := range c.cfg.Client.IAgRPCAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
+			reqCh <- &utils.ServerRequest_grpc{Message: verificationKeyRequest, ServerAddress: c.cfg.Client.IAgRPCAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
 		}
 	}()
 
-waitLoop:
-	for {
-		select {
-		case <-allDone:
-			c.log.Debug("Got responses from all servers")
-			break waitLoop
-		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending requests")
-			for _, cancel := range cancelFuncs {
-				cancel()
-			}
-			break waitLoop
+	c.waitForGrpcResponses(respCh, responses, cancelFuncs)
+	close(reqCh)
+
+	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
+	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+
+	for i := range responses {
+		vks = append(vks, c.parseGetVkResponse(responses[i].Message.(*commands.VerificationKeyResponse)))
+		if isThreshold {
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-
-	close(reqCh)
 
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
 		c.log.Notice("Number of verification keys received is within threshold")

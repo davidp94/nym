@@ -58,6 +58,9 @@ func main() {
 
 	// c.SendDummy("Hello")
 
+	c.GetVerificationKeys_grpc(false)
+	return
+
 	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := getRandomAttributes(G, 3)
