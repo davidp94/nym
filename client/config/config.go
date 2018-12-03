@@ -52,6 +52,9 @@ type Client struct {
 	// IAAddresses are the IP address:port combinations of Issuing Authority Servers.
 	IAAddresses []string
 
+	// UseGRPC specifies whether to use gRPC for sending server requests or TCP sockets.
+	UseGRPC bool
+
 	// IAAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
 	IAgRPCAddresses []string
 
@@ -127,6 +130,7 @@ type Config struct {
 	Debug *Debug
 }
 
+// nolint: gocyclo
 func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Client == nil {
 		return errors.New("config: No Client block was present")
@@ -142,13 +146,36 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		cfg.Client.MaxRequests = noLimitMaxRequests
 	}
 
+	if len(cfg.Client.IAAddresses) <= 0 && !cfg.Client.UseGRPC {
+		return errors.New("config: No server addresses provided")
+	}
+
+	if len(cfg.Client.IAgRPCAddresses) <= 0 && cfg.Client.UseGRPC {
+		return errors.New("config: No server gRPC addresses provided")
+	}
+
 	if len(cfg.Client.IAIDs) <= 0 {
-		IAIDs := make([]int, len(cfg.Client.IAAddresses))
-		for i := range cfg.Client.IAAddresses {
-			IAIDs[i] = i + 1
+		var IAIDs []int
+		if cfg.Client.UseGRPC {
+			IAIDs = make([]int, len(cfg.Client.IAgRPCAddresses))
+			for i := range cfg.Client.IAgRPCAddresses {
+				IAIDs[i] = i + 1
+			}
+		} else {
+			IAIDs = make([]int, len(cfg.Client.IAAddresses))
+			for i := range cfg.Client.IAAddresses {
+				IAIDs[i] = i + 1
+			}
 		}
-	} else if len(cfg.Client.IAIDs) != len(cfg.Client.IAAddresses) {
-		return errors.New("config: Invalid server configuration")
+		cfg.Client.IAIDs = IAIDs
+	} else if cfg.Client.UseGRPC {
+		if len(cfg.Client.IAIDs) != len(cfg.Client.IAgRPCAddresses) {
+			return errors.New("config: Invalid server configuration")
+		}
+	} else {
+		if len(cfg.Client.IAIDs) != len(cfg.Client.IAAddresses) {
+			return errors.New("config: Invalid server configuration")
+		}
 	}
 
 	if cfg.Debug == nil {
@@ -163,14 +190,11 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	return nil
 }
 
-// LoadFile loads, parses and validates the provided file and returns the Config.
-func LoadFile(f string) (*Config, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(f))
-	if err != nil {
-		return nil, err
-	}
+// LoadBinary loads, parses and validates the provided buffer b (as a config)
+// and returns the Config.
+func LoadBinary(b []byte) (*Config, error) {
 	cfg := new(Config)
-	_, err = toml.Decode(string(b), cfg)
+	_, err := toml.Decode(string(b), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -179,4 +203,13 @@ func LoadFile(f string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// LoadFile loads, parses and validates the provided file and returns the Config.
+func LoadFile(f string) (*Config, error) {
+	b, err := ioutil.ReadFile(filepath.Clean(f))
+	if err != nil {
+		return nil, err
+	}
+	return LoadBinary(b)
 }

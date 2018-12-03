@@ -92,5 +92,4 @@ func main() {
 	fmt.Println("Is validBlind1_grpc:", isValidBlind1_grpc)
 	fmt.Println("Is validBlind2_grpc:", isValidBlind2_grpc)
 	fmt.Println("Is validBlind3_grpc:", isValidBlind3_grpc)
-
 }

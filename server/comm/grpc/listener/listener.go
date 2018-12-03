@@ -10,7 +10,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"gopkg.in/op/go-logging.v1"
@@ -22,7 +21,6 @@ import (
 type Listener struct {
 	cfg        *config.Config
 	grpcServer *grpc.Server
-	worker.Worker
 
 	log *logging.Logger
 
@@ -32,20 +30,6 @@ type Listener struct {
 
 	id uint64
 }
-
-// needed?
-func (l *Listener) worker() {
-	for {
-		// ...
-	}
-}
-
-// func (l *Listener) DummyRpc(ctx context.Context, req *pb.DummyRequest) (*pb.DummyResponse, error) {
-// 	return &pb.DummyResponse{
-// 		Echo:  req.Hello,
-// 		World: "World!",
-// 	}, nil
-// }
 
 func (l *Listener) BlindVerifyCredentials(ctx context.Context, req *commands.BlindVerifyRequest) (*commands.BlindVerifyResponse, error) {
 	// todo: do anything with ctx?
@@ -119,6 +103,5 @@ func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logge
 		listener.grpcServer.Serve(listener.l)
 	}()
 
-	// listener.Go(listener.worker)
 	return listener, nil
 }
