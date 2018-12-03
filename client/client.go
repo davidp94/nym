@@ -23,7 +23,7 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// todo: deal with bunch of duplicate code in multiple _grpc methods
+// todo: verification duplicate code
 
 // Client represents an user of a Coconut IA server
 type Client struct {
@@ -146,7 +146,7 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 				c.log.Debugf("Dialing %v", req.ServerAddress)
 				conn, err := grpc.Dial(req.ServerAddress, dialOptions...)
 				if err != nil {
-					c.log.Errorf("Could not dial %v", req.ServerAddress)
+					c.log.Errorf("Could not dial %v (%v)", req.ServerAddress, err)
 				}
 				defer conn.Close()
 
@@ -468,7 +468,8 @@ func (c *Client) SendCredentialsForVerification_grpc(pubM []*Curve.BIG, sig *coc
 	c.log.Debugf("Dialing %v", addr)
 	conn, err := grpc.Dial(addr, grpcDialOptions...)
 	if err != nil {
-		c.log.Errorf("Could not dial %v", addr)
+		c.log.Errorf("Could not dial %v (%v)", addr, err)
+		return false
 	}
 	defer conn.Close()
 	cc := pb.NewProviderClient(conn)
@@ -503,7 +504,7 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	c.log.Debugf("Dialing %v", addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		c.log.Errorf("Could not dial %v", addr)
+		c.log.Errorf("Could not dial %v (%v)", addr, err)
 		return false
 	}
 
@@ -526,34 +527,41 @@ func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) bool {
 	return blindVerifyResponse.IsValid
 }
 
-// todo: code nearly identical to public verification...
-func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
-	grpcDialOptions := c.defaultDialOptions
-
+func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, vk *coconut.VerificationKey) *commands.BlindVerifyRequest {
 	if vk == nil {
 		vk = c.GetAggregateVerificationKey_grpc()
 		if vk == nil {
 			c.log.Error("Could not obtain aggregate verification key required to create proofs for verification")
-			return false
+			return nil
 		}
 	}
 
 	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
 	if err != nil {
 		c.log.Errorf("Failed when creating proofs for verification: %v", err)
-		return false
+		return nil
 	}
 
 	blindVerifyRequest, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
 	if err != nil {
 		c.log.Errorf("Failed to create BlindVerify request: %v", err)
-		return false
+		return nil
+	}
+	return blindVerifyRequest
+}
+
+func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
+	grpcDialOptions := c.defaultDialOptions
+
+	blindVerifyRequest := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
+	if blindVerifyRequest == nil {
+		return false // error is logged at prepapreBlindVerifyRequest
 	}
 
 	c.log.Debugf("Dialing %v", addr)
 	conn, err := grpc.Dial(addr, grpcDialOptions...)
 	if err != nil {
-		c.log.Errorf("Could not dial %v", addr)
+		c.log.Errorf("Could not dial %v (%v)", addr, err)
 	}
 	defer conn.Close()
 	cc := pb.NewProviderClient(conn)
@@ -575,26 +583,13 @@ func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, pri
 // depends on future API in regards of type of servers response
 // if vk is nil, first the client will try to obtain it
 func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
-	if vk == nil {
-		vk = c.GetAggregateVerificationKey()
-		if vk == nil {
-			c.log.Error("Could not obtain aggregate verification key required to create proofs for verification")
-			return false
-		}
+
+	blindVerifyRequest := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
+	if blindVerifyRequest == nil {
+		return false // error is logged at prepapreBlindVerifyRequest
 	}
 
-	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
-	if err != nil {
-		c.log.Errorf("Failed when creating proofs for verification: %v", err)
-		return false
-	}
-
-	cmd, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
-	if err != nil {
-		c.log.Errorf("Failed to create BlindVerify request: %v", err)
-		return false
-	}
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindVerifyID)
+	packetBytes := utils.CommandToMarshaledPacket(blindVerifyRequest, commands.BlindVerifyID)
 	if packetBytes == nil {
 		c.log.Error("Could not create data packet")
 		return false
@@ -603,7 +598,7 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 	c.log.Debugf("Dialing %v", addr)
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
-		c.log.Errorf("Could not dial %v", addr)
+		c.log.Errorf("Could not dial %v (%v)", addr, err)
 		return false
 	}
 

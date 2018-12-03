@@ -56,47 +56,41 @@ func main() {
 		}
 	}()
 
-	// c.SendDummy("Hello")
-
-	// c.GetVerificationKeys_grpc(false)
-	// return
-
 	params, _ := coconut.Setup(5)
 	G := params.G
 	pubM := getRandomAttributes(G, 3)
 	privM := getRandomAttributes(G, 2)
 
-	// sig_grpc := c.SignAttributes_grpc(pubM)
-	// sig := c.SignAttributes(pubM)
-	// areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
-	// fmt.Printf("Are received sigs equal: %v\n", areEqual)
+	sig := c.SignAttributes(pubM)
+	sig_grpc := c.SignAttributes_grpc(pubM)
 	sigBlind := c.BlindSignAttributes(pubM, privM)
 	sigBlind_grpc := c.BlindSignAttributes_grpc(pubM, privM)
 
 	vk := c.GetAggregateVerificationKey()
 	vk_grpc := c.GetAggregateVerificationKey_grpc()
-	// isValid_grpc := c.SendCredentialsForVerification_grpc(pubM, sig_grpc, providerAddress_grpc)
-	// fmt.Println("Is valid_grpc: ", isValid_grpc)
-	// fmt.Println("Is valid local_grpc:", coconut.Verify(params, vk_grpc, pubM, sig_grpc))
 
-	// isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
-	// fmt.Println("Is valid_grpc: ", isValid)
-	// fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
+	isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	isValid_grpc := c.SendCredentialsForVerification_grpc(pubM, sig_grpc, providerAddress_grpc)
+
 	isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
 	isValidBlind2 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
-
+	isValidBlind3 := c.SendCredentialsForVerification(append(privM, pubM...), sigBlind, providerAddress)
 	isValidBlind1_grpc := c.SendCredentialsForBlindVerification_grpc(pubM, privM, sigBlind_grpc, providerAddress_grpc, nil)
 	isValidBlind2_grpc := c.SendCredentialsForBlindVerification_grpc(pubM, privM, sigBlind_grpc, providerAddress_grpc, vk_grpc)
+	isValidBlind3_grpc := c.SendCredentialsForVerification_grpc(append(privM, pubM...), sigBlind_grpc, providerAddress_grpc)
 
-	fmt.Println("Is sig validBlind1:", isValidBlind1)
-	fmt.Println("Is sig validBlind2:", isValidBlind2)
+	fmt.Println("Is valid ", isValid)
+	fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
 
-	fmt.Println("Is sig validBlind1_grpc:", isValidBlind1_grpc)
-	fmt.Println("Is sig validBlind2_grpc:", isValidBlind2_grpc)
+	fmt.Println("Is valid_grpc: ", isValid_grpc)
+	fmt.Println("Is valid local_grpc:", coconut.Verify(params, vk_grpc, pubM, sig_grpc))
 
-	// if vk != nil {
-	// 	// fmt.Println("Is sig valid:", isValid)
-	// 	fmt.Println("Is sig validBlind1:", isValidBlind1)
-	// 	fmt.Println("Is sig validBlind2:", isValidBlind2)
-	// }
+	fmt.Println("Is validBlind1:", isValidBlind1)
+	fmt.Println("Is validBlind2:", isValidBlind2)
+	fmt.Println("Is validBlind3:", isValidBlind3)
+
+	fmt.Println("Is validBlind1_grpc:", isValidBlind1_grpc)
+	fmt.Println("Is validBlind2_grpc:", isValidBlind2_grpc)
+	fmt.Println("Is validBlind3_grpc:", isValidBlind3_grpc)
+
 }
