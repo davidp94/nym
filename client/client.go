@@ -24,6 +24,7 @@ import (
 )
 
 // todo: verification duplicate code
+// todo: check if usegrpc
 
 // Client represents an user of a Coconut IA server
 type Client struct {
@@ -256,6 +257,11 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 }
 
 func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
+	if !c.cfg.Client.UseGRPC {
+		c.log.Error("Non-gRPC client trying to call gRPC method")
+		return nil
+	}
+
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
@@ -281,6 +287,11 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 }
 
 func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
+	if c.cfg.Client.UseGRPC {
+		c.log.Error("gRPC client trying to call non-gRPC method")
+		return nil
+	}
+
 	cmd, err := commands.NewSignRequest(pubM)
 	if err != nil {
 		c.log.Errorf("Failed to create Sign request: %v", err)
@@ -328,6 +339,11 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 }
 
 func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.VerificationKey {
+	if !c.cfg.Client.UseGRPC {
+		c.log.Error("Non-gRPC client trying to call gRPC method")
+		return nil
+	}
+
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
@@ -354,6 +370,11 @@ func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.Verif
 
 // If it's going to aggregate results, it will return slice with a single element.
 func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.VerificationKey {
+	if c.cfg.Client.UseGRPC {
+		c.log.Error("gRPC client trying to call non-gRPC method")
+		return nil
+	}
+
 	cmd, err := commands.NewVerificationKeyRequest()
 	if err != nil {
 		c.log.Errorf("Failed to create Vk request: %v", err)
@@ -392,6 +413,10 @@ func (c *Client) GetAggregateVerificationKey() *coconut.VerificationKey {
 
 // todo: so much repeating code with SignAttributes_grpc
 func (c *Client) BlindSignAttributes_grpc(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
+	if !c.cfg.Client.UseGRPC {
+		c.log.Error("Non-gRPC client trying to call gRPC method")
+		return nil
+	}
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
@@ -423,6 +448,11 @@ func (c *Client) BlindSignAttributes_grpc(pubM []*Curve.BIG, privM []*Curve.BIG)
 }
 
 func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
+	if c.cfg.Client.UseGRPC {
+		c.log.Error("gRPC client trying to call non-gRPC method")
+		return nil
+	}
+
 	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
 		c.log.Errorf("Could not create blindSignMats: %v", err)
@@ -457,8 +487,11 @@ func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) bool {
 }
 
 func (c *Client) SendCredentialsForVerification_grpc(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
+	if !c.cfg.Client.UseGRPC {
+		c.log.Error("Non-gRPC client trying to call gRPC method")
+		return false
+	}
 	grpcDialOptions := c.defaultDialOptions
-
 	verifyRequest, err := commands.NewVerifyRequest(pubM, sig)
 	if err != nil {
 		c.log.Errorf("Failed to create Verify request: %v", err)
@@ -490,6 +523,10 @@ func (c *Client) SendCredentialsForVerification_grpc(pubM []*Curve.BIG, sig *coc
 
 // depends on future API in regards of type of servers response
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) bool {
+	if c.cfg.Client.UseGRPC {
+		c.log.Error("gRPC client trying to call non-gRPC method")
+		return false
+	}
 	cmd, err := commands.NewVerifyRequest(pubM, sig)
 	if err != nil {
 		c.log.Errorf("Failed to create Verify request: %v", err)
@@ -551,8 +588,11 @@ func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG
 }
 
 func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
+	if !c.cfg.Client.UseGRPC {
+		c.log.Error("Non-gRPC client trying to call gRPC method")
+		return false
+	}
 	grpcDialOptions := c.defaultDialOptions
-
 	blindVerifyRequest := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
 	if blindVerifyRequest == nil {
 		return false // error is logged at prepapreBlindVerifyRequest
@@ -583,7 +623,10 @@ func (c *Client) SendCredentialsForBlindVerification_grpc(pubM []*Curve.BIG, pri
 // depends on future API in regards of type of servers response
 // if vk is nil, first the client will try to obtain it
 func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) bool {
-
+	if c.cfg.Client.UseGRPC {
+		c.log.Error("gRPC client trying to call non-gRPC method")
+		return false
+	}
 	blindVerifyRequest := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
 	if blindVerifyRequest == nil {
 		return false // error is logged at prepapreBlindVerifyRequest
