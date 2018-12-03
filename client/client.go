@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net"
 	"os"
-	"sync"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
@@ -167,6 +166,8 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponse_grpc, dialOptions
 					resp, errgrpc = cc.SignAttributes(ctx, reqt)
 				case *commands.VerificationKeyRequest:
 					resp, errgrpc = cc.GetVerificationKey(ctx, reqt)
+				case *commands.BlindSignRequest:
+					resp, errgrpc = cc.BlindSignAttributes(ctx, reqt)
 				default:
 					c.log.Fatal("NOT IMPLEMENTED YET")
 				}
@@ -365,20 +366,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	}
 	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
-
-	// write requests in a goroutine so we wouldn't block when trying to read responses
-	go func() {
-		for i := range c.cfg.Client.IAAddresses {
-			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
-			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-		}
-	}()
-	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-	close(reqCh)
-
+	responses := utils.GetServerResponses(packetBytes, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout, c.cfg.Debug.RequestTimeout, c.cfg.Client.IAAddresses, c.cfg.Client.IAIDs)
 	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 	return c.handleReceivedVerificationKeys(vks, pp, shouldAggregate)
 
@@ -420,100 +408,18 @@ func (c *Client) BlindSignAttributes_grpc(pubM []*Curve.BIG, privM []*Curve.BIG)
 	}
 
 	c.log.Notice("Going to send Blind Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-	reqCh := make(chan struct {
-		string
-		int
-	})
+	responses := c.getGrpcResponses(grpcDialOptions, blindSignRequest)
 
-	allDone := make(chan struct{})
 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-	cancelFuncs := make([]context.CancelFunc, 0, len(c.cfg.Client.IAgRPCAddresses))
-	appendLock := &sync.Mutex{}
 
-	for i := 0; i < c.cfg.Client.MaxRequests; i++ {
-		go func() {
-			for {
-				req, ok := <-reqCh
-				if !ok {
-					return
-				}
-				c.log.Debugf("Dialing %v", req.string)
-				conn, err := grpc.Dial(req.string, grpcDialOptions...)
-				if err != nil {
-					c.log.Errorf("Could not dial %v", req.string)
-				}
-				defer conn.Close()
-				cc := pb.NewIssuerClient(conn)
-
-				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
-				appendLock.Lock()
-				cancelFuncs = append(cancelFuncs, cancel)
-				appendLock.Unlock()
-				defer cancel()
-
-				r, err := cc.BlindSignAttributes(ctx, blindSignRequest)
-				if err != nil {
-					c.log.Errorf("Failed to obtain blind signature from %v, err: %v", req.string, err)
-				} else {
-					sig := c.parseBlindSignResponse(r)
-					var x *Curve.BIG
-					if isThreshold {
-						x = Curve.NewBIGint(req.int)
-					}
-
-					appendLock.Lock()
-					sigs = append(sigs, sig)
-					if isThreshold {
-						xs = append(xs, x)
-					}
-					if len(sigs) == len(c.cfg.Client.IAgRPCAddresses) {
-						close(allDone)
-					}
-					appendLock.Unlock()
-				}
-			}
-		}()
-	}
-
-	go func() {
-		defer func() {
-			// could only happen on a timeout.
-			// todo: some better handling of that...
-			if r := recover(); r != nil {
-				c.log.Critical("Recovered: %v", r)
-				return
-			}
-		}()
-		for i, addr := range c.cfg.Client.IAgRPCAddresses {
-			reqCh <- struct {
-				string
-				int
-			}{addr, c.cfg.Client.IAIDs[i]}
-		}
-	}()
-
-waitLoop:
-	for {
-		select {
-		case <-allDone:
-			c.log.Debug("Got responses from all servers")
-			break waitLoop
-		case <-time.After(time.Duration(c.cfg.Debug.RequestTimeout) * time.Millisecond):
-			c.log.Notice("Timed out while sending requests")
-			for _, cancel := range cancelFuncs {
-				cancel()
-			}
-			break waitLoop
+	for i := range responses {
+		sigs = append(sigs, c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse)))
+		if isThreshold {
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-
-	close(reqCh)
-
-	if isThreshold {
-		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-	}
-	return c.handleReceivedSignatures(sigs, nil)
+	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
 }
 
 func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coconut.Signature {
@@ -536,46 +442,9 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) *coc
 
 	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
-
-	// write requests in a goroutine so we wouldn't block when trying to read responses
-	go func() {
-		for i := range c.cfg.Client.IAAddresses {
-			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
-			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-		}
-	}()
-
-	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-	close(reqCh)
-
+	responses := utils.GetServerResponses(packetBytes, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout, c.cfg.Debug.RequestTimeout, c.cfg.Client.IAAddresses, c.cfg.Client.IAIDs)
 	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
-
-	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
-		c.log.Notice("Number of signatures received is within threshold")
-	} else {
-		c.log.Error("Received less than threshold number of signatures")
-		return nil
-	}
-
-	// we only want threshold number of them, in future randomly choose them?
-	if c.cfg.Client.Threshold > 0 {
-		sigs = sigs[:c.cfg.Client.Threshold]
-		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
-		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
-		// should it continue regardless and assume the servers are down pernamently or just terminate?
-	}
-
-	aSig := c.cryptoworker.CoconutWorker().AggregateSignaturesWrapper(sigs, pp)
-	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
-
-	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
-	c.log.Debug("Randomized the signature")
-
-	return rSig
+	return c.handleReceivedSignatures(sigs, pp)
 }
 
 func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) bool {
