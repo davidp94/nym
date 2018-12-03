@@ -58,8 +58,8 @@ func main() {
 
 	// c.SendDummy("Hello")
 
-	c.GetVerificationKeys_grpc(false)
-	return
+	// c.GetVerificationKeys_grpc(false)
+	// return
 
 	params, _ := coconut.Setup(5)
 	G := params.G
@@ -68,18 +68,20 @@ func main() {
 
 	sig_grpc := c.SignAttributes_grpc(pubM)
 	sig := c.SignAttributes(pubM)
-	areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
-	fmt.Printf("Are received sigs equal: %v\n", areEqual)
+	// areEqual := sig.Sig1().Equals(sig_grpc.Sig1()) && sig.Sig2().Equals(sig_grpc.Sig2())
+	// fmt.Printf("Are received sigs equal: %v\n", areEqual)
 	// sigBlind := c.BlindSignAttributes(pubM, privM)
 	// sigBlind_grpc := c.BlindSignAttributes_grpc(pubM, privM)
 
-	// vk := c.GetAggregateVerificationKey()
+	vk := c.GetAggregateVerificationKey()
 	vk_grpc := c.GetAggregateVerificationKey_grpc()
 	isValid_grpc := c.SendCredentialsForVerification_grpc(pubM, sig_grpc, providerAddress_grpc)
-	fmt.Println("Is valid: ", isValid_grpc)
-	fmt.Println("Is valid local:", coconut.Verify(params, vk_grpc, pubM, sig_grpc))
-	// // fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
-	// // isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	fmt.Println("Is valid_grpc: ", isValid_grpc)
+	fmt.Println("Is valid local_grpc:", coconut.Verify(params, vk_grpc, pubM, sig_grpc))
+
+	isValid := c.SendCredentialsForVerification(pubM, sig, providerAddress)
+	fmt.Println("Is valid_grpc: ", isValid)
+	fmt.Println("Is valid local: ", coconut.Verify(params, vk, pubM, sig))
 	// isValidBlind1 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
 	// isValidBlind2 := c.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
 

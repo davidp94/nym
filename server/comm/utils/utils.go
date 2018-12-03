@@ -261,3 +261,21 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 	}
 	return protoResp
 }
+
+func GetServerResponses(packet []byte, maxR int, log *logging.Logger, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
+	responses := make([]*ServerResponse, len(addrs)) // can't possibly get more results
+	respCh := make(chan *ServerResponse)
+	reqCh := SendServerRequests(respCh, maxR, log, connT)
+
+	// write requests in a goroutine so we wouldn't block when trying to read responses
+	go func() {
+		for i := range addrs {
+			log.Debug("Writing request to %v", addrs[i])
+			reqCh <- &ServerRequest{MarshaledData: packet, ServerAddress: addrs[i], ServerID: ids[i]}
+		}
+	}()
+
+	WaitForServerResponses(respCh, responses, log, reqT)
+	close(reqCh)
+	return responses
+}

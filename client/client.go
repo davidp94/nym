@@ -89,6 +89,23 @@ func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) *cocon
 	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey)
 }
 
+func (c *Client) getGrpcResponses(grpcDialOptions []grpc.DialOption, request proto.Message) []*utils.ServerResponse_grpc {
+	responses := make([]*utils.ServerResponse_grpc, len(c.cfg.Client.IAgRPCAddresses))
+	respCh := make(chan *utils.ServerResponse_grpc)
+	reqCh, cancelFuncs := c.sendGRPCs(respCh, grpcDialOptions)
+
+	go func() {
+		for i := range c.cfg.Client.IAgRPCAddresses {
+			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
+			reqCh <- &utils.ServerRequest_grpc{Message: request, ServerAddress: c.cfg.Client.IAgRPCAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
+		}
+	}()
+
+	c.waitForGrpcResponses(respCh, responses, cancelFuncs)
+	close(reqCh)
+	return responses
+}
+
 func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponse_grpc, responses []*utils.ServerResponse_grpc, cancelFuncs []context.CancelFunc) {
 	i := 0
 	for {
@@ -248,20 +265,7 @@ func (c *Client) SignAttributes_grpc(pubM []*Curve.BIG) *coconut.Signature {
 	}
 
 	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-
-	responses := make([]*utils.ServerResponse_grpc, len(c.cfg.Client.IAgRPCAddresses))
-	respCh := make(chan *utils.ServerResponse_grpc)
-	reqCh, cancelFuncs := c.sendGRPCs(respCh, grpcDialOptions)
-
-	go func() {
-		for i := range c.cfg.Client.IAgRPCAddresses {
-			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
-			reqCh <- &utils.ServerRequest_grpc{Message: signRequest, ServerAddress: c.cfg.Client.IAgRPCAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-		}
-	}()
-
-	c.waitForGrpcResponses(respCh, responses, cancelFuncs)
-	close(reqCh)
+	responses := c.getGrpcResponses(grpcDialOptions, signRequest)
 
 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
@@ -288,23 +292,38 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) *coconut.Signature {
 	}
 
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
-
-	responses := make([]*utils.ServerResponse, len(c.cfg.Client.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *utils.ServerResponse)
-	reqCh := utils.SendServerRequests(respCh, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout)
-
-	// write requests in a goroutine so we wouldn't block when trying to read responses
-	go func() {
-		for i := range c.cfg.Client.IAAddresses {
-			c.log.Debug("Writing request to %v", c.cfg.Client.IAAddresses[i])
-			reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: c.cfg.Client.IAAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-		}
-	}()
-
-	utils.WaitForServerResponses(respCh, responses, c.log, c.cfg.Debug.RequestTimeout)
-	close(reqCh)
-
+	responses := utils.GetServerResponses(packetBytes, c.cfg.Client.MaxRequests, c.log, c.cfg.Debug.ConnectTimeout, c.cfg.Debug.RequestTimeout, c.cfg.Client.IAAddresses, c.cfg.Client.IAIDs)
 	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
+}
+
+func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) []*coconut.VerificationKey {
+	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
+		if len(vks) != len(pp.Xs()) {
+			c.log.Errorf("Inconsistent response, vks: %v, pp: %v\n", len(vks), len(pp.Xs()))
+			return nil
+		}
+		c.log.Notice("Number of verification keys received is within threshold")
+	} else {
+		c.log.Error("Received less than threshold number of verification keys")
+		return nil
+	}
+
+	// we only want threshold number of them, in future randomly choose them?
+	if c.cfg.Client.Threshold > 0 {
+		vks = vks[:c.cfg.Client.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
+	} else if len(vks) != len(c.cfg.Client.IAAddresses) {
+		c.log.Error("No threshold, but obtained only %v out of %v verification keys", len(vks), len(c.cfg.Client.IAAddresses))
+		// should it continue regardless and assume the servers are down pernamently or just terminate?
+	}
+
+	if shouldAggregate {
+		avk := c.cryptoworker.CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)
+		c.log.Debugf("Aggregated %v verification keys (threshold: %v)", len(vks), c.cfg.Client.Threshold)
+
+		return []*coconut.VerificationKey{avk}
+	}
+	return vks
 }
 
 func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.VerificationKey {
@@ -317,21 +336,8 @@ func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.Verif
 		return nil
 	}
 
-	c.log.Notice("Going to send Sign request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-
-	responses := make([]*utils.ServerResponse_grpc, len(c.cfg.Client.IAgRPCAddresses))
-	respCh := make(chan *utils.ServerResponse_grpc)
-	reqCh, cancelFuncs := c.sendGRPCs(respCh, grpcDialOptions)
-
-	go func() {
-		for i := range c.cfg.Client.IAgRPCAddresses {
-			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
-			reqCh <- &utils.ServerRequest_grpc{Message: verificationKeyRequest, ServerAddress: c.cfg.Client.IAgRPCAddresses[i], ServerID: c.cfg.Client.IAIDs[i]}
-		}
-	}()
-
-	c.waitForGrpcResponses(respCh, responses, cancelFuncs)
-	close(reqCh)
+	c.log.Notice("Going to send GetVk request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
+	responses := c.getGrpcResponses(grpcDialOptions, verificationKeyRequest)
 
 	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
@@ -342,18 +348,7 @@ func (c *Client) GetVerificationKeys_grpc(shouldAggregate bool) []*coconut.Verif
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-
-	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
-		c.log.Notice("Number of verification keys received is within threshold")
-	} else {
-		c.log.Error("Received less than threshold number of verification keys")
-		return nil
-	}
-
-	if shouldAggregate {
-		vks = []*coconut.VerificationKey{c.cryptoworker.CoconutWorker().AggregateVerificationKeysWrapper(vks, coconut.NewPP(xs))}
-	}
-	return vks
+	return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
 }
 
 // If it's going to aggregate results, it will return slice with a single element.
@@ -385,18 +380,8 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) []*coconut.Verificati
 	close(reqCh)
 
 	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
+	return c.handleReceivedVerificationKeys(vks, pp, shouldAggregate)
 
-	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
-		c.log.Notice("Number of verification keys received is within threshold")
-	} else {
-		c.log.Error("Received less than threshold number of verification keys")
-		return nil
-	}
-
-	if shouldAggregate {
-		vks = []*coconut.VerificationKey{c.cryptoworker.CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)}
-	}
-	return vks
 }
 
 // basically a wrapper for GetVerificationKeys but returns a single vk rather than slice with one element
