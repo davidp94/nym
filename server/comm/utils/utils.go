@@ -29,13 +29,13 @@ type ServerRequest struct {
 	ServerID      int
 }
 
-type ServerResponse_grpc struct {
+type ServerResponseGrpc struct {
 	Message       proto.Message
 	ServerAddress string // not really needed, but might be useful for auditing
 	ServerID      int    // will be needed for threshold aggregation
 }
 
-type ServerRequest_grpc struct {
+type ServerRequestGrpc struct {
 	Message       proto.Message
 	ServerAddress string
 	ServerID      int

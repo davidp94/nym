@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// todo: description
+// Package cryptoworker combines coconut worker and job workers for a client instance.
 package cryptoworker
 
 import (
@@ -39,18 +39,20 @@ type Worker struct {
 	jobWorkers []*jobworker.Worker
 }
 
+// CoconutWorker returns coconut worker instance associated with cryptoworker.
 func (w *Worker) CoconutWorker() *coconutworker.Worker {
 	return w.cw
 }
 
-func (cw *Worker) Halt() {
-	for i, w := range cw.jobWorkers {
-		if w != nil {
-			w.Halt()
-			cw.jobWorkers[i] = nil
+// Halt cleanly shuts down a given cryptoworker instance.
+func (w *Worker) Halt() {
+	for i, wrk := range w.jobWorkers {
+		if wrk != nil {
+			wrk.Halt()
+			w.jobWorkers[i] = nil
 		}
 	}
-	cw.log.Notice("Stopped all job workers.")
+	w.log.Notice("Stopped all job workers.")
 }
 
 // New creates new instance of a coconutWorker.
@@ -71,6 +73,5 @@ func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *W
 	}
 	w.log.Noticef("Started %v Job Worker(s)", numWorkers)
 
-	// no need of having a forever loop
 	return w
 }
