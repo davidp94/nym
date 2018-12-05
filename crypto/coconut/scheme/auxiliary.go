@@ -18,15 +18,18 @@
 package coconut
 
 import (
+	"errors"
 	"strings"
 
-	proto "github.com/golang/protobuf/proto"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	proto "github.com/golang/protobuf/proto"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+// todo: nil checks for all fromProto/toProto methods
 
 // getBaseFromAttributes generates the base h from public attributes.
 // It is only used for Sign function that works exlusively on public attributes
@@ -133,10 +136,17 @@ func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (vk *VerificationKey) FromProto(pvk *ProtoVerificationKey) error {
+	ec2len := constants.ECP2Len
+	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) <= 0 {
+		return errors.New("invalid proto verification key")
+	}
 	vk.g2 = Curve.ECP2_fromBytes(pvk.G2)
 	vk.alpha = Curve.ECP2_fromBytes(pvk.Alpha)
 	vk.beta = make([]*Curve.ECP2, len(pvk.Beta))
 	for i := range pvk.Beta {
+		if len(pvk.Beta[i]) != ec2len {
+			return errors.New("invalid proto verification key")
+		}
 		vk.beta[i] = Curve.ECP2_fromBytes(pvk.Beta[i])
 	}
 	return nil

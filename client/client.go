@@ -59,9 +59,9 @@ const (
 	gRPCClientErr    = "gRPC client trying to call non-gRPC method"
 )
 
-func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) (*coconut.VerificationKey, error) {
-	if resp == nil {
-		errstr := "Received vk response was nil"
+func (c *Client) parseVkResponse(resp *commands.VerificationKeyResponse) (*coconut.VerificationKey, error) {
+	if resp == nil || resp.GetStatus() == nil {
+		errstr := "Received vk response (or part of it) was nil"
 		c.log.Error(errstr)
 		return nil, errors.New(errstr)
 	}
@@ -84,8 +84,8 @@ func (c *Client) parseGetVkResponse(resp *commands.VerificationKeyResponse) (*co
 }
 
 func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signature, error) {
-	if resp == nil {
-		errstr := "Received sign response was nil"
+	if resp == nil || resp.GetStatus() == nil {
+		errstr := "Received sign response (or part of it) was nil"
 		c.log.Error(errstr)
 		return nil, errors.New(errstr)
 	}
@@ -108,8 +108,8 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 }
 
 func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) (*coconut.Signature, error) {
-	if resp == nil {
-		errstr := "Received blind sign response was nil"
+	if resp == nil || resp.GetStatus() == nil {
+		errstr := "Received blind sign response (or part of it) was nil"
 		c.log.Error(errstr)
 		return nil, errors.New(errstr)
 	}
@@ -453,7 +453,7 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
 	for i := range responses {
-		vk, err := c.parseGetVkResponse(responses[i].Message.(*commands.VerificationKeyResponse))
+		vk, err := c.parseVkResponse(responses[i].Message.(*commands.VerificationKeyResponse))
 		if err != nil {
 			continue
 		}
@@ -870,7 +870,6 @@ func (c *Client) Stop() {
 // New returns a new Client instance parameterized with the specified configuration.
 func New(cfg *config.Config) (*Client, error) {
 	var err error
-	// todo: config for client to put this in
 	log := logger.New("", "DEBUG", false)
 	if log == nil {
 		return nil, errors.New("Failed to create a logger")
@@ -937,7 +936,6 @@ func New(cfg *config.Config) (*Client, error) {
 
 		cryptoworker: cryptoworker,
 
-		// todo: timeouts etc
 		defaultDialOptions: []grpc.DialOption{
 			grpc.WithInsecure(), // TODO: CERTS!!
 		},

@@ -79,8 +79,6 @@ func (s *Server) GetIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
-	var closeOnce sync.Once
-
 	responses := make([]*utils.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
 	respCh := make(chan *utils.ServerResponse)
 	receivedResponses := make(map[string]bool)
@@ -98,23 +96,15 @@ outLoop:
 
 			// write requests in a goroutine so we wouldn't block when trying to read responses
 			go func() {
-				defer func() {
-					// in case the channel unexpectedly blocks (which should THEORETICALLY not happen),
-					// the server won't crash
-					if r := recover(); r != nil {
-						s.log.Critical("Recovered: %v", r)
-					}
-				}()
 				for i := range s.cfg.Provider.IAAddresses {
 					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
 						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
 						reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: s.cfg.Provider.IAAddresses[i], ServerID: s.cfg.Provider.IAIDs[i]}
 					}
 				}
-				closeOnce.Do(func() { close(reqCh) }) // to terminate the goroutines after they are done
 			}()
 			utils.WaitForServerResponses(respCh, responses[len(receivedResponses):], s.log, s.cfg.Debug.RequestTimeout)
-			closeOnce.Do(func() { close(reqCh) })
+			close(reqCh)
 
 			for i := range responses {
 				if responses[i] != nil {
@@ -219,7 +209,15 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	} else {
 		// even if it's not an issuer, it needs params to credential verification
-		params, err = coconut.Setup(cfg.Issuer.MaximumAttributes)
+		var maxAttrs int
+		if cfg.Server.IsProvider && !cfg.Server.IsIssuer {
+			// in that case the Issuer.MaximumAttributes might be undefined, but it is not needed anyway,
+			// only to generate params to access G and p
+			maxAttrs = 1
+		} else {
+			maxAttrs = cfg.Issuer.MaximumAttributes
+		}
+		params, err = coconut.Setup(maxAttrs)
 		if err != nil {
 			return nil, err
 		}

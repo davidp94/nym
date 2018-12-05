@@ -195,6 +195,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 			for i := range cfg.Provider.IAAddresses {
 				IAIDs[i] = i + 1
 			}
+			cfg.Provider.IAIDs = IAIDs
 		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) <= 0 {
 			return errors.New("config: Invalid provider - IA Servers configuration")
 		}
@@ -225,14 +226,11 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	return nil
 }
 
-// LoadFile loads, parses and validates the provided file and returns the Config.
-func LoadFile(f string) (*Config, error) {
-	b, err := ioutil.ReadFile(filepath.Clean(f))
-	if err != nil {
-		return nil, err
-	}
+// LoadBinary loads, parses and validates the provided buffer b (as a config)
+// and returns the Config.
+func LoadBinary(b []byte) (*Config, error) {
 	cfg := new(Config)
-	_, err = toml.Decode(string(b), cfg)
+	_, err := toml.Decode(string(b), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -241,4 +239,13 @@ func LoadFile(f string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// LoadFile loads, parses and validates the provided file and returns the Config.
+func LoadFile(f string) (*Config, error) {
+	b, err := ioutil.ReadFile(filepath.Clean(f))
+	if err != nil {
+		return nil, err
+	}
+	return LoadBinary(b)
 }
