@@ -188,6 +188,10 @@ func (sig *Signature) ToProto() (*ProtoSignature, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (sig *Signature) FromProto(psig *ProtoSignature) error {
+	eclen := constants.ECPLen
+	if psig == nil || len(psig.Sig1) != eclen || len(psig.Sig2) != eclen {
+		return errors.New("invalid proto signature")
+	}
 	sig.sig1 = Curve.ECP_fromBytes(psig.Sig1)
 	sig.sig2 = Curve.ECP_fromBytes(psig.Sig2)
 	return nil

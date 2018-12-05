@@ -29,6 +29,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
@@ -36,6 +37,7 @@ import (
 	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/server"
 	sconfig "0xacab.org/jstuczyn/CoconutGo/server/config"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -221,6 +223,7 @@ func TestParseVkResponse(t *testing.T) {
 		}
 
 		parsedVk, err := emptyClient.parseVkResponse(validResponse)
+		assert.NotNil(t, parsedVk)
 		assert.Nil(t, err)
 
 		// check we actually got the same key
@@ -389,5 +392,163 @@ func TestParseVkResponse(t *testing.T) {
 	}
 	vk, err = emptyClient.parseVkResponse(response)
 	assert.Nil(t, vk)
+	assert.Error(t, err)
+}
+
+func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
+	attrs := make([]*Curve.BIG, n)
+	for i := 0; i < n; i++ {
+		attrs[i] = Curve.Randomnum(G.Order(), G.Rng())
+	}
+	return attrs
+}
+
+func TestParseSignResponse(t *testing.T) {
+	// valid sig, valid status
+	// valid sig, invalid status
+	// invalid sig, valid status
+	// parts being nil
+
+	validStatus := &commands.Status{
+		Code:    int32(commands.StatusCode_OK),
+		Message: "",
+	}
+
+	// for this test, we don't need any client properties
+	// only logger to not crash by trying to call object that doesn't exist
+	emptyClient := &Client{log: logger.New("", "DEBUG", true).GetLogger("Client")}
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	sk, _, err := coconut.Keygen(params)
+	assert.Nil(t, err)
+
+	// a completely valid sig
+	validSig, err := coconut.Sign(params, sk, getRandomAttributes(params.G, 5))
+	assert.Nil(t, err)
+
+	validProtoSig, err := validSig.ToProto()
+	assert.Nil(t, err)
+
+	sig, err := emptyClient.parseSignResponse(&commands.SignResponse{
+		Sig:    validProtoSig,
+		Status: validStatus,
+	})
+
+	assert.NotNil(t, sig)
+	assert.Nil(t, err)
+
+	assert.True(t, validSig.Sig1().Equals(sig.Sig1()))
+	assert.True(t, validSig.Sig2().Equals(sig.Sig2()))
+
+	failedCodes := []commands.StatusCode{
+		commands.StatusCode_UNKNOWN,
+		commands.StatusCode_INVALID_COMMAND,
+		commands.StatusCode_INVALID_ARGUMENTS,
+		commands.StatusCode_PROCESSING_ERROR,
+		commands.StatusCode_NOT_IMPLEMENTED,
+		commands.StatusCode_REQUEST_TIMEOUT,
+		commands.StatusCode_UNAVAILABLE,
+	}
+
+	// valid keys with failed status
+	for _, code := range failedCodes {
+		invalidStatus := &commands.Status{
+			Code:    int32(code),
+			Message: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+		}
+
+		response := &commands.SignResponse{
+			Sig:    validProtoSig,
+			Status: invalidStatus,
+		}
+
+		sig, err := emptyClient.parseSignResponse(response)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+	}
+
+	// longer than ECP len (MB+1)
+	longb := []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla non mollis sapien, sed volutpat nisl. Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, at sollicitudin libero massa id lectus. Aenean ac nulla risus. Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.")
+
+	invalidBytes := [][]byte{
+		nil,
+		[]byte{},
+		[]byte{1, 2, 3},
+		longb,
+	}
+
+	// invalid sigs with valid status (server thinks it all went fine)
+	for _, invalidByte := range invalidBytes {
+		invalidSig1 := &coconut.ProtoSignature{Sig1: invalidByte}
+		invalidSig2 := &coconut.ProtoSignature{Sig2: invalidByte}
+		invalidSig3 := &coconut.ProtoSignature{Sig1: invalidByte, Sig2: invalidByte}
+
+		invalidSig4, err := validSig.ToProto()
+		assert.Nil(t, err)
+		invalidSig4.Sig1 = invalidByte
+
+		invalidSig5, err := validSig.ToProto()
+		assert.Nil(t, err)
+		invalidSig5.Sig2 = invalidByte
+
+		invalidSigs := []*coconut.ProtoSignature{
+			invalidSig1,
+			invalidSig2,
+			invalidSig3,
+			invalidSig4,
+			invalidSig5,
+		}
+
+		for _, invSig := range invalidSigs {
+			response := &commands.SignResponse{
+				Sig:    invSig,
+				Status: validStatus,
+			}
+
+			sig, err := emptyClient.parseSignResponse(response)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+	}
+
+	// additional cases not covered by the loop:
+	invalidSig1 := &coconut.ProtoSignature{} // all zeroed fields
+
+	invalidSigs := []*coconut.ProtoSignature{
+		invalidSig1,
+	}
+
+	for _, invSig := range invalidSigs {
+		response := &commands.SignResponse{
+			Sig:    invSig,
+			Status: validStatus,
+		}
+
+		sig, err := emptyClient.parseSignResponse(response)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+	}
+
+	// nil proto, nil status
+	sig, err = emptyClient.parseSignResponse(nil)
+	assert.Nil(t, sig)
+	assert.Error(t, err)
+
+	response := &commands.SignResponse{
+		Sig:    nil,
+		Status: validStatus,
+	}
+	sig, err = emptyClient.parseSignResponse(response)
+	assert.Nil(t, sig)
+	assert.Error(t, err)
+
+	response = &commands.SignResponse{
+		Sig:    validProtoSig,
+		Status: nil,
+	}
+	sig, err = emptyClient.parseSignResponse(response)
+	assert.Nil(t, sig)
 	assert.Error(t, err)
 }
