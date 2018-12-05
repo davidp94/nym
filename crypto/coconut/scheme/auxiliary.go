@@ -236,6 +236,10 @@ func (bs *BlindedSignature) ToProto() (*ProtoBlindedSignature, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (bs *BlindedSignature) FromProto(pbs *ProtoBlindedSignature) error {
+	eclen := constants.ECPLen
+	if pbs == nil || len(pbs.Sig1) != eclen {
+		return errors.New("invalid proto blinded signature")
+	}
 	sig1 := Curve.ECP_fromBytes(pbs.Sig1)
 	enc := &elgamal.Encryption{}
 	if err := enc.FromProto(pbs.Sig2Tilda); err != nil {

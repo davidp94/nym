@@ -59,11 +59,11 @@ const (
 	gRPCClientErr    = "gRPC client trying to call non-gRPC method"
 )
 
-func (c *Client) parseVkResponse(resp *commands.VerificationKeyResponse) (*coconut.VerificationKey, error) {
+func (c *Client) checkResponseStatus(resp commands.ProtoResponse) error {
 	if resp == nil || resp.GetStatus() == nil {
-		errstr := "Received vk response (or part of it) was nil"
+		errstr := "Received response (or part of it) was nil"
 		c.log.Error(errstr)
-		return nil, errors.New(errstr)
+		return errors.New(errstr)
 	}
 	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
 		errstr := fmt.Sprintf(
@@ -72,7 +72,14 @@ func (c *Client) parseVkResponse(resp *commands.VerificationKeyResponse) (*cocon
 			resp.GetStatus().Message,
 		)
 		c.log.Errorf(errstr)
-		return nil, errors.New(errstr)
+		return errors.New(errstr)
+	}
+	return nil
+}
+
+func (c *Client) parseVkResponse(resp *commands.VerificationKeyResponse) (*coconut.VerificationKey, error) {
+	if err := c.checkResponseStatus(resp); err != nil {
+		return nil, err
 	}
 	vk := &coconut.VerificationKey{}
 	if err := vk.FromProto(resp.Vk); err != nil {
@@ -84,19 +91,8 @@ func (c *Client) parseVkResponse(resp *commands.VerificationKeyResponse) (*cocon
 }
 
 func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signature, error) {
-	if resp == nil || resp.GetStatus() == nil {
-		errstr := "Received sign response (or part of it) was nil"
-		c.log.Error(errstr)
-		return nil, errors.New(errstr)
-	}
-	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
-		errstr := fmt.Sprintf(
-			"Received invalid response with status: %v. Error: %v",
-			resp.GetStatus().Code,
-			resp.GetStatus().Message,
-		)
-		c.log.Errorf(errstr)
-		return nil, errors.New(errstr)
+	if err := c.checkResponseStatus(resp); err != nil {
+		return nil, err
 	}
 	sig := &coconut.Signature{}
 	if err := sig.FromProto(resp.Sig); err != nil {
@@ -108,19 +104,8 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 }
 
 func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) (*coconut.Signature, error) {
-	if resp == nil || resp.GetStatus() == nil {
-		errstr := "Received blind sign response (or part of it) was nil"
-		c.log.Error(errstr)
-		return nil, errors.New(errstr)
-	}
-	if resp.GetStatus().Code != int32(commands.StatusCode_OK) {
-		errstr := fmt.Sprintf(
-			"Received invalid response with status: %v. Error: %v",
-			resp.GetStatus().Code,
-			resp.GetStatus().Message,
-		)
-		c.log.Errorf(errstr)
-		return nil, errors.New(errstr)
+	if err := c.checkResponseStatus(resp); err != nil {
+		return nil, err
 	}
 	blindSig := &coconut.BlindedSignature{}
 	if err := blindSig.FromProto(resp.Sig); err != nil {
@@ -870,7 +855,7 @@ func (c *Client) Stop() {
 // New returns a new Client instance parameterized with the specified configuration.
 func New(cfg *config.Config) (*Client, error) {
 	var err error
-	log := logger.New("", "DEBUG", false)
+	log := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if log == nil {
 		return nil, errors.New("Failed to create a logger")
 	}
@@ -919,7 +904,14 @@ func New(cfg *config.Config) (*Client, error) {
 		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
 	}
 
-	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
+	// TODO: do we need maximumattributes? - check what computation client is allowed to do
+	var maxAttrs int
+	if cfg.Client.MaximumAttributes <= 0 {
+		maxAttrs = 1
+	} else {
+		maxAttrs = cfg.Client.MaximumAttributes
+	}
+	params, err := coconut.Setup(maxAttrs)
 	if err != nil {
 		return nil, errors.New("Error while generating params")
 	}

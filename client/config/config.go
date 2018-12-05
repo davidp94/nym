@@ -37,6 +37,8 @@ const (
 	noLimitMaxRequests    = 16
 )
 
+// TODO: do we need maximumattributes?
+
 // nolint: gochecknoglobals
 var defaultLogging = Logging{
 	Disable: false,

@@ -272,6 +272,10 @@ func (e *Encryption) ToProto() (*ProtoEncryption, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (e *Encryption) FromProto(pe *ProtoEncryption) error {
+	eclen := constants.ECPLen
+	if pe == nil || len(pe.C1) != eclen || len(pe.C2) != eclen {
+		return errors.New("invalid proto encryption")
+	}
 	e.c1 = Curve.ECP_fromBytes(pe.C1)
 	e.c2 = Curve.ECP_fromBytes(pe.C2)
 	return nil

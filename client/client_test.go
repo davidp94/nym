@@ -27,6 +27,8 @@ import (
 	"strings"
 	"testing"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -452,7 +454,7 @@ func TestParseSignResponse(t *testing.T) {
 		commands.StatusCode_UNAVAILABLE,
 	}
 
-	// valid keys with failed status
+	// valid sigs with failed status
 	for _, code := range failedCodes {
 		invalidStatus := &commands.Status{
 			Code:    int32(code),
@@ -551,4 +553,202 @@ func TestParseSignResponse(t *testing.T) {
 	sig, err = emptyClient.parseSignResponse(response)
 	assert.Nil(t, sig)
 	assert.Error(t, err)
+}
+
+func TestParseBlindSignResponse(t *testing.T) {
+	// valid sig, valid status
+	// valid sig, invalid status
+	// invalid sig, valid status
+	// parts being nil
+
+	validStatus := &commands.Status{
+		Code:    int32(commands.StatusCode_OK),
+		Message: "",
+	}
+
+	// those really don't matter at this point, but if they are invalid,
+	// we won't be able to make a client
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgstr += string(`PersistentKeys = false
+
+[Logging]
+Disable = true
+Level = "DEBUG"
+		`)
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+
+	// this test requires a proper client since we need to actually assign work
+	// to its cryptoworker
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	sk, _, err := coconut.Keygen(params)
+	assert.Nil(t, err)
+
+	numAttrs := []struct {
+		pub  int
+		priv int
+	}{
+		{2, 3},
+		{0, 5},
+	}
+	for _, numAttr := range numAttrs {
+		pubM := getRandomAttributes(params.G, numAttr.pub)
+		privM := getRandomAttributes(params.G, numAttr.priv)
+		blindSignMats, err := coconut.PrepareBlindSign(params, client.elGamalPublicKey, pubM, privM)
+		assert.Nil(t, err)
+
+		validBlindSig, err := coconut.BlindSign(params, sk, blindSignMats, client.elGamalPublicKey, pubM)
+		assert.Nil(t, err)
+
+		unblindedValidBlindSig := coconut.Unblind(params, validBlindSig, client.elGamalPrivateKey)
+
+		validProtoBlindSig, err := validBlindSig.ToProto()
+		assert.Nil(t, err)
+
+		response := &commands.BlindSignResponse{
+			Sig:    validProtoBlindSig,
+			Status: validStatus,
+		}
+
+		sig, err := client.parseBlindSignResponse(response)
+		assert.NotNil(t, sig)
+		assert.Nil(t, err)
+
+		assert.True(t, unblindedValidBlindSig.Sig1().Equals(sig.Sig1()))
+		assert.True(t, unblindedValidBlindSig.Sig2().Equals(sig.Sig2()))
+
+		failedCodes := []commands.StatusCode{
+			commands.StatusCode_UNKNOWN,
+			commands.StatusCode_INVALID_COMMAND,
+			commands.StatusCode_INVALID_ARGUMENTS,
+			commands.StatusCode_PROCESSING_ERROR,
+			commands.StatusCode_NOT_IMPLEMENTED,
+			commands.StatusCode_REQUEST_TIMEOUT,
+			commands.StatusCode_UNAVAILABLE,
+		}
+
+		// valid sigs with failed status
+		for _, code := range failedCodes {
+			invalidStatus := &commands.Status{
+				Code:    int32(code),
+				Message: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
+			}
+
+			response = &commands.BlindSignResponse{
+				Sig:    validProtoBlindSig,
+				Status: invalidStatus,
+			}
+
+			sig, err := client.parseBlindSignResponse(response)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+
+		// longer than ECP len (MB+1)
+		longb := []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla non mollis sapien, sed volutpat nisl. Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, at sollicitudin libero massa id lectus. Aenean ac nulla risus. Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.")
+
+		invalidBytes := [][]byte{
+			nil,
+			[]byte{},
+			[]byte{1, 2, 3},
+			longb,
+		}
+
+		// invalid sigs with valid status (server thinks it all went fine)
+		for _, invalidByte := range invalidBytes {
+			invalidBlindSig1 := &coconut.ProtoBlindedSignature{Sig1: invalidByte}
+			invalidBlindSig2 := &coconut.ProtoBlindedSignature{Sig2Tilda: &elgamal.ProtoEncryption{
+				C1: invalidByte,
+				C2: invalidByte,
+			}}
+
+			invalidBlindSig3 := &coconut.ProtoBlindedSignature{
+				Sig1: invalidByte,
+				Sig2Tilda: &elgamal.ProtoEncryption{
+					C1: invalidByte,
+					C2: invalidByte,
+				},
+			}
+
+			// just a single 'corrupted' element:
+			invalidBlindSig4, err := validBlindSig.ToProto()
+			assert.Nil(t, err)
+			invalidBlindSig4.Sig1 = invalidByte
+
+			invalidBlindSig5, err := validBlindSig.ToProto()
+			assert.Nil(t, err)
+			invalidBlindSig5.Sig2Tilda.C1 = invalidByte
+
+			invalidBlindSig6, err := validBlindSig.ToProto()
+			assert.Nil(t, err)
+			invalidBlindSig6.Sig2Tilda.C2 = invalidByte
+
+			invalidBlindSigs := []*coconut.ProtoBlindedSignature{
+				invalidBlindSig1,
+				invalidBlindSig2,
+				invalidBlindSig3,
+				invalidBlindSig4,
+				invalidBlindSig5,
+				invalidBlindSig6,
+			}
+
+			for _, invBlindSig := range invalidBlindSigs {
+				response := &commands.BlindSignResponse{
+					Sig:    invBlindSig,
+					Status: validStatus,
+				}
+
+				sig, err := client.parseBlindSignResponse(response)
+				assert.Nil(t, sig)
+				assert.Error(t, err)
+			}
+		}
+
+		// additional cases not covered by the loop:
+		invalidBlindSig1 := &coconut.ProtoBlindedSignature{} // all zeroed fields
+		invalidBlindSig2 := &coconut.ProtoBlindedSignature{Sig2Tilda: nil}
+
+		invalidBlindSigs := []*coconut.ProtoBlindedSignature{
+			invalidBlindSig1,
+			invalidBlindSig2,
+		}
+
+		for _, invBlindSig := range invalidBlindSigs {
+			response := &commands.BlindSignResponse{
+				Sig:    invBlindSig,
+				Status: validStatus,
+			}
+
+			sig, err := client.parseBlindSignResponse(response)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+
+		// nil proto, nil status
+		sig, err = client.parseBlindSignResponse(nil)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		response = &commands.BlindSignResponse{
+			Sig:    nil,
+			Status: validStatus,
+		}
+		sig, err = client.parseBlindSignResponse(response)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		response = &commands.BlindSignResponse{
+			Sig:    validProtoBlindSig,
+			Status: nil,
+		}
+		sig, err = client.parseBlindSignResponse(response)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+	}
 }
