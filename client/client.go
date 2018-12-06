@@ -204,7 +204,9 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 				case *commands.BlindSignRequest:
 					resp, errgrpc = cc.BlindSignAttributes(ctx, reqt)
 				default:
-					c.log.Critical("Unknown command was passed: %v", reflect.TypeOf(req.Message))
+					errstr := fmt.Sprintf("Unknown command was passed: %v", reflect.TypeOf(req.Message))
+					errgrpc = errors.New(errstr)
+					c.log.Critical(errstr)
 				}
 				if errgrpc != nil {
 					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerAddress, err)
@@ -218,11 +220,25 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 }
 
 // nolint: lll
+// currently it tries to parse everything and just ignores an invalid request, should it fail on any single invalid request?
 func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+	if responses == nil {
+		return nil, nil
+	}
+
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
 		if responses[i] != nil {
+			if responses[i].ServerID <= 0 {
+				c.log.Errorf("Invalid serverID provided: %v", responses[i].ServerID)
+				if !isThreshold {
+					c.log.Error("Not a threshold system: can't get all signatures")
+					return nil, nil
+				}
+				continue
+			}
+
 			var resp commands.ProtoResponse
 			if isBlind {
 				resp = &commands.BlindSignResponse{}
@@ -248,10 +264,10 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 				}
 			}
 
-			sigs = append(sigs, sig)
 			if isThreshold {
 				xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 			}
+			sigs = append(sigs, sig)
 		}
 	}
 	if isThreshold {

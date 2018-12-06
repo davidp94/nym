@@ -27,6 +27,8 @@ import (
 	"strings"
 	"testing"
 
+	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
+
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
@@ -45,6 +47,7 @@ import (
 
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
 const clientKeysFolderRelative = "../testdata/clientkeys"
+const thresholdVal = 3 // defined by the pre-generated keys
 
 var issuersKeysFolder string
 var issuers []*server.Server
@@ -155,9 +158,9 @@ func init() {
 	issuers = make([]*server.Server, 0, 5)
 	providers = make([]*server.Server, 0, 2)
 
-	// for i := range issuerTCPAddresses {
-	// 	issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
-	// }
+	for i := range issuerTCPAddresses {
+		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
+	}
 
 	// for i := range providerTCPAddresses {
 	// 	providers = append(providers, startProvider(i, providerTCPAddresses[i], providerGRPCAddresses[i]))
@@ -753,25 +756,216 @@ Level = "DEBUG"
 	}
 }
 
+func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, mock bool) *utils.ServerResponse {
+	if mock {
+		params, err := coconut.Setup(5)
+		assert.Nil(t, err)
+		sk, _, err := coconut.Keygen(params)
+		assert.Nil(t, err)
+		sig, err := coconut.Sign(params, sk, pubM)
+		assert.Nil(t, err)
+		b, err := sig.MarshalBinary()
+		assert.Nil(t, err)
+		return &utils.ServerResponse{
+			MarshaledData: b,
+			ServerAddress: address,
+			ServerID:      id,
+		}
+	}
+	cmd, err := commands.NewSignRequest(pubM)
+	assert.Nil(t, err)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
+	assert.NotNil(t, packetBytes)
+
+	return utils.GetServerResponses(
+		packetBytes,
+		16,
+		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		2000,
+		5000,
+		[]string{address},
+		[]int{id},
+	)[0]
+
+}
+
+func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, privM []*Curve.BIG, egPub *elgamal.PublicKey, mock bool) *utils.ServerResponse {
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+	blindSignMats, err := coconut.PrepareBlindSign(params, egPub, pubM, privM)
+
+	if mock {
+		sk, _, err := coconut.Keygen(params)
+		assert.Nil(t, err)
+		blindSig, err := coconut.BlindSign(params, sk, blindSignMats, egPub, pubM)
+		assert.Nil(t, err)
+		b, err := blindSig.MarshalBinary()
+		assert.Nil(t, err)
+		return &utils.ServerResponse{
+			MarshaledData: b,
+			ServerAddress: address,
+			ServerID:      id,
+		}
+	}
+	cmd, err := commands.NewBlindSignRequest(blindSignMats, egPub, pubM)
+	assert.Nil(t, err)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
+	assert.NotNil(t, packetBytes)
+
+	return utils.GetServerResponses(
+		packetBytes,
+		16,
+		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		2000,
+		5000,
+		[]string{address},
+		[]int{id},
+	)[0]
+}
+
+func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) *utils.ServerResponse {
+	if mock {
+		params, err := coconut.Setup(5)
+		assert.Nil(t, err)
+		_, vk, err := coconut.Keygen(params)
+		assert.Nil(t, err)
+		b, err := vk.MarshalBinary()
+		assert.Nil(t, err)
+		return &utils.ServerResponse{
+			MarshaledData: b,
+			ServerAddress: address,
+			ServerID:      id,
+		}
+	}
+	cmd, err := commands.NewVerificationKeyRequest()
+	assert.Nil(t, err)
+	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
+	assert.NotNil(t, packetBytes)
+
+	return utils.GetServerResponses(
+		packetBytes,
+		16,
+		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		2000,
+		5000,
+		[]string{address},
+		[]int{id},
+	)[0]
+}
+
 func TestParseSignatureServerResponses(t *testing.T) {
-	// all combinations isthreshold, isblind
-	// various invalid forms of responses slice - including sending say vk response
-	// isblind while sig isnt blind and vice versa, etc
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgstr += string(`PersistentKeys = false
 
-	// thrblPerm := []struct {
-	// 	isThreshold bool
-	// 	isBlind     bool
-	// }{
-	// 	{false, false},
-	// 	{false, true},
-	// 	{true, false},
-	// 	{true, true},
-	// }
+[Logging]
+Disable = true
+Level = "DEBUG"
+		`)
 
-	// for _, thrbl := range thrblPerm {
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
 
-	// }
+	// this test requires a proper client since we need to actually assign work
+	// to its cryptoworker
+	client, err := New(cfg)
+	assert.Nil(t, err)
 
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+	pubM := getRandomAttributes(params.G, 3)
+	privM := getRandomAttributes(params.G, 2)
+
+	tests := []struct {
+		isThreshold      bool
+		isBlind          bool
+		validResponses   int
+		invalidResponses int
+	}{
+		{false, false, 5, 0},
+		{false, true, 5, 0},
+		{true, false, 5, 0},
+		{true, true, 5, 0},
+
+		{false, false, 2, 0},
+		{false, true, 2, 0},
+		{true, false, 2, 0},
+		{true, true, 2, 0},
+
+		{false, false, 2, 1},
+		{false, true, 2, 1},
+		{true, false, 2, 1},
+		{true, true, 2, 1},
+
+		{false, false, 0, 5},
+		{false, true, 0, 5},
+		{true, false, 0, 5},
+		{true, true, 0, 5},
+	}
+
+	invalidResponses := make([]*utils.ServerResponse, 0, 10)
+
+	invalidResponses = append(
+		invalidResponses,
+		nil,
+		makeValidVkServerResponse(t, "127.0.0.1:1234", 1, true),
+		&utils.ServerResponse{},
+		&utils.ServerResponse{MarshaledData: nil, ServerAddress: "127.0.0.1:1234", ServerID: 1},
+		&utils.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerAddress: "127.0.0.1:1234", ServerID: 1},
+
+		// + malformed marshaleddata in different ways
+	)
+
+	for _, test := range tests {
+		responsesMock := make([]*utils.ServerResponse, 0, test.invalidResponses+test.validResponses)
+		// nil responses
+		sigs, pp := client.parseSignatureServerResponses(nil, test.isThreshold, test.isBlind)
+		assert.Nil(t, sigs)
+		assert.Nil(t, pp)
+
+		for i := 0; i < test.validResponses; i++ {
+			if test.isBlind {
+				responsesMock = append(responsesMock, makeValidBlindSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, privM, client.elGamalPublicKey, false))
+			} else {
+				responsesMock = append(responsesMock, makeValidSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, false))
+			}
+		}
+
+		// now include additional invalid responses to loop through
+		// todo: more cases?
+		invalidResponsesIn := invalidResponses
+		if test.isBlind {
+			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false)
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerAddress: sampleValid.ServerAddress})
+			invalidResponsesIn = append(invalidResponsesIn, makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
+		} else {
+			sampleValid := makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false)
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerAddress: sampleValid.ServerAddress})
+			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false))
+		}
+
+		for _, invResp := range invalidResponsesIn {
+			responsesMockIn := responsesMock
+			for i := 0; i < test.invalidResponses; i++ {
+				responsesMockIn = append(responsesMockIn, invResp)
+			}
+
+			sigs, pp := client.parseSignatureServerResponses(responsesMockIn, test.isThreshold, test.isBlind)
+
+			if test.isThreshold {
+				assert.True(t, len(sigs) == len(pp.Xs()))
+				assert.Len(t, sigs, test.validResponses)
+
+			} else {
+				if test.invalidResponses > 0 {
+					assert.Nil(t, sigs)
+				} else {
+					assert.Len(t, sigs, test.validResponses)
+				}
+
+				assert.Nil(t, pp)
+			}
+		}
+	}
 }
 
 // func TestSendGRPCs(t *testing.T) {

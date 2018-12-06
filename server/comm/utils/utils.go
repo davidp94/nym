@@ -88,16 +88,17 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 
 				log.Debugf("Dialing %v", req.ServerAddress)
 				conn, err := net.Dial("tcp", req.ServerAddress)
-				defer conn.Close()
 				if err != nil {
 					log.Errorf("Could not dial %v", req.ServerAddress)
 					continue
 				}
+				// defer
 
 				conn.Write(req.MarshaledData)
 				conn.SetReadDeadline(time.Now().Add(time.Duration(connectTimeout) * time.Millisecond))
 
 				resp, err := ReadPacketFromConn(conn)
+				conn.Close()
 				if err != nil {
 					log.Errorf("Received invalid response from %v: %v", req.ServerAddress, err)
 				} else {
