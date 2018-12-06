@@ -29,8 +29,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	proto "github.com/golang/protobuf/proto"
-
-	// The named import is used to be able to easily update curve being used
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -78,6 +76,9 @@ func (pub *PublicKey) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (pub *PublicKey) ToProto() (*ProtoPublicKey, error) {
+	if pub == nil || pub.P == nil || pub.G == nil || pub.Gamma == nil {
+		return nil, errors.New("the elgamal public key is malformed")
+	}
 	blen := constants.BIGLen
 	eclen := constants.ECPLen
 	pb := make([]byte, blen)
@@ -96,6 +97,11 @@ func (pub *PublicKey) ToProto() (*ProtoPublicKey, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (pub *PublicKey) FromProto(ppub *ProtoPublicKey) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+	if ppub == nil || len(ppub.P) != blen || len(ppub.G) != eclen || len(ppub.Gamma) != eclen {
+		return errors.New("invalid proto elgamal public key")
+	}
 	pub.P = Curve.FromBytes(ppub.P)
 	pub.G = Curve.ECP_fromBytes(ppub.G)
 	pub.Gamma = Curve.ECP_fromBytes(ppub.Gamma)
@@ -169,6 +175,9 @@ func (pk *PrivateKey) ToPEMFile(f string) error {
 
 // ToProto creates a protobuf representation of the object.
 func (pk *PrivateKey) ToProto() (*ProtoPrivateKey, error) {
+	if pk == nil || pk.D == nil {
+		return nil, errors.New("the elgamal private key is malformed")
+	}
 	blen := constants.BIGLen
 	db := make([]byte, blen)
 	pk.D.ToBytes(db)
@@ -180,6 +189,10 @@ func (pk *PrivateKey) ToProto() (*ProtoPrivateKey, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (pk *PrivateKey) FromProto(ppk *ProtoPrivateKey) error {
+	blen := constants.BIGLen
+	if ppk == nil || len(ppk.D) != blen {
+		return errors.New("invalid proto elgamal private key")
+	}
 	pk.D = Curve.FromBytes(ppk.D)
 	return nil
 }
@@ -258,6 +271,9 @@ func (e *Encryption) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (e *Encryption) ToProto() (*ProtoEncryption, error) {
+	if e == nil || e.c1 == nil || e.c2 == nil {
+		return nil, errors.New("the elgamal encryption is malformed")
+	}
 	eclen := constants.ECPLen
 	c1b := make([]byte, eclen)
 	c2b := make([]byte, eclen)

@@ -69,11 +69,17 @@ func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sk *SecretKey) ToProto() (*ProtoSecretKey, error) {
+	if sk == nil || sk.x == nil || sk.y == nil {
+		return nil, errors.New("the secret key is malformed")
+	}
 	blen := constants.BIGLen
 	xb := make([]byte, blen)
 	sk.x.ToBytes(xb)
 	yb := make([][]byte, len(sk.y))
 	for i := range yb {
+		if sk.y[i] == nil {
+			return nil, errors.New("the secret key is malformed")
+		}
 		yb[i] = make([]byte, blen)
 		sk.y[i].ToBytes(yb[i])
 	}
@@ -86,11 +92,20 @@ func (sk *SecretKey) ToProto() (*ProtoSecretKey, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (sk *SecretKey) FromProto(psk *ProtoSecretKey) error {
-	sk.x = Curve.FromBytes(psk.X)
-	sk.y = make([]*Curve.BIG, len(psk.Y))
-	for i := range sk.y {
-		sk.y[i] = Curve.FromBytes(psk.Y[i])
+	blen := constants.BIGLen
+	if psk == nil || len(psk.X) != blen {
+		return errors.New("invalid proto secret key")
 	}
+	x := Curve.FromBytes(psk.X)
+	y := make([]*Curve.BIG, len(psk.Y))
+	for i := range y {
+		if len(psk.Y[i]) != blen {
+			return errors.New("invalid proto secret key")
+		}
+		y[i] = Curve.FromBytes(psk.Y[i])
+	}
+	sk.x = x
+	sk.y = y
 	return nil
 }
 
@@ -116,11 +131,17 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
+	if vk == nil || vk.g2 == nil || vk.alpha == nil {
+		return nil, errors.New("the verification key is malformed")
+	}
 	ec2len := constants.ECP2Len
 	g2b := make([]byte, ec2len)
 	alphab := make([]byte, ec2len)
 	betab := make([][]byte, len(vk.Beta()))
 	for i := range betab {
+		if vk.beta[i] == nil {
+			return nil, errors.New("the verification key is malformed")
+		}
 		betab[i] = make([]byte, ec2len)
 		vk.Beta()[i].ToBytes(betab[i])
 	}
@@ -140,15 +161,18 @@ func (vk *VerificationKey) FromProto(pvk *ProtoVerificationKey) error {
 	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) <= 0 {
 		return errors.New("invalid proto verification key")
 	}
-	vk.g2 = Curve.ECP2_fromBytes(pvk.G2)
-	vk.alpha = Curve.ECP2_fromBytes(pvk.Alpha)
-	vk.beta = make([]*Curve.ECP2, len(pvk.Beta))
+	g2 := Curve.ECP2_fromBytes(pvk.G2)
+	alpha := Curve.ECP2_fromBytes(pvk.Alpha)
+	beta := make([]*Curve.ECP2, len(pvk.Beta))
 	for i := range pvk.Beta {
 		if len(pvk.Beta[i]) != ec2len {
 			return errors.New("invalid proto verification key")
 		}
-		vk.beta[i] = Curve.ECP2_fromBytes(pvk.Beta[i])
+		beta[i] = Curve.ECP2_fromBytes(pvk.Beta[i])
 	}
+	vk.g2 = g2
+	vk.alpha = alpha
+	vk.beta = beta
 	return nil
 }
 
@@ -174,6 +198,9 @@ func (sig *Signature) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sig *Signature) ToProto() (*ProtoSignature, error) {
+	if sig == nil || sig.sig1 == nil || sig.sig2 == nil {
+		return nil, errors.New("the signature is malformed")
+	}
 	eclen := constants.ECPLen
 	sig1b := make([]byte, eclen)
 	sig2b := make([]byte, eclen)
@@ -219,6 +246,9 @@ func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (bs *BlindedSignature) ToProto() (*ProtoBlindedSignature, error) {
+	if bs == nil || bs.sig1 == nil { // correct formation of encryption is checked when trying to convert it to proto
+		return nil, errors.New("the blinded signature is malformed")
+	}
 	eclen := constants.ECPLen
 
 	sig1b := make([]byte, eclen)
@@ -273,6 +303,9 @@ func (sp *SignerProof) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
+	if sp == nil || sp.c == nil || sp.rr == nil || sp.rk == nil || sp.rm == nil {
+		return nil, errors.New("the signer proof is malformed")
+	}
 	blen := constants.BIGLen
 	cb := make([]byte, blen)
 	rrb := make([]byte, blen)
@@ -281,10 +314,16 @@ func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
 	sp.c.ToBytes(cb)
 	sp.rr.ToBytes(rrb)
 	for i := range rkb {
+		if sp.rk[i] == nil {
+			return nil, errors.New("the signer proof is malformed")
+		}
 		rkb[i] = make([]byte, blen)
 		sp.rk[i].ToBytes(rkb[i])
 	}
 	for i := range rmb {
+		if sp.rm[i] == nil {
+			return nil, errors.New("the signer proof is malformed")
+		}
 		rmb[i] = make([]byte, blen)
 		sp.rm[i].ToBytes(rmb[i])
 	}
@@ -299,16 +338,31 @@ func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (sp *SignerProof) FromProto(psp *ProtoSignerProof) error {
-	sp.c = Curve.FromBytes(psp.C)
-	sp.rr = Curve.FromBytes(psp.Rr)
-	sp.rk = make([]*Curve.BIG, len(psp.Rk))
-	sp.rm = make([]*Curve.BIG, len(psp.Rm))
+	blen := constants.BIGLen
+	if psp == nil || len(psp.C) != blen || len(psp.Rr) != blen || psp.Rk == nil || psp.Rm == nil {
+		panic(psp.Rk)
+		return errors.New("invalid proto signer proof")
+	}
+	c := Curve.FromBytes(psp.C)
+	rr := Curve.FromBytes(psp.Rr)
+	rk := make([]*Curve.BIG, len(psp.Rk))
+	rm := make([]*Curve.BIG, len(psp.Rm))
 	for i := range psp.Rk {
-		sp.rk[i] = Curve.FromBytes(psp.Rk[i])
+		if len(psp.Rk[i]) != blen {
+			return errors.New("invalid proto signer proof")
+		}
+		rk[i] = Curve.FromBytes(psp.Rk[i])
 	}
 	for i := range psp.Rm {
-		sp.rm[i] = Curve.FromBytes(psp.Rm[i])
+		if len(psp.Rm[i]) != blen {
+			return errors.New("invalid proto signer proof")
+		}
+		rm[i] = Curve.FromBytes(psp.Rm[i])
 	}
+	sp.c = c
+	sp.rr = rr
+	sp.rk = rk
+	sp.rm = rm
 	return nil
 }
 
@@ -335,6 +389,9 @@ func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 // ToProto creates a protobuf representation of the object.
 func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
 	eclen := constants.ECPLen
+	if bsm == nil || bsm.cm == nil || bsm.enc == nil {
+		return nil, errors.New("the blind sign mats are malformed")
+	}
 
 	cmb := make([]byte, eclen)
 	bsm.cm.ToBytes(cmb, true)
@@ -363,7 +420,11 @@ func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (bsm *BlindSignMats) FromProto(pbsm *ProtoBlindSignMats) error {
-	bsm.cm = Curve.ECP_fromBytes(pbsm.Cm)
+	eclen := constants.ECPLen
+	if pbsm == nil || len(pbsm.Cm) != eclen {
+		return errors.New("invalid proto blind sign mats")
+	}
+	cm := Curve.ECP_fromBytes(pbsm.Cm)
 	enc := make([]*elgamal.Encryption, len(pbsm.Enc))
 	for i := range enc {
 		enci := &elgamal.Encryption{}
@@ -372,11 +433,12 @@ func (bsm *BlindSignMats) FromProto(pbsm *ProtoBlindSignMats) error {
 		}
 		enc[i] = enci
 	}
-	bsm.enc = enc
 	proof := &SignerProof{}
 	if err := proof.FromProto(pbsm.Proof); err != nil {
 		return err
 	}
+	bsm.cm = cm
+	bsm.enc = enc
 	bsm.proof = proof
 	return nil
 }
@@ -403,12 +465,18 @@ func (vp *VerifierProof) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (vp *VerifierProof) ToProto() (*ProtoVerifierProof, error) {
+	if vp == nil || vp.c == nil || vp.rm == nil || vp.rt == nil {
+		return nil, errors.New("the verifier proof is malformed")
+	}
 	blen := constants.BIGLen
 	cb := make([]byte, blen)
 	vp.c.ToBytes(cb)
 
 	rmb := make([][]byte, len(vp.rm))
 	for i := range rmb {
+		if vp.rm[i] == nil {
+			return nil, errors.New("the verifier proof is malformed")
+		}
 		rmb[i] = make([]byte, blen)
 		vp.rm[i].ToBytes(rmb[i])
 	}
@@ -426,12 +494,22 @@ func (vp *VerifierProof) ToProto() (*ProtoVerifierProof, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (vp *VerifierProof) FromProto(pvp *ProtoVerifierProof) error {
-	vp.c = Curve.FromBytes(pvp.C)
-	vp.rt = Curve.FromBytes(pvp.Rt)
-	vp.rm = make([]*Curve.BIG, len(pvp.Rm))
-	for i := range pvp.Rm {
-		vp.rm[i] = Curve.FromBytes(pvp.Rm[i])
+	blen := constants.BIGLen
+	if pvp == nil || pvp.Rm == nil || len(pvp.C) != blen || len(pvp.Rt) != blen {
+		return errors.New("invalid proto verifier proof")
 	}
+	c := Curve.FromBytes(pvp.C)
+	rt := Curve.FromBytes(pvp.Rt)
+	rm := make([]*Curve.BIG, len(pvp.Rm))
+	for i := range pvp.Rm {
+		if len(pvp.Rm[i]) != blen {
+			return errors.New("invalid proto verifier proof")
+		}
+		rm[i] = Curve.FromBytes(pvp.Rm[i])
+	}
+	vp.c = c
+	vp.rt = rt
+	vp.rm = rm
 	return nil
 }
 
@@ -457,6 +535,9 @@ func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (bsm *BlindShowMats) ToProto() (*ProtoBlindShowMats, error) {
+	if bsm == nil || bsm.kappa == nil || bsm.nu == nil || bsm.proof == nil {
+		return nil, errors.New("the blind show mats are malformed")
+	}
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
 
@@ -480,12 +561,19 @@ func (bsm *BlindShowMats) ToProto() (*ProtoBlindShowMats, error) {
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
 func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
-	bsm.kappa = Curve.ECP2_fromBytes(pbsm.Kappa)
-	bsm.nu = Curve.ECP_fromBytes(pbsm.Nu)
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+	if pbsm == nil || len(pbsm.Kappa) != ec2len || len(pbsm.Nu) != eclen {
+		return errors.New("invalid proto blind show mats")
+	}
+	kappa := Curve.ECP2_fromBytes(pbsm.Kappa)
+	nu := Curve.ECP_fromBytes(pbsm.Nu)
 	proof := &VerifierProof{}
 	if err := proof.FromProto(pbsm.Proof); err != nil {
 		return err
 	}
+	bsm.kappa = kappa
+	bsm.nu = nu
 	bsm.proof = proof
 	return nil
 }

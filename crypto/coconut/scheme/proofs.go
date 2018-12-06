@@ -68,6 +68,10 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
 
 	attributes := append(privM, pubM...)
+	// if there are no encryptions it means there are no private attributes and hence blind signature should not be used
+	if len(encs) <= 0 {
+		return nil, ErrConstructSignerCiphertexts
+	}
 	if len(encs) != len(k) || len(encs) != len(privM) {
 		return nil, ErrConstructSignerCiphertexts
 	}

@@ -134,10 +134,16 @@ func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 		}
 
 		_, err = constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
-		assert.Equal(t, coconut.ErrConstructSignerAttrs, err)
+		assert.Error(t, err)
 
 		signerProof, err := constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
-		assert.Nil(t, err)
+		if len(test.priv) == 0 {
+			assert.Nil(t, signerProof)
+			assert.Error(t, err)
+			continue // everything beyond is undefined behaviour
+		} else {
+			assert.Nil(t, err)
+		}
 
 		if len(test.priv) > 0 {
 			assert.False(t, verifySignerProofWrapper(ccw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs[1:], signerProof)), test.msg)

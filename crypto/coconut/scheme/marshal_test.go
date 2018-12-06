@@ -131,7 +131,13 @@ func TestSignerProofMarshal(t *testing.T) {
 		}
 
 		signerProof, err := coconut.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
-		assert.Nil(t, err)
+		if len(test.priv) == 0 {
+			assert.Nil(t, signerProof)
+			assert.Error(t, err)
+			continue // everything beyond is undefined behaviour
+		} else {
+			assert.Nil(t, err)
+		}
 
 		data, err := signerProof.MarshalBinary()
 		assert.Nil(t, err)

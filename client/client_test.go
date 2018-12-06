@@ -752,3 +752,41 @@ Level = "DEBUG"
 		assert.Error(t, err)
 	}
 }
+
+func TestParseSignatureServerResponses(t *testing.T) {
+	// all combinations isthreshold, isblind
+	// various invalid forms of responses slice - including sending say vk response
+	// isblind while sig isnt blind and vice versa, etc
+
+	// thrblPerm := []struct {
+	// 	isThreshold bool
+	// 	isBlind     bool
+	// }{
+	// 	{false, false},
+	// 	{false, true},
+	// 	{true, false},
+	// 	{true, true},
+	// }
+
+	// for _, thrbl := range thrblPerm {
+
+	// }
+
+}
+
+// func TestSendGRPCs(t *testing.T) {
+// 	cfgstr := createBasicClientCfgStr(nil, issuerGRPCAddresses)
+// 	cfgstr += string(`PersistentKeys = false
+
+// [Logging]
+// Disable = true
+// Level = "DEBUG"
+// 		`)
+
+// 	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+// 	assert.Nil(t, err)
+
+// 	grpcClient, err := New(cfg)
+// 	assert.Nil(t, err)
+
+// }
