@@ -158,9 +158,9 @@ func init() {
 	issuers = make([]*server.Server, 0, 5)
 	providers = make([]*server.Server, 0, 2)
 
-	for i := range issuerTCPAddresses {
-		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
-	}
+	// for i := range issuerTCPAddresses {
+	// 	issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
+	// }
 
 	// for i := range providerTCPAddresses {
 	// 	providers = append(providers, startProvider(i, providerTCPAddresses[i], providerGRPCAddresses[i]))
@@ -181,7 +181,7 @@ func createBasicClientCfgStr(tcpAddrs []string, gRCPAddr []string) string {
 	cfgStr := "[Client]\n"
 	if len(gRCPAddr) > 0 {
 		cfgStr += "UseGRPC = true\n"
-		cfgStr += makeStringOfAddresses("IAgRPCAddresses", tcpAddrs)
+		cfgStr += makeStringOfAddresses("IAgRPCAddresses", gRCPAddr)
 		cfgStr += "\n"
 	} else {
 		cfgStr += "UseGRPC = false\n"
@@ -968,19 +968,121 @@ Level = "DEBUG"
 	}
 }
 
-// func TestSendGRPCs(t *testing.T) {
-// 	cfgstr := createBasicClientCfgStr(nil, issuerGRPCAddresses)
-// 	cfgstr += string(`PersistentKeys = false
+func getNSigPP(t *testing.T, n int) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+	pubM := getRandomAttributes(params.G, 5)
+	sk, _, err := coconut.Keygen(params)
+	assert.Nil(t, err)
+	sigs := make([]*coconut.Signature, n)
+	xs := make([]*Curve.BIG, n)
+	for i := 0; i < n; i++ {
+		sig, err := coconut.Sign(params, sk, pubM)
+		assert.Nil(t, err)
+		sigs[i] = sig
+		xs[i] = Curve.NewBIGint(i + 1)
+	}
+	return sigs, coconut.NewPP(xs)
+}
 
-// [Logging]
-// Disable = true
-// Level = "DEBUG"
-// 		`)
+func TestHandleReceivedSignatures(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
 
-// 	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
-// 	assert.Nil(t, err)
+	cfgStrTCP := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgStrGRCP := createBasicClientCfgStr(nil, issuerGRPCAddresses)
 
-// 	grpcClient, err := New(cfg)
-// 	assert.Nil(t, err)
+	nonThrCfgStrTCP := cfgStrTCP + logStr
+	nonThrCfgStrGRCP := cfgStrGRCP + logStr
+	thrCfgStrTCP := cfgStrTCP + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	thrCfgStrGRCP := cfgStrGRCP + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
 
-// }
+	nonThresholdCfgTCP, err := cconfig.LoadBinary([]byte(nonThrCfgStrTCP))
+	assert.Nil(t, err)
+	nonThrClientTCP, err := New(nonThresholdCfgTCP)
+	assert.Nil(t, err)
+
+	nonThresholdCfgGRCP, err := cconfig.LoadBinary([]byte(nonThrCfgStrGRCP))
+	assert.Nil(t, err)
+	nonThrClientGRCP, err := New(nonThresholdCfgGRCP)
+	assert.Nil(t, err)
+
+	thresholdCfgTCP, err := cconfig.LoadBinary([]byte(thrCfgStrTCP))
+	assert.Nil(t, err)
+	thrClientTCP, err := New(thresholdCfgTCP)
+	assert.Nil(t, err)
+
+	thresholdCfgGRCP, err := cconfig.LoadBinary([]byte(thrCfgStrGRCP))
+	assert.Nil(t, err)
+	thrClientGRCP, err := New(thresholdCfgGRCP)
+	assert.Nil(t, err)
+
+	// since this method does not care if those are correct threshold credentials
+	// (because there is no way to verify it without verification keys), we can obtain any set of signatures for testing
+	validThrSigs, validThrPP := getNSigPP(t, thresholdVal)
+	fullValidSigs, fullValidPP := getNSigPP(t, len(issuerTCPAddresses))
+
+	for _, client := range []*Client{nonThrClientTCP, nonThrClientGRCP, thrClientTCP, thrClientGRCP} {
+		//duplicate ids etc
+
+		sig, err := client.handleReceivedSignatures(nil, nil)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		sig, err = client.handleReceivedSignatures(nil, fullValidPP)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		sig, err = client.handleReceivedSignatures(fullValidSigs, nil)
+		if client.cfg.Client.Threshold == 0 {
+			assert.NotNil(t, sig)
+			assert.Nil(t, err)
+		} else {
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+
+			// inconsistent lengths check
+			sig, err = client.handleReceivedSignatures(fullValidSigs[1:], fullValidPP)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+
+		sig, err = client.handleReceivedSignatures(fullValidSigs, validThrPP)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		sig, err = client.handleReceivedSignatures(validThrSigs, fullValidPP)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		// FUTURE REFERENCE: OVERWRITING THE TEST SLICE AS IT WON'T BE USED BEYOND THIS POINT
+		fullValidPP.Xs()[0] = fullValidPP.Xs()[2]
+		sig, err = client.handleReceivedSignatures(fullValidSigs, fullValidPP)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		invalidSigs := []*coconut.Signature{
+			nil,
+			&coconut.Signature{},
+			coconut.NewSignature(validThrSigs[0].Sig1(), nil),
+			coconut.NewSignature(nil, validThrSigs[0].Sig2()),
+		}
+
+		for _, invSig := range invalidSigs {
+			// FUTURE REFERENCE: OVERWRITING THE TEST SLICE AS IT WON'T BE USED BEYOND THIS POINT
+			validThrSigs[0] = invSig
+			// ensures the invalid entry gets removed and threshold check fails
+			if client.cfg.Client.Threshold > 0 {
+				sig, err = client.handleReceivedSignatures(validThrSigs, validThrPP)
+				assert.Nil(t, sig)
+				assert.Error(t, err)
+
+				sig, err = client.handleReceivedSignatures(validThrSigs, nil)
+				assert.Nil(t, sig)
+				assert.Error(t, err)
+			}
+		}
+	}
+}

@@ -26,6 +26,8 @@ import (
 	"reflect"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -282,8 +284,68 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 
 // nolint: lll
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
+	if sigs == nil {
+		errstr := "No signatures provided"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	if c.cfg.Client.Threshold == 0 && pp != nil {
+		errstr := "Passed pp to a non-threshold system"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	entriesToRemove := make(map[int]bool)
+	for i := range sigs {
+		if sigs[i] == nil || sigs[i].Sig1() == nil || sigs[i].Sig2() == nil {
+			entriesToRemove[i] = true
+		}
+	}
+
+	// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
+	seenIds := make(map[string]bool)
+	if pp != nil {
+		for i, id := range pp.Xs() {
+			if id == nil {
+				// we ignore that entry
+				entriesToRemove[i] = true
+				continue
+			}
+			b := make([]byte, constants.BIGLen)
+			id.ToBytes(b)
+			s := string(b)
+			if _, ok := seenIds[s]; ok {
+				errstr := fmt.Sprintf("Multiple responses from server with ID: %v", id.ToString())
+				c.log.Errorf(errstr)
+				return nil, errors.New(errstr)
+			}
+			seenIds[s] = true
+		}
+	} else {
+		// we assume all sigs are 'valid', but system cannot be threshold
+		if c.cfg.Client.Threshold > 0 {
+			errstr := "This is a threshold system, yet received no server IDs!"
+			c.log.Errorf(errstr)
+			return nil, errors.New(errstr)
+		}
+	}
+
+	if len(entriesToRemove) > 0 {
+		if c.cfg.Client.Threshold > 0 {
+			newXs := pp.Xs()
+			for i := range entriesToRemove {
+				newXs = append(newXs[:i], newXs[i+1:]...)
+			}
+			pp = coconut.NewPP(newXs)
+		}
+		for i := range entriesToRemove {
+			sigs = append(sigs[:i], sigs[i+1:]...)
+		}
+	}
+
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
-		if len(sigs) != len(pp.Xs()) {
+		if c.cfg.Client.Threshold > 0 && len(sigs) != len(pp.Xs()) {
 			errstr := fmt.Sprintf("Inconsistent response, sigs: %v, pp: %v\n", len(sigs), len(pp.Xs()))
 			c.log.Errorf(errstr)
 			return nil, errors.New(errstr)
@@ -299,7 +361,7 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	if c.cfg.Client.Threshold > 0 {
 		sigs = sigs[:c.cfg.Client.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if len(sigs) != len(c.cfg.Client.IAAddresses) {
+	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) || (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
 		c.log.Critical("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
