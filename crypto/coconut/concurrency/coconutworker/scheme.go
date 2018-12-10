@@ -172,7 +172,7 @@ func (cw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, 
 		return nil, coconut.ErrPrepareBlindSignPrivate
 	}
 	attributes := append(privM, pubM...)
-	if len(attributes) > len(hs) {
+	if len(attributes) > len(hs) || !coconut.ValidateBigSlice(privM) || !coconut.ValidateBigSlice(pubM) {
 		return nil, coconut.ErrPrepareBlindSignParams
 	}
 
@@ -443,7 +443,7 @@ func (cw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signatu
 func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	p, rng := params.P(), params.G.Rng()
 
-	if len(privM) <= 0 || len(privM) > len(vk.Beta()) {
+	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() {
 		return nil, coconut.ErrShowBlindAttr
 	}
 

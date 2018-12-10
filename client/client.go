@@ -318,7 +318,7 @@ func (c *Client) handleIds(pp *coconut.PolynomialPoints) (map[int]bool, error) {
 
 // nolint: lll
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
-	if sigs == nil {
+	if len(sigs) <= 0 {
 		errstr := "No signatures provided"
 		c.log.Error(errstr)
 		return nil, errors.New(errstr)
@@ -414,6 +414,10 @@ func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, erro
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
 	for i := range responses {
+		if responses[i] == nil {
+			c.log.Error("nil response received")
+			continue
+		}
 		sig, err := c.parseSignResponse(responses[i].Message.(*commands.SignResponse))
 		if err != nil {
 			continue
@@ -576,6 +580,10 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
 	for i := range responses {
+		if responses[i] == nil {
+			c.log.Error("nil response received")
+			continue
+		}
 		vk, err := c.parseVkResponse(responses[i].Message.(*commands.VerificationKeyResponse))
 		if err != nil {
 			continue
@@ -665,6 +673,12 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
+	if !coconut.ValidateBigSlice(pubM) || !coconut.ValidateBigSlice(privM) {
+		errstr := "invalid slice of attributes provided"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
 	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
 		errstr := fmt.Sprintf("Could not create blindSignMats: %v", err)
@@ -686,6 +700,10 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
 	for i := range responses {
+		if responses[i] == nil {
+			c.log.Error("nil response received")
+			continue
+		}
 		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse))
 		if err != nil {
 			continue
@@ -695,7 +713,10 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	if c.cfg.Client.Threshold > 0 {
+		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	}
+	return c.handleReceivedSignatures(sigs, nil)
 }
 
 // BlindSignAttributes sends sign request to all IA servers specified in the config

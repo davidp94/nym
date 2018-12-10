@@ -23,6 +23,8 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+// todo: validate all structures, like the verification key
+
 // SecretKey represents secret key of a Coconut signing authority.
 type SecretKey struct {
 	x *Curve.BIG
@@ -93,6 +95,14 @@ func (s *Signature) Sig1() *Curve.ECP {
 // Sig2 returns second ECP group of the signature
 func (s *Signature) Sig2() *Curve.ECP {
 	return s.sig2
+}
+
+// Validate checks for nil elements in the signature.
+func (s *Signature) Validate() bool {
+	if s == nil || s.sig1 == nil || s.sig2 == nil {
+		return false
+	}
+	return true
 }
 
 // BlindedSignature represents blinded version of a normal Coconut signature

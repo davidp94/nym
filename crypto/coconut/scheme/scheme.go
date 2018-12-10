@@ -39,6 +39,8 @@ import (
 // todo: comments with python sources
 // todo: remove ShowBlindSignature and move it straight to BlindVerify?
 // todo: include gamma to blindsignmats as per paper rather than as per python implementation?
+// todo: validate all structures, like the verification key + include created func for validating bigslices
+// ^ or assume the data has already been sanitized on upper level to increase performance here
 
 var (
 	// ErrSetupParams indicates incorrect parameters provided for Setup.
@@ -200,7 +202,7 @@ func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BI
 		return nil, ErrPrepareBlindSignPrivate
 	}
 	attributes := append(privM, pubM...)
-	if len(attributes) > len(hs) {
+	if len(attributes) > len(hs) || !ValidateBigSlice(privM) || !ValidateBigSlice(pubM) {
 		return nil, ErrPrepareBlindSignParams
 	}
 
@@ -355,7 +357,7 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
 	p, rng := params.p, params.G.Rng()
 
-	if len(privM) <= 0 || len(privM) > len(vk.beta) {
+	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() {
 		return nil, ErrShowBlindAttr
 	}
 

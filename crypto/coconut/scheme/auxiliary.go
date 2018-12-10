@@ -19,6 +19,7 @@ package coconut
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -28,8 +29,6 @@ import (
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
-
-// todo: nil checks for all fromProto/toProto methods
 
 // getBaseFromAttributes generates the base h from public attributes.
 // It is only used for Sign function that works exlusively on public attributes
@@ -589,7 +588,9 @@ func BigSliceFromProto(b [][]byte) []*Curve.BIG {
 
 // BigSliceToProto converts a slice of BIG nums to proto-encoded slice of slices of bytes.
 func BigSliceToProto(s []*Curve.BIG) ([][]byte, error) {
-	if len(s) <= 0 {
+	// need to allow encoding empty (not nil) slices for blindsign of 0 public attrs
+	if s == nil {
+		fmt.Println(s)
 		return nil, errors.New("invalid BIG slice provided")
 	}
 	blen := constants.BIGLen
@@ -602,4 +603,17 @@ func BigSliceToProto(s []*Curve.BIG) ([][]byte, error) {
 		s[i].ToBytes(b[i])
 	}
 	return b, nil
+}
+
+// ValidateBigSlice checks if the slice of BIG nums contain no nil elements.
+func ValidateBigSlice(s []*Curve.BIG) bool {
+	if s == nil {
+		return false
+	}
+	for i := range s {
+		if s[i] == nil {
+			return false
+		}
+	}
+	return true
 }

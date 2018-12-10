@@ -31,13 +31,12 @@ import (
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultConnectTimeout = 1 * 1000 // 1 sec.
-	defaultRequestTimeout = 5 * 1000 // 5 sec.
-	defaultMaxRequests    = 3
-	noLimitMaxRequests    = 16
+	defaultConnectTimeout    = 1 * 1000 // 1 sec.
+	defaultRequestTimeout    = 5 * 1000 // 5 sec.
+	defaultMaxRequests       = 3
+	noLimitMaxRequests       = 16
+	defaultMaximumAttributes = 5
 )
-
-// TODO: do we need maximumattributes?
 
 // nolint: gochecknoglobals
 var defaultLogging = Logging{
@@ -146,6 +145,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		cfg.Client.MaxRequests = defaultMaxRequests
 	} else if cfg.Client.MaxRequests < 0 {
 		cfg.Client.MaxRequests = noLimitMaxRequests
+	}
+
+	if cfg.Client.MaximumAttributes == 0 {
+		cfg.Client.MaximumAttributes = defaultMaximumAttributes
 	}
 
 	if len(cfg.Client.IAAddresses) <= 0 && !cfg.Client.UseGRPC {

@@ -1436,3 +1436,159 @@ func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
 		assert.True(t, compareVks(vkagrcp, vkatcp))
 	}
 }
+
+func TestBlindSignAttributesGrpc(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+	cfgstr := createBasicClientCfgStr(nil, issuerGRPCAddresses)
+	cfgstr += logStr
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	tcpclient, err := New(tcpcfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	// will be used for verification
+	// tests for below method are separated.
+	vk, err := client.GetAggregateVerificationKeyGrpc()
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		[]*Curve.BIG{}, // here an empty slice is a valid option
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+	}
+
+	validPrivMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+		getRandomAttributes(params.G, 3),
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		append(validPubMs[2], nil),
+	}
+
+	invalidPrivMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPrivMs[2], nil),
+	}
+
+	for _, validPubM := range validPubMs {
+		for _, validPrivM := range validPrivMs {
+			sig, err := tcpclient.BlindSignAttributesGrpc(validPubM, validPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+
+			sig, err = client.BlindSignAttributesGrpc(validPubM, validPrivM)
+			assert.NotNil(t, sig)
+			assert.Nil(t, err)
+
+			blindShowMats, err := coconut.ShowBlindSignature(params, vk, sig, validPrivM)
+			assert.Nil(t, err)
+
+			assert.True(t, coconut.BlindVerify(params, vk, sig, blindShowMats, validPubM))
+		}
+
+		for _, invalidPrivM := range invalidPrivMs {
+			sig, err := tcpclient.BlindSignAttributesGrpc(validPubM, invalidPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+
+			sig, err = client.BlindSignAttributesGrpc(validPubM, invalidPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+	}
+
+	for _, invalidPubM := range invalidPubMs {
+		for _, validPrivM := range validPrivMs {
+			sig, err := tcpclient.BlindSignAttributesGrpc(invalidPubM, validPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+
+			sig, err = client.BlindSignAttributesGrpc(invalidPubM, validPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+
+		for _, invalidPrivM := range invalidPrivMs {
+			sig, err := tcpclient.BlindSignAttributesGrpc(invalidPubM, invalidPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+
+			sig, err = client.BlindSignAttributesGrpc(invalidPubM, invalidPrivM)
+			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+	}
+}
+
+// func TestSignAttributes(t *testing.T) {
+// 	logStr := string(`PersistentKeys = false
+// 	[Logging]
+// 	Disable = true
+// 	Level = "DEBUG"`)
+// 	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+// 	cfgstr += logStr
+// 	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+// 	assert.Nil(t, err)
+// 	client, err := New(cfg)
+// 	assert.Nil(t, err)
+
+// 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+// 	grpcclient, err := New(grpccfg)
+// 	assert.Nil(t, err)
+
+// 	params, err := coconut.Setup(5)
+// 	assert.Nil(t, err)
+
+// 	// will be used for verification
+// 	// tests for below method are separated.
+// 	vk, err := client.GetAggregateVerificationKey()
+// 	assert.Nil(t, err)
+
+// 	validPubMs := [][]*Curve.BIG{
+// 		getRandomAttributes(params.G, 1),
+// 		getRandomAttributes(params.G, 3),
+// 		getRandomAttributes(params.G, 5),
+// 	}
+
+// 	invalidPubMs := [][]*Curve.BIG{
+// 		nil,
+// 		[]*Curve.BIG{},
+// 		append(validPubMs[2], nil),
+// 	}
+
+// 	for _, validPubM := range validPubMs {
+// 		sig, err := grpcclient.SignAttributes(validPubM)
+// 		assert.Nil(t, sig)
+// 		assert.Error(t, err)
+
+// 		sig, err = client.SignAttributes(validPubM)
+// 		assert.NotNil(t, sig)
+// 		assert.Nil(t, err)
+
+// 		assert.True(t, coconut.Verify(params, vk, validPubM, sig))
+// 	}
+
+// 	for _, invalidPubM := range invalidPubMs {
+// 		sig, err := grpcclient.SignAttributes(invalidPubM)
+// 		assert.Nil(t, sig)
+// 		assert.Error(t, err)
+
+// 		sig, err = client.SignAttributes(invalidPubM)
+// 		assert.Nil(t, sig)
+// 		assert.Error(t, err)
+// 	}
+// }
