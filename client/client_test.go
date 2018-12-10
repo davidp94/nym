@@ -985,6 +985,28 @@ func getNSigPP(t *testing.T, n int) ([]*coconut.Signature, *coconut.PolynomialPo
 	return sigs, coconut.NewPP(xs)
 }
 
+func getNVkPP(t *testing.T, n int) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+	// if used in non-threshold system, those keys do not behave 'differently' there compared to regular keys
+	var vks []*coconut.VerificationKey
+	if n < thresholdVal {
+		vks = make([]*coconut.VerificationKey, n)
+		for i := 0; i < n; i++ {
+			_, vks[i], err = coconut.Keygen(params)
+			assert.Nil(t, err)
+		}
+	} else {
+		_, vks, err = coconut.TTPKeygen(params, thresholdVal, n)
+		assert.Nil(t, err)
+	}
+	xs := make([]*Curve.BIG, n)
+	for i := 0; i < n; i++ {
+		xs[i] = Curve.NewBIGint(i + 1)
+	}
+	return vks, coconut.NewPP(xs)
+}
+
 func TestHandleReceivedSignatures(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -1025,8 +1047,6 @@ func TestHandleReceivedSignatures(t *testing.T) {
 	fullValidSigs, fullValidPP := getNSigPP(t, len(issuerTCPAddresses))
 
 	for _, client := range []*Client{nonThrClientTCP, nonThrClientGRCP, thrClientTCP, thrClientGRCP} {
-		//duplicate ids etc
-
 		sig, err := client.handleReceivedSignatures(nil, nil)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
@@ -1057,11 +1077,12 @@ func TestHandleReceivedSignatures(t *testing.T) {
 		assert.Nil(t, sig)
 		assert.Error(t, err)
 
-		// FUTURE REFERENCE: OVERWRITING THE TEST SLICE AS IT WON'T BE USED BEYOND THIS POINT
+		oldXs := fullValidPP.Xs()
 		fullValidPP.Xs()[0] = fullValidPP.Xs()[2]
 		sig, err = client.handleReceivedSignatures(fullValidSigs, fullValidPP)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
+		fullValidPP = coconut.NewPP(oldXs)
 
 		invalidSigs := []*coconut.Signature{
 			nil,
@@ -1070,8 +1091,8 @@ func TestHandleReceivedSignatures(t *testing.T) {
 			coconut.NewSignature(nil, validThrSigs[0].Sig2()),
 		}
 
+		oldSigs := validThrSigs
 		for _, invSig := range invalidSigs {
-			// FUTURE REFERENCE: OVERWRITING THE TEST SLICE AS IT WON'T BE USED BEYOND THIS POINT
 			validThrSigs[0] = invSig
 			// ensures the invalid entry gets removed and threshold check fails
 			if client.cfg.Client.Threshold > 0 {
@@ -1084,6 +1105,7 @@ func TestHandleReceivedSignatures(t *testing.T) {
 				assert.Error(t, err)
 			}
 		}
+		validThrSigs = oldSigs
 	}
 }
 
@@ -1205,5 +1227,120 @@ func TestSignAttributes(t *testing.T) {
 		sig, err = client.SignAttributes(invalidPubM)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
+	}
+}
+
+func TestHandleReceivedVerificationKeys(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+
+	cfgStrTCP := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgStrGRCP := createBasicClientCfgStr(nil, issuerGRPCAddresses)
+
+	nonThrCfgStrTCP := cfgStrTCP + logStr
+	nonThrCfgStrGRCP := cfgStrGRCP + logStr
+	thrCfgStrTCP := cfgStrTCP + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	thrCfgStrGRCP := cfgStrGRCP + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+
+	nonThresholdCfgTCP, err := cconfig.LoadBinary([]byte(nonThrCfgStrTCP))
+	assert.Nil(t, err)
+	nonThrClientTCP, err := New(nonThresholdCfgTCP)
+	assert.Nil(t, err)
+
+	nonThresholdCfgGRCP, err := cconfig.LoadBinary([]byte(nonThrCfgStrGRCP))
+	assert.Nil(t, err)
+	nonThrClientGRCP, err := New(nonThresholdCfgGRCP)
+	assert.Nil(t, err)
+
+	thresholdCfgTCP, err := cconfig.LoadBinary([]byte(thrCfgStrTCP))
+	assert.Nil(t, err)
+	thrClientTCP, err := New(thresholdCfgTCP)
+	assert.Nil(t, err)
+
+	thresholdCfgGRCP, err := cconfig.LoadBinary([]byte(thrCfgStrGRCP))
+	assert.Nil(t, err)
+	thrClientGRCP, err := New(thresholdCfgGRCP)
+	assert.Nil(t, err)
+
+	// since this method does not care if those are correct threshold credentials
+	// (because there is no way to verify it without verification keys), we can obtain any set of signatures for testing
+	validThrVks, validThrPP := getNVkPP(t, thresholdVal)
+	fullValidVks, fullValidPP := getNVkPP(t, len(issuerTCPAddresses))
+
+	for _, aggregate := range []bool{true, false} {
+		for _, client := range []*Client{nonThrClientTCP, nonThrClientGRCP, thrClientTCP, thrClientGRCP} {
+			var expectedLen int
+			if aggregate {
+				expectedLen = 1
+			} else {
+				expectedLen = len(fullValidVks)
+			}
+
+			vks, err := client.handleReceivedVerificationKeys(nil, nil, aggregate)
+			assert.Nil(t, vks)
+			assert.Error(t, err)
+
+			vks, err = client.handleReceivedVerificationKeys(nil, fullValidPP, aggregate)
+			assert.Nil(t, vks)
+			assert.Error(t, err)
+
+			vks, err = client.handleReceivedVerificationKeys(fullValidVks, nil, aggregate)
+			if client.cfg.Client.Threshold == 0 {
+				assert.NotNil(t, vks)
+				assert.Len(t, vks, expectedLen)
+				assert.Nil(t, err)
+			} else {
+				assert.Nil(t, vks)
+				assert.Error(t, err)
+
+				// inconsistent lengths check
+				vks, err = client.handleReceivedVerificationKeys(fullValidVks[1:], fullValidPP, aggregate)
+				assert.Nil(t, vks)
+				assert.Error(t, err)
+			}
+
+			vks, err = client.handleReceivedVerificationKeys(fullValidVks, validThrPP, aggregate)
+			assert.Nil(t, vks)
+			assert.Error(t, err)
+
+			vks, err = client.handleReceivedVerificationKeys(validThrVks, fullValidPP, aggregate)
+			assert.Nil(t, vks)
+			assert.Error(t, err)
+
+			oldXs := fullValidPP.Xs()
+			fullValidPP.Xs()[0] = fullValidPP.Xs()[2]
+			vks, err = client.handleReceivedVerificationKeys(validThrVks, fullValidPP, aggregate)
+			assert.Nil(t, vks)
+			assert.Error(t, err)
+			fullValidPP = coconut.NewPP(oldXs)
+
+			invalidVks := []*coconut.VerificationKey{
+				nil,
+				&coconut.VerificationKey{},
+				coconut.NewVk(validThrVks[0].G2(), nil, nil),
+				coconut.NewVk(nil, validThrVks[0].Alpha(), nil),
+				coconut.NewVk(nil, nil, validThrVks[0].Beta()),
+				coconut.NewVk(validThrVks[0].G2(), validThrVks[0].Alpha(), []*Curve.ECP2{}),
+			}
+
+			oldVks := validThrVks
+			for _, invVk := range invalidVks {
+				validThrVks[0] = invVk
+				// ensures the invalid entry gets removed and threshold check fails
+				if client.cfg.Client.Threshold > 0 {
+					vks, err = client.handleReceivedVerificationKeys(validThrVks, validThrPP, aggregate)
+					assert.Nil(t, vks)
+					assert.Error(t, err)
+
+					vks, err = client.handleReceivedVerificationKeys(validThrVks, nil, aggregate)
+					assert.Nil(t, vks)
+					assert.Error(t, err)
+				}
+			}
+			validThrVks = oldVks
+
+		}
 	}
 }

@@ -283,29 +283,10 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 	return sigs, nil
 }
 
-// nolint: lll
-func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
-	if sigs == nil {
-		errstr := "No signatures provided"
-		c.log.Error(errstr)
-		return nil, errors.New(errstr)
-	}
-
-	if c.cfg.Client.Threshold == 0 && pp != nil {
-		errstr := "Passed pp to a non-threshold system"
-		c.log.Error(errstr)
-		return nil, errors.New(errstr)
-	}
-
-	entriesToRemove := make(map[int]bool)
-	for i := range sigs {
-		if sigs[i] == nil || sigs[i].Sig1() == nil || sigs[i].Sig2() == nil {
-			entriesToRemove[i] = true
-		}
-	}
-
-	// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
+func (c *Client) handleIds(pp *coconut.PolynomialPoints) (map[int]bool, error) {
 	seenIds := make(map[string]bool)
+	entriesToRemove := make(map[int]bool)
+
 	if pp != nil {
 		for i, id := range pp.Xs() {
 			if id == nil {
@@ -313,6 +294,7 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 				entriesToRemove[i] = true
 				continue
 			}
+			// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
 			b := make([]byte, constants.BIGLen)
 			id.ToBytes(b)
 			s := string(b)
@@ -329,6 +311,33 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 			errstr := "This is a threshold system, yet received no server IDs!"
 			c.log.Errorf(errstr)
 			return nil, errors.New(errstr)
+		}
+	}
+	return entriesToRemove, nil
+}
+
+// nolint: lll
+func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
+	if sigs == nil {
+		errstr := "No signatures provided"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	if c.cfg.Client.Threshold == 0 && pp != nil {
+		errstr := "Passed pp to a non-threshold system"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	entriesToRemove, err := c.handleIds(pp)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range sigs {
+		if sigs[i] == nil || sigs[i].Sig1() == nil || sigs[i].Sig2() == nil {
+			entriesToRemove[i] = true
 		}
 	}
 
@@ -459,6 +468,53 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 
 // nolint: lll
 func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
+	if vks == nil {
+		errstr := "No verification keys provided"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	if c.cfg.Client.Threshold == 0 && pp != nil {
+		errstr := "Passed pp to a non-threshold system"
+		c.log.Error(errstr)
+		return nil, errors.New(errstr)
+	}
+
+	entriesToRemove, err := c.handleIds(pp)
+	if err != nil {
+		return nil, err
+	}
+
+	betalen := -1
+	for i := range vks {
+		if !vks[i].Validate() {
+			// the entire key is invalid
+			entriesToRemove[i] = true
+		} else {
+			if betalen == -1 { // only on first run
+				betalen = len(vks[i].Beta())
+				// we don't know which subset is correct - abandon further execution
+			} else if betalen != len(vks[i].Beta()) {
+				errstr := "Verification keys of inconsistent lenghts provided"
+				c.log.Error(errstr)
+				return nil, errors.New(errstr)
+			}
+		}
+	}
+
+	if len(entriesToRemove) > 0 {
+		if c.cfg.Client.Threshold > 0 {
+			newXs := pp.Xs()
+			for i := range entriesToRemove {
+				newXs = append(newXs[:i], newXs[i+1:]...)
+			}
+			pp = coconut.NewPP(newXs)
+		}
+		for i := range entriesToRemove {
+			vks = append(vks[:i], vks[i+1:]...)
+		}
+	}
+
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
 		if c.cfg.Client.Threshold > 0 && len(vks) != len(pp.Xs()) {
 			errstr := fmt.Sprintf("Inconsistent response, vks: %v, pp: %v", len(vks), len(pp.Xs()))

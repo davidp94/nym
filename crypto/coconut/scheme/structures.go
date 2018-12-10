@@ -61,6 +61,22 @@ func (vk *VerificationKey) Beta() []*Curve.ECP2 {
 	return vk.beta
 }
 
+// Validate checks for nil elements in the key.
+func (vk *VerificationKey) Validate() bool {
+	if vk == nil || vk.g2 == nil || vk.alpha == nil || vk.beta == nil {
+		return false
+	}
+	if len(vk.beta) <= 0 {
+		return false
+	}
+	for i := range vk.beta {
+		if vk.beta[i] == nil {
+			return false
+		}
+	}
+	return true
+}
+
 // Signature represents signature/credential issued by a Coconut signing authority.
 // sig1 = h,
 // sig2 = h * (x + (m[0] * y[0]) + ... + (m[i] * y[i])).
