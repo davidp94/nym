@@ -578,6 +578,7 @@ func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
 	return nil
 }
 
+// BigSliceFromProto recovers a slice of BIG nums from a proto-encoded slice of slices of bytes.
 func BigSliceFromProto(b [][]byte) []*Curve.BIG {
 	bigs := make([]*Curve.BIG, len(b))
 	for i := range b {
@@ -586,12 +587,19 @@ func BigSliceFromProto(b [][]byte) []*Curve.BIG {
 	return bigs
 }
 
-func BigSliceToProto(s []*Curve.BIG) [][]byte {
+// BigSliceToProto converts a slice of BIG nums to proto-encoded slice of slices of bytes.
+func BigSliceToProto(s []*Curve.BIG) ([][]byte, error) {
+	if len(s) <= 0 {
+		return nil, errors.New("invalid BIG slice provided")
+	}
 	blen := constants.BIGLen
 	b := make([][]byte, len(s))
 	for i := range b {
+		if s[i] == nil {
+			return nil, errors.New("nil element in slice present")
+		}
 		b[i] = make([]byte, blen)
 		s[i].ToBytes(b[i])
 	}
-	return b
+	return b, nil
 }

@@ -279,6 +279,7 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 		c.log.Errorf("This is not threshold system and some of the received responses were invalid")
 		return nil, nil
 	}
+	c.log.Critical("normal returl)")
 	return sigs, nil
 }
 
@@ -361,7 +362,7 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	if c.cfg.Client.Threshold > 0 {
 		sigs = sigs[:c.cfg.Client.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) || (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
+	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
 		c.log.Critical("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
@@ -413,7 +414,10 @@ func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, erro
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-	return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	if c.cfg.Client.Threshold > 0 {
+		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+	}
+	return c.handleReceivedSignatures(sigs, nil)
 }
 
 // SignAttributes sends sign request to all IA servers specified in the config
@@ -456,8 +460,8 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 // nolint: lll
 func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
-		if len(vks) != len(pp.Xs()) {
-			errstr := fmt.Sprintf("Inconsistent response, vks: %v, pp: %v\n", len(vks), len(pp.Xs()))
+		if c.cfg.Client.Threshold > 0 && len(vks) != len(pp.Xs()) {
+			errstr := fmt.Sprintf("Inconsistent response, vks: %v, pp: %v", len(vks), len(pp.Xs()))
 			c.log.Errorf(errstr)
 			return nil, errors.New(errstr)
 		}
@@ -472,7 +476,7 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 	if c.cfg.Client.Threshold > 0 {
 		vks = vks[:c.cfg.Client.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if len(vks) != len(c.cfg.Client.IAAddresses) {
+	} else if (!c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v verification keys", len(vks), len(c.cfg.Client.IAAddresses))
 		c.log.Critical("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?

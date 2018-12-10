@@ -22,9 +22,9 @@ package commands
 import (
 	"errors"
 
-	"github.com/golang/protobuf/proto"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -150,8 +150,15 @@ type ProtoResponse interface {
 }
 
 func NewSignRequest(pubM []*Curve.BIG) (*SignRequest, error) {
+	if len(pubM) <= 0 {
+		return nil, errors.New("no attributes for signing")
+	}
+	pubMb, err := coconut.BigSliceToProto(pubM)
+	if err != nil {
+		return nil, err
+	}
 	return &SignRequest{
-		PubM: coconut.BigSliceToProto(pubM),
+		PubM: pubMb,
 	}, nil
 }
 
@@ -160,13 +167,20 @@ func NewVerificationKeyRequest() (*VerificationKeyRequest, error) {
 }
 
 func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest, error) {
+	if len(pubM) <= 0 {
+		return nil, errors.New("no attributes for verifying")
+	}
 	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	pubMb, err := coconut.BigSliceToProto(pubM)
 	if err != nil {
 		return nil, err
 	}
 	return &VerifyRequest{
 		Sig:  protoSig,
-		PubM: coconut.BigSliceToProto(pubM),
+		PubM: pubMb,
 	}, nil
 }
 
@@ -179,10 +193,14 @@ func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.Pu
 	if err != nil {
 		return nil, err
 	}
+	pubMb, err := coconut.BigSliceToProto(pubM)
+	if err != nil {
+		return nil, err
+	}
 	return &BlindSignRequest{
 		BlindSignMats: protoBlindSignMats,
 		EgPub:         protoEgPub,
-		PubM:          coconut.BigSliceToProto(pubM),
+		PubM:          pubMb,
 	}, nil
 }
 
@@ -195,9 +213,13 @@ func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Si
 	if err != nil {
 		return nil, err
 	}
+	pubMb, err := coconut.BigSliceToProto(pubM)
+	if err != nil {
+		return nil, err
+	}
 	return &BlindVerifyRequest{
 		BlindShowMats: protoBlindShowMats,
 		Sig:           protoSig,
-		PubM:          coconut.BigSliceToProto(pubM),
+		PubM:          pubMb,
 	}, nil
 }
