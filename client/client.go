@@ -585,7 +585,11 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
 		}
 	}
-	return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
+
+	if c.cfg.Client.Threshold > 0 {
+		return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
+	}
+	return c.handleReceivedVerificationKeys(vks, nil, shouldAggregate)
 }
 
 // GetVerificationKeys sends GetVerificationKey request to all IA servers specified in the config using TCP sockets.

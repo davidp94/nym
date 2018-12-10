@@ -1340,7 +1340,99 @@ func TestHandleReceivedVerificationKeys(t *testing.T) {
 				}
 			}
 			validThrVks = oldVks
-
 		}
+	}
+}
+
+func compareVks(vk1, vk2 *coconut.VerificationKey) bool {
+	if !vk1.G2().Equals(vk2.G2()) || !vk1.Alpha().Equals(vk2.Alpha()) {
+		return false
+	}
+	if len(vk1.Beta()) != len(vk2.Beta()) {
+		return false
+	}
+	for i := range vk1.Beta() {
+		if !vk1.Beta()[i].Equals(vk2.Beta()[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// not much to test here as most of the logic is handled by other methods
+func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	tcpclient, err := New(tcpcfg)
+	assert.Nil(t, err)
+
+	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	grpcClient, err := New(grpccfg)
+	assert.Nil(t, err)
+
+	for _, aggregate := range []bool{true, false} {
+		vkatcp, err := grpcClient.GetAggregateVerificationKey()
+		assert.Nil(t, vkatcp)
+		assert.Error(t, err)
+
+		vkatcp, err = tcpclient.GetAggregateVerificationKey()
+		assert.True(t, vkatcp.Validate())
+		assert.Nil(t, err)
+
+		vkagrcp, err := tcpclient.GetAggregateVerificationKeyGrpc()
+		assert.Nil(t, vkagrcp)
+		assert.Error(t, err)
+
+		vkagrcp, err = grpcClient.GetAggregateVerificationKeyGrpc()
+		assert.True(t, vkagrcp.Validate())
+		assert.Nil(t, err)
+
+		vkstcp, err := tcpclient.GetVerificationKeys(aggregate)
+		assert.NotNil(t, vkstcp)
+		if aggregate {
+			assert.Len(t, vkstcp, 1)
+			assert.True(t, compareVks(vkstcp[0], vkatcp))
+		} else {
+			assert.Len(t, vkstcp, len(issuerTCPAddresses))
+			params, err := coconut.Setup(5)
+			assert.Nil(t, err)
+			vka := coconut.AggregateVerificationKeys(params, vkstcp, nil)
+			assert.True(t, compareVks(vka, vkatcp))
+		}
+		for _, vk := range vkstcp {
+			assert.True(t, vk.Validate())
+		}
+		assert.Nil(t, err)
+
+		vks, err := grpcClient.GetVerificationKeys(aggregate)
+		assert.Nil(t, vks)
+		assert.Error(t, err)
+
+		vks, err = tcpclient.GetVerificationKeysGrpc(aggregate)
+		assert.Nil(t, vks)
+		assert.Error(t, err)
+
+		vksgrcp, err := grpcClient.GetVerificationKeysGrpc(aggregate)
+		assert.NotNil(t, vksgrcp)
+		if aggregate {
+			assert.Len(t, vksgrcp, 1)
+			assert.True(t, compareVks(vksgrcp[0], vkagrcp))
+		} else {
+			assert.Len(t, vksgrcp, len(issuerGRPCAddresses))
+			params, err := coconut.Setup(5)
+			assert.Nil(t, err)
+			vka := coconut.AggregateVerificationKeys(params, vksgrcp, nil)
+			assert.True(t, compareVks(vka, vkagrcp))
+		}
+		for _, vk := range vksgrcp {
+			assert.True(t, vk.Validate())
+		}
+		assert.Nil(t, err)
+
+		// since issuers have the same set of keys, assert the returned keys are actually identical
+		assert.True(t, compareVks(vkagrcp, vkatcp))
 	}
 }
