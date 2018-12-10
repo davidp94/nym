@@ -1144,5 +1144,66 @@ func TestSignAttributesGrpc(t *testing.T) {
 		assert.Nil(t, sig)
 		assert.Error(t, err)
 	}
+}
 
+// those tests could easily be combined with grpc version, however,
+// I think it is worth to keep them sepearate in case implementation diverges significantly.
+// The same applies to remaining TCP vs gRPC methods
+func TestSignAttributes(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgstr += logStr
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	grpcclient, err := New(grpccfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	// will be used for verification
+	// tests for below method are separated.
+	vk, err := client.GetAggregateVerificationKey()
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 3),
+		getRandomAttributes(params.G, 5),
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPubMs[2], nil),
+	}
+
+	for _, validPubM := range validPubMs {
+		sig, err := grpcclient.SignAttributes(validPubM)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		sig, err = client.SignAttributes(validPubM)
+		assert.NotNil(t, sig)
+		assert.Nil(t, err)
+
+		assert.True(t, coconut.Verify(params, vk, validPubM, sig))
+	}
+
+	for _, invalidPubM := range invalidPubMs {
+		sig, err := grpcclient.SignAttributes(invalidPubM)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+
+		sig, err = client.SignAttributes(invalidPubM)
+		assert.Nil(t, sig)
+		assert.Error(t, err)
+	}
 }
