@@ -357,7 +357,7 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
 	p, rng := params.p, params.G.Rng()
 
-	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() {
+	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() || !ValidateBigSlice(privM) {
 		return nil, ErrShowBlindAttr
 	}
 

@@ -842,12 +842,14 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	// currently will never be thrown since there is no writedeadline
 	if _, werr := conn.Write(packetBytes); werr != nil {
 		errstr := fmt.Sprintf("Failed to write to connection: %v", werr)
+		c.log.Error(errstr)
 		return false, errors.New(errstr)
 	}
 
 	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 	if sderr != nil {
 		errstr := fmt.Sprintf("Failed to set read deadline for connection: %v", sderr)
+		c.log.Error(errstr)
 		return false, errors.New(errstr)
 	}
 

@@ -443,7 +443,7 @@ func (cw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signatu
 func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	p, rng := params.P(), params.G.Rng()
 
-	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() {
+	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() || !coconut.ValidateBigSlice(privM) {
 		return nil, coconut.ErrShowBlindAttr
 	}
 

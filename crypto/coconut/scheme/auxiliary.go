@@ -19,7 +19,6 @@ package coconut
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -590,7 +589,6 @@ func BigSliceFromProto(b [][]byte) []*Curve.BIG {
 func BigSliceToProto(s []*Curve.BIG) ([][]byte, error) {
 	// need to allow encoding empty (not nil) slices for blindsign of 0 public attrs
 	if s == nil {
-		fmt.Println(s)
 		return nil, errors.New("invalid BIG slice provided")
 	}
 	blen := constants.BIGLen

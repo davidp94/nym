@@ -1851,3 +1851,115 @@ func TestSendCredentialsForVerification(t *testing.T) {
 		}
 	}
 }
+
+func TestPrepareBlindVerifyRequest(t *testing.T) {
+	// it does not matter if client is threshold/not
+	// grpc/tcp makes no difference at all, only whether vk will be obtained
+	// by grpc or tcp call
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	cfgstr += string(`PersistentKeys = false
+
+[Logging]
+Disable = true
+Level = "DEBUG"
+		`)
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		[]*Curve.BIG{},
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+	}
+
+	validPrivMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+		getRandomAttributes(params.G, 3),
+	}
+
+	avk, err := client.GetAggregateVerificationKey()
+	assert.Nil(t, err)
+
+	for _, validPubM := range validPubMs {
+		for _, validPrivM := range validPrivMs {
+			validSig, err := client.BlindSignAttributes(validPubM, validPrivM)
+			assert.Nil(t, err)
+
+			blindverifyRequest, err := client.prepareBlindVerifyRequest(validPubM, validPrivM, validSig, nil)
+			assert.NotNil(t, blindverifyRequest)
+			assert.Nil(t, err)
+
+			blindverifyRequest, err = client.prepareBlindVerifyRequest(validPubM, validPrivM, validSig, avk)
+			assert.NotNil(t, blindverifyRequest)
+			assert.Nil(t, err)
+		}
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		append(validPubMs[2], nil),
+	}
+
+	invalidPrivMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPrivMs[2], nil),
+	}
+
+	// need to create a valid signature in order to be able to call the method
+	// that is being tested
+	validTestSig, err := client.BlindSignAttributes(validPubMs[2], validPrivMs[2])
+	assert.Nil(t, err)
+	invalidSigs := []*coconut.Signature{
+		nil,
+		&coconut.Signature{},
+		coconut.NewSignature(validTestSig.Sig1(), nil),
+		coconut.NewSignature(nil, validTestSig.Sig2()),
+	}
+
+	invalidVks := []*coconut.VerificationKey{
+		&coconut.VerificationKey{},
+		coconut.NewVk(avk.G2(), nil, nil),
+		coconut.NewVk(nil, avk.Alpha(), nil),
+		coconut.NewVk(nil, nil, avk.Beta()),
+		coconut.NewVk(avk.G2(), avk.Alpha(), []*Curve.ECP2{}),
+	}
+
+	// // similarly to before, all those only ensure that nothing crashes while parsing bad attributes
+	for _, invalidPubM := range invalidPubMs {
+		blindverifyRequest, err := client.prepareBlindVerifyRequest(invalidPubM, validPrivMs[2], validTestSig, avk)
+		assert.Nil(t, blindverifyRequest)
+		assert.Error(t, err)
+	}
+
+	for _, invalidPrivM := range invalidPrivMs {
+		blindverifyRequest, err := client.prepareBlindVerifyRequest(validPubMs[2], invalidPrivM, validTestSig, avk)
+		assert.Nil(t, blindverifyRequest)
+		assert.Error(t, err)
+	}
+
+	for _, invalidSig := range invalidSigs {
+		blindverifyRequest, err := client.prepareBlindVerifyRequest(validPubMs[2], validPrivMs[2], invalidSig, avk)
+		assert.Nil(t, blindverifyRequest)
+		assert.Error(t, err)
+	}
+
+	for _, invalidVk := range invalidVks {
+		blindverifyRequest, err := client.prepareBlindVerifyRequest(validPubMs[2], validPrivMs[2], validTestSig, invalidVk)
+		assert.Nil(t, blindverifyRequest)
+		assert.Error(t, err)
+	}
+
+	_ = invalidPubMs
+	_ = invalidPrivMs
+	_ = invalidSigs
+	_ = invalidVks
+}
