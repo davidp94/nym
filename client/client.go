@@ -766,16 +766,6 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
-func (c *Client) parseVerifyResponse(packetResponse *packet.Packet) (bool, error) {
-	verifyResponse := &commands.VerifyResponse{}
-	if err := proto.Unmarshal(packetResponse.Payload(), verifyResponse); err != nil {
-		errstr := fmt.Sprintf("Failed to recover verification result: %v", err)
-		c.log.Errorf(errstr)
-		return false, errors.New(errstr)
-	}
-	return verifyResponse.IsValid, nil
-}
-
 // SendCredentialsForVerificationGrpc sends a gRPC request to verify obtained credentials to some specified provider server.
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
 // nolint: lll, errcheck
@@ -861,13 +851,21 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 		return false, errors.New(errstr)
 	}
 
-	resp, err := utils.ReadPacketFromConn(conn)
+	respPacket, err := utils.ReadPacketFromConn(conn)
 	if err != nil {
 		errstr := fmt.Sprintf("Received invalid response from %v: %v", addr, err)
 		c.log.Errorf(errstr)
 		return false, errors.New(errstr)
 	}
-	return c.parseVerifyResponse(resp)
+
+	verifyResponse := &commands.VerifyResponse{}
+	if err := proto.Unmarshal(respPacket.Payload(), verifyResponse); err != nil {
+		errstr := fmt.Sprintf("Failed to recover verification result: %v", err)
+		c.log.Errorf(errstr)
+		return false, errors.New(errstr)
+	}
+
+	return verifyResponse.IsValid, nil
 }
 
 func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) (bool, error) {

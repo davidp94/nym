@@ -25,21 +25,17 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"testing"
 
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
-	"0xacab.org/jstuczyn/CoconutGo/logger"
-
+	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
-
-	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server"
+	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
+	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	sconfig "0xacab.org/jstuczyn/CoconutGo/server/config"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
@@ -51,7 +47,9 @@ const thresholdVal = 3 // defined by the pre-generated keys
 
 var issuersKeysFolder string
 var issuers []*server.Server
-var providers []*server.Server
+var thresholdProvider *server.Server
+var nonThresholdProvider *server.Server
+
 var issuerTCPAddresses = []string{
 	"127.0.0.1:4100",
 	"127.0.0.1:4101",
@@ -66,6 +64,7 @@ var issuerGRPCAddresses = []string{
 	"127.0.0.1:4203",
 	"127.0.0.1:4204",
 }
+
 var providerTCPAddresses = []string{
 	"127.0.0.1:5100",
 	"127.0.0.1:5101",
@@ -87,25 +86,29 @@ func makeStringOfAddresses(name string, addrs []string) string {
 	return out
 }
 
-func startProvider(n int, addr string, grpcaddr string) *server.Server {
+func startProvider(addr string, grpcaddr string, threshold bool) *server.Server {
 	IAAddressesStr := makeStringOfAddresses("IAAddresses", issuerTCPAddresses)
+	thresholdStr := ""
+	if threshold {
+		thresholdStr = fmt.Sprintf("Threshold = %v\n", thresholdVal)
+	} else {
+		thresholdStr = "Threshold = 0\n"
+	}
 
 	cfgstr := strings.Join([]string{string(`
-		[Server]
-		IsProvider = true
-		`),
+[Server]
+IsProvider = true
+`),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
-		string(`
-		[Provider]
-		Threshold = 3
-		`),
+		"[Provider]\n",
+		thresholdStr,
 		IAAddressesStr,
 		string(`
-		[Logging]
-		Disable = true
-		Level = "DEBUG"
-		`)}, "")
+[Logging]
+Disable = true
+Level = "DEBUG"
+`)}, "")
 
 	cfg, err := sconfig.LoadBinary([]byte(cfgstr))
 	if err != nil {
@@ -156,24 +159,34 @@ func init() {
 	}
 	issuersKeysFolder = path.Join(dir, issuersKeysFolderRelative)
 	issuers = make([]*server.Server, 0, 5)
-	providers = make([]*server.Server, 0, 2)
 
 	for i := range issuerTCPAddresses {
 		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
 	}
 
-	// for i := range providerTCPAddresses {
-	// 	providers = append(providers, startProvider(i, providerTCPAddresses[i], providerGRPCAddresses[i]))
-	// }
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	// since they need to get their aggregate key (+ need to fix initial wait time), it takes a while to start them up
+	// and we can start those together
+	go func() {
+		thresholdProvider = startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+		wg.Done()
+	}()
+	go func() {
+		nonThresholdProvider = startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+		wg.Done()
+	}()
+
+	wg.Wait()
 
 	// time.Sleep(5 * time.Second)
 	// for _, srv := range issuers {
 	// 	srv.Shutdown()
 	// }
 
-	// for _, srv := range providers {
-	// 	srv.Shutdown()
-	// }
+	// thresholdProvider.Shutdown()
+	// nonThresholdProvider.Shutdown()
 }
 
 // if len(gRCPAddr) > 0 it means the client will use gRPC for comm
@@ -190,10 +203,6 @@ func createBasicClientCfgStr(tcpAddrs []string, gRCPAddr []string) string {
 	}
 
 	return cfgStr
-}
-
-func aa() *cconfig.Config {
-	return nil
 }
 
 func TestParseVkResponse(t *testing.T) {
@@ -1626,6 +1635,112 @@ func TestBlindSignAttributes(t *testing.T) {
 
 			sig, err = client.BlindSignAttributes(invalidPubM, invalidPrivM)
 			assert.Nil(t, sig)
+			assert.Error(t, err)
+		}
+	}
+}
+
+func TestSendCredentialsForVerificationGrpc(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+	cfgstr := createBasicClientCfgStr(nil, issuerGRPCAddresses)
+	thrCfgStr := cfgstr + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	cfgstr += logStr
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	thrcfg, err := cconfig.LoadBinary([]byte(thrCfgStr))
+	assert.Nil(t, err)
+	thrClient, err := New(thrcfg)
+	assert.Nil(t, err)
+
+	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	tcpclient, err := New(tcpcfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 3),
+		getRandomAttributes(params.G, 5),
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPubMs[2], nil),
+	}
+
+	for _, validPubM := range validPubMs {
+		validThrSig, err := thrClient.SignAttributesGrpc(validPubM)
+		assert.Nil(t, err)
+
+		validSig, err := client.SignAttributesGrpc(validPubM)
+		assert.Nil(t, err)
+
+		isValid, err := tcpclient.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[1])
+		assert.False(t, isValid)
+		assert.Error(t, err)
+
+		nonExistentProvider := "127.0.0.1:54321"
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, nonExistentProvider)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[1])
+		assert.True(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[0])
+		assert.True(t, isValid)
+		assert.Nil(t, err)
+
+		// sanity checks
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[0])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[1])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[1])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[0])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		// they won't produce valid credentials to begin with, but the point is to ensure
+		// nothing is going to crash upon trying to parse the attributes during verification
+		for _, invalidPubM := range invalidPubMs {
+			isValid, err = client.SendCredentialsForVerificationGrpc(invalidPubM, validSig, providerGRPCAddresses[1])
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			isValid, err = thrClient.SendCredentialsForVerificationGrpc(invalidPubM, validThrSig, providerGRPCAddresses[0])
+			assert.False(t, isValid)
+			assert.Error(t, err)
+		}
+
+		invalidSigs := []*coconut.Signature{
+			nil,
+			&coconut.Signature{},
+			coconut.NewSignature(validThrSig.Sig1(), nil),
+			coconut.NewSignature(nil, validThrSig.Sig2()),
+		}
+
+		for _, invalidSig := range invalidSigs {
+			isValid, err := thrClient.SendCredentialsForVerificationGrpc(validPubM, invalidSig, providerGRPCAddresses[1])
+			assert.False(t, isValid)
 			assert.Error(t, err)
 		}
 	}
