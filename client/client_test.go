@@ -1745,3 +1745,109 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 		}
 	}
 }
+
+func TestSendCredentialsForVerification(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	thrCfgStr := cfgstr + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	cfgstr += logStr
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	thrcfg, err := cconfig.LoadBinary([]byte(thrCfgStr))
+	assert.Nil(t, err)
+	thrClient, err := New(thrcfg)
+	assert.Nil(t, err)
+
+	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	grpcClient, err := New(grpccfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 3),
+		getRandomAttributes(params.G, 5),
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPubMs[2], nil),
+	}
+
+	for _, validPubM := range validPubMs {
+		validThrSig, err := thrClient.SignAttributes(validPubM)
+		assert.Nil(t, err)
+
+		validSig, err := client.SignAttributes(validPubM)
+		assert.Nil(t, err)
+
+		isValid, err := grpcClient.SendCredentialsForVerification(validPubM, validSig, providerTCPAddresses[1])
+		assert.False(t, isValid)
+		assert.Error(t, err)
+
+		nonExistentProvider := "127.0.0.1:54321"
+		isValid, err = client.SendCredentialsForVerification(validPubM, validSig, nonExistentProvider)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+
+		isValid, err = client.SendCredentialsForVerification(validPubM, validSig, providerTCPAddresses[1])
+		assert.True(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerification(validPubM, validThrSig, providerTCPAddresses[0])
+		assert.True(t, isValid)
+		assert.Nil(t, err)
+
+		// sanity checks
+		isValid, err = client.SendCredentialsForVerification(validPubM, validSig, providerTCPAddresses[0])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerification(validPubM, validThrSig, providerTCPAddresses[1])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = client.SendCredentialsForVerification(validPubM, validThrSig, providerTCPAddresses[1])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		isValid, err = thrClient.SendCredentialsForVerification(validPubM, validSig, providerTCPAddresses[0])
+		assert.False(t, isValid)
+		assert.Nil(t, err)
+
+		// they won't produce valid credentials to begin with, but the point is to ensure
+		// nothing is going to crash upon trying to parse the attributes during verification
+		for _, invalidPubM := range invalidPubMs {
+			isValid, err = client.SendCredentialsForVerification(invalidPubM, validSig, providerTCPAddresses[1])
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			isValid, err = thrClient.SendCredentialsForVerification(invalidPubM, validThrSig, providerTCPAddresses[0])
+			assert.False(t, isValid)
+			assert.Error(t, err)
+		}
+
+		invalidSigs := []*coconut.Signature{
+			nil,
+			&coconut.Signature{},
+			coconut.NewSignature(validThrSig.Sig1(), nil),
+			coconut.NewSignature(nil, validThrSig.Sig2()),
+		}
+
+		for _, invalidSig := range invalidSigs {
+			isValid, err := thrClient.SendCredentialsForVerification(validPubM, invalidSig, providerTCPAddresses[1])
+			assert.False(t, isValid)
+			assert.Error(t, err)
+		}
+	}
+}
