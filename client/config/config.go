@@ -137,7 +137,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		return errors.New("config: No Client block was present")
 	}
 	// does not care if files are empty, if so, new keys will be generated and written there
-	if cfg.Client.PersistentKeys && (cfg.Client.PrivateKeyFile == "" || cfg.Client.PublicKeyFile == "") {
+	if cfg.Client.PersistentKeys && cfg.Client.PrivateKeyFile == "" {
 		return errors.New("config: No key files were provided")
 	}
 
