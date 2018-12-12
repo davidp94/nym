@@ -26,10 +26,9 @@ import (
 	"reflect"
 	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/constants"
-
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"

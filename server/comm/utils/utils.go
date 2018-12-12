@@ -229,12 +229,16 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			Status: protoStatus,
 		}
 	case *commands.VerifyRequest:
-		isValid := data.(bool)
-		protoResp = &commands.VerifyResponse{
-			IsValid: isValid,
-			Status:  protoStatus,
+		if data != nil {
+			isValid := data.(bool)
+			protoResp = &commands.VerifyResponse{
+				IsValid: isValid,
+				Status:  protoStatus,
+			}
+			log.Debugf("Was the received credential valid: %v", isValid)
+		} else {
+			log.Critical("HAPPENED DURING CLIENT TESTS, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
-		log.Debugf("Was the received credential valid: %v", isValid)
 	case *commands.BlindSignRequest:
 		protoBlindSig := &coconut.ProtoBlindedSignature{}
 		if data != nil {
@@ -250,12 +254,16 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			Status: protoStatus,
 		}
 	case *commands.BlindVerifyRequest:
-		isValid := data.(bool)
-		protoResp = &commands.BlindVerifyResponse{
-			IsValid: isValid,
-			Status:  protoStatus,
+		if data != nil {
+			isValid := data.(bool)
+			protoResp = &commands.BlindVerifyResponse{
+				IsValid: isValid,
+				Status:  protoStatus,
+			}
+			log.Debugf("Was the received credential valid: %v", isValid)
+		} else {
+			log.Critical("HAPPENED DURING CLIENT TESTS, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
-		log.Debugf("Was the received credential valid: %v", isValid)
 	default:
 		log.Errorf("Received an unrecognized command.")
 		return nil

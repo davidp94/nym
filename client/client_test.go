@@ -41,14 +41,20 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type providerServer struct {
+	tcpaddress  string
+	grpcaddress string
+	server      *server.Server
+}
+
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
 const clientKeysFolderRelative = "../testdata/clientkeys"
 const thresholdVal = 3 // defined by the pre-generated keys
 
 var issuersKeysFolder string
 var issuers []*server.Server
-var thresholdProvider *server.Server
-var nonThresholdProvider *server.Server
+var thresholdProvider *providerServer
+var nonThresholdProvider *providerServer
 
 var issuerTCPAddresses = []string{
 	"127.0.0.1:4100",
@@ -57,6 +63,7 @@ var issuerTCPAddresses = []string{
 	"127.0.0.1:4103",
 	"127.0.0.1:4104",
 }
+
 var issuerGRPCAddresses = []string{
 	"127.0.0.1:4200",
 	"127.0.0.1:4201",
@@ -70,8 +77,8 @@ var providerTCPAddresses = []string{
 	"127.0.0.1:5101",
 }
 var providerGRPCAddresses = []string{
-	"127.0.0.1:5200",
-	"127.0.0.1:5201",
+	"127.0.0.1:5200", // threshold
+	"127.0.0.1:5201", // nonthreshold
 }
 
 func makeStringOfAddresses(name string, addrs []string) string {
@@ -97,6 +104,7 @@ func startProvider(addr string, grpcaddr string, threshold bool) *server.Server 
 
 	cfgstr := strings.Join([]string{string(`
 [Server]
+MaximumAttributes = 5
 IsProvider = true
 `),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
@@ -107,7 +115,7 @@ IsProvider = true
 		string(`
 [Logging]
 Disable = true
-Level = "DEBUG"
+Level = "NOTICE"
 `)}, "")
 
 	cfg, err := sconfig.LoadBinary([]byte(cfgstr))
@@ -124,13 +132,13 @@ Level = "DEBUG"
 func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 	cfgstr := strings.Join([]string{string(`
 		[Server]
+		MaximumAttributes = 5
 		IsIssuer = true
 		`),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
 		string(`
 		[Issuer]
-		MaximumAttributes = 5
 		`),
 		fmt.Sprintf("VerificationKeyFile = \"%v/verification%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
 		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
@@ -170,11 +178,21 @@ func init() {
 	// since they need to get their aggregate key (+ need to fix initial wait time), it takes a while to start them up
 	// and we can start those together
 	go func() {
-		thresholdProvider = startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+		thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+		thresholdProvider = &providerServer{
+			server:      thresholdProviderServer,
+			grpcaddress: providerGRPCAddresses[0],
+			tcpaddress:  providerTCPAddresses[0],
+		}
 		wg.Done()
 	}()
 	go func() {
-		nonThresholdProvider = startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+		nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+		nonThresholdProvider = &providerServer{
+			server:      nonThresholdProviderServer,
+			grpcaddress: providerGRPCAddresses[1],
+			tcpaddress:  providerTCPAddresses[1],
+		}
 		wg.Done()
 	}()
 
@@ -1685,7 +1703,7 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 		validSig, err := client.SignAttributesGrpc(validPubM)
 		assert.Nil(t, err)
 
-		isValid, err := tcpclient.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[1])
+		isValid, err := tcpclient.SendCredentialsForVerificationGrpc(validPubM, validSig, nonThresholdProvider.grpcaddress)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 
@@ -1694,39 +1712,39 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 		assert.False(t, isValid)
 		assert.Error(t, err)
 
-		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[1])
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, nonThresholdProvider.grpcaddress)
 		assert.True(t, isValid)
 		assert.Nil(t, err)
 
-		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[0])
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, thresholdProvider.grpcaddress)
 		assert.True(t, isValid)
 		assert.Nil(t, err)
 
 		// sanity checks
-		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[0])
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, thresholdProvider.grpcaddress)
 		assert.False(t, isValid)
 		assert.Nil(t, err)
 
-		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[1])
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validThrSig, nonThresholdProvider.grpcaddress)
 		assert.False(t, isValid)
 		assert.Nil(t, err)
 
-		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validThrSig, providerGRPCAddresses[1])
+		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validThrSig, nonThresholdProvider.grpcaddress)
 		assert.False(t, isValid)
 		assert.Nil(t, err)
 
-		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validSig, providerGRPCAddresses[0])
+		isValid, err = thrClient.SendCredentialsForVerificationGrpc(validPubM, validSig, thresholdProvider.grpcaddress)
 		assert.False(t, isValid)
 		assert.Nil(t, err)
 
 		// they won't produce valid credentials to begin with, but the point is to ensure
 		// nothing is going to crash upon trying to parse the attributes during verification
 		for _, invalidPubM := range invalidPubMs {
-			isValid, err = client.SendCredentialsForVerificationGrpc(invalidPubM, validSig, providerGRPCAddresses[1])
+			isValid, err = client.SendCredentialsForVerificationGrpc(invalidPubM, validSig, nonThresholdProvider.grpcaddress)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 
-			isValid, err = thrClient.SendCredentialsForVerificationGrpc(invalidPubM, validThrSig, providerGRPCAddresses[0])
+			isValid, err = thrClient.SendCredentialsForVerificationGrpc(invalidPubM, validThrSig, thresholdProvider.grpcaddress)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 		}
@@ -1739,7 +1757,7 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 		}
 
 		for _, invalidSig := range invalidSigs {
-			isValid, err := thrClient.SendCredentialsForVerificationGrpc(validPubM, invalidSig, providerGRPCAddresses[1])
+			isValid, err := thrClient.SendCredentialsForVerificationGrpc(validPubM, invalidSig, nonThresholdProvider.grpcaddress)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 		}
@@ -1957,9 +1975,292 @@ Level = "DEBUG"
 		assert.Nil(t, blindverifyRequest)
 		assert.Error(t, err)
 	}
+}
 
-	_ = invalidPubMs
-	_ = invalidPrivMs
-	_ = invalidSigs
-	_ = invalidVks
+func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "ERROR"`)
+	cfgstr := createBasicClientCfgStr(nil, issuerGRPCAddresses)
+	thrCfgStr := cfgstr + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	cfgstr += logStr
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	thrcfg, err := cconfig.LoadBinary([]byte(thrCfgStr))
+	assert.Nil(t, err)
+	thrClient, err := New(thrcfg)
+	assert.Nil(t, err)
+
+	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	tcpclient, err := New(tcpcfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		[]*Curve.BIG{},
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+	}
+
+	validPrivMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+		getRandomAttributes(params.G, 3),
+	}
+
+	avk, err := client.GetAggregateVerificationKeyGrpc()
+	assert.Nil(t, err)
+
+	thravk, err := thrClient.GetAggregateVerificationKeyGrpc()
+	assert.Nil(t, err)
+
+	for _, validPubM := range validPubMs {
+		for _, validPrivM := range validPrivMs {
+			validThrSig, err := thrClient.BlindSignAttributesGrpc(validPubM, validPrivM)
+			assert.Nil(t, err)
+
+			validSig, err := client.BlindSignAttributesGrpc(validPubM, validPrivM)
+			assert.Nil(t, err)
+
+			isValid, err := tcpclient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, avk)
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			nonExistentProvider := "127.0.0.1:54321"
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, nonExistentProvider, avk)
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, nonThresholdProvider.grpcaddress, avk)
+			assert.True(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, thresholdProvider.grpcaddress, thravk)
+			assert.True(t, isValid)
+			assert.Nil(t, err)
+
+			// sanity checks
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, avk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, nonThresholdProvider.grpcaddress, thravk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, nonThresholdProvider.grpcaddress, avk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, thravk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+		}
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		append(validPubMs[2], nil),
+	}
+
+	invalidPrivMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPrivMs[2], nil),
+	}
+
+	// need to create a valid signature in order to be able to call the method
+	// that is being tested
+	validTestSig, err := client.BlindSignAttributesGrpc(validPubMs[2], validPrivMs[2])
+	assert.Nil(t, err)
+	invalidSigs := []*coconut.Signature{
+		nil,
+		&coconut.Signature{},
+		coconut.NewSignature(validTestSig.Sig1(), nil),
+		coconut.NewSignature(nil, validTestSig.Sig2()),
+	}
+
+	invalidVks := []*coconut.VerificationKey{
+		&coconut.VerificationKey{},
+		coconut.NewVk(avk.G2(), nil, nil),
+		coconut.NewVk(nil, avk.Alpha(), nil),
+		coconut.NewVk(nil, nil, avk.Beta()),
+		coconut.NewVk(avk.G2(), avk.Alpha(), []*Curve.ECP2{}),
+	}
+
+	// // similarly to before, all those only ensure that nothing crashes while parsing bad attributes
+	for _, invalidPubM := range invalidPubMs {
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(invalidPubM, validPrivMs[2], validTestSig, nonThresholdProvider.grpcaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidPrivM := range invalidPrivMs {
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], invalidPrivM, validTestSig, nonThresholdProvider.grpcaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidSig := range invalidSigs {
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], validPrivMs[2], invalidSig, nonThresholdProvider.grpcaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidVk := range invalidVks {
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.grpcaddress, invalidVk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+}
+
+func TestSendCredentialsForBlindVerification(t *testing.T) {
+	logStr := string(`PersistentKeys = false
+	[Logging]
+	Disable = true
+	Level = "ERROR"`)
+	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	thrCfgStr := cfgstr + fmt.Sprintf("Threshold = %v\n", thresholdVal) + logStr
+	cfgstr += logStr
+
+	cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+	assert.Nil(t, err)
+	client, err := New(cfg)
+	assert.Nil(t, err)
+
+	thrcfg, err := cconfig.LoadBinary([]byte(thrCfgStr))
+	assert.Nil(t, err)
+	thrClient, err := New(thrcfg)
+	assert.Nil(t, err)
+
+	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	grpcClient, err := New(grpccfg)
+	assert.Nil(t, err)
+
+	params, err := coconut.Setup(5)
+	assert.Nil(t, err)
+
+	validPubMs := [][]*Curve.BIG{
+		[]*Curve.BIG{},
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+	}
+
+	validPrivMs := [][]*Curve.BIG{
+		getRandomAttributes(params.G, 1),
+		getRandomAttributes(params.G, 2),
+		getRandomAttributes(params.G, 3),
+	}
+
+	avk, err := client.GetAggregateVerificationKey()
+	assert.Nil(t, err)
+
+	thravk, err := thrClient.GetAggregateVerificationKey()
+	assert.Nil(t, err)
+
+	for _, validPubM := range validPubMs {
+		for _, validPrivM := range validPrivMs {
+			validThrSig, err := thrClient.BlindSignAttributes(validPubM, validPrivM)
+			assert.Nil(t, err)
+
+			validSig, err := client.BlindSignAttributes(validPubM, validPrivM)
+			assert.Nil(t, err)
+
+			isValid, err := grpcClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, avk)
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			nonExistentProvider := "127.0.0.1:54321"
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, nonExistentProvider, avk)
+			assert.False(t, isValid)
+			assert.Error(t, err)
+
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, nonThresholdProvider.tcpaddress, avk)
+			assert.True(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, thresholdProvider.tcpaddress, thravk)
+			assert.True(t, isValid)
+			assert.Nil(t, err)
+
+			// sanity checks
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, avk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, nonThresholdProvider.tcpaddress, thravk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, nonThresholdProvider.tcpaddress, avk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, thravk)
+			assert.False(t, isValid)
+			assert.Nil(t, err)
+		}
+	}
+
+	invalidPubMs := [][]*Curve.BIG{
+		nil,
+		append(validPubMs[2], nil),
+	}
+
+	invalidPrivMs := [][]*Curve.BIG{
+		nil,
+		[]*Curve.BIG{},
+		append(validPrivMs[2], nil),
+	}
+
+	// need to create a valid signature in order to be able to call the method
+	// that is being tested
+	validTestSig, err := client.BlindSignAttributes(validPubMs[2], validPrivMs[2])
+	assert.Nil(t, err)
+	invalidSigs := []*coconut.Signature{
+		nil,
+		&coconut.Signature{},
+		coconut.NewSignature(validTestSig.Sig1(), nil),
+		coconut.NewSignature(nil, validTestSig.Sig2()),
+	}
+
+	invalidVks := []*coconut.VerificationKey{
+		&coconut.VerificationKey{},
+		coconut.NewVk(avk.G2(), nil, nil),
+		coconut.NewVk(nil, avk.Alpha(), nil),
+		coconut.NewVk(nil, nil, avk.Beta()),
+		coconut.NewVk(avk.G2(), avk.Alpha(), []*Curve.ECP2{}),
+	}
+
+	// // similarly to before, all those only ensure that nothing crashes while parsing bad attributes
+	for _, invalidPubM := range invalidPubMs {
+		isValid, err := client.SendCredentialsForBlindVerification(invalidPubM, validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidPrivM := range invalidPrivMs {
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], invalidPrivM, validTestSig, nonThresholdProvider.tcpaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidSig := range invalidSigs {
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], invalidSig, nonThresholdProvider.tcpaddress, avk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
+
+	for _, invalidVk := range invalidVks {
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, invalidVk)
+		assert.False(t, isValid)
+		assert.Error(t, err)
+	}
 }
