@@ -64,6 +64,9 @@ type Server struct {
 	// // DataDir is the absolute path to the server's state files.
 	// DataDir string
 
+	// MaximumAttributes specifies the maximum number of attributes the system supports.
+	MaximumAttributes int
+
 	// IsProvider specifies whether the server is a provider.
 	// Currently it means it should be able to verify credentials it receives.
 	IsProvider bool
@@ -74,9 +77,6 @@ type Server struct {
 }
 
 type Issuer struct {
-	// MaximumAttributes specifies the maximum number of attributes the server will sign.
-	MaximumAttributes int
-
 	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
 	VerificationKeyFile string
 
@@ -209,9 +209,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		if cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
 			return errors.New("config: No key files were provided")
 		}
-		if cfg.Issuer.MaximumAttributes <= 0 || cfg.Issuer.MaximumAttributes > 255 {
-			return errors.New("config: Invalid number of allowed attributes")
-		}
+	}
+
+	if cfg.Server.MaximumAttributes <= 0 || cfg.Server.MaximumAttributes > 255 {
+		return errors.New("config: Invalid number of allowed attributes")
 	}
 
 	if cfg.Debug == nil {

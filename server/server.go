@@ -168,7 +168,7 @@ func New(cfg *config.Config) (*Server, error) {
 		// todo: allow for empty verification key if secret key is set
 		if cfg.Debug.RegenerateKeys || cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
 			serverLog.Notice("Generating new sk/vk coconut keypair")
-			params, err = coconut.Setup(cfg.Issuer.MaximumAttributes)
+			params, err = coconut.Setup(cfg.Server.MaximumAttributes)
 			if err != nil {
 				return nil, err
 			}
@@ -195,7 +195,7 @@ func New(cfg *config.Config) (*Server, error) {
 			if err != nil {
 				return nil, err
 			}
-			if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Issuer.MaximumAttributes {
+			if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Server.MaximumAttributes {
 				serverLog.Errorf("Couldn't Load the keys")
 				return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
 				// todo: check for g^Y() == Beta() for each i
@@ -208,16 +208,7 @@ func New(cfg *config.Config) (*Server, error) {
 			}
 		}
 	} else {
-		// even if it's not an issuer, it needs params to credential verification
-		var maxAttrs int
-		if cfg.Server.IsProvider && !cfg.Server.IsIssuer {
-			// in that case the Issuer.MaximumAttributes might be undefined, but it is not needed anyway,
-			// only to generate params to access G and p
-			maxAttrs = 1
-		} else {
-			maxAttrs = cfg.Issuer.MaximumAttributes
-		}
-		params, err = coconut.Setup(maxAttrs)
+		params, err = coconut.Setup(cfg.Server.MaximumAttributes)
 		if err != nil {
 			return nil, err
 		}

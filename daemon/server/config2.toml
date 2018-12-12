@@ -13,6 +13,9 @@
   # to for incoming grpcs.
 	GRPCAddresses = [ "127.0.0.1:5001" ]
 
+	# MaximumAttributes specifies the maximum number of attributes the system supports.
+	MaximumAttributes = 5
+
   # IsProvider specifies whether the server is a provider.
 	# Currently it means it should be able to verify credentials it receives.
 	IsProvider = false
@@ -23,9 +26,6 @@
 
 
 [Issuer]
-
-  # MaximumAttributes specifies the maximum number of attributes the server will sign.
-  MaximumAttributes = 5
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
   VerificationKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/ttp/keys7501/verification1-n=3-t=2.pem"
