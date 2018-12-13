@@ -19,6 +19,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -143,16 +144,19 @@ outLoop:
 
 // New returns a new Server instance parameterized with the specified configuration.
 func New(cfg *config.Config) (*Server, error) {
-	var err error
+	// there is no need to further validate it, as if it's not nil, it was already done
+	if cfg == nil {
+		return nil, errors.New("Nil config provided")
+	}
 
-	log := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
-	if log == nil {
-		return nil, errors.New("Failed to create a logger")
+	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create a logger: %v", err)
 	}
 	serverLog := log.GetLogger("Server")
 
 	// ensures that it IS displayed if any logging at all is enabled
-	serverLog.Critical("Logging level set to %v", cfg.Logging.Level)
+	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
 	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc

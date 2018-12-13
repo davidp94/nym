@@ -197,7 +197,7 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 				default:
 					errstr := fmt.Sprintf("Unknown command was passed: %v", reflect.TypeOf(req.Message))
 					errgrpc = errors.New(errstr)
-					c.log.Critical(errstr)
+					c.log.Warning(errstr)
 				}
 				if errgrpc != nil {
 					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerAddress, err)
@@ -268,7 +268,6 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 		c.log.Errorf("This is not threshold system and some of the received responses were invalid")
 		return nil, nil
 	}
-	c.log.Critical("normal returl)")
 	return sigs, nil
 }
 
@@ -350,7 +349,7 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
 	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
-		c.log.Critical("This behaviour is currently undefined by requirements.")
+		c.log.Warning("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
 	}
 
@@ -498,7 +497,7 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
 	} else if (!c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v verification keys", len(vks), len(c.cfg.Client.IAAddresses))
-		c.log.Critical("This behaviour is currently undefined by requirements.")
+		c.log.Warning("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
 	}
 
@@ -925,10 +924,9 @@ func New(cfg *config.Config) (*Client, error) {
 		return nil, errors.New("Nil config provided")
 	}
 
-	var err error
-	log := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
-	if log == nil {
-		return nil, errors.New("Failed to create a logger")
+	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create a logger: %v", err)
 	}
 	clientLog := log.GetLogger("Client")
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
@@ -937,7 +935,6 @@ func New(cfg *config.Config) (*Client, error) {
 	elGamalPrivateKey := &elgamal.PrivateKey{}
 	elGamalPublicKey := &elgamal.PublicKey{}
 
-	// todo: allow for empty public key if private key is set
 	if cfg.Debug.RegenerateKeys || !cfg.Client.PersistentKeys {
 		clientLog.Notice("Generating new coconut-specific ElGamal keypair")
 		elGamalPrivateKey, elGamalPublicKey = elgamal.Keygen(G)
@@ -949,58 +946,55 @@ func New(cfg *config.Config) (*Client, error) {
 				clientLog.Error(errstr)
 				return nil, errors.New(errstr)
 			}
-			if err := elGamalPublicKey.ToPEMFile(cfg.Client.PublicKeyFile); err != nil {
-				errstr := fmt.Sprintf("Couldn't write new keys (public key) to the files: %v", err)
-				clientLog.Error(errstr)
-				return nil, errors.New(errstr)
+			if cfg.Client.PublicKeyFile != "" {
+				if err := elGamalPublicKey.ToPEMFile(cfg.Client.PublicKeyFile); err != nil {
+					errstr := fmt.Sprintf("Couldn't write new keys (public key) to the files: %v", err)
+					clientLog.Error(errstr)
+					return nil, errors.New(errstr)
+				}
 			}
 			clientLog.Notice("Written new keys to the files")
 		}
 	} else {
+		// we must have a private key
 		if _, err := os.Stat(cfg.Client.PrivateKeyFile); os.IsNotExist(err) {
 			errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the private key does not exist: %v", err)
 			clientLog.Error(errstr)
 			return nil, errors.New(errstr)
 		}
+
+		if err := elGamalPrivateKey.FromPEMFile(cfg.Client.PrivateKeyFile); err != nil {
+			return nil, err
+		}
+
 		if cfg.Client.PublicKeyFile != "" {
 			if _, err := os.Stat(cfg.Client.PublicKeyFile); os.IsNotExist(err) {
 				errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the public key does not exist: %v", err)
 				clientLog.Error(errstr)
 				return nil, errors.New(errstr)
 			}
+			if err := elGamalPublicKey.FromPEMFile(cfg.Client.PublicKeyFile); err != nil {
+				return nil, err
+			}
+			// but it is possible to derive the public key if we recovered the private component
 		} else {
-
+			elGamalPublicKey = elgamal.PublicKeyFromPrivate(elGamalPrivateKey)
 		}
 
-		err = elGamalPrivateKey.FromPEMFile(cfg.Client.PrivateKeyFile)
-		if err != nil {
-			return nil, err
-		}
-		err = elGamalPublicKey.FromPEMFile(cfg.Client.PublicKeyFile)
-		if err != nil {
-			return nil, err
-		}
 		if !elGamalPublicKey.Gamma.Equals(Curve.G1mul(elGamalPublicKey.G, elGamalPrivateKey.D)) {
-			clientLog.Errorf("Couldn't Load the keys")
+			clientLog.Error("Couldn't Load the keys")
 			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
 		}
 		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
 	}
 
-	// TODO: do we need maximumattributes? - check what computation client is allowed to do
-	var maxAttrs int
-	if cfg.Client.MaximumAttributes <= 0 {
-		maxAttrs = 1
-	} else {
-		maxAttrs = cfg.Client.MaximumAttributes
-	}
-	params, err := coconut.Setup(maxAttrs)
+	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
 		return nil, errors.New("Error while generating params")
 	}
 
 	cryptoworker := cryptoworker.New(uint64(1), log, params, cfg.Debug.NumJobWorkers)
-	clientLog.Noticef("Started Coconut Worker")
+	clientLog.Notice("Started Coconut Worker")
 
 	c := &Client{
 		cfg: cfg,

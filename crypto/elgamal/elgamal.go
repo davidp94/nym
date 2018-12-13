@@ -313,7 +313,7 @@ func Keygen(G *bpgroup.BpGroup) (*PrivateKey, *PublicKey) {
 
 	d := Curve.Randomnum(p, rng)
 	gamma := Curve.G1mul(g1, d)
-	return &PrivateKey{d}, &PublicKey{p, g1, gamma}
+	return &PrivateKey{D: d}, &PublicKey{P: p, G: g1, Gamma: gamma}
 }
 
 // Encrypt encrypts the given message in the form of h^m,
@@ -347,5 +347,15 @@ func NewEncryptionResult(enc *Encryption, k *Curve.BIG) *EncryptionResult {
 	return &EncryptionResult{
 		enc: enc,
 		k:   k,
+	}
+}
+
+// PublicKeyFromPrivate returns a public key instance corresponding to the provided private key.
+func PublicKeyFromPrivate(pk *PrivateKey) *PublicKey {
+	g := Curve.ECP_generator()
+	return &PublicKey{
+		P:     Curve.NewBIGints(Curve.CURVE_Order),
+		G:     g,
+		Gamma: Curve.G1mul(g, pk.D),
 	}
 }

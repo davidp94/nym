@@ -61,13 +61,13 @@ func (l *Logger) GetLogger(module string) *logging.Logger {
 }
 
 // New returns new instance of logger
-func New(f string, level string, disable bool) *Logger {
+func New(f string, level string, disable bool) (*Logger, error) {
 	// for now just constant formatting string; taken from library example
 	logFmt := logging.MustStringFormatter(fmtString)
 
 	lvl, err := logLevelFromString(level)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	var logOut io.Writer
@@ -83,7 +83,7 @@ func New(f string, level string, disable bool) *Logger {
 		logOut, err = os.OpenFile(f, flags, fileMode)
 		if err != nil {
 			fmt.Printf("server: failed to create log file: %v", err)
-			return nil
+			return nil, err
 		}
 	}
 
@@ -95,5 +95,5 @@ func New(f string, level string, disable bool) *Logger {
 
 	return &Logger{
 		backend: backend,
-	}
+	}, nil
 }

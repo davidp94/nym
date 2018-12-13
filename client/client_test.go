@@ -21,9 +21,11 @@ package client
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -236,7 +238,9 @@ func TestParseVkResponse(t *testing.T) {
 
 	// for this test, we don't need any client properties
 	// only logger to not crash by trying to call object that doesn't exist
-	emptyClient := &Client{log: logger.New("", "DEBUG", true).GetLogger("Client")}
+	log, err := logger.New("", "DEBUG", true)
+	assert.Nil(t, err)
+	emptyClient := &Client{log: log.GetLogger("Client")}
 
 	// completely valid responses with variable size keys
 	for _, i := range []int{1, 3, 5, 10} {
@@ -448,7 +452,9 @@ func TestParseSignResponse(t *testing.T) {
 
 	// for this test, we don't need any client properties
 	// only logger to not crash by trying to call object that doesn't exist
-	emptyClient := &Client{log: logger.New("", "DEBUG", true).GetLogger("Client")}
+	log, err := logger.New("", "DEBUG", true)
+	assert.Nil(t, err)
+	emptyClient := &Client{log: log.GetLogger("Client")}
 
 	params, err := coconut.Setup(5)
 	assert.Nil(t, err)
@@ -804,10 +810,12 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
 	assert.NotNil(t, packetBytes)
 
+	log, err := logger.New("", "DEBUG", true)
+	assert.Nil(t, err)
 	return utils.GetServerResponses(
 		packetBytes,
 		16,
-		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		log.GetLogger("Foo"),
 		2000,
 		5000,
 		[]string{address},
@@ -839,10 +847,13 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
 	assert.NotNil(t, packetBytes)
 
+	log, err := logger.New("", "DEBUG", true)
+	assert.Nil(t, err)
+
 	return utils.GetServerResponses(
 		packetBytes,
 		16,
-		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		log.GetLogger("Foo"),
 		2000,
 		5000,
 		[]string{address},
@@ -869,10 +880,13 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
 	assert.NotNil(t, packetBytes)
 
+	log, err := logger.New("", "DEBUG", true)
+	assert.Nil(t, err)
+
 	return utils.GetServerResponses(
 		packetBytes,
 		16,
-		logger.New("", "DEBUG", true).GetLogger("Foo"),
+		log.GetLogger("Foo"),
 		2000,
 		5000,
 		[]string{address},
@@ -2262,5 +2276,126 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, invalidVk)
 		assert.False(t, isValid)
 		assert.Error(t, err)
+	}
+}
+
+func TestNew(t *testing.T) {
+	client, err := New(nil)
+
+	assert.Nil(t, client)
+	assert.Error(t, err)
+
+	// todo: does it get wd relative to this file or where test command was run?
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	validPubF := path.Join(dir, clientKeysFolderRelative, "pub.pem")
+	validPrivF := path.Join(dir, clientKeysFolderRelative, "priv.pem")
+	// this bit does not matter since no servers will be called, but cannot be empty
+	basecfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
+	logStr := string(`
+	[Logging]
+	Disable = true
+	Level = "DEBUG"`)
+
+	regenKeysStr := "\n[Debug]\nRegenerateKeys = true\n"
+
+	tmpdir, err := ioutil.TempDir("", "testkeys")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(tmpdir) // clean up
+
+	tmpprivf := filepath.Join(tmpdir, "priv.pem")
+	tmppubf := filepath.Join(tmpdir, "pub.pem")
+
+	// ASSUMES THAT THOSE TWO FILES EXIST AND ARE CORRECTLY FORMED:
+	// 0xacab.org/jstuczyn/CoconutGo/testdata/clientkeys/priv.pem
+	// 0xacab.org/jstuczyn/CoconutGo/testdata/clientkeys/priv.pub
+	invalidKeysConfig := []string{
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"/foo/bar.pem\""),
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"/foo/bar.pem\"") + regenKeysStr,
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", tmpprivf),
+		// other invalid combinations are caught at config_test
+	}
+
+	for _, invalidKeyCfg := range invalidKeysConfig {
+		cfgstr := basecfgstr + invalidKeyCfg + logStr
+
+		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+		assert.Nil(t, err)
+
+		client, err := New(cfg)
+		assert.Nil(t, client)
+		assert.Error(t, err)
+	}
+
+	validKeysConfig := []string{
+		// if keys aren't persistent, filepaths are ignored as nothing is written/read from them
+		fmt.Sprintf("PersistentKeys = false"),
+		fmt.Sprintf("PersistentKeys = false\nPublicKeyFile=\"%v\"", validPubF),
+		fmt.Sprintf("PersistentKeys = false\nPrivateKeyFile=\"/foo/bar.pem\""),
+		regenKeysStr,
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", validPrivF), // public key is created from private
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"\nPublicKeyFile=\"%v\"", validPrivF, validPubF),
+	}
+
+	for _, validKeyCfg := range validKeysConfig {
+		cfgstr := basecfgstr + validKeyCfg + logStr
+
+		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+		assert.Nil(t, err)
+
+		client, err := New(cfg)
+		assert.NotNil(t, client)
+		assert.Nil(t, err)
+
+		// ensure we recovered what is actually stored
+		if cfg.Client.PersistentKeys {
+			elGamalPrivateKeySt := &elgamal.PrivateKey{}
+			elGamalPublicKeySt := &elgamal.PublicKey{}
+
+			assert.Nil(t, elGamalPrivateKeySt.FromPEMFile(validPrivF))
+			assert.Nil(t, elGamalPublicKeySt.FromPEMFile(validPubF))
+
+			assert.Zero(t, Curve.Comp(elGamalPrivateKeySt.D, client.elGamalPrivateKey.D))
+			assert.True(t, elGamalPublicKeySt.G.Equals(client.elGamalPublicKey.G))
+			assert.True(t, elGamalPublicKeySt.Gamma.Equals(client.elGamalPublicKey.Gamma))
+			assert.Zero(t, Curve.Comp(elGamalPublicKeySt.P, client.elGamalPublicKey.P))
+		}
+
+	}
+
+	validKeysConfigWrite := []string{
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", tmpprivf) + regenKeysStr,
+		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"\nPublicKeyFile=\"%v\"", tmpprivf, tmppubf) + regenKeysStr,
+	}
+
+	for _, validKeyCfg := range validKeysConfigWrite {
+		cfgstr := basecfgstr + validKeyCfg + logStr
+
+		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
+		assert.Nil(t, err)
+
+		client, err := New(cfg)
+		assert.NotNil(t, client)
+		assert.Nil(t, err)
+
+		// ensure we wrote what we actually generated
+		elGamalPrivateKeyWr := &elgamal.PrivateKey{}
+		assert.Nil(t, elGamalPrivateKeyWr.FromPEMFile(tmpprivf))
+		assert.Zero(t, Curve.Comp(elGamalPrivateKeyWr.D, client.elGamalPrivateKey.D))
+
+		if cfg.Client.PublicKeyFile != "" {
+			elGamalPublicKeyWr := &elgamal.PublicKey{}
+			assert.Nil(t, elGamalPublicKeyWr.FromPEMFile(tmppubf))
+			assert.True(t, elGamalPublicKeyWr.G.Equals(client.elGamalPublicKey.G))
+			assert.True(t, elGamalPublicKeyWr.Gamma.Equals(client.elGamalPublicKey.Gamma))
+			assert.Zero(t, Curve.Comp(elGamalPublicKeyWr.P, client.elGamalPublicKey.P))
+		}
+
+		os.Remove(tmpprivf)
+		os.Remove(tmppubf)
 	}
 }
