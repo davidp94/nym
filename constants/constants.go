@@ -22,9 +22,6 @@ import (
 )
 
 const (
-	// DEBUG sets debug status.
-	DEBUG = true
-
 	// MB represents number of bytes each BIG takes.
 	MB = int(Curve.MODBYTES)
 

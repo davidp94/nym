@@ -41,6 +41,19 @@ func (sk *SecretKey) Y() []*Curve.BIG {
 	return sk.y
 }
 
+// Validate checks for nil elements in the key.
+func (sk *SecretKey) Validate() bool {
+	if sk == nil || sk.x == nil || sk.y == nil {
+		return false
+	}
+	for i := range sk.y {
+		if sk.y[i] == nil {
+			return false
+		}
+	}
+	return true
+}
+
 // VerificationKey represents verification key of a Coconut signing authority.
 type VerificationKey struct {
 	g2    *Curve.ECP2
@@ -77,6 +90,11 @@ func (vk *VerificationKey) Validate() bool {
 		}
 	}
 	return true
+}
+
+// ValidateKeyPair checks if the ElGamal keypair was correctly formed.
+func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
+	return sk.Validate() && vk.Validate() && len(sk.y) == len(vk.beta)
 }
 
 // Signature represents signature/credential issued by a Coconut signing authority.
@@ -119,6 +137,14 @@ func (bs *BlindedSignature) Sig1() *Curve.ECP {
 // Sig2Tilda returns the elgamal encryption of the second ECP group of the signature
 func (bs *BlindedSignature) Sig2Tilda() *elgamal.Encryption {
 	return bs.sig2Tilda
+}
+
+// Validate checks for nil elements in the signature.
+func (bs *BlindedSignature) Validate() bool {
+	if bs == nil || bs.sig1 == nil {
+		return false
+	}
+	return bs.sig2Tilda.Validate()
 }
 
 // SchemeParams interface allows for interchangeably using Params and MuxParams
@@ -166,6 +192,19 @@ type BlindSignMats struct {
 	proof *SignerProof
 }
 
+// Validate checks for nil elements in the mats.
+func (bsm *BlindSignMats) Validate() bool {
+	if bsm == nil || bsm.cm == nil || bsm.enc == nil {
+		return false
+	}
+	for i := range bsm.enc {
+		if !bsm.enc[i].Validate() {
+			return false
+		}
+	}
+	return bsm.proof.Validate()
+}
+
 // Cm returns the commitment part of the BlindSignMats
 func (bsm *BlindSignMats) Cm() *Curve.ECP {
 	return bsm.cm
@@ -203,6 +242,14 @@ func (bsm *BlindShowMats) Proof() *VerifierProof {
 	return bsm.proof
 }
 
+// Validate checks for nil elements in the mats.
+func (bsm *BlindShowMats) Validate() bool {
+	if bsm == nil || bsm.kappa == nil || bsm.nu == nil {
+		return false
+	}
+	return bsm.proof.Validate()
+}
+
 // PolynomialPoints (tmp) represents x values of points on polynomial of degree t - 1
 // generated during TTPKeygen.
 type PolynomialPoints struct {
@@ -212,6 +259,19 @@ type PolynomialPoints struct {
 // Xs returns slice of x coordinates of Polynomial Points
 func (pp *PolynomialPoints) Xs() []*Curve.BIG {
 	return pp.xs
+}
+
+// Validate checks for nil elements in the struct.
+func (pp *PolynomialPoints) Validate() bool {
+	if pp == nil || pp.xs == nil {
+		return false
+	}
+	for i := range pp.xs {
+		if pp.xs[i] == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // SignerProof (name to be confirmed) represents all the fields contained within the said proof.
@@ -242,6 +302,25 @@ func (sp *SignerProof) Rm() []*Curve.BIG {
 	return sp.rm
 }
 
+// Validate checks for nil elements in the proof.
+func (sp *SignerProof) Validate() bool {
+	if sp == nil || sp.c == nil || sp.rr == nil || sp.rk == nil || sp.rm == nil {
+		return false
+	}
+	for i := range sp.rk {
+		if sp.rk[i] == nil {
+			return false
+		}
+	}
+
+	for i := range sp.rm {
+		if sp.rm[i] == nil {
+			return false
+		}
+	}
+	return true
+}
+
 // VerifierProof (name to be confirmed) represents all the fields contained within the said proof.
 type VerifierProof struct {
 	c  *Curve.BIG
@@ -262,6 +341,19 @@ func (vp *VerifierProof) Rm() []*Curve.BIG {
 // Rt returns set of rt responses of the signer proof
 func (vp *VerifierProof) Rt() *Curve.BIG {
 	return vp.rt
+}
+
+// Validate checks for nil elements in the proof.
+func (vp *VerifierProof) Validate() bool {
+	if vp == nil || vp.c == nil || vp.rm == nil || vp.rt == nil {
+		return false
+	}
+	for i := range vp.rm {
+		if vp.rm[i] == nil {
+			return false
+		}
+	}
+	return true
 }
 
 // NewSk returns instance of verification key from the provided attributes.

@@ -140,6 +140,21 @@ func (pub *PublicKey) FromPEMFile(f string) error {
 	return nil
 }
 
+// Validate checks for nil elements in the key.
+func (pub *PublicKey) Validate() bool {
+	if pub == nil || pub.G == nil || pub.Gamma == nil || pub.P == nil {
+		return false
+	}
+
+	expg := Curve.ECP_generator()
+	expp := Curve.NewBIGints(Curve.CURVE_Order)
+
+	if !pub.G.Equals(expg) || Curve.Comp(expp, pub.P) != 0 {
+		return false
+	}
+	return true
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (pk *PrivateKey) MarshalBinary() ([]byte, error) {
@@ -214,6 +229,19 @@ func (pk *PrivateKey) FromPEMFile(f string) error {
 		return err
 	}
 	return nil
+}
+
+// Validate checks for nil elements in the key.
+func (pk *PrivateKey) Validate() bool {
+	if pk == nil || pk.D == nil {
+		return false
+	}
+	return true
+}
+
+// ValidateKeyPair checks if the ElGamal keypair was corretly formed.
+func ValidateKeyPair(pk *PrivateKey, pub *PublicKey) bool {
+	return pk.Validate() && pub.Validate() && pub.Gamma.Equals(Curve.G1mul(pub.G, pk.D))
 }
 
 // EncryptionResult encapsulates entire result of ElGamal encryption, including random k.
@@ -295,6 +323,14 @@ func (e *Encryption) FromProto(pe *ProtoEncryption) error {
 	e.c1 = Curve.ECP_fromBytes(pe.C1)
 	e.c2 = Curve.ECP_fromBytes(pe.C2)
 	return nil
+}
+
+// Validate checks for nil elements in the encryption.
+func (e *Encryption) Validate() bool {
+	if e == nil || e.c1 == nil || e.c2 == nil {
+		return false
+	}
+	return true
 }
 
 // NewEncryptionFromPoints wraps two points on G1 curve as ElGamal Encryption.

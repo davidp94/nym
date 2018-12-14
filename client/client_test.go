@@ -308,12 +308,16 @@ func TestParseVkResponse(t *testing.T) {
 	}
 
 	// longer than ECP2 len (4*MB)
-	longb := []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla non mollis sapien, sed volutpat nisl. Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, at sollicitudin libero massa id lectus. Aenean ac nulla risus. Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.")
+	longb := []byte(`Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+	Nulla non mollis sapien, sed volutpat nisl. 
+	Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, 
+	at sollicitudin libero massa id lectus. Aenean ac nulla risus. 
+	Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.`)
 
 	invalidBytes := [][]byte{
 		nil,
-		[]byte{},
-		[]byte{1, 2, 3},
+		{},
+		{1, 2, 3},
 		longb,
 	}
 
@@ -508,12 +512,16 @@ func TestParseSignResponse(t *testing.T) {
 	}
 
 	// longer than ECP len (MB+1)
-	longb := []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla non mollis sapien, sed volutpat nisl. Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, at sollicitudin libero massa id lectus. Aenean ac nulla risus. Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.")
+	longb := []byte(`Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+	Nulla non mollis sapien, sed volutpat nisl. 
+	Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, 
+	at sollicitudin libero massa id lectus. Aenean ac nulla risus. 
+	Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.`)
 
 	invalidBytes := [][]byte{
 		nil,
-		[]byte{},
-		[]byte{1, 2, 3},
+		{},
+		{1, 2, 3},
 		longb,
 	}
 
@@ -687,12 +695,16 @@ Level = "DEBUG"
 		}
 
 		// longer than ECP len (MB+1)
-		longb := []byte("Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nulla non mollis sapien, sed volutpat nisl. Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, at sollicitudin libero massa id lectus. Aenean ac nulla risus. Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.")
+		longb := []byte(`Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+		Nulla non mollis sapien, sed volutpat nisl. 
+		Duis faucibus, est at accumsan tincidunt, enim sapien pharetra justo, 
+		at sollicitudin libero massa id lectus. Aenean ac nulla risus. 
+		Duis ullamcorper turpis nulla, sit amet finibus augue posuere ac.`)
 
 		invalidBytes := [][]byte{
 			nil,
-			[]byte{},
-			[]byte{1, 2, 3},
+			{},
+			{1, 2, 3},
 			longb,
 		}
 
@@ -789,6 +801,7 @@ Level = "DEBUG"
 	}
 }
 
+// nolint: lll
 func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, mock bool) *utils.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
@@ -824,10 +837,12 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 
 }
 
+// nolint: lll
 func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, privM []*Curve.BIG, egPub *elgamal.PublicKey, mock bool) *utils.ServerResponse {
 	params, err := coconut.Setup(5)
 	assert.Nil(t, err)
 	blindSignMats, err := coconut.PrepareBlindSign(params, egPub, pubM, privM)
+	assert.Nil(t, err)
 
 	if mock {
 		sk, _, err := coconut.Keygen(params)
@@ -861,6 +876,7 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 	)[0]
 }
 
+// nolint: lll
 func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) *utils.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
@@ -894,6 +910,7 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 	)[0]
 }
 
+// nolint: lll
 func TestParseSignatureServerResponses(t *testing.T) {
 	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
 	cfgstr += string(`PersistentKeys = false
@@ -1127,7 +1144,7 @@ func TestHandleReceivedSignatures(t *testing.T) {
 
 		invalidSigs := []*coconut.Signature{
 			nil,
-			&coconut.Signature{},
+			{},
 			coconut.NewSignature(validThrSigs[0].Sig1(), nil),
 			coconut.NewSignature(nil, validThrSigs[0].Sig2()),
 		}
@@ -1163,6 +1180,7 @@ func TestSignAttributesGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	assert.Nil(t, err)
 	tcpclient, err := New(tcpcfg)
 	assert.Nil(t, err)
 
@@ -1182,7 +1200,7 @@ func TestSignAttributesGrpc(t *testing.T) {
 
 	invalidPubMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPubMs[2], nil),
 	}
 
@@ -1225,6 +1243,7 @@ func TestSignAttributes(t *testing.T) {
 	assert.Nil(t, err)
 
 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	assert.Nil(t, err)
 	grpcclient, err := New(grpccfg)
 	assert.Nil(t, err)
 
@@ -1244,7 +1263,7 @@ func TestSignAttributes(t *testing.T) {
 
 	invalidPubMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPubMs[2], nil),
 	}
 
@@ -1359,7 +1378,7 @@ func TestHandleReceivedVerificationKeys(t *testing.T) {
 
 			invalidVks := []*coconut.VerificationKey{
 				nil,
-				&coconut.VerificationKey{},
+				{},
 				coconut.NewVk(validThrVks[0].G2(), nil, nil),
 				coconut.NewVk(nil, validThrVks[0].Alpha(), nil),
 				coconut.NewVk(nil, nil, validThrVks[0].Beta()),
@@ -1407,10 +1426,12 @@ func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
 	Disable = true
 	Level = "DEBUG"`)
 	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	assert.Nil(t, err)
 	tcpclient, err := New(tcpcfg)
 	assert.Nil(t, err)
 
 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	assert.Nil(t, err)
 	grpcClient, err := New(grpccfg)
 	assert.Nil(t, err)
 
@@ -1491,6 +1512,7 @@ func TestBlindSignAttributesGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	assert.Nil(t, err)
 	tcpclient, err := New(tcpcfg)
 	assert.Nil(t, err)
 
@@ -1503,7 +1525,7 @@ func TestBlindSignAttributesGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	validPubMs := [][]*Curve.BIG{
-		[]*Curve.BIG{}, // here an empty slice is a valid option
+		{}, // here an empty slice is a valid option
 		getRandomAttributes(params.G, 1),
 		getRandomAttributes(params.G, 2),
 	}
@@ -1521,7 +1543,7 @@ func TestBlindSignAttributesGrpc(t *testing.T) {
 
 	invalidPrivMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPrivMs[2], nil),
 	}
 
@@ -1588,6 +1610,7 @@ func TestBlindSignAttributes(t *testing.T) {
 	assert.Nil(t, err)
 
 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	assert.Nil(t, err)
 	grpcclient, err := New(grpccfg)
 	assert.Nil(t, err)
 
@@ -1600,7 +1623,7 @@ func TestBlindSignAttributes(t *testing.T) {
 	assert.Nil(t, err)
 
 	validPubMs := [][]*Curve.BIG{
-		[]*Curve.BIG{}, // here an empty slice is a valid option
+		{}, // here an empty slice is a valid option
 		getRandomAttributes(params.G, 1),
 		getRandomAttributes(params.G, 2),
 	}
@@ -1618,7 +1641,7 @@ func TestBlindSignAttributes(t *testing.T) {
 
 	invalidPrivMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPrivMs[2], nil),
 	}
 
@@ -1692,6 +1715,7 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	assert.Nil(t, err)
 	tcpclient, err := New(tcpcfg)
 	assert.Nil(t, err)
 
@@ -1706,7 +1730,7 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 
 	invalidPubMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPubMs[2], nil),
 	}
 
@@ -1765,7 +1789,7 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 
 		invalidSigs := []*coconut.Signature{
 			nil,
-			&coconut.Signature{},
+			{},
 			coconut.NewSignature(validThrSig.Sig1(), nil),
 			coconut.NewSignature(nil, validThrSig.Sig2()),
 		}
@@ -1798,6 +1822,7 @@ func TestSendCredentialsForVerification(t *testing.T) {
 	assert.Nil(t, err)
 
 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	assert.Nil(t, err)
 	grpcClient, err := New(grpccfg)
 	assert.Nil(t, err)
 
@@ -1812,7 +1837,7 @@ func TestSendCredentialsForVerification(t *testing.T) {
 
 	invalidPubMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPubMs[2], nil),
 	}
 
@@ -1871,7 +1896,7 @@ func TestSendCredentialsForVerification(t *testing.T) {
 
 		invalidSigs := []*coconut.Signature{
 			nil,
-			&coconut.Signature{},
+			{},
 			coconut.NewSignature(validThrSig.Sig1(), nil),
 			coconut.NewSignature(nil, validThrSig.Sig2()),
 		}
@@ -1906,7 +1931,7 @@ Level = "DEBUG"
 	assert.Nil(t, err)
 
 	validPubMs := [][]*Curve.BIG{
-		[]*Curve.BIG{},
+		{},
 		getRandomAttributes(params.G, 1),
 		getRandomAttributes(params.G, 2),
 	}
@@ -1942,7 +1967,7 @@ Level = "DEBUG"
 
 	invalidPrivMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPrivMs[2], nil),
 	}
 
@@ -1952,13 +1977,13 @@ Level = "DEBUG"
 	assert.Nil(t, err)
 	invalidSigs := []*coconut.Signature{
 		nil,
-		&coconut.Signature{},
+		{},
 		coconut.NewSignature(validTestSig.Sig1(), nil),
 		coconut.NewSignature(nil, validTestSig.Sig2()),
 	}
 
 	invalidVks := []*coconut.VerificationKey{
-		&coconut.VerificationKey{},
+		{},
 		coconut.NewVk(avk.G2(), nil, nil),
 		coconut.NewVk(nil, avk.Alpha(), nil),
 		coconut.NewVk(nil, nil, avk.Beta()),
@@ -1991,6 +2016,7 @@ Level = "DEBUG"
 	}
 }
 
+// nolint: lll
 func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -2011,6 +2037,7 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	tcpcfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(issuerTCPAddresses, nil) + logStr))
+	assert.Nil(t, err)
 	tcpclient, err := New(tcpcfg)
 	assert.Nil(t, err)
 
@@ -2018,7 +2045,7 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	assert.Nil(t, err)
 
 	validPubMs := [][]*Curve.BIG{
-		[]*Curve.BIG{},
+		{},
 		getRandomAttributes(params.G, 1),
 		getRandomAttributes(params.G, 2),
 	}
@@ -2086,7 +2113,7 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 
 	invalidPrivMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPrivMs[2], nil),
 	}
 
@@ -2096,13 +2123,13 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	assert.Nil(t, err)
 	invalidSigs := []*coconut.Signature{
 		nil,
-		&coconut.Signature{},
+		{},
 		coconut.NewSignature(validTestSig.Sig1(), nil),
 		coconut.NewSignature(nil, validTestSig.Sig2()),
 	}
 
 	invalidVks := []*coconut.VerificationKey{
-		&coconut.VerificationKey{},
+		{},
 		coconut.NewVk(avk.G2(), nil, nil),
 		coconut.NewVk(nil, avk.Alpha(), nil),
 		coconut.NewVk(nil, nil, avk.Beta()),
@@ -2135,6 +2162,7 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	}
 }
 
+// nolint: lll
 func TestSendCredentialsForBlindVerification(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -2155,6 +2183,7 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 	assert.Nil(t, err)
 
 	grpccfg, err := cconfig.LoadBinary([]byte(createBasicClientCfgStr(nil, issuerGRPCAddresses) + logStr))
+	assert.Nil(t, err)
 	grpcClient, err := New(grpccfg)
 	assert.Nil(t, err)
 
@@ -2162,7 +2191,7 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 	assert.Nil(t, err)
 
 	validPubMs := [][]*Curve.BIG{
-		[]*Curve.BIG{},
+		{},
 		getRandomAttributes(params.G, 1),
 		getRandomAttributes(params.G, 2),
 	}
@@ -2230,7 +2259,7 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 
 	invalidPrivMs := [][]*Curve.BIG{
 		nil,
-		[]*Curve.BIG{},
+		{},
 		append(validPrivMs[2], nil),
 	}
 
@@ -2240,13 +2269,13 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 	assert.Nil(t, err)
 	invalidSigs := []*coconut.Signature{
 		nil,
-		&coconut.Signature{},
+		{},
 		coconut.NewSignature(validTestSig.Sig1(), nil),
 		coconut.NewSignature(nil, validTestSig.Sig2()),
 	}
 
 	invalidVks := []*coconut.VerificationKey{
-		&coconut.VerificationKey{},
+		{},
 		coconut.NewVk(avk.G2(), nil, nil),
 		coconut.NewVk(nil, avk.Alpha(), nil),
 		coconut.NewVk(nil, nil, avk.Beta()),

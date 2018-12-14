@@ -300,7 +300,7 @@ func (c *Client) handleIds(pp *coconut.PolynomialPoints) (map[int]bool, error) {
 	return entriesToRemove, nil
 }
 
-// nolint: lll
+// nolint: lll, gocyclo
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
 	if len(sigs) <= 0 {
 		return nil, c.logAndReturnError("handleReceivedSignatures: No signatures provided")
@@ -439,7 +439,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
 
-// nolint: lll
+// nolint: lll, gocyclo
 func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
 	if vks == nil {
 		return nil, c.logAndReturnError("handleReceivedVerificationKeys: No verification keys provided")
@@ -464,7 +464,7 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 				betalen = len(vks[i].Beta())
 				// we don't know which subset is correct - abandon further execution
 			} else if betalen != len(vks[i].Beta()) {
-				return nil, c.logAndReturnError("handleReceivedVerificationKeys: verification keys of inconsistent lenghts provided")
+				return nil, c.logAndReturnError("handleReceivedVerificationKeys: verification keys of inconsistent lengths provided")
 			}
 		}
 	}
@@ -747,6 +747,7 @@ func (c *Client) SendCredentialsForVerificationGrpc(pubM []*Curve.BIG, sig *coco
 }
 
 // SendCredentialsForVerification sends a TCP request to verify obtained credentials to some specified provider server.
+// nolint: lll
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) (bool, error) {
 	if c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(gRPCClientErr)
@@ -918,6 +919,7 @@ func (c *Client) Stop() {
 }
 
 // New returns a new Client instance parameterized with the specified configuration.
+// nolint: lll, gocyclo
 func New(cfg *config.Config) (*Client, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {

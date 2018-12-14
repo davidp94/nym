@@ -338,7 +338,6 @@ func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
 func (sp *SignerProof) FromProto(psp *ProtoSignerProof) error {
 	blen := constants.BIGLen
 	if psp == nil || len(psp.C) != blen || len(psp.Rr) != blen || psp.Rk == nil || psp.Rm == nil {
-		panic(psp.Rk)
 		return errors.New("invalid proto signer proof")
 	}
 	c := Curve.FromBytes(psp.C)

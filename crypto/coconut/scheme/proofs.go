@@ -63,7 +63,7 @@ func ConstructChallenge(elems []utils.Printable) *Curve.BIG {
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
-// nolint: interfacer, lll
+// nolint: interfacer, lll, gocyclo
 func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
 
