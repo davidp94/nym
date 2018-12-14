@@ -53,7 +53,7 @@ func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 	if _, err = io.ReadFull(conn, packetOutBytes[4:]); err != nil {
 		return nil, err
 	}
-	return packet.FromBytes(packetOutBytes), nil
+	return packet.FromBytes(packetOutBytes)
 }
 
 // will be replaced/modified once whole thing is changed to use protobuf

@@ -166,13 +166,14 @@ func TestKeys(t *testing.T) {
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
 
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	PrivateKeyFile = "/foo/bar"
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Error(t, err)
+	// Client will check that the file does not exist. But perhaps this should be moved to config instead?
+	// cfgStr = `[Client]
+	// IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
+	// PersistentKeys = true
+	// PrivateKeyFile = "/foo/bar"
+	// `
+	// _, err = config.LoadBinary([]byte(cfgStr))
+	// assert.Error(t, err)
 
 	cfgStr = `[Client]
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]

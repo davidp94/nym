@@ -22,10 +22,6 @@ import (
 	"errors"
 )
 
-// todo: to be completely replaced by protobuf and grpc?
-
-// to be used by both client and server to send data
-
 const (
 	headerLength = 4 // just holds length of payload - 4 bytes
 )
@@ -92,12 +88,10 @@ func (p *Packet) Payload() []byte {
 }
 
 // FromBytes parses byte stream and returns a corresponding packet.
-func FromBytes(data []byte) *Packet {
+func FromBytes(data []byte) (*Packet, error) {
 	packet := &Packet{}
-	if packet.UnmarshalBinary(data) == nil {
-		return packet
-	}
-	return nil
+	err := packet.UnmarshalBinary(data)
+	return packet, err
 }
 
 // NewPacket returns new instance of packet with provided payload
