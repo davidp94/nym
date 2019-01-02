@@ -83,7 +83,7 @@ func ECP2FromHex(t *testing.T, hexStr string) *Curve.ECP2 {
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
 // nolint: lll, misspell
-func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
+func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*VerifierProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 	wm := witnesses.wm
 	wt := witnesses.wt
@@ -110,7 +110,10 @@ func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *Verif
 		i++
 	}
 
-	c := ConstructChallenge(ca)
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return nil, err
+	}
 
 	// responses
 	rm := make([]*Curve.BIG, len(privM))
@@ -128,7 +131,7 @@ func constructVerifierProofWitn(witnesses *witnessesV, params *Params, vk *Verif
 		c:  c,
 		rm: rm,
 		rt: rt,
-	}
+	}, nil
 }
 
 // modified version with additional arguments to remove randomness
@@ -141,7 +144,10 @@ func showBlindSignatureT(t *Curve.BIG, witn *witnessesV, params *Params, vk *Ver
 		kappa.Add(Curve.G2mul(vk.beta[i], privM[i]))
 	}
 	nu := Curve.G1mul(sig.sig1, t)
-	verifierProof := constructVerifierProofWitn(witn, params, vk, sig, privM, t)
+	verifierProof, err := constructVerifierProofWitn(witn, params, vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
 	return &BlindShowMats{
 		kappa: kappa,
 		nu:    nu,
@@ -203,7 +209,10 @@ func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curv
 		i++
 	}
 
-	c := ConstructChallenge(ca)
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return nil, err
+	}
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))

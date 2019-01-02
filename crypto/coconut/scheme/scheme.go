@@ -178,7 +178,10 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 		return nil, ErrSignParams
 	}
 
-	h := getBaseFromAttributes(pubM)
+	h, err := getBaseFromAttributes(pubM)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to obtain G1 base: %v", err)
+	}
 
 	K := Curve.NewBIGcopy(sk.x) // K = x
 	for i := 0; i < len(pubM); i++ {
@@ -369,7 +372,10 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 	}
 	nu := Curve.G1mul(sig.sig1, t)
 
-	verifierProof := ConstructVerifierProof(params, vk, sig, privM, t)
+	verifierProof, err := ConstructVerifierProof(params, vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
 
 	return &BlindShowMats{
 		kappa: kappa,

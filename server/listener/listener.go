@@ -36,6 +36,7 @@ import (
 )
 
 // todo: onnewconn in goroutine or something to not block on multiple clients
+// todo: sessions to keep state for a client
 
 // Listener represents the Coconut Server listener (listening on TCP socket, not for gRPC via HTTP2)
 type Listener struct {
@@ -99,10 +100,13 @@ func (l *Listener) worker() {
 
 		l.log.Debugf("Accepted new connection: %v", conn.RemoteAddr())
 
-		l.onNewConn(conn)
+		go func() {
+			l.onNewConn(conn)
+		}()
 	}
 }
 
+// todo: start handling in new goroutine
 func (l *Listener) onNewConn(conn net.Conn) {
 	l.closeAllWg.Add(1)
 	// todo deadlines etc

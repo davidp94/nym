@@ -83,7 +83,7 @@ func (w *Worker) worker() {
 					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					continue
 				}
-				sig, err := w.cw.SignWrapper(w.sk, coconut.BigSliceFromProto(v.PubM))
+				sig, err := w.cw.SignWrapper(w.sk, coconut.BigSliceFromByteSlices(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -104,7 +104,7 @@ func (w *Worker) worker() {
 						w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						continue
 					}
-					response.Data = w.cw.VerifyWrapper(w.avk, coconut.BigSliceFromProto(v.PubM), sig)
+					response.Data = w.cw.VerifyWrapper(w.avk, coconut.BigSliceFromByteSlices(v.PubM), sig)
 				} else {
 					errMsg := "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
 					w.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
@@ -127,7 +127,7 @@ func (w *Worker) worker() {
 					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					break
 				}
-				sig, err := w.cw.BlindSignWrapper(w.sk, bsm, egPub, coconut.BigSliceFromProto(v.PubM))
+				sig, err := w.cw.BlindSignWrapper(w.sk, bsm, egPub, coconut.BigSliceFromByteSlices(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -151,7 +151,7 @@ func (w *Worker) worker() {
 						w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						break
 					}
-					response.Data = w.cw.BlindVerifyWrapper(w.avk, sig, bsm, coconut.BigSliceFromProto(v.PubM))
+					response.Data = w.cw.BlindVerifyWrapper(w.avk, sig, bsm, coconut.BigSliceFromByteSlices(v.PubM))
 				} else {
 					errMsg := "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
 					w.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)

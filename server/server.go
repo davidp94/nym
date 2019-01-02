@@ -100,6 +100,7 @@ outLoop:
 				for i := range s.cfg.Provider.IAAddresses {
 					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
 						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
+						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
 						reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: s.cfg.Provider.IAAddresses[i], ServerID: s.cfg.Provider.IAIDs[i]}
 					}
 				}

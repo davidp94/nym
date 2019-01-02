@@ -19,6 +19,7 @@ package coconut
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -47,17 +48,13 @@ var (
 // ConstructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L9.
-func ConstructChallenge(elems []utils.Printable) *Curve.BIG {
+func ConstructChallenge(elems []utils.Printable) (*Curve.BIG, error) {
 	csa := make([]string, len(elems))
 	for i := range elems {
 		csa[i] = utils.ToCoconutString(elems[i])
 	}
 	cs := strings.Join(csa, ",")
-	c, err := utils.HashStringToBig(amcl.SHA256, cs)
-	if err != nil {
-		panic(err)
-	}
-	return c
+	return utils.HashStringToBig(amcl.SHA256, cs)
 }
 
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
@@ -135,7 +132,10 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 		i++
 	}
 
-	c := ConstructChallenge(ca)
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))
@@ -223,14 +223,19 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *BlindSignMats
 		i++
 	}
 
-	return Curve.Comp(proof.c, ConstructChallenge(ca)) == 0
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return false
+	}
+
+	return Curve.Comp(proof.c, c) == 0
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
 // nolint: lll
-func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) *VerifierProof {
+func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*VerifierProof, error) {
 	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
 
 	// witnesses creation
@@ -262,7 +267,10 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 		i++
 	}
 
-	c := ConstructChallenge(ca)
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
 
 	// responses
 	rm := make([]*Curve.BIG, len(privM))
@@ -280,7 +288,7 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 		c:  c,
 		rm: rm,
 		rt: rt,
-	}
+	}, nil
 }
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
@@ -319,5 +327,10 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 		i++
 	}
 
-	return Curve.Comp(showMats.proof.c, ConstructChallenge(ca)) == 0
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return false
+	}
+
+	return Curve.Comp(showMats.proof.c, c) == 0
 }

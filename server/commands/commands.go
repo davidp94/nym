@@ -1,5 +1,3 @@
-// todo: move to separate repo together with server dir?
-
 // commands.go - commands for coconut server
 // Copyright (C) 2018  Jedrzej Stuczynski.
 //
@@ -28,8 +26,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: once everything works with protobuf simplify everything by removing the alternative
-
 const (
 	// GetVerificationKeyID is commandID for getting server's verification key.
 	GetVerificationKeyID CommandID = 100
@@ -48,7 +44,6 @@ const (
 )
 
 // Command defines interface that is implemented by all commands defined in the package.
-// todo: is this really restrictive enough?
 type Command interface {
 	// basically generated protocol buffer messages
 	Reset()
@@ -109,6 +104,7 @@ func (cr *CommandRequest) Cmd() Command {
 	return cr.cmd
 }
 
+// Response represents a server response to client's query.
 type Response struct {
 	Data         interface{}
 	ErrorStatus  StatusCode
@@ -142,6 +138,7 @@ func FromBytes(b []byte) (Command, error) {
 	return cmd, nil
 }
 
+// ProtoResponse is a protobuf server response.
 type ProtoResponse interface {
 	Reset()
 	String() string
@@ -149,11 +146,12 @@ type ProtoResponse interface {
 	GetStatus() *Status
 }
 
+// NewSignRequest returns new instance of a SignRequest given set of public attributes.
 func NewSignRequest(pubM []*Curve.BIG) (*SignRequest, error) {
 	if len(pubM) <= 0 {
 		return nil, errors.New("no attributes for signing")
 	}
-	pubMb, err := coconut.BigSliceToProto(pubM)
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
 	}
@@ -162,10 +160,13 @@ func NewSignRequest(pubM []*Curve.BIG) (*SignRequest, error) {
 	}, nil
 }
 
+// NewVerificationKeyRequest returns new instance of a VerificationKeyRequest.
 func NewVerificationKeyRequest() (*VerificationKeyRequest, error) {
 	return &VerificationKeyRequest{}, nil
 }
 
+// NewVerifyRequest returns new instance of a VerifyRequest
+// given set of public attributes and a coconut signature on them.
 func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest, error) {
 	if len(pubM) <= 0 {
 		return nil, errors.New("no attributes for verifying")
@@ -174,7 +175,7 @@ func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest
 	if err != nil {
 		return nil, err
 	}
-	pubMb, err := coconut.BigSliceToProto(pubM)
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
 	}
@@ -184,6 +185,9 @@ func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest
 	}, nil
 }
 
+// NewBlindSignRequest returns new instance of a BlindSignRequest
+// given set of public attributes, blindSignMats and corresponding ElGamal public key.
+// nolint: lll
 func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindSignRequest, error) {
 	protoBlindSignMats, err := blindSignMats.ToProto()
 	if err != nil {
@@ -193,7 +197,7 @@ func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.Pu
 	if err != nil {
 		return nil, err
 	}
-	pubMb, err := coconut.BigSliceToProto(pubM)
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
 	}
@@ -204,6 +208,9 @@ func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.Pu
 	}, nil
 }
 
+// NewBlindVerifyRequest returns new instance of a BlinfVerifyRequest
+// given set of public attributes, blindShowMats and a coconut signature on them.
+// nolint: lll
 func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) (*BlindVerifyRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
@@ -213,7 +220,7 @@ func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Si
 	if err != nil {
 		return nil, err
 	}
-	pubMb, err := coconut.BigSliceToProto(pubM)
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
 	}

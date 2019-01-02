@@ -33,16 +33,12 @@ import (
 // It is only used for Sign function that works exlusively on public attributes
 // todo: actually logic in code is identical to constructChallenge in proofs
 // (apart from SHA used) - combine them?
-func getBaseFromAttributes(pubM []*Curve.BIG) *Curve.ECP {
+func getBaseFromAttributes(pubM []*Curve.BIG) (*Curve.ECP, error) {
 	s := make([]string, len(pubM))
 	for i := range pubM {
 		s[i] = utils.ToCoconutString(pubM[i])
 	}
-	h, err := utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
-	if err != nil {
-		panic(err)
-	}
-	return h
+	return utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
 }
 
 // MarshalBinary is an implementation of a method on the
@@ -67,7 +63,7 @@ func (sk *SecretKey) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sk *SecretKey) ToProto() (*ProtoSecretKey, error) {
-	if sk == nil || sk.x == nil || sk.y == nil {
+	if !sk.Validate() {
 		return nil, errors.New("the secret key is malformed")
 	}
 	blen := constants.BIGLen
@@ -75,9 +71,6 @@ func (sk *SecretKey) ToProto() (*ProtoSecretKey, error) {
 	sk.x.ToBytes(xb)
 	yb := make([][]byte, len(sk.y))
 	for i := range yb {
-		if sk.y[i] == nil {
-			return nil, errors.New("the secret key is malformed")
-		}
 		yb[i] = make([]byte, blen)
 		sk.y[i].ToBytes(yb[i])
 	}
@@ -129,7 +122,7 @@ func (vk *VerificationKey) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
-	if vk == nil || vk.g2 == nil || vk.alpha == nil {
+	if !vk.Validate() {
 		return nil, errors.New("the verification key is malformed")
 	}
 	ec2len := constants.ECP2Len
@@ -137,9 +130,6 @@ func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
 	alphab := make([]byte, ec2len)
 	betab := make([][]byte, len(vk.Beta()))
 	for i := range betab {
-		if vk.beta[i] == nil {
-			return nil, errors.New("the verification key is malformed")
-		}
 		betab[i] = make([]byte, ec2len)
 		vk.Beta()[i].ToBytes(betab[i])
 	}
@@ -196,7 +186,7 @@ func (sig *Signature) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sig *Signature) ToProto() (*ProtoSignature, error) {
-	if sig == nil || sig.sig1 == nil || sig.sig2 == nil {
+	if !sig.Validate() {
 		return nil, errors.New("the signature is malformed")
 	}
 	eclen := constants.ECPLen
@@ -244,7 +234,7 @@ func (bs *BlindedSignature) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (bs *BlindedSignature) ToProto() (*ProtoBlindedSignature, error) {
-	if bs == nil || bs.sig1 == nil { // correct formation of encryption is checked when trying to convert it to proto
+	if !bs.Validate() {
 		return nil, errors.New("the blinded signature is malformed")
 	}
 	eclen := constants.ECPLen
@@ -301,7 +291,7 @@ func (sp *SignerProof) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
-	if sp == nil || sp.c == nil || sp.rr == nil || sp.rk == nil || sp.rm == nil {
+	if !sp.Validate() {
 		return nil, errors.New("the signer proof is malformed")
 	}
 	blen := constants.BIGLen
@@ -312,16 +302,10 @@ func (sp *SignerProof) ToProto() (*ProtoSignerProof, error) {
 	sp.c.ToBytes(cb)
 	sp.rr.ToBytes(rrb)
 	for i := range rkb {
-		if sp.rk[i] == nil {
-			return nil, errors.New("the signer proof is malformed")
-		}
 		rkb[i] = make([]byte, blen)
 		sp.rk[i].ToBytes(rkb[i])
 	}
 	for i := range rmb {
-		if sp.rm[i] == nil {
-			return nil, errors.New("the signer proof is malformed")
-		}
 		rmb[i] = make([]byte, blen)
 		sp.rm[i].ToBytes(rmb[i])
 	}
@@ -385,10 +369,10 @@ func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
 
 // ToProto creates a protobuf representation of the object.
 func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
-	eclen := constants.ECPLen
-	if bsm == nil || bsm.cm == nil || bsm.enc == nil {
+	if !bsm.Validate() {
 		return nil, errors.New("the blind sign mats are malformed")
 	}
+	eclen := constants.ECPLen
 
 	cmb := make([]byte, eclen)
 	bsm.cm.ToBytes(cmb, true)
@@ -575,8 +559,8 @@ func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
 	return nil
 }
 
-// BigSliceFromProto recovers a slice of BIG nums from a proto-encoded slice of slices of bytes.
-func BigSliceFromProto(b [][]byte) []*Curve.BIG {
+// BigSliceFromByteSlices recovers a slice of BIG nums from a slice of slices of bytes.
+func BigSliceFromByteSlices(b [][]byte) []*Curve.BIG {
 	bigs := make([]*Curve.BIG, len(b))
 	for i := range b {
 		bigs[i] = Curve.FromBytes(b[i])
@@ -584,8 +568,8 @@ func BigSliceFromProto(b [][]byte) []*Curve.BIG {
 	return bigs
 }
 
-// BigSliceToProto converts a slice of BIG nums to proto-encoded slice of slices of bytes.
-func BigSliceToProto(s []*Curve.BIG) ([][]byte, error) {
+// BigSliceToByteSlices converts a slice of BIG nums to slice of slices of bytes.
+func BigSliceToByteSlices(s []*Curve.BIG) ([][]byte, error) {
 	// need to allow encoding empty (not nil) slices for blindsign of 0 public attrs
 	if s == nil {
 		return nil, errors.New("invalid BIG slice provided")

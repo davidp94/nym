@@ -167,7 +167,7 @@ func BenchmarkConstructVerifierProof(b *testing.B) {
 
 				t := Curve.Randomnum(p, rng)
 				b.StartTimer()
-				verifierProof = ConstructVerifierProof(params, vk, sig, privs, t)
+				verifierProof, _ = ConstructVerifierProof(params, vk, sig, privs, t)
 			}
 		})
 	}

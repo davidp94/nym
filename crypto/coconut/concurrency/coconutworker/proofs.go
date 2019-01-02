@@ -18,6 +18,8 @@
 package coconutworker
 
 import (
+	"fmt"
+
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -122,7 +124,10 @@ func (ccw *Worker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, enc
 		i++
 	}
 
-	c := coconut.ConstructChallenge(ca)
+	c, err := coconut.ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
 
 	// responses
 	rr := wr.Minus(Curve.Modmul(c, r, p))
@@ -230,12 +235,17 @@ func (ccw *Worker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMa
 		i++
 	}
 
-	return Curve.Comp(proof.C(), coconut.ConstructChallenge(ca)) == 0
+	c, err := coconut.ConstructChallenge(ca)
+	if err != nil {
+		return false
+	}
+
+	return Curve.Comp(proof.C(), c) == 0
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
 // nolint: lll
-func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) *coconut.VerifierProof {
+func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*coconut.VerifierProof, error) {
 	p, g1, g2, hs, rng := params.P(), params.G1(), params.G2(), params.Hs(), params.G.Rng()
 
 	// witnesses creation
@@ -284,7 +294,10 @@ func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.Verific
 		i++
 	}
 
-	c := coconut.ConstructChallenge(ca)
+	c, err := coconut.ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
 
 	// responses
 	rm := make([]*Curve.BIG, len(privM))
@@ -298,7 +311,7 @@ func (ccw *Worker) ConstructVerifierProof(params *MuxParams, vk *coconut.Verific
 	rt = rt.Plus(p)
 	rt.Mod(p)
 
-	return coconut.NewVerifierProof(c, rm, rt)
+	return coconut.NewVerifierProof(c, rm, rt), nil
 }
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
@@ -351,5 +364,10 @@ func (ccw *Worker) VerifyVerifierProof(params *MuxParams, vk *coconut.Verificati
 		i++
 	}
 
-	return Curve.Comp(showMats.Proof().C(), coconut.ConstructChallenge(ca)) == 0
+	c, err := coconut.ConstructChallenge(ca)
+	if err != nil {
+		return false
+	}
+
+	return Curve.Comp(showMats.Proof().C(), c) == 0
 }

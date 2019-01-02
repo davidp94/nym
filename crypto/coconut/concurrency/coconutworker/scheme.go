@@ -472,7 +472,10 @@ func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verification
 	nu := nuRes.(*Curve.ECP)
 
 	// todo: put ConstructVerifierProof to jobpacket (like elgamalencrypt)
-	verifierProof := cw.ConstructVerifierProof(params, vk, sig, privM, t)
+	verifierProof, err := cw.ConstructVerifierProof(params, vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
 
 	return coconut.NewBlindShowMats(kappa, nu, verifierProof), nil
 }

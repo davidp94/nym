@@ -36,7 +36,7 @@ const (
 	defaultNumCoconutWorkers = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
-	defaultRequestTimeout               = 1 * 1000  // 1 sec.
+	defaultRequestTimeout               = 5 * 1000  // 1 sec.
 	defaultProviderStartupTimeout       = 30 * 1000 // 30 sec.
 	defaultProviderStartupRetryInterval = 5 * 1000  // 5s.
 	defaultProviderMaxRequests          = 16
