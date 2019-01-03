@@ -28,15 +28,13 @@ import (
 	"github.com/BurntSushi/toml"
 )
 
-// todo: separate config entry for provider related things?
-
 const (
 	defaultLogLevel = "NOTICE"
 
 	defaultNumCoconutWorkers = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
-	defaultRequestTimeout               = 5 * 1000  // 1 sec.
+	defaultRequestTimeout               = 5 * 1000  // 5 sec.
 	defaultProviderStartupTimeout       = 30 * 1000 // 30 sec.
 	defaultProviderStartupRetryInterval = 5 * 1000  // 5s.
 	defaultProviderMaxRequests          = 16
@@ -54,7 +52,7 @@ type Server struct {
 	// Identifier is the human readable identifier for the node.
 	Identifier string
 
-	// Addresses are the IP address:port combinations that the server will bind	to for incoming connections.
+	// Addresses are the IP address:port combinations that the server will bind	to for incoming TCP connections.
 	Addresses []string
 
 	// GRPCAddresses are the IP address:port combinations that the server will bind	to for incoming grpcs.
@@ -76,6 +74,9 @@ type Server struct {
 	IsIssuer bool
 }
 
+// Issuer is the Coconut issuing authority server configuration.
+// It is responsible for signing attributes it receives
+// and providing its public verification key upon request.
 type Issuer struct {
 	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
 	VerificationKeyFile string
@@ -178,14 +179,18 @@ type Config struct {
 	Debug    *Debug
 }
 
+// nolint: gocyclo
 func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Server == nil {
 		return errors.New("config: No Server block was present")
 	}
-
 	if !cfg.Server.IsProvider && !cfg.Server.IsIssuer {
-		return errors.New("config: server is neither Issuer nor Provider")
+		return errors.New("config: Server is neither Issuer nor Provider")
 	}
+	if len(cfg.Server.Addresses) <= 0 && len(cfg.Server.GRPCAddresses) <= 0 {
+		return errors.New("config: No addresses to bind the server to")
+	}
+
 	if cfg.Server.IsProvider {
 		if cfg.Provider == nil {
 			return errors.New("config: Provider block not set when server is a Provider")
