@@ -59,13 +59,12 @@ type Listener struct {
 // Halt stops the listener and closes (if any) connections.
 func (l *Listener) Halt() {
 	l.log.Debugf("Halting listener %d\n", l.id)
-	err := l.l.Close()
-	if err != nil {
+	if err := l.l.Close(); err != nil {
 		l.log.Noticef("%v", err)
 	}
 	l.Worker.Halt()
 
-	// currently nothing is using the channels or wg anyway.
+	// currently nothing is using the channel yet anyway.
 	close(l.closeAllCh)
 	l.closeAllWg.Wait()
 }
@@ -75,8 +74,7 @@ func (l *Listener) worker() {
 	l.log.Noticef("Listening on: %v", addr)
 	defer func() {
 		l.log.Noticef("Stopping listening on: %v", addr)
-		err := l.l.Close()
-		if err != nil {
+		if err := l.l.Close(); err != nil {
 			l.log.Noticef("%v", err)
 		}
 	}()
@@ -117,8 +115,6 @@ func (l *Listener) onNewConn(conn net.Conn) {
 			l.log.Noticef("%v", err)
 		}
 
-		// right now does not make any sense as listener does not deleage its work to anything
-		// and is inherently single threaded (in terms of connections)
 		l.closeAllWg.Done()
 	}()
 
@@ -149,8 +145,7 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 	l.log.Noticef("Replying back to the client (%v)", conn.RemoteAddr())
 	b, err := packet.MarshalBinary()
 	if err == nil {
-		_, err = conn.Write(b)
-		if err == nil {
+		if _, err = conn.Write(b); err == nil {
 			return
 		}
 	}

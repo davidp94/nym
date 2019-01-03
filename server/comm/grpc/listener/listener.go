@@ -1,3 +1,20 @@
+// listener.go - Coconut server gRPC listener.
+// Copyright (C) 2018  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Package grpclistener implements the support for incoming gRPCs.
 package grpclistener
 
 import (
@@ -10,17 +27,18 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/golang/protobuf/proto"
 	"google.golang.org/grpc"
 	"gopkg.in/op/go-logging.v1"
 )
 
-// todo: once the basic version is working,
-// compare with normal listener and see if they could just be combined
-
+// Listener represents the Coconut gRPC Server listener.
 type Listener struct {
 	cfg        *config.Config
 	grpcServer *grpc.Server
+
+	worker.Worker
 
 	log *logging.Logger
 
@@ -31,30 +49,43 @@ type Listener struct {
 	id uint64
 }
 
+// ctx argument is required by the interface definition created by protobuf grpc.
+// However, currently it is not being used in any way. Should this change? If so, how?
+
+// BlindVerifyCredentials resolves the BlindVerifyRequest to verify a blind credential
+// on a set of private and optional public attributes.
+// nolint: lll
 func (l *Listener) BlindVerifyCredentials(ctx context.Context, req *commands.BlindVerifyRequest) (*commands.BlindVerifyResponse, error) {
-	// todo: do anything with ctx?
 	blindVerifyResponse := l.resolveCommand(req).(*commands.BlindVerifyResponse)
 	return blindVerifyResponse, nil
 }
 
+// BlindSignAttributes resolves the BlindSignRequest to issue a blind credential
+// on a set of private and optional public attributes.
+// nolint: lll
 func (l *Listener) BlindSignAttributes(ctx context.Context, req *commands.BlindSignRequest) (*commands.BlindSignResponse, error) {
-	// todo: do anything with ctx?
 	blindSignResponse := l.resolveCommand(req).(*commands.BlindSignResponse)
 	return blindSignResponse, nil
 }
 
+// VerifyCredentials resolves the VerifyRequest to verify a credential
+// on a set of public attributes.
+// nolint: lll
 func (l *Listener) VerifyCredentials(ctx context.Context, req *commands.VerifyRequest) (*commands.VerifyResponse, error) {
-	// todo: do anything with ctx?
 	verifyResponse := l.resolveCommand(req).(*commands.VerifyResponse)
 	return verifyResponse, nil
 }
 
+// GetVerificationKey resolves the VerificationKeyRequest to return
+// server's public coconut verification key.
+// nolint: lll
 func (l *Listener) GetVerificationKey(ctx context.Context, req *commands.VerificationKeyRequest) (*commands.VerificationKeyResponse, error) {
-	// todo: do anything with ctx?
 	vkResponse := l.resolveCommand(req).(*commands.VerificationKeyResponse)
 	return vkResponse, nil
 }
 
+// SignAttributes resolves the SignRequest to issue a credential
+// on a set of public attributes.
 func (l *Listener) SignAttributes(ctx context.Context, req *commands.SignRequest) (*commands.SignResponse, error) {
 	signResponse := l.resolveCommand(req).(*commands.SignResponse)
 	return signResponse, nil
@@ -68,10 +99,21 @@ func (l *Listener) resolveCommand(req proto.Message) proto.Message {
 	return utils.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout)
 }
 
+// Halt gracefully stops the listener.
 func (l *Listener) Halt() {
 	l.grpcServer.GracefulStop()
+	l.Worker.Halt()
 }
 
+func (l *Listener) worker() {
+	if err := l.grpcServer.Serve(l.l); err != nil {
+		// if server failed it means there is a major issue somewhere
+		// and the server should not be continuing its execution
+		l.log.Fatalf("Serve failed: %v", err)
+	}
+}
+
+// New creates new instance of a grpclistener using provided config and listening on specified address.
 func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
 	var err error
 
@@ -98,10 +140,6 @@ func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logge
 		listener.log.Debug("Registered gRPC Service for Provider")
 	}
 
-	// if serve is not put in a gouroutine, server will block
-	go func() {
-		listener.grpcServer.Serve(listener.l)
-	}()
-
+	listener.Go(listener.worker)
 	return listener, nil
 }

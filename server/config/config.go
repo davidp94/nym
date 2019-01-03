@@ -85,9 +85,9 @@ type Issuer struct {
 	SecretKeyFile string
 }
 
-// todo: change name?
 // Provider is the Coconut provider server configuration.
 // At this point it is only responsible for verifying credentials it receives.
+// todo: change name?
 type Provider struct {
 	// IAAddresses are the IP address:port combinations of all Authority Servers.
 	// Required if the server is a provider.
@@ -204,13 +204,17 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) <= 0 {
 			return errors.New("config: Invalid provider - IA Servers configuration")
 		}
+		if cfg.Provider.Threshold < 0 {
+			return errors.New("config: Invalid threshold value")
+		}
 	}
 
 	if cfg.Server.IsIssuer {
 		if cfg.Issuer == nil {
 			return errors.New("config: Issuer block not set when server is an Issuer")
 		}
-		// does not care if files are empty, if so, new keys will be generated and written there
+		// does not care if files are empty, if so, new keys will be generated and written there,
+		// but explicitly needs both of them to be present
 		if cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
 			return errors.New("config: No key files were provided")
 		}
