@@ -53,7 +53,8 @@ type Listener struct {
 
 	l net.Listener
 
-	id uint64
+	id               uint64
+	finalizedStartup bool
 }
 
 // Halt stops the listener and closes (if any) connections.
@@ -154,7 +155,7 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 }
 
 func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
-	protoResp := utils.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout)
+	protoResp := utils.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 
 	b, err := proto.Marshal(protoResp)
 	if err != nil {
@@ -163,6 +164,12 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 	}
 
 	return packet.NewPacket(b)
+}
+
+// FinalizeStartup is used when the server is a provider. It indicates it has aggregated required
+// number of verification keys and hence can verify received credentials.
+func (l *Listener) FinalizeStartup() {
+	l.finalizedStartup = true
 }
 
 // New creates a new listener.

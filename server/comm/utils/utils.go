@@ -2,6 +2,8 @@
 
 package utils
 
+// todo: docs, tests, etc
+
 import (
 	"encoding/binary"
 	"io"
@@ -171,7 +173,7 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 	return vks, nil
 }
 
-func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, log *logging.Logger, requestTimeout int) proto.Message {
+func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, log *logging.Logger, requestTimeout int, provReady bool) proto.Message {
 	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
 
 	var data interface{}
@@ -229,7 +231,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			Status: protoStatus,
 		}
 	case *commands.VerifyRequest:
-		if data != nil {
+		if data != nil && provReady {
 			isValid := data.(bool)
 			protoResp = &commands.VerifyResponse{
 				IsValid: isValid,
@@ -237,7 +239,14 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			}
 			log.Debugf("Was the received credential valid: %v", isValid)
 		} else {
-			log.Critical("HAPPENED DURING CLIENT TESTS, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
+			protoResp = &commands.VerifyResponse{
+				Status: &commands.Status{
+					Code:    int32(commands.StatusCode_UNAVAILABLE),
+					Message: "The provider has not finished startup yet",
+				},
+			}
+			log.Notice("Verification request to the server, while it has not finished startup (or data was nil)")
+			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
 	case *commands.BlindSignRequest:
 		protoBlindSig := &coconut.ProtoBlindedSignature{}
@@ -254,7 +263,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			Status: protoStatus,
 		}
 	case *commands.BlindVerifyRequest:
-		if data != nil {
+		if data != nil && provReady {
 			isValid := data.(bool)
 			protoResp = &commands.BlindVerifyResponse{
 				IsValid: isValid,
@@ -262,7 +271,14 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			}
 			log.Debugf("Was the received credential valid: %v", isValid)
 		} else {
-			log.Critical("HAPPENED DURING CLIENT TESTS, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
+			protoResp = &commands.BlindVerifyResponse{
+				Status: &commands.Status{
+					Code:    int32(commands.StatusCode_UNAVAILABLE),
+					Message: "The provider has not finished startup yet",
+				},
+			}
+			log.Notice("Blind Verification request to the server, while it has not finished startup (or data was nil)")
+			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
 	default:
 		log.Errorf("Received an unrecognized command.")

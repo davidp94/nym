@@ -46,7 +46,8 @@ type Listener struct {
 
 	l net.Listener
 
-	id uint64
+	id               uint64
+	finalizedStartup bool
 }
 
 // ctx argument is required by the interface definition created by protobuf grpc.
@@ -96,7 +97,7 @@ func (l *Listener) resolveCommand(req proto.Message) proto.Message {
 	cmdReq := commands.NewCommandRequest(req, resCh)
 	l.incomingCh <- cmdReq
 
-	return utils.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout)
+	return utils.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 }
 
 // Halt gracefully stops the listener.
@@ -111,6 +112,12 @@ func (l *Listener) worker() {
 		// and the server should not be continuing its execution
 		l.log.Fatalf("Serve failed: %v", err)
 	}
+}
+
+// FinalizeStartup is used when the server is a provider. It indicates it has aggregated required
+// number of verification keys and hence can verify received credentials.
+func (l *Listener) FinalizeStartup() {
+	l.finalizedStartup = true
 }
 
 // New creates new instance of a grpclistener using provided config and listening on specified address.

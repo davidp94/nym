@@ -92,11 +92,6 @@ func (vk *VerificationKey) Validate() bool {
 	return true
 }
 
-// ValidateKeyPair checks if the ElGamal keypair was correctly formed.
-func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
-	return sk.Validate() && vk.Validate() && len(sk.y) == len(vk.beta)
-}
-
 // Signature represents signature/credential issued by a Coconut signing authority.
 // sig1 = h,
 // sig2 = h * (x + (m[0] * y[0]) + ... + (m[i] * y[i])).

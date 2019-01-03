@@ -225,7 +225,7 @@ func TestProvider(t *testing.T) {
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22 ]
 	`))
-	assert.NotNil(t, cfg)
+	assert.Nil(t, cfg)
 	assert.Error(t, err)
 
 	cfg, err = config.LoadBinary([]byte(`
@@ -237,7 +237,7 @@ func TestProvider(t *testing.T) {
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001" ]
 	IAIDs = [ 19, 22, 332 ]
 	`))
-	assert.NotNil(t, cfg)
+	assert.Nil(t, cfg)
 	assert.Error(t, err)
 
 	cfg, err = config.LoadBinary([]byte(`

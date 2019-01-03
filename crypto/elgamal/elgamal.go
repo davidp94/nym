@@ -239,7 +239,7 @@ func (pk *PrivateKey) Validate() bool {
 	return true
 }
 
-// ValidateKeyPair checks if the ElGamal keypair was corretly formed.
+// ValidateKeyPair checks if the ElGamal keypair was correctly formed.
 func ValidateKeyPair(pk *PrivateKey, pub *PublicKey) bool {
 	return pk.Validate() && pub.Validate() && pub.Gamma.Equals(Curve.G1mul(pub.G, pk.D))
 }

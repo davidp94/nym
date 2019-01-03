@@ -60,8 +60,9 @@ type Server struct {
 	haltOnce sync.Once
 }
 
-// GetIAsVerificationKeys gets verification keys of the issuers. Returns at least threshold number of them or nil if it times out.
-func (s *Server) GetIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+// getIAsVerificationKeys gets verification keys of the issuers.
+// Returns at least threshold number of them or nil if it times out.
+func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	maxRequests := s.cfg.Debug.ProviderMaxRequests
 	if s.cfg.Debug.ProviderMaxRequests <= 0 {
 		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
@@ -101,7 +102,11 @@ outLoop:
 					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
 						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
 						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
-						reqCh <- &utils.ServerRequest{MarshaledData: packetBytes, ServerAddress: s.cfg.Provider.IAAddresses[i], ServerID: s.cfg.Provider.IAIDs[i]}
+						reqCh <- &utils.ServerRequest{
+							MarshaledData: packetBytes,
+							ServerAddress: s.cfg.Provider.IAAddresses[i],
+							ServerID:      s.cfg.Provider.IAIDs[i],
+						}
 					}
 				}
 			}()
@@ -121,7 +126,8 @@ outLoop:
 				s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
 				break outLoop
 			} else {
-				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)", len(receivedResponses), s.cfg.Provider.Threshold)
+				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
+					len(receivedResponses), s.cfg.Provider.Threshold)
 			}
 
 		case <-timeout:
@@ -144,6 +150,7 @@ outLoop:
 }
 
 // New returns a new Server instance parameterized with the specified configuration.
+// nolint: gocyclo
 func New(cfg *config.Config) (*Server, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {
@@ -156,22 +163,19 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog := log.GetLogger("Server")
 
-	// ensures that it IS displayed if any logging at all is enabled
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
 	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
 	cmdCh := channels.NewInfiniteChannel() // commands received via the socket, like sign those attributes
 
+	var params *coconut.Params
 	sk := &coconut.SecretKey{}
 	vk := &coconut.VerificationKey{}
 
-	var params *coconut.Params
-
 	// if it's not an issuer, we don't care about own keys, because they are not going to be used anyway (for now).
 	if cfg.Server.IsIssuer {
-		// todo: allow for empty verification key if secret key is set
-		if cfg.Debug.RegenerateKeys || cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {
+		if cfg.Debug.RegenerateKeys {
 			serverLog.Notice("Generating new sk/vk coconut keypair")
 			params, err = coconut.Setup(cfg.Server.MaximumAttributes)
 			if err != nil {
@@ -192,21 +196,19 @@ func New(cfg *config.Config) (*Server, error) {
 
 			serverLog.Notice("Written new keys to the files")
 		} else {
-			err = sk.FromPEMFile(cfg.Issuer.SecretKeyFile)
-			if err != nil {
+			if err := sk.FromPEMFile(cfg.Issuer.SecretKeyFile); err != nil {
 				return nil, err
 			}
-			err = vk.FromPEMFile(cfg.Issuer.VerificationKeyFile)
-			if err != nil {
+			if err := vk.FromPEMFile(cfg.Issuer.VerificationKeyFile); err != nil {
 				return nil, err
 			}
-			if len(sk.Y()) != len(vk.Beta()) || len(sk.Y()) > cfg.Server.MaximumAttributes {
-				serverLog.Errorf("Couldn't Load the keys")
-				return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
-				// todo: check for g^Y() == Beta() for each i
+			if len(sk.Y()) > cfg.Server.MaximumAttributes || !coconut.ValidateKeyPair(sk, vk) {
+				serverLog.Errorf("The loaded keys were invalid")
+				return nil, errors.New("The loaded keys were invalid")
 			}
 			serverLog.Notice("Loaded Coconut server keys from the files.")
-			// succesfully loaded keys - create params of appropriate length
+
+			// successfully loaded keys - create params of appropriate length
 			params, err = coconut.Setup(len(sk.Y()))
 			if err != nil {
 				return nil, err
@@ -251,7 +253,6 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, err
 		}
 	}
-
 	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
 
 	s := &Server{
@@ -275,7 +276,7 @@ func New(cfg *config.Config) (*Server, error) {
 	if !cfg.Server.IsProvider {
 		avk = nil
 	} else {
-		vks, pp := s.GetIAsVerificationKeys()
+		vks, pp := s.getIAsVerificationKeys()
 		if vks == nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
@@ -284,7 +285,15 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	s.avk = avk
 
-	serverLog.Noticef("Started %v Server (Issuer: %v, Provider: %v)", cfg.Server.Identifier, cfg.Server.IsIssuer, cfg.Server.IsProvider)
+	for _, l := range s.listeners {
+		l.FinalizeStartup()
+	}
+	for _, l := range s.grpclisteners {
+		l.FinalizeStartup()
+	}
+
+	serverLog.Noticef("Started %v Server (Issuer: %v, Provider: %v)",
+		cfg.Server.Identifier, cfg.Server.IsIssuer, cfg.Server.IsProvider)
 	return s, nil
 }
 

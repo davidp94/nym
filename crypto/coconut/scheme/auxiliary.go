@@ -41,6 +41,22 @@ func getBaseFromAttributes(pubM []*Curve.BIG) (*Curve.ECP, error) {
 	return utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
 }
 
+// ValidateKeyPair checks if the coconut keypair was correctly formed.
+func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
+	if len(sk.y) != len(vk.beta) || !sk.Validate() || !vk.Validate() {
+		return false
+	}
+	if !vk.alpha.Equals(Curve.G2mul(vk.g2, sk.x)) {
+		return false
+	}
+	for i := range sk.y {
+		if !vk.beta[i].Equals(Curve.G2mul(vk.g2, sk.y[i])) {
+			return false
+		}
+	}
+	return true
+}
+
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (sk *SecretKey) MarshalBinary() ([]byte, error) {

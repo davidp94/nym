@@ -785,6 +785,12 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	verifyResponse := &commands.VerifyResponse{}
 	if err := proto.Unmarshal(respPacket.Payload(), verifyResponse); err != nil {
 		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to recover verification result: %v", err)
+	} else if verifyResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
+		return false, c.logAndReturnError(
+			"SendCredentialsForVerification: Received invalid response with status: %v. Error: %v",
+			verifyResponse.GetStatus().Code,
+			verifyResponse.GetStatus().Message,
+		)
 	}
 
 	return verifyResponse.IsValid, nil
@@ -794,6 +800,12 @@ func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) (bool, 
 	blindVerifyResponse := &commands.BlindVerifyResponse{}
 	if err := proto.Unmarshal(packetResponse.Payload(), blindVerifyResponse); err != nil {
 		return false, c.logAndReturnError("parseBlindVerifyResponse: Failed to recover verification result: %v", err)
+	} else if blindVerifyResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
+		return false, c.logAndReturnError(
+			"parseBlindVerifyResponse: Received invalid response with status: %v. Error: %v",
+			blindVerifyResponse.GetStatus().Code,
+			blindVerifyResponse.GetStatus().Message,
+		)
 	}
 	return blindVerifyResponse.IsValid, nil
 }
