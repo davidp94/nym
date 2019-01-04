@@ -31,8 +31,6 @@ import (
 
 // getBaseFromAttributes generates the base h from public attributes.
 // It is only used for Sign function that works exlusively on public attributes
-// todo: actually logic in code is identical to constructChallenge in proofs
-// (apart from SHA used) - combine them?
 func getBaseFromAttributes(pubM []*Curve.BIG) (*Curve.ECP, error) {
 	s := make([]string, len(pubM))
 	for i := range pubM {

@@ -59,8 +59,7 @@ func (h *header) MarshalBinary() ([]byte, error) {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (p *Packet) UnmarshalBinary(data []byte) error {
 	header := &header{}
-	err := header.UnmarshalBinary(data[:headerLength])
-	if err != nil {
+	if err := header.UnmarshalBinary(data[:headerLength]); err != nil {
 		return err
 	}
 	payload := data[headerLength:]

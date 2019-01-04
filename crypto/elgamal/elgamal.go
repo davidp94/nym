@@ -32,12 +32,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: create types for public and private keys and adjust arguments accordingly (look https://godoc.org/golang.org/x/crypto/openpgp/elgamal)
-// todo: possibly alternative version of Decrypt to return actual m rather than h^m
-// todo: should decrypt take BpGroup argument for the sake of consistency or just remove it?
-
-// todo: move it somewhere else as the identical code is in coconut.auxiliary... cant reference it due to cyclic
-// make separate packet for marshalling?
 var (
 	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
 )

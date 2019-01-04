@@ -24,9 +24,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: consider replacing attributes with getters?
-// todo: how many bytes of entropy
-
 // BpGroup represents data required for a bilinear pairing
 type BpGroup struct {
 	gen1 *Curve.ECP
@@ -63,9 +60,6 @@ func (b *BpGroup) Pair(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
 // New returns a new instance of a BpGroup
 func New() *BpGroup {
 	rng := amcl.NewRAND()
-
-	// amcl suggests using at least 128 bytes of entropy.
-	// todo: is 256 enough for our needs?
 	n := 256
 	raw, err := generateRandomBytes(n)
 	if err != nil {

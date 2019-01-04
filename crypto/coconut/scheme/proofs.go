@@ -30,11 +30,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: Ensure Signer and Verifier are the correct terms for the proofs
-// todo: worker pool for concurrency
-// todo: make errors private
-// todo: deal with too lengthy function signatures
-
 var (
 	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of
 	// proofs for corectness of ciphertexts and cm.

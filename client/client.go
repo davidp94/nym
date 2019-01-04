@@ -515,7 +515,6 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 // which will be the aggregated verification key.
 // In the case of threshold system, first t results are aggregated, otherwise all results are aggregated.
 // Error is returned if insufficient number of verification keys was received.
-// TODO: correctly order results if shouldAggregate is false
 func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.VerificationKey, error) {
 	if !c.cfg.Client.UseGRPC {
 		return nil, c.logAndReturnError(nonGRPCClientErr)
@@ -561,7 +560,6 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 // which will be the aggregated verification key.
 // In the case of threshold system, first t results are aggregated, otherwise all results are aggregated.
 // Error is returned if insufficient number of verification keys was received.
-// TODO: correctly order results if shouldAggregate is false
 func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.VerificationKey, error) {
 	if c.cfg.Client.UseGRPC {
 		return nil, c.logAndReturnError(gRPCClientErr)
@@ -1020,7 +1018,7 @@ func New(cfg *config.Config) (*Client, error) {
 		cryptoworker: cryptoworker,
 
 		defaultDialOptions: []grpc.DialOption{
-			grpc.WithInsecure(), // TODO: CERTS!!
+			grpc.WithInsecure(),
 		},
 	}
 

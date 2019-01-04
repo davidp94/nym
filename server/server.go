@@ -37,8 +37,6 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// todo: if provider AND issuer: ONLY accept getVK requests before completing startup
-
 // Server defines all the required attributes for a coconut server.
 type Server struct {
 	cfg *config.Config
@@ -280,7 +278,6 @@ func New(cfg *config.Config) (*Server, error) {
 		if vks == nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
-		// todo: take a random worker if the are multiple ?
 		*avk = *cryptoWorkers[0].CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk

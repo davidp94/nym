@@ -17,8 +17,6 @@
 // Package config defines configuration used by coconut server.
 package config
 
-// todo: once all options are figured out, introduce validation
-
 import (
 	"errors"
 	"io/ioutil"
@@ -87,7 +85,6 @@ type Issuer struct {
 
 // Provider is the Coconut provider server configuration.
 // At this point it is only responsible for verifying credentials it receives.
-// todo: change name?
 type Provider struct {
 	// IAAddresses are the IP address:port combinations of all Authority Servers.
 	// Required if the server is a provider.

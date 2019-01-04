@@ -2,8 +2,6 @@
 
 package utils
 
-// todo: docs, tests, etc
-
 import (
 	"encoding/binary"
 	"io"
@@ -58,8 +56,6 @@ func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 	return packet.FromBytes(packetOutBytes)
 }
 
-// will be replaced/modified once whole thing is changed to use protobuf
-// todo: should return nil if cmdID doesnt match cmd.
 func CommandToMarshaledPacket(cmd commands.Command, cmdID commands.CommandID) []byte {
 	payloadBytes, err := proto.Marshal(cmd)
 	if err != nil {
@@ -76,8 +72,6 @@ func CommandToMarshaledPacket(cmd commands.Command, cmdID commands.CommandID) []
 	return packetBytes
 }
 
-// todo: way to close all open conns on timeout
-// used by both clients and providers
 func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *logging.Logger, connectTimeout int) chan<- *ServerRequest {
 	ch := make(chan *ServerRequest)
 	for i := 0; i < maxRequests; i++ {

@@ -23,8 +23,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: validate all structures, like the verification key
-
 // SecretKey represents secret key of a Coconut signing authority.
 type SecretKey struct {
 	x *Curve.BIG

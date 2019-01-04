@@ -34,14 +34,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: rename and restructure PolynomialPoints struct + all its uses
-// todo: comments with maths computation
-// todo: comments with python sources
-// todo: remove ShowBlindSignature and move it straight to BlindVerify?
-// todo: include gamma to blindsignmats as per paper rather than as per python implementation?
-// todo: validate all structures, like the verification key + include created func for validating bigslices
-// ^ or assume the data has already been sanitized on upper level to increase performance here
-
 var (
 	// ErrSetupParams indicates incorrect parameters provided for Setup.
 	ErrSetupParams = errors.New("Can't generate params for less than 1 attribute")

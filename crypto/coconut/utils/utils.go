@@ -28,9 +28,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// todo: verify HashBytesToG1
-// todo: wait for George's change in bplib for hashG1 -> worst case scenario is to try to butcher and modify amcl fork
-
 // Printable is a wrapper for all objects that have ToString method. In particular Curve.ECP and Curve.ECP2.
 type Printable interface {
 	ToString() string
@@ -139,7 +136,6 @@ func HashStringToG1(sha int, m string) (*Curve.ECP, error) {
 
 // HashBytesToG1 takes a bytes message and maps it to a point on G1 Curve
 // Python implementation use SHA512, so temporarily hardcoding it here
-// todo: NEED GEORGE'S FIX TO KNOW HOW TO FURTHER CHANGE IT
 func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 	// Follow Python implementation
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN {

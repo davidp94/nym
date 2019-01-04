@@ -17,8 +17,6 @@
 // Package config defines configuration used by coconut client.
 package config
 
-// todo: once all options are figured out, introduce validation
-
 import (
 	"errors"
 	"io/ioutil"

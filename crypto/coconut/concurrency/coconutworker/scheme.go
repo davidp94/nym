@@ -31,8 +31,6 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-//todo : put ConstructVerifierProof in showblindsignature to jobpacket for further parallelization
-
 // MuxParams is identical to normal params, but has an attached mutex, so that
 // rng in bpgroup could be shared safely.
 type MuxParams struct {
@@ -215,7 +213,6 @@ func (cw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, 
 		ks[i] = encFull.K()
 	}
 
-	// TODO: cw.PROOFS
 	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
@@ -471,7 +468,6 @@ func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verification
 	nuRes := <-nuCh
 	nu := nuRes.(*Curve.ECP)
 
-	// todo: put ConstructVerifierProof to jobpacket (like elgamalencrypt)
 	verifierProof, err := cw.ConstructVerifierProof(params, vk, sig, privM, t)
 	if err != nil {
 		return nil, err

@@ -14,7 +14,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// todo: description
 package cryptoworker
 
 import (
@@ -58,7 +57,6 @@ func (w *Worker) setErrorResponse(response *commands.Response, errMsg string, er
 	response.ErrorStatus = errCode
 }
 
-// todo: clean up in next iteration, error handling is way too messy right now
 func (w *Worker) worker() {
 	for {
 		var cmdReq *commands.CommandRequest
@@ -186,5 +184,3 @@ func New(jobQueue chan<- interface{}, incomingCh <-chan interface{}, id uint64, 
 	w.Go(w.worker)
 	return w
 }
-
-// func init with q to make params
