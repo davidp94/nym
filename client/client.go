@@ -316,22 +316,28 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	}
 
 	for i := range sigs {
-		if sigs[i] == nil || sigs[i].Sig1() == nil || sigs[i].Sig2() == nil {
+		if !sigs[i].Validate() {
 			entriesToRemove[i] = true
 		}
 	}
 
 	if len(entriesToRemove) > 0 {
 		if c.cfg.Client.Threshold > 0 {
-			newXs := pp.Xs()
-			for i := range entriesToRemove {
-				newXs = append(newXs[:i], newXs[i+1:]...)
+			newXs := make([]*Curve.BIG, 0, len(pp.Xs()))
+			for i, x := range pp.Xs() {
+				if _, ok := entriesToRemove[i]; !ok {
+					newXs = append(newXs, x)
+				}
 			}
 			pp = coconut.NewPP(newXs)
 		}
-		for i := range entriesToRemove {
-			sigs = append(sigs[:i], sigs[i+1:]...)
+		newSigs := make([]*coconut.Signature, 0, len(sigs))
+		for i, sig := range sigs {
+			if _, ok := entriesToRemove[i]; !ok {
+				newSigs = append(newSigs, sig)
+			}
 		}
+		sigs = newSigs
 	}
 
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
@@ -471,15 +477,21 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 
 	if len(entriesToRemove) > 0 {
 		if c.cfg.Client.Threshold > 0 {
-			newXs := pp.Xs()
-			for i := range entriesToRemove {
-				newXs = append(newXs[:i], newXs[i+1:]...)
+			newXs := make([]*Curve.BIG, 0, len(pp.Xs()))
+			for i, x := range pp.Xs() {
+				if _, ok := entriesToRemove[i]; !ok {
+					newXs = append(newXs, x)
+				}
 			}
 			pp = coconut.NewPP(newXs)
 		}
-		for i := range entriesToRemove {
-			vks = append(vks[:i], vks[i+1:]...)
+		newVks := make([]*coconut.VerificationKey, 0, len(vks))
+		for i, vk := range vks {
+			if _, ok := entriesToRemove[i]; !ok {
+				newVks = append(newVks, vk)
+			}
 		}
+		vks = newVks
 	}
 
 	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
