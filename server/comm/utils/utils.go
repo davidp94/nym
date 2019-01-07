@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -131,6 +132,8 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	vks := make([]*coconut.VerificationKey, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
+
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerID < responses[j].ServerID })
 
 	for i := range responses {
 		if responses[i] != nil {

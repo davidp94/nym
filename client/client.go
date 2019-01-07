@@ -24,6 +24,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
@@ -545,6 +546,8 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 
 	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerID < responses[j].ServerID })
 
 	for i := range responses {
 		if responses[i] == nil {
