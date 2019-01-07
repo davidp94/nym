@@ -1,0 +1,56 @@
+syntax = "proto3";
+import "crypto/elgamal/proto/types.proto";
+
+package coconut;
+option go_package = "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme";
+// used for serializing data to send them over the wire. It is assumed each BIG, ECP, ECP2, etc 
+// were already converted to byte slices using amcl's ToBytes methods.
+
+
+// in principle should never be used as secret key would never be sent over the wire,
+// but the definition is included for completion sake
+message ProtoSecretKey {
+    bytes X = 1;
+    repeated bytes Y = 2;
+}
+
+message ProtoVerificationKey {
+    bytes G2 = 1;
+    bytes Alpha = 2;
+    repeated bytes Beta = 3; // order is preserved
+}
+
+message ProtoSignature {
+    bytes sig1 = 1;
+    bytes sig2 = 2;
+}
+
+message ProtoBlindedSignature {
+    bytes sig1 = 1;
+    elgamal.ProtoEncryption sig2Tilda = 2; 
+}
+
+message ProtoSignerProof {
+    bytes c = 1;
+    bytes rr = 2;
+    repeated bytes rk = 3;
+    repeated bytes rm = 4;
+}
+
+message ProtoBlindSignMats {
+    bytes cm = 1;
+    repeated elgamal.ProtoEncryption enc = 2;
+    ProtoSignerProof proof = 3;
+}
+
+message ProtoVerifierProof {
+    bytes c = 1;
+    repeated bytes rm = 2;
+    bytes rt = 3;
+}
+
+message ProtoBlindShowMats {
+    bytes kappa = 1;
+    bytes nu = 2;
+    ProtoVerifierProof proof = 3;
+}

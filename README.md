@@ -1,9 +1,15 @@
+<!-- Github -> 0xacab
+SRCA="github.com\/jstuczyn\/CoconutGo"
+DSTA="0xacab.org\/jstuczyn\/CoconutGo"
+
+find ./CoconutGo/ -type f -exec sed -i -e "s/$SRCA/$DSTA/g" {} \; 
+ -->
 # CoconutGo
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://github.com/jstuczyn/CoconutGo/blob/master/LICENSE)
-[![Build Status](https://travis-ci.com/jstuczyn/CoconutGo.svg?branch=master)](https://travis-ci.com/jstuczyn/CoconutGo)
-[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/github.com/jstuczyn/CoconutGo)
-[![Coverage Status](http://codecov.io/github/jstuczyn/CoconutGo/coverage.svg?branch=master)](http://codecov.io/github/jstuczyn/CoconutGo?branch=master)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://0xacab.org/jstuczyn/CoconutGo/blob/master/LICENSE)
+<!-- [![Build Status](https://travis-ci.com/jstuczyn/CoconutGo.svg?branch=master)](https://travis-ci.com/jstuczyn/CoconutGo)
+[![GoDoc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat-square)](https://godoc.org/0xacab.org/jstuczyn/CoconutGo)
+[![Coverage Status](http://codecov.io/github/jstuczyn/CoconutGo/coverage.svg?branch=master)](http://codecov.io/github/jstuczyn/CoconutGo?branch=master) -->
 
 This is a Go implementation of the Coconut selective disclosure cerendtial scheme by Sonnino et al.: [https://arxiv.org/pdf/1802.07344.pdf](https://arxiv.org/pdf/1802.07344.pdf).
 It supports threshold issuance on multiple public and privMate attributes, re-randomization and multiple unlinkable selective attribute revelations.
@@ -28,7 +34,8 @@ go test -v ./...
 
 The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6GHz Ryzen 1600 assigned. Each individual benchmark was run single-threaded for 1 minute with `-benchtime=60s` flag.
 
-#### BN254
+REQUIRE RERUNNING
+<!-- #### BN254
 
 | Operation                        | Times run | Time per op     | Memory per op | Allocs per op     |
 |----------------------------------|-----------:|-----------------:|---------------:|-------------------:|
@@ -220,4 +227,4 @@ The benchmarks were performed on 64bit Ubuntu 18.04.1 LTS VM with 2 cores of 3.6
 | VerifyVerifierProof/privM=1      | 2000  | 52.42 ms/op  | 11.51 kB/op  | 172606 allocs/op  |
 | VerifyVerifierProof/privM=3      | 1000  | 77.37 ms/op  | 16.29 kB/op  | 244440 allocs/op  |
 | VerifyVerifierProof/privM=5      | 1000  | 103.73 ms/op | 21.06 kB/op  | 316318 allocs/op  |
-| VerifyVerifierProof/privM=10     | 500   | 169.76 ms/op | 32.99 kB/op  | 495936 allocs/op  |
+| VerifyVerifierProof/privM=10     | 500   | 169.76 ms/op | 32.99 kB/op  | 495936 allocs/op  | -->

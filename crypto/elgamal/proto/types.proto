@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package elgamal;
+option go_package = "0xacab.org/jstuczyn/CoconutGo/crypto/elgamal";
+
+// used for serializing data to send them over the wire. It is assumed each BIG, ECP, ECP2, etc 
+// were already converted to byte slices using amcl's ToBytes methods.
+
+message ProtoEncryption {
+    bytes C1 = 1;
+    bytes C2 = 2;
+}
+
+message ProtoPublicKey {
+    bytes P = 1;
+    bytes G = 2;
+    bytes Gamma = 3;
+}
+
+// just to keep it consistent when/if writing to a PEM file
+message ProtoPrivateKey {
+    bytes D = 1;
+}

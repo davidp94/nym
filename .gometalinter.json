@@ -15,7 +15,6 @@
         "unconvert",
         "unused",
         "vet",
-        "dupl",
         "varcheck",
         "maligned",
         "errcheck",
