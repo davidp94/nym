@@ -37,7 +37,7 @@ git diff $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services/ser
 
 ```bash
 cd $GOPATH/src/0xacab.org/jstuczyn/CoconutGo
-git -s tag vX.Y.Z
+git tag -s vX.Y.Z
 git push origin vX.Y.Z
 ```
 
