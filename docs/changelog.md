@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.0.2
+
+* Fixes jstuczyn/CoconutGo#4
+
 ## v0.0.1 - Initial Release
 
 * Coconut Signature Scheme

@@ -133,6 +133,10 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 	vks := make([]*coconut.VerificationKey, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 
+	// works under assumption that servers specified in config file are ordered by their IDs
+	// which will in most cases be the case since they're just going to be 1,2,.., etc.
+	// a more general solution would require modifying the function signature
+	// and this use case is too niche to warrant the change.
 	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerID < responses[j].ServerID })
 
 	for i := range responses {
