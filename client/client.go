@@ -52,7 +52,7 @@ type Client struct {
 	elGamalPrivateKey *elgamal.PrivateKey
 	elGamalPublicKey  *elgamal.PublicKey
 
-	cryptoworker       *cryptoworker.Worker
+	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
 }
 
