@@ -1,3 +1,18 @@
+// main.go - Main file for a simple Trusted Third Party (TTP) keygen CLI
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package main
 
 import (
@@ -11,7 +26,12 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 )
 
-// just generate n keys with threshold of t
+// main takes the arguments passed on command line
+// and generates set of Coconut threshold keys according with the following:
+// attributes: maximum number of arguments the keys are capable of signing
+// n: number of keys to generate
+// t: threshold parameter
+// f: directory to save the keys at
 func main() {
 	numAttrs := flag.Int("attributes", -1, "How many attributes should keys be able to sign")
 	n := flag.Int("n", -1, "Number of keys to generate")
