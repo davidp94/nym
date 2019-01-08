@@ -33,7 +33,7 @@ import (
 // so that they could be run concurrently.
 type Worker struct {
 	worker.Worker
-	cw *coconutworker.Worker
+	cw *coconutworker.CoconutWorker
 
 	incomingCh <-chan interface{}
 	log        *logging.Logger
@@ -46,7 +46,7 @@ type Worker struct {
 	id uint64
 }
 
-func (w *Worker) CoconutWorker() *coconutworker.Worker {
+func (w *Worker) CoconutWorker() *coconutworker.CoconutWorker {
 	return w.cw
 }
 

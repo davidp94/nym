@@ -23,7 +23,7 @@ import (
 )
 
 // ElGamalKeygen generates private and public keys required for ElGamal encryption scheme.
-func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*elgamal.PrivateKey, *elgamal.PublicKey) {
+func (cw *CoconutWorker) ElGamalKeygen(params *MuxParams) (*elgamal.PrivateKey, *elgamal.PublicKey) {
 	params.Lock()
 	pk, pub := elgamal.Keygen(params.Params.G)
 	params.Unlock()
@@ -35,7 +35,7 @@ func (ccw *Worker) ElGamalKeygen(params *MuxParams) (*elgamal.PrivateKey, *elgam
 // The random k is returned alongside the encryption
 // as it is required by the Coconut Scheme to create proofs of knowledge.
 // nolint: lll
-func (ccw *Worker) ElGamalEncrypt(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
+func (cw *CoconutWorker) ElGamalEncrypt(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
 	// we had a choice of either having multiple encryptions in parallel or g1muls inside them
 	// having both would require changing entire worker structure to perhaps have some priority queues
 	// and somehow detect deadlocks (say there's a single worker which works on encryption, then it spawns G1mulpacket,
@@ -58,14 +58,14 @@ func (ccw *Worker) ElGamalEncrypt(params *MuxParams, pub *elgamal.PublicKey, m *
 // Ideally this method should have been changed into function and placed in jobpacket package,
 // but that would cause a cyclic dependency (coconutclient imports jobpacket already).
 // nolint: lll
-func (ccw *Worker) makeElGamalEncryptionOp(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
+func (cw *CoconutWorker) makeElGamalEncryptionOp(params *MuxParams, pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) func() (interface{}, error) {
 	return func() (interface{}, error) {
-		return ccw.ElGamalEncrypt(params, pub, m, h), nil
+		return cw.ElGamalEncrypt(params, pub, m, h), nil
 	}
 }
 
 // ElGamalDecrypt takes the ElGamal encryption of a message and returns a point on the G1 curve
 // that represents original h^m.
-func (ccw *Worker) ElGamalDecrypt(params *MuxParams, pk *elgamal.PrivateKey, enc *elgamal.Encryption) *Curve.ECP {
+func (cw *CoconutWorker) ElGamalDecrypt(params *MuxParams, pk *elgamal.PrivateKey, enc *elgamal.Encryption) *Curve.ECP {
 	return elgamal.Decrypt(params.Params.G, pk, enc)
 }

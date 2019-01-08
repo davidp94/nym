@@ -32,7 +32,7 @@ import (
 // Worker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
 type Worker struct {
-	cw  *coconutworker.Worker
+	cw  *coconutworker.CoconutWorker
 	log *logging.Logger
 	id  uint64
 
@@ -40,7 +40,7 @@ type Worker struct {
 }
 
 // CoconutWorker returns coconut worker instance associated with cryptoworker.
-func (w *Worker) CoconutWorker() *coconutworker.Worker {
+func (w *Worker) CoconutWorker() *coconutworker.CoconutWorker {
 	return w.cw
 }
 
