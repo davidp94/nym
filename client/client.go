@@ -117,9 +117,11 @@ func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.M
 		for i := range c.cfg.Client.IAgRPCAddresses {
 			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
 			reqCh <- &utils.ServerRequestGrpc{
-				Message:       request,
-				ServerAddress: c.cfg.Client.IAgRPCAddresses[i],
-				ServerID:      c.cfg.Client.IAIDs[i],
+				Message: request,
+				ServerMetadata: &utils.ServerMetadata{
+					Address: c.cfg.Client.IAgRPCAddresses[i],
+					ID:      c.cfg.Client.IAIDs[i],
+				},
 			}
 		}
 	}()
@@ -135,7 +137,7 @@ func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponseGrpc, r
 	for {
 		select {
 		case resp := <-respCh:
-			c.log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
+			c.log.Debug("Received a reply from IA (%v)", resp.ServerMetadata.Address)
 			responses[i] = resp
 			i++
 
@@ -169,10 +171,10 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 				if !ok {
 					return
 				}
-				c.log.Debugf("Dialing %v", req.ServerAddress)
-				conn, err := grpc.Dial(req.ServerAddress, dialOptions...)
+				c.log.Debugf("Dialing %v", req.ServerMetadata.Address)
+				conn, err := grpc.Dial(req.ServerMetadata.Address, dialOptions...)
 				if err != nil {
-					c.log.Errorf("Could not dial %v (%v)", req.ServerAddress, err)
+					c.log.Errorf("Could not dial %v (%v)", req.ServerMetadata.Address, err)
 				}
 
 				defer conn.Close()
@@ -201,9 +203,15 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 					c.log.Warning(errstr)
 				}
 				if errgrpc != nil {
-					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerAddress, err)
+					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerMetadata.Address, err)
 				} else {
-					respCh <- &utils.ServerResponseGrpc{Message: resp, ServerID: req.ServerID, ServerAddress: req.ServerAddress}
+					respCh <- &utils.ServerResponseGrpc{
+						Message: resp,
+						ServerMetadata: &utils.ServerMetadata{
+							Address: req.ServerMetadata.Address,
+							ID:      req.ServerMetadata.ID,
+						},
+					}
 				}
 			}
 		}(i)
@@ -221,9 +229,9 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 	sigs := make([]*coconut.Signature, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
-		if responses[i] != nil {
-			if responses[i].ServerID <= 0 {
-				c.log.Errorf("Invalid serverID provided: %v", responses[i].ServerID)
+		if responses[i] != nil && responses[i].ServerMetadata != nil {
+			if responses[i].ServerMetadata.ID <= 0 {
+				c.log.Errorf("Invalid serverID provided: %v", responses[i].ServerMetadata.ID)
 				if !isThreshold {
 					c.log.Error("Not a threshold system: can't get all signatures")
 					return nil, nil
@@ -238,7 +246,7 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 				resp = &commands.SignResponse{}
 			}
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
-				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
+				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerMetadata.Address)
 				continue
 			}
 
@@ -257,7 +265,7 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 			}
 
 			if isThreshold {
-				xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
+				xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 			}
 			sigs = append(sigs, sig)
 		}
@@ -404,7 +412,7 @@ func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, erro
 		}
 		sigs = append(sigs, sig)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 		}
 	}
 	if c.cfg.Client.Threshold > 0 {
@@ -428,20 +436,22 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("SignAttributes: Failed to create Sign request: %v", err)
 	}
 
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
-	if packetBytes == nil {
-		return nil, c.logAndReturnError("SignAttributes: Could not create data packet for sign command")
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		return nil, c.logAndReturnError("SignAttributes: Could not create data packet for sign command: %v", err)
 	}
 
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := utils.GetServerResponses(
-		packetBytes,
-		c.cfg.Client.MaxRequests,
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       c.cfg.Client.MaxRequests,
+			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ServerAddresses:   c.cfg.Client.IAAddresses,
+			ServerIDs:         c.cfg.Client.IAIDs,
+		},
 		c.log,
-		c.cfg.Debug.ConnectTimeout,
-		c.cfg.Debug.RequestTimeout,
-		c.cfg.Client.IAAddresses,
-		c.cfg.Client.IAIDs,
 	)
 	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
 }
@@ -549,7 +559,7 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 
 	// works under assumption that servers specified in config file are ordered by their IDs
 	// which will in most cases be the case since they're just going to be 1,2,.., etc.
-	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerID < responses[j].ServerID })
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	for i := range responses {
 		if responses[i] == nil {
@@ -562,7 +572,7 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 		}
 		vks = append(vks, vk)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 		}
 	}
 
@@ -587,20 +597,22 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 		return nil, c.logAndReturnError("GetVerificationKeys: Failed to create Vk request: %v", err)
 	}
 
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
-	if packetBytes == nil {
-		return nil, c.logAndReturnError("GetVerificationKeys: Could not create data packet for get verification key command")
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		return nil, c.logAndReturnError("GetVerificationKeys: Could not create data packet for getVK command: %v", err)
 	}
 	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	responses := utils.GetServerResponses(
-		packetBytes,
-		c.cfg.Client.MaxRequests,
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       c.cfg.Client.MaxRequests,
+			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ServerAddresses:   c.cfg.Client.IAAddresses,
+			ServerIDs:         c.cfg.Client.IAIDs,
+		},
 		c.log,
-		c.cfg.Debug.ConnectTimeout,
-		c.cfg.Debug.RequestTimeout,
-		c.cfg.Client.IAAddresses,
-		c.cfg.Client.IAIDs,
 	)
 	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 	return c.handleReceivedVerificationKeys(vks, pp, shouldAggregate)
@@ -670,7 +682,7 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 		}
 		sigs = append(sigs, sig)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerID))
+			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 		}
 	}
 	if c.cfg.Client.Threshold > 0 {
@@ -704,21 +716,23 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError("BlindSignAttributes: Failed to create BlindSign request: %v", err)
 	}
 
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
-	if packetBytes == nil {
-		return nil, c.logAndReturnError("BlindSignAttributes: Could not create data packet for blind sign command")
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		return nil, c.logAndReturnError("BlindSignAttributes: Could not create data packet for blind sign command: %v", err)
 	}
 
 	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
 	responses := utils.GetServerResponses(
-		packetBytes,
-		c.cfg.Client.MaxRequests,
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       c.cfg.Client.MaxRequests,
+			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ServerAddresses:   c.cfg.Client.IAAddresses,
+			ServerIDs:         c.cfg.Client.IAIDs,
+		},
 		c.log,
-		c.cfg.Debug.ConnectTimeout,
-		c.cfg.Debug.RequestTimeout,
-		c.cfg.Client.IAAddresses,
-		c.cfg.Client.IAIDs,
 	)
 	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
 	return c.handleReceivedSignatures(sigs, pp)
@@ -771,9 +785,9 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to create Verify request: %v", err)
 	}
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.VerifyID)
-	if packetBytes == nil {
-		return false, c.logAndReturnError("Could not create data packet for verify command")
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		return false, c.logAndReturnError("Could not create data packet for verify command: %v", err)
 	}
 
 	c.log.Debugf("Dialing %v", addr)
@@ -896,14 +910,15 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 	if c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(gRPCClientErr)
 	}
+
 	blindVerifyRequest, err := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Failed to prepare blindverifyrequest: %v", err)
 	}
 
-	packetBytes := utils.CommandToMarshaledPacket(blindVerifyRequest, commands.BlindVerifyID)
-	if packetBytes == nil {
-		return false, c.logAndReturnError("Could not create data packet for blind verify command")
+	packetBytes, err := commands.CommandToMarshaledPacket(blindVerifyRequest)
+	if err != nil {
+		return false, c.logAndReturnError("Could not create data packet for blind verify command: %v", err)
 	}
 
 	c.log.Debugf("Dialing %v", addr)

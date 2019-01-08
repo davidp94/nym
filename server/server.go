@@ -71,9 +71,10 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		s.log.Errorf("Failed to create Vk request: %v", err)
 		return nil, nil
 	}
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
-	if packetBytes == nil {
-		s.log.Error("Could not create VK data packet") // should never happen...
+
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		s.log.Error("Could not create VK data packet: %v", err) // should never happen...
 		return nil, nil
 	}
 
@@ -102,8 +103,10 @@ outLoop:
 						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
 						reqCh <- &utils.ServerRequest{
 							MarshaledData: packetBytes,
-							ServerAddress: s.cfg.Provider.IAAddresses[i],
-							ServerID:      s.cfg.Provider.IAIDs[i],
+							ServerMetadata: &utils.ServerMetadata{
+								Address: s.cfg.Provider.IAAddresses[i],
+								ID:      s.cfg.Provider.IAIDs[i],
+							},
 						}
 					}
 				}
@@ -113,7 +116,7 @@ outLoop:
 
 			for i := range responses {
 				if responses[i] != nil {
-					receivedResponses[responses[i].ServerAddress] = true
+					receivedResponses[responses[i].ServerMetadata.Address] = true
 				}
 			}
 
