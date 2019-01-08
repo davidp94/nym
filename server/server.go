@@ -49,7 +49,7 @@ type Server struct {
 	jobCh *channels.InfiniteChannel
 	log   *logging.Logger
 
-	cryptoWorkers []*cryptoworker.Worker
+	cryptoWorkers []*cryptoworker.CryptoWorker
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.Worker
@@ -224,11 +224,21 @@ func New(cfg *config.Config) (*Server, error) {
 
 	avk := &coconut.VerificationKey{}
 
-	cryptoWorkers := make([]*cryptoworker.Worker, cfg.Debug.NumCoconutWorkers)
+	cryptoWorkers := make([]*cryptoworker.CryptoWorker, cfg.Debug.NumCryptoWorkers)
 	for i := range cryptoWorkers {
-		cryptoWorkers[i] = cryptoworker.New(jobCh.In(), cmdCh.Out(), uint64(i+1), log, params, sk, vk, avk)
+		cryptoWorkerCfg := &cryptoworker.Config{
+			JobQueue:   jobCh.In(),
+			IncomingCh: cmdCh.Out(),
+			ID:         uint64(i + 1),
+			Log:        log,
+			Params:     params,
+			Sk:         sk,
+			Vk:         vk,
+			Avk:        avk,
+		}
+		cryptoWorkers[i] = cryptoworker.New(cryptoWorkerCfg)
 	}
-	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCoconutWorkers)
+	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCryptoWorkers)
 
 	jobworkers := make([]*jobworker.Worker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {
@@ -281,7 +291,7 @@ func New(cfg *config.Config) (*Server, error) {
 		if vks == nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
-		*avk = *cryptoWorkers[0].CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)
+		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
 

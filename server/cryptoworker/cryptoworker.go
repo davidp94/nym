@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package cryptoworker gives additional functionalities to regular CoconutWorker
+// that are required by a server instance.
 package cryptoworker
 
 import (
@@ -29,11 +31,11 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 )
 
-// Worker allows writing coconut actions to a shared job queue,
+// CryptoWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
-type Worker struct {
+type CryptoWorker struct {
 	worker.Worker
-	cw *coconutworker.CoconutWorker
+	*coconutworker.CoconutWorker // TODO: since coconutWorker is created in New, does it need to be a reference?
 
 	incomingCh <-chan interface{}
 	log        *logging.Logger
@@ -46,25 +48,22 @@ type Worker struct {
 	id uint64
 }
 
-func (w *Worker) CoconutWorker() *coconutworker.CoconutWorker {
-	return w.cw
-}
-
-func (w *Worker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
-	w.log.Error(errMsg)
+func (cw *CryptoWorker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
+	cw.log.Error(errMsg)
 	response.Data = nil
 	response.ErrorMessage = errMsg
 	response.ErrorStatus = errCode
 }
 
-func (w *Worker) worker() {
+// nolint: gocyclo
+func (cw *CryptoWorker) worker() {
 	for {
 		var cmdReq *commands.CommandRequest
 		select {
-		case <-w.HaltCh():
-			w.log.Debugf("Halting Coconut Server worker %d\n", w.id)
+		case <-cw.HaltCh():
+			cw.log.Noticef("Halting Coconut Server worker %d\n", cw.id)
 			return
-		case e := <-w.incomingCh:
+		case e := <-cw.incomingCh:
 			cmdReq = e.(*commands.CommandRequest)
 			cmd := cmdReq.Cmd()
 			response := &commands.Response{
@@ -75,88 +74,88 @@ func (w *Worker) worker() {
 
 			switch v := cmd.(type) {
 			case *commands.SignRequest:
-				w.log.Notice("Received Sign (NOT blind) command")
-				if len(v.PubM) > len(w.sk.Y()) {
-					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM), len(w.sk.Y()))
-					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+				cw.log.Notice("Received Sign (NOT blind) command")
+				if len(v.PubM) > len(cw.sk.Y()) {
+					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM), len(cw.sk.Y()))
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					continue
 				}
-				sig, err := w.cw.SignWrapper(w.sk, coconut.BigSliceFromByteSlices(v.PubM))
+				sig, err := cw.SignWrapper(cw.sk, coconut.BigSliceFromByteSlices(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg := fmt.Sprintf("Error while signing message: %v", err)
-					w.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 					continue
 				}
-				w.log.Debugf("Writing back signature")
+				cw.log.Debugf("Writing back signature")
 				response.Data = sig
 			case *commands.VerificationKeyRequest:
-				w.log.Notice("Received Get Verification Key command")
-				response.Data = w.vk
+				cw.log.Notice("Received Get Verification Key command")
+				response.Data = cw.vk
 			case *commands.VerifyRequest:
-				w.log.Notice("Received Verify (NOT blind) command")
-				if w.avk != nil {
+				cw.log.Notice("Received Verify (NOT blind) command")
+				if cw.avk != nil {
 					sig := &coconut.Signature{}
 					if err := sig.FromProto(v.Sig); err != nil {
 						errMsg := "Could not recover received signature."
-						w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+						cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						continue
 					}
-					response.Data = w.cw.VerifyWrapper(w.avk, coconut.BigSliceFromByteSlices(v.PubM), sig)
+					response.Data = cw.VerifyWrapper(cw.avk, coconut.BigSliceFromByteSlices(v.PubM), sig)
 				} else {
 					errMsg := "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
-					w.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
 				}
 			case *commands.BlindSignRequest:
-				w.log.Notice("Received Blind Sign command")
+				cw.log.Notice("Received Blind Sign command")
 				bsm := &coconut.BlindSignMats{}
 				if err := bsm.FromProto(v.BlindSignMats); err != nil {
 					errMsg := "Could not recover received blindSignMats."
-					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 				}
-				if len(v.PubM)+len(bsm.Enc()) > len(w.sk.Y()) {
-					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM)+len(bsm.Enc()), len(w.sk.Y()))
-					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+				if len(v.PubM)+len(bsm.Enc()) > len(cw.sk.Y()) {
+					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM)+len(bsm.Enc()), len(cw.sk.Y()))
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					continue
 				}
 				egPub := &elgamal.PublicKey{}
 				if err := egPub.FromProto(v.EgPub); err != nil {
-					errMsg := "Could not recover received blindSignMats."
-					w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+					errMsg := "Could not recover received ElGamal Public Key."
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					break
 				}
-				sig, err := w.cw.BlindSignWrapper(w.sk, bsm, egPub, coconut.BigSliceFromByteSlices(v.PubM))
+				sig, err := cw.BlindSignWrapper(cw.sk, bsm, egPub, coconut.BigSliceFromByteSlices(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg := fmt.Sprintf("Error while signing message: %v", err)
-					w.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 					continue
 				}
-				w.log.Debugf("Writing back blinded signature")
+				cw.log.Debugf("Writing back blinded signature")
 				response.Data = sig
 			case *commands.BlindVerifyRequest:
-				w.log.Notice("Received Blind Verify Command")
-				if w.avk != nil {
+				cw.log.Notice("Received Blind Verify Command")
+				if cw.avk != nil {
 					sig := &coconut.Signature{}
 					if err := sig.FromProto(v.Sig); err != nil {
 						errMsg := "Could not recover received signature."
-						w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+						cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						break
 					}
 					bsm := &coconut.BlindShowMats{}
 					if err := bsm.FromProto(v.BlindShowMats); err != nil {
-						errMsg := "Could not recover received blindSignMats."
-						w.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+						errMsg := "Could not recover received blindShowMats."
+						cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						break
 					}
-					response.Data = w.cw.BlindVerifyWrapper(w.avk, sig, bsm, coconut.BigSliceFromByteSlices(v.PubM))
+					response.Data = cw.BlindVerifyWrapper(cw.avk, sig, bsm, coconut.BigSliceFromByteSlices(v.PubM))
 				} else {
 					errMsg := "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
-					w.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
+					cw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
 				}
 			default:
 				errMsg := "Received Invalid Command"
-				w.log.Critical(errMsg)
+				cw.log.Critical(errMsg)
 				response.ErrorStatus = commands.StatusCode_INVALID_COMMAND
 			}
 
@@ -165,22 +164,33 @@ func (w *Worker) worker() {
 	}
 }
 
-// New creates new instance of a coconutWorker.
-// todo: simplify attributes...
-// nolint: lll
-func New(jobQueue chan<- interface{}, incomingCh <-chan interface{}, id uint64, l *logger.Logger, params *coconut.Params, sk *coconut.SecretKey, vk *coconut.VerificationKey, avk *coconut.VerificationKey) *Worker {
-	cw := coconutworker.New(jobQueue, params)
+// Config encapsulates arguments passed in New to create new instance of the cryptoworker.
+type Config struct {
+	JobQueue   chan<- interface{} // type of channel will be updated in next patch version
+	IncomingCh <-chan interface{} // type of channel will be updated in next patch version
 
-	w := &Worker{
-		cw:         cw,
-		incomingCh: incomingCh,
-		id:         id,
-		sk:         sk,
-		vk:         vk,
-		avk:        avk,
-		log:        l.GetLogger(fmt.Sprintf("Servercryptoworker:%d", int(id))),
+	ID uint64
+
+	Log *logger.Logger
+
+	Params *coconut.Params
+	Sk     *coconut.SecretKey
+	Vk     *coconut.VerificationKey
+	Avk    *coconut.VerificationKey
+}
+
+// New creates new instance of a coconutWorker.
+func New(cfg *Config) *CryptoWorker {
+	cw := &CryptoWorker{
+		CoconutWorker: coconutworker.New(cfg.JobQueue, cfg.Params),
+		incomingCh:    cfg.IncomingCh,
+		id:            cfg.ID,
+		sk:            cfg.Sk,
+		vk:            cfg.Vk,
+		avk:           cfg.Avk,
+		log:           cfg.Log.GetLogger(fmt.Sprintf("Servercryptoworker:%d", int(cfg.ID))),
 	}
 
-	w.Go(w.worker)
-	return w
+	cw.Go(cw.worker)
+	return cw
 }
