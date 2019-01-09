@@ -52,7 +52,7 @@ type Server struct {
 	cryptoWorkers []*cryptoworker.CryptoWorker
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
-	jobWorkers    []*jobworker.Worker
+	jobWorkers    []*jobworker.JobWorker
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -240,7 +240,7 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCryptoWorkers)
 
-	jobworkers := make([]*jobworker.Worker, cfg.Debug.NumJobWorkers)
+	jobworkers := make([]*jobworker.JobWorker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {
 		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), log)
 	}

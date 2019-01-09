@@ -36,7 +36,7 @@ type CryptoWorker struct {
 	log *logging.Logger
 	id  uint64
 
-	jobWorkers []*jobworker.Worker
+	jobWorkers []*jobworker.JobWorker
 }
 
 // CoconutWorker returns coconut worker instance associated with cryptoworker.
@@ -67,7 +67,7 @@ func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *C
 		id:  id,
 	}
 
-	jobworkers := make([]*jobworker.Worker, numWorkers)
+	jobworkers := make([]*jobworker.JobWorker, numWorkers)
 	for i := range jobworkers {
 		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), l)
 	}
