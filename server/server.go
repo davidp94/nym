@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
+
 	"github.com/eapache/channels"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
@@ -46,7 +48,7 @@ type Server struct {
 	avk *coconut.VerificationKey
 
 	cmdCh *channels.InfiniteChannel
-	jobCh *channels.InfiniteChannel
+	jobCh *jobqueue.JobQueue
 	log   *logging.Logger
 
 	cryptoWorkers []*cryptoworker.CryptoWorker
@@ -167,7 +169,7 @@ func New(cfg *config.Config) (*Server, error) {
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
-	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+	jobCh := jobqueue.New()                // commands issued by coconutworkers, like do pairing, g1mul, etc
 	cmdCh := channels.NewInfiniteChannel() // commands received via the socket, like sign those attributes
 
 	var params *coconut.Params

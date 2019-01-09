@@ -18,12 +18,12 @@
 package cryptoworker
 
 import (
-	"github.com/eapache/channels"
 	"gopkg.in/op/go-logging.v1"
 
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
@@ -58,7 +58,7 @@ func (cw *CryptoWorker) Halt() {
 // New creates new instance of a coconutWorker.
 // nolint: lll
 func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *CryptoWorker {
-	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+	jobCh := jobqueue.New() // commands issued by coconutworkers, like do pairing, g1mul, etc
 	cw := coconutworker.New(jobCh.In(), params)
 
 	ccw := &CryptoWorker{

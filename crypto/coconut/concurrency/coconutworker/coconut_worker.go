@@ -21,6 +21,7 @@ package coconutworker
 import (
 	"sync"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -29,7 +30,7 @@ import (
 // CoconutWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
 type CoconutWorker struct {
-	jobQueue  chan<- interface{}
+	jobQueue  chan<- *jobpacket.JobPacket
 	muxParams *MuxParams
 }
 
@@ -91,7 +92,7 @@ func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, 
 }
 
 // New creates new instance of a coconutWorker.
-func New(jobQueue chan<- interface{}, params *coconut.Params) *CoconutWorker {
+func New(jobQueue chan<- *jobpacket.JobPacket, params *coconut.Params) *CoconutWorker {
 	muxParams := &MuxParams{params, sync.Mutex{}}
 	cw := &CoconutWorker{
 		jobQueue:  jobQueue,

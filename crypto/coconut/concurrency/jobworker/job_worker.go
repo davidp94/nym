@@ -30,8 +30,8 @@ import (
 type JobWorker struct {
 	worker.Worker
 
-	id       uint64
-	jobQueue <-chan interface{}
+	id          uint64
+	jobQueueOut <-chan *jobpacket.JobPacket
 
 	log *logging.Logger
 }
@@ -43,9 +43,9 @@ func (jw *JobWorker) worker() {
 		case <-jw.HaltCh():
 			jw.log.Debugf("Halting worker %d\n", jw.id)
 			return
-		case e := <-jw.jobQueue:
+		case e := <-jw.jobQueueOut:
 			jw.log.Debug("Got JobPacket")
-			jobpkt = e.(*jobpacket.JobPacket)
+			jobpkt = e
 		}
 
 		res, err := jobpkt.Op()
@@ -60,11 +60,11 @@ func (jw *JobWorker) worker() {
 }
 
 // New creates new instance of a jobWorker.
-func New(jobQueue <-chan interface{}, id uint64, l *logger.Logger) *JobWorker {
+func New(jobQueueOut <-chan *jobpacket.JobPacket, id uint64, l *logger.Logger) *JobWorker {
 	jw := &JobWorker{
-		jobQueue: jobQueue,
-		id:       id,
-		log:      l.GetLogger(fmt.Sprintf("CoconutJobWorker:%d", int(id))),
+		jobQueueOut: jobQueueOut,
+		id:          id,
+		log:         l.GetLogger(fmt.Sprintf("CoconutJobWorker:%d", int(id))),
 	}
 
 	jw.Go(jw.worker)

@@ -19,6 +19,7 @@
 package cryptoworker
 
 import (
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
@@ -166,8 +167,8 @@ func (cw *CryptoWorker) worker() {
 
 // Config encapsulates arguments passed in New to create new instance of the cryptoworker.
 type Config struct {
-	JobQueue   chan<- interface{} // type of channel will be updated in next patch version
-	IncomingCh <-chan interface{} // type of channel will be updated in next patch version
+	JobQueue   chan<- *jobpacket.JobPacket // type of channel will be updated in next patch version
+	IncomingCh <-chan interface{}          // type of channel will be updated in next patch version
 
 	ID uint64
 
