@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.0.4
+
+* Reimplementation of JobQueue with different queue implementation to introduce thread safety
+
 ## v0.0.3
 
 * Refactored server/comm/utils/utils.go
