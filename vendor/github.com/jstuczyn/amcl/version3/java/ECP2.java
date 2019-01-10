@@ -25,11 +25,9 @@ public final class ECP2 {
 	private FP2 x;
 	private FP2 y;
 	private FP2 z;
-//	private boolean INF;
 
 /* Constructor - set this=O */
 	public ECP2() {
-//		INF=true;
 		x=new FP2(0);
 		y=new FP2(1);
 		z=new FP2(0);
@@ -43,7 +41,6 @@ public final class ECP2 {
 
 /* Test this=O? */
 	public boolean is_infinity() {
-//		if (INF) return true;                    //******
 		return (x.iszilch() && z.iszilch());
 	}
 /* copy this=P */
@@ -52,7 +49,6 @@ public final class ECP2 {
 		x.copy(P.x);
 		y.copy(P.y);
 		z.copy(P.z);
-//		INF=P.INF;
 	}
 /* set this=O */
 	public void inf() {
@@ -68,11 +64,6 @@ public final class ECP2 {
 		x.cmove(Q.x,d);
 		y.cmove(Q.y,d);
 		z.cmove(Q.z,d);
-
-	//	boolean bd;
-	//	if (d==0) bd=false;
-	//	else bd=true;
-	//	INF^=(INF^Q.INF)&bd;
 	}
 
 /* return 1 if b==c, no branching */
@@ -108,9 +99,6 @@ public final class ECP2 {
 
 /* Test if P == Q */
 	public boolean equals(ECP2 Q) {
-//		if (is_infinity() && Q.is_infinity()) return true;
-//		if (is_infinity() || Q.is_infinity()) return false;
-
 
 		FP2 a=new FP2(x);                            // *****
 		FP2 b=new FP2(Q.x);
@@ -126,7 +114,6 @@ public final class ECP2 {
 	}
 /* set this=-this */
 	public void neg() {
-//		if (is_infinity()) return;
 		y.norm();
 		y.neg(); y.norm();
 		return;
@@ -179,39 +166,39 @@ public final class ECP2 {
 /* convert to byte array */
 	public void toBytes(byte[] b)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		ECP2 W=new ECP2(this);
 		W.affine();
 		W.x.getA().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++)
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++)
 			b[i]=t[i];
 		W.x.getB().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++)
-			b[i+BIG.MODBYTES]=t[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++)
+			b[i+CONFIG_BIG.MODBYTES]=t[i];
 
 		W.y.getA().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++)
-			b[i+2*BIG.MODBYTES]=t[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++)
+			b[i+2*CONFIG_BIG.MODBYTES]=t[i];
 		W.y.getB().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++)
-			b[i+3*BIG.MODBYTES]=t[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++)
+			b[i+3*CONFIG_BIG.MODBYTES]=t[i];
 	}
 /* convert from byte array to point */
 	public static ECP2 fromBytes(byte[] b)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		BIG ra;
 		BIG rb;
 
-		for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i];
 		ra=BIG.fromBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i+BIG.MODBYTES];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i+CONFIG_BIG.MODBYTES];
 		rb=BIG.fromBytes(t);
 		FP2 rx=new FP2(ra,rb);
 
-		for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i+2*BIG.MODBYTES];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i+2*CONFIG_BIG.MODBYTES];
 		ra=BIG.fromBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i+3*BIG.MODBYTES];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i+3*CONFIG_BIG.MODBYTES];
 		rb=BIG.fromBytes(t);
 		FP2 ry=new FP2(ra,rb);
 
@@ -227,16 +214,16 @@ public final class ECP2 {
 
 /* Calculate RHS of twisted curve equation x^3+B/i */
 	public static FP2 RHS(FP2 x) {
-		x.norm();
+		//x.norm();
 		FP2 r=new FP2(x);
 		r.sqr();
 		FP2 b=new FP2(new BIG(ROM.CURVE_B));
 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
 			b.div_ip();
 		}
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			b.norm();
 			b.mul_ip();
@@ -256,12 +243,11 @@ public final class ECP2 {
 		x=new FP2(ix);
 		y=new FP2(iy);
 		z=new FP2(1);
+		x.norm();
 		FP2 rhs=RHS(x);
 		FP2 y2=new FP2(y);
 		y2.sqr();
 		if (!y2.equals(rhs)) inf();
-//		if (y2.equals(rhs)) INF=false;
-//		else {x.zero();INF=true;}
 	}
 
 /* construct this from x - but set to O if not on curve */
@@ -269,27 +255,25 @@ public final class ECP2 {
 		x=new FP2(ix);
 		y=new FP2(1);
 		z=new FP2(1);
+		x.norm();
 		FP2 rhs=RHS(x);
 		if (rhs.sqrt()) 
 		{
 			y.copy(rhs);
-			//INF=false;
 		}
-		else {/*x.zero();INF=true;*/ inf();}
+		else { inf();}
 	}
 
 /* this+=this */
-	public int dbl() {
-//		if (INF) return -1;      
-//System.out.println("Into dbl");
+	public int dbl() {  
 		FP2 iy=new FP2(y);
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
 			iy.mul_ip(); iy.norm();
 		}
 		FP2 t0=new FP2(y);                  //***** Change 
 		t0.sqr();            
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{		
 			t0.mul_ip();
 		}
@@ -305,7 +289,7 @@ public final class ECP2 {
 		z.norm();  
 
 		t2.imul(3*ROM.CURVE_B_I); 
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			t2.mul_ip();
 			t2.norm();
@@ -326,19 +310,13 @@ public final class ECP2 {
 
 		x.norm(); 
 		y.copy(y3); y.norm();
-//System.out.println("Out of dbl");
+
 		return 1;
 	}
 
 /* this+=Q - return 0 for add, 1 for double, -1 for O */
 	public int add(ECP2 Q) {
-//		if (INF)
-//		{
-//			copy(Q);
-//			return -1;
-//		}
-//		if (Q.INF) return -1;
-//System.out.println("Into add");
+
 		int b=3*ROM.CURVE_B_I;
 		FP2 t0=new FP2(x);
 		t0.mul(Q.x);         // x.Q.x
@@ -355,7 +333,7 @@ public final class ECP2 {
 		t4.copy(t0); t4.add(t1);		//t4=X1.X2+Y1.Y2
 
 		t3.sub(t4); t3.norm(); 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{		
 			t3.mul_ip();  t3.norm();         //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
 		}
@@ -369,7 +347,7 @@ public final class ECP2 {
 		x3.add(t2);						//X3=Y1.Y2+Z1.Z2
 	
 		t4.sub(x3); t4.norm(); 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{	
 			t4.mul_ip(); t4.norm();          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
 		}
@@ -381,7 +359,7 @@ public final class ECP2 {
 		y3.add(t2);							// y3=X1.X2+Z1+Z2
 		y3.rsub(x3); y3.norm();				// y3=(X1+Z1)(X2+Z2) - (X1.X2+Z1.Z2) = X1.Z2+X2.Z1
 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
 			t0.mul_ip(); t0.norm(); // x.Q.x
 			t1.mul_ip(); t1.norm(); // y.Q.y
@@ -389,14 +367,14 @@ public final class ECP2 {
 		x3.copy(t0); x3.add(t0); 
 		t0.add(x3); t0.norm();
 		t2.imul(b); 	
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			t2.mul_ip(); t2.norm();
 		}
 		FP2 z3=new FP2(t1); z3.add(t2); z3.norm();
 		t1.sub(t2); t1.norm(); 
 		y3.imul(b); 
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			y3.mul_ip(); 
 			y3.norm();
@@ -408,7 +386,7 @@ public final class ECP2 {
 		x.copy(x3); x.norm(); 
 		y.copy(y3); y.norm();
 		z.copy(z3); z.norm();
-//System.out.println("Out of add");
+
 		return 0;
 	}
 
@@ -417,15 +395,11 @@ public final class ECP2 {
 		ECP2 NQ=new ECP2(Q);
 		NQ.neg();
 		int D=add(NQ);
-		//Q.neg();
-		//int D=add(Q);
-		//Q.neg();
 		return D;
 	}
 /* set this*=q, where q is Modulus, using Frobenius */
 	public void frob(FP2 X)
 	{
-//		if (INF) return;
 		FP2 X2=new FP2(X);
 
 		X2.sqr();
@@ -450,11 +424,9 @@ public final class ECP2 {
 		ECP2 Q=new ECP2();
 		ECP2 C=new ECP2();
 		ECP2[] W=new ECP2[8];
-		byte[] w=new byte[1+(BIG.NLEN*BIG.BASEBITS+3)/4];
+		byte[] w=new byte[1+(BIG.NLEN*CONFIG_BIG.BASEBITS+3)/4];
 
 		if (is_infinity()) return new ECP2();
-
-		//affine();
 
 /* precompute table */
 		Q.copy(this);
@@ -517,8 +489,8 @@ public final class ECP2 {
 		BIG mt=new BIG();
 		BIG[] t=new BIG[4];
 
-		byte[] w=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] s=new byte[BIG.NLEN*BIG.BASEBITS+1];
+		byte[] w=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] s=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
 
 		for (i=0;i<4;i++)
 		{
@@ -586,91 +558,6 @@ public final class ECP2 {
 	}        
 
 
-/* P=u0.Q0+u1*Q1+u2*Q2+u3*Q3 */
-/*
-	public static ECP2 mul4(ECP2[] Q,BIG[] u)
-	{
-		int i,j,nb;
-		int[] a=new int[4];
-		ECP2 T=new ECP2();
-		ECP2 C=new ECP2();
-		ECP2 P=new ECP2();
-		ECP2[] W=new ECP2[8];
-
-		BIG mt=new BIG();
-		BIG[] t=new BIG[4];
-
-		byte[] w=new byte[BIG.NLEN*BIG.BASEBITS+1];
-
-		for (i=0;i<4;i++)
-		{
-			t[i]=new BIG(u[i]);
-			Q[i].affine();
-		}
-
-// precompute table 
-
-		W[0]=new ECP2(); W[0].copy(Q[0]); W[0].sub(Q[1]);
-
-		W[1]=new ECP2(); W[1].copy(W[0]);
-		W[2]=new ECP2(); W[2].copy(W[0]);
-		W[3]=new ECP2(); W[3].copy(W[0]);
-		W[4]=new ECP2(); W[4].copy(Q[0]); W[4].add(Q[1]);
-		W[5]=new ECP2(); W[5].copy(W[4]);
-		W[6]=new ECP2(); W[6].copy(W[4]);
-		W[7]=new ECP2(); W[7].copy(W[4]);
-		T.copy(Q[2]); T.sub(Q[3]);
-		W[1].sub(T);
-		W[2].add(T);
-		W[5].sub(T);
-		W[6].add(T);
-		T.copy(Q[2]); T.add(Q[3]);
-		W[0].sub(T);
-		W[3].add(T);
-		W[4].sub(T);
-		W[7].add(T);
-
-// if multiplier is even add 1 to multiplier, and add P to correction 
-		mt.zero(); C.inf();
-		for (i=0;i<4;i++)
-		{
-			if (t[i].parity()==0)
-			{
-				t[i].inc(1); t[i].norm();
-				C.add(Q[i]);
-			}
-			mt.add(t[i]); mt.norm();
-		}
-
-		nb=1+mt.nbits();
-
-// convert exponent to signed 1-bit window 
-		for (j=0;j<nb;j++)
-		{
-			for (i=0;i<4;i++)
-			{
-				a[i]=(byte)(t[i].lastbits(2)-2);
-				t[i].dec(a[i]); t[i].norm(); 
-				t[i].fshr(1);
-			}
-			w[j]=(byte)(8*a[0]+4*a[1]+2*a[2]+a[3]);
-		}
-		w[nb]=(byte)(8*t[0].lastbits(2)+4*t[1].lastbits(2)+2*t[2].lastbits(2)+t[3].lastbits(2));
-
-		P.copy(W[(w[nb]-1)/2]);  
-		for (i=nb-1;i>=0;i--)
-		{
-			T.select(W,w[i]);
-			P.dbl();
-			P.add(T);
-		}
-		P.sub(C); // apply correction 
-
-		P.affine();
-		return P;
-	}
-*/
-
 /* needed for SOK */
 	public static ECP2 mapit(byte[] h)
 	{
@@ -692,7 +579,7 @@ public final class ECP2 {
 		BIG Frb=new BIG(ROM.Frb);
 		X=new FP2(Fra,Frb);
 
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			X.inverse();
 			X.norm();
@@ -702,14 +589,14 @@ public final class ECP2 {
 
 /* Fast Hashing to G2 - Fuentes-Castaneda, Knapp and Rodriguez-Henriquez */
 
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			ECP2 T,K;
 
 			T=new ECP2(); T.copy(Q);
 			T=T.mul(x); 
 			
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				T.neg();
 			}	
@@ -727,16 +614,12 @@ public final class ECP2 {
 /* Efficient hash maps to G2 on BLS curves - Budroni, Pintore */
 /* Q -> x2Q -xQ -Q +F(xQ -Q) +F(F(2Q)) */
 
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BLS)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BLS)
 		{
-		//	ECP2 xQ,x2Q;
-		//	xQ=new ECP2();
-		//	x2Q=new ECP2();
-
 			ECP2 xQ=Q.mul(x);
 			ECP2 x2Q=xQ.mul(x);
 
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				xQ.neg();
 			}	
@@ -762,35 +645,6 @@ public final class ECP2 {
 	{
 		return new ECP2(new FP2(new BIG(ROM.CURVE_Pxa),new BIG(ROM.CURVE_Pxb)),new FP2(new BIG(ROM.CURVE_Pya),new BIG(ROM.CURVE_Pyb)));
 	}
-
-/*
-	public static void main(String[] args) {
-		BIG r=new BIG(ROM.Modulus);
-
-		BIG Pxa=new BIG(ROM.CURVE_Pxa);
-		BIG Pxb=new BIG(ROM.CURVE_Pxb);
-		BIG Pya=new BIG(ROM.CURVE_Pya);
-		BIG Pyb=new BIG(ROM.CURVE_Pyb);
-
-		BIG Fra=new BIG(ROM.CURVE_Fra);
-		BIG Frb=new BIG(ROM.CURVE_Frb);
-
-		FP2 f=new FP2(Fra,Frb);
-
-		FP2 Px=new FP2(Pxa,Pxb);
-		FP2 Py=new FP2(Pya,Pyb);
-
-		ECP2 P=new ECP2(Px,Py);
-
-		System.out.println("P= "+P.toString());
-
-		P=P.mul(r);
-		System.out.println("P= "+P.toString());
-
-		ECP2 Q=new ECP2(Px,Py);
-		Q.frob(f);
-		System.out.println("Q= "+Q.toString());
-	} */
 
 
 }

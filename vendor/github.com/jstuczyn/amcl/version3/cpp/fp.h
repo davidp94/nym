@@ -9,7 +9,7 @@ using namespace amcl;
 #define MODBITS_YYY MBITS_YYY
 #define TBITS_YYY (MBITS_YYY%BASEBITS_XXX)                    /**< Number of active bits in top word */
 #define TMASK_YYY (((chunk)1<<TBITS_YYY)-1)               /**< Mask for active bits in top word */
-#define FEXCESS_YYY ((sign32)1<<MAXXES_YYY)				/**< 2^(BASEBITS*NLEN-MODBITS) - normalised BIG can be multiplied by more than this before reduction */
+#define FEXCESS_YYY (((sign32)1<<MAXXES_YYY)-1)				/**< 2^(BASEBITS*NLEN-MODBITS) - normalised BIG can be multiplied by less than this before reduction */
 #define OMASK_YYY (-((chunk)(1)<<TBITS_YYY))              /**<  for masking out overflow bits */
 
 namespace YYY {
@@ -28,6 +28,7 @@ typedef struct
 extern const XXX::BIG Modulus;	/**< Actual Modulus set in romf.c */
 extern const XXX::BIG R2modp;	/**< Montgomery constant */
 extern const chunk MConst;		/**< Constant associated with Modulus - for Montgomery = 1/p mod 2^BASEBITS */
+//extern const int BTset;			/**< Set Bit in Generalised Mersenne */
 extern const XXX::BIG Fra; /**< real part of BN curve Frobenius Constant */
 extern const XXX::BIG Frb; /**< imaginary part of BN curve Frobenius Constant */
 
@@ -216,6 +217,12 @@ extern int FP_qr(FP *x);
  */
 extern void FP_inv(FP *x,FP *y);
 
+/**	@brief Special exponent of an FP, mod Modulus
+ *
+	@param x FP number, on exit = x^s mod Modulus
+	@param y FP number
+ */
+extern void FP_fpow(FP *x,FP *y);
 
 }
 

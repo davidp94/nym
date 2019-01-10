@@ -29,7 +29,7 @@
   branch = "master"
   name = "github.com/jstuczyn/amcl"
   packages = ["version3/go/amcl","version3/go/amcl/BLS381"]
-  revision = "c2511aa84f547dd9d45f8cfc7206d2cd0ec5e376"
+  revision = "5dcc7f99f523b80f9f8e0754d912bcbcf7380316"
 
 [[projects]]
   name = "github.com/pmezard/go-difflib"

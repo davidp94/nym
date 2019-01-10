@@ -21,6 +21,7 @@ under the License.
 
 package BN254
 
+//import "fmt"
 import "github.com/jstuczyn/amcl/version3/go/amcl"
 
 const INVALID_PUBLIC_KEY int = -2
@@ -28,11 +29,6 @@ const ERROR int = -3
 const INVALID int = -4
 const EFS int = int(MODBYTES)
 const EGS int = int(MODBYTES)
-
-//const EAS int=16
-//const EBS int=16
-
-//const ECDH_HASH_TYPE int=amcl.SHA512
 
 /* Convert Integer to n-byte array */
 func inttoBytes(n int, len int) []byte {
@@ -107,9 +103,6 @@ func ehashit(sha int, A []byte, n int, B []byte, pad int) []byte {
 		for i := 0; i < pad-sha; i++ {
 			W[i] = 0
 		}
-
-		//for i:=0;i<sha;i++ {W[i]=R[i]}
-		//for i:=sha;i<pad;i++ {W[i]=0}
 	}
 	return W
 }
@@ -245,7 +238,7 @@ func HMAC(sha int, M []byte, K []byte, tag []byte) int {
 	var K0 [128]byte
 	olen := len(tag)
 
-	if olen < 4 /*|| olen>sha */ {
+	if olen < 4 {
 		return 0
 	}
 
@@ -411,7 +404,6 @@ func AES_CBC_IV0_DECRYPT(K []byte, C []byte) []byte { /* padding is removed */
  * otherwise it is generated randomly internally */
 func ECDH_KEY_PAIR_GENERATE(RNG *amcl.RAND, S []byte, W []byte) int {
 	res := 0
-	//	var T [EFS]byte
 	var s *BIG
 	var G *ECP
 
@@ -424,14 +416,8 @@ func ECDH_KEY_PAIR_GENERATE(RNG *amcl.RAND, S []byte, W []byte) int {
 		s.Mod(r)
 	} else {
 		s = Randomnum(r, RNG)
-
-		//	s.ToBytes(T[:])
-		//	for i:=0;i<EGS;i++ {S[i]=T[i]}
 	}
 
-	//if AES_S>0 {
-	//	s.mod2m(2*AES_S)
-	//}
 	s.ToBytes(S)
 
 	WP := G.mul(s)
@@ -523,9 +509,6 @@ func ECDH_ECPSP_DSA(sha int, RNG *amcl.RAND, S []byte, F []byte, C []byte, D []b
 	for d.iszilch() {
 		u := Randomnum(r, RNG)
 		w := Randomnum(r, RNG) /* side channel masking */
-		//if AES_S>0 {
-		//	u.mod2m(2*AES_S)
-		//}
 		V.Copy(G)
 		V = V.mul(u)
 		vx := V.GetX()
@@ -714,12 +697,6 @@ func ECDH_ECIES_DECRYPT(sha int, P1 []byte, P2 []byte, V []byte, C []byte, T []b
 	if !ncomp(T, TAG, len(T)) {
 		return nil
 	}
-
-	//	same:=true
-	//	for i:=0;i<len(T);i++ {
-	//		if T[i]!=TAG[i] {same=false}
-	//	}
-	//	if !same {return nil}
 
 	return M
 }

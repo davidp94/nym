@@ -22,6 +22,8 @@ under the License.
 
 package XXX
 
+//import "fmt"
+
 type FP48 struct {
 	a *FP16
 	b *FP16
@@ -77,7 +79,6 @@ func (F *FP48) norm() {
 
 /* test x==0 ? */
 func (F *FP48) iszilch() bool {
-	//F.reduce()
 	return (F.a.iszilch() && F.b.iszilch() && F.c.iszilch())
 }
 
@@ -334,8 +335,6 @@ func (F *FP48) smul(y *FP48, twist int) {
 		t1.neg()
 
 		F.b.add(t0)
-		//F.b.norm();
-
 		F.b.add(t1)
 		z3.add(t1)
 		z3.norm()
@@ -370,7 +369,7 @@ func (F *FP48) smul(y *FP48, twist int) {
 		t0.add(F.c)
 		t0.norm()
 
-		z3.copy(t0) //z3.mul(y.c);
+		z3.copy(t0)
 		z3.pmul(y.c.getb())
 		z3.times_i()
 
@@ -420,7 +419,7 @@ func (F *FP48) Inverse() {
 	f2 := NewFP16copy(F.a)
 	f3 := NewFP16int(0)
 
-	F.norm()
+	//F.norm()
 	f0.sqr()
 	f1.mul(F.c)
 	f1.times_i()
@@ -997,25 +996,27 @@ func (F *FP48) ToString() string {
 
 /* this=this^e */
 func (F *FP48) Pow(e *BIG) *FP48 {
-	F.norm()
-	e.norm()
-	e3 := NewBIGcopy(e)
+	sf := NewFP48copy(F)
+	sf.norm()
+	e1 := NewBIGcopy(e)
+	e1.norm()
+	e3 := NewBIGcopy(e1)
 	e3.pmul(3)
 	e3.norm()
 
-	w := NewFP48copy(F)
+	w := NewFP48copy(sf)
 
 	nb := e3.nbits()
 	for i := nb - 2; i >= 1; i-- {
 		w.usqr()
-		bt := e3.bit(i) - e.bit(i)
+		bt := e3.bit(i) - e1.bit(i)
 		if bt == 1 {
-			w.Mul(F)
+			w.Mul(sf)
 		}
 		if bt == -1 {
-			F.conj()
-			w.Mul(F)
-			F.conj()
+			sf.conj()
+			w.Mul(sf)
+			sf.conj()
 		}
 	}
 	w.reduce()

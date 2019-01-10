@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.1.2
+
+* Updated milagro library to the current version as of 10.01.2019
+
 ## v0.1.1
 
 * Reimplementation of commandsQueue using the created template

@@ -92,8 +92,8 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	inb=int(nb)
 	inbt=int(nbt)
 	sh=ib*(1+((8*inb-1)//ib))-inbt
-	if sh > 30 :
-		sh=30
+	if sh > 6 :
+		sh=6
 	replace(fnameh,"@SH@",str(sh))
 
 	fnameh="config_curve_"+tc+".h"	
@@ -237,6 +237,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 		replace(fnameh,"XXX",bd)
 		os.system("gcc -O3 -std=c99 -c "+fnamec)
 
+		fnamec="bls_"+tc+".c"
+		fnameh="bls_"+tc+".h"
+
+		os.system(copytext+" bls.c "+fnamec)
+		os.system(copytext+" bls.h "+fnameh)
+		replace(fnamec,"ZZZ",tc)
+		replace(fnamec,"YYY",tf)
+		replace(fnamec,"XXX",bd)
+		replace(fnameh,"ZZZ",tc)
+		replace(fnameh,"YYY",tf)
+		replace(fnameh,"XXX",bd)
+		os.system("gcc -O3 -std=c99 -c "+fnamec)
+
 replace("arch.h","@WL@","16")
 print("Elliptic Curves")
 print("1. ED25519")
@@ -333,6 +346,7 @@ os.system(deltext+" fp12.*")
 os.system(deltext+" ecp2.*")
 os.system(deltext+" pair.*")
 os.system(deltext+" mpin.*")
+os.system(deltext+" bls.*")
 
 # create library
 os.system("gcc -O3 -std=c99 -c randapi.c")

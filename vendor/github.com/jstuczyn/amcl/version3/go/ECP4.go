@@ -21,11 +21,12 @@ under the License.
 
 package XXX
 
+//import "fmt"
+
 type ECP4 struct {
 	x *FP4
 	y *FP4
 	z *FP4
-	//	INF bool
 }
 
 func NewECP4() *ECP4 {
@@ -33,13 +34,11 @@ func NewECP4() *ECP4 {
 	E.x = NewFP4int(0)
 	E.y = NewFP4int(1)
 	E.z = NewFP4int(0)
-	//	E.INF=true
 	return E
 }
 
 /* Test this=O? */
 func (E *ECP4) Is_infinity() bool {
-	//	if E.INF {return true}
 	E.x.reduce()
 	E.y.reduce()
 	E.z.reduce()
@@ -51,12 +50,10 @@ func (E *ECP4) Copy(P *ECP4) {
 	E.x.copy(P.x)
 	E.y.copy(P.y)
 	E.z.copy(P.z)
-	//	E.INF=P.INF
 }
 
 /* set this=O */
 func (E *ECP4) inf() {
-	//	E.INF=true
 	E.x.zero()
 	E.y.one()
 	E.z.zero()
@@ -74,13 +71,6 @@ func (E *ECP4) cmove(Q *ECP4, d int) {
 	E.x.cmove(Q.x, d)
 	E.y.cmove(Q.y, d)
 	E.z.cmove(Q.z, d)
-	/*
-		var bd bool
-		if (d==0) {
-			bd=false
-		} else {bd=true}
-		E.INF=(E.INF!=((E.INF!=Q.INF)&&bd))
-	*/
 }
 
 /* Constant time select from pre-computed table */
@@ -296,7 +286,6 @@ func (E *ECP4) ToString() string {
 
 /* Calculate RHS of twisted curve equation x^3+B/i */
 func RHS4(x *FP4) *FP4 {
-	x.norm()
 	r := NewFP4copy(x)
 	r.sqr()
 	b2 := NewFP2big(NewBIGints(CURVE_B))
@@ -321,6 +310,7 @@ func NewECP4fp4s(ix *FP4, iy *FP4) *ECP4 {
 	E.x = NewFP4copy(ix)
 	E.y = NewFP4copy(iy)
 	E.z = NewFP4int(1)
+	E.x.norm()
 	rhs := RHS4(E.x)
 	y2 := NewFP4copy(E.y)
 	y2.sqr()
@@ -336,10 +326,10 @@ func NewECP4fp4(ix *FP4) *ECP4 {
 	E.x = NewFP4copy(ix)
 	E.y = NewFP4int(1)
 	E.z = NewFP4int(1)
+	E.x.norm()
 	rhs := RHS4(E.x)
 	if rhs.sqrt() {
 		E.y.copy(rhs)
-		//E.INF=false;
 	} else {
 		E.inf()
 	}
@@ -348,11 +338,9 @@ func NewECP4fp4(ix *FP4) *ECP4 {
 
 /* this+=this */
 func (E *ECP4) dbl() int {
-	//	if E.INF {return -1}
-
 	iy := NewFP4copy(E.y)
 	if SEXTIC_TWIST == D_TYPE {
-		iy.times_i() //iy.norm()
+		iy.times_i()
 	}
 
 	t0 := NewFP4copy(E.y) //***** Change
@@ -375,7 +363,6 @@ func (E *ECP4) dbl() int {
 	t2.imul(3 * CURVE_B_I)
 	if SEXTIC_TWIST == M_TYPE {
 		t2.times_i()
-		//t2.norm()
 	}
 	x3 := NewFP4copy(t2)
 	x3.mul(E.z)
@@ -409,12 +396,7 @@ func (E *ECP4) dbl() int {
 
 /* this+=Q - return 0 for add, 1 for double, -1 for O */
 func (E *ECP4) Add(Q *ECP4) int {
-	/*	if E.INF {
-			E.Copy(Q)
-			return -1
-		}
-		if Q.INF {return -1}
-	*/
+
 	b := 3 * CURVE_B_I
 	t0 := NewFP4copy(E.x)
 	t0.mul(Q.x) // x.Q.x
@@ -436,7 +418,7 @@ func (E *ECP4) Add(Q *ECP4) int {
 	t3.sub(t4)
 	t3.norm()
 	if SEXTIC_TWIST == D_TYPE {
-		t3.times_i() //t3.norm()         //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
+		t3.times_i() //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
 	}
 	t4.copy(E.y)
 	t4.add(E.z)
@@ -445,14 +427,14 @@ func (E *ECP4) Add(Q *ECP4) int {
 	x3.add(Q.z)
 	x3.norm() //x3=Y2+Z2
 
-	t4.mul(x3)  //t4=(Y1+Z1)(Y2+Z2)
-	x3.copy(t1) //
-	x3.add(t2)  //X3=Y1.Y2+Z1.Z2
+	t4.mul(x3) //t4=(Y1+Z1)(Y2+Z2)
+	x3.copy(t1)
+	x3.add(t2) //X3=Y1.Y2+Z1.Z2
 
 	t4.sub(x3)
 	t4.norm()
 	if SEXTIC_TWIST == D_TYPE {
-		t4.times_i() //t4.norm()          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
+		t4.times_i() //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
 	}
 	x3.copy(E.x)
 	x3.add(E.z)
@@ -467,8 +449,8 @@ func (E *ECP4) Add(Q *ECP4) int {
 	y3.norm() // y3=(X1+Z1)(X2+Z2) - (X1.X2+Z1.Z2) = X1.Z2+X2.Z1
 
 	if SEXTIC_TWIST == D_TYPE {
-		t0.times_i() //t0.norm() // x.Q.x
-		t1.times_i() //t1.norm() // y.Q.y
+		t0.times_i() // x.Q.x
+		t1.times_i() // y.Q.y
 	}
 	x3.copy(t0)
 	x3.add(t0)
@@ -486,7 +468,6 @@ func (E *ECP4) Add(Q *ECP4) int {
 	y3.imul(b)
 	if SEXTIC_TWIST == M_TYPE {
 		y3.times_i()
-		//y3.norm()
 	}
 	x3.copy(y3)
 	x3.mul(t4)
@@ -516,7 +497,6 @@ func (E *ECP4) Sub(Q *ECP4) int {
 	NQ.Copy(Q)
 	NQ.neg()
 	D := E.Add(NQ)
-	//Q.neg()
 	return D
 }
 
@@ -550,7 +530,6 @@ func ECP4_frob_constants() [3]*FP2 {
 
 /* set this*=q, where q is Modulus, using Frobenius */
 func (E *ECP4) frob(F [3]*FP2, n int) {
-	//	if E.INF {return}
 	for i := 0; i < n; i++ {
 		E.x.frob(F[2])
 		E.x.pmul(F[0])
@@ -585,7 +564,6 @@ func (E *ECP4) mul(e *BIG) *ECP4 {
 	var W []*ECP4
 	var w [1 + (NLEN*int(BASEBITS)+3)/4]int8
 
-	//E.Affine()
 	/* precompute table */
 	Q.Copy(E)
 	Q.dbl()
@@ -770,11 +748,9 @@ func mul8(Q []*ECP4, u []*BIG) *ECP4 {
 	// Make them odd
 	pb1 := 1 - t[0].parity()
 	t[0].inc(pb1)
-	//	t[0].norm();
 
 	pb2 := 1 - t[4].parity()
 	t[4].inc(pb2)
-	//	t[4].norm();
 
 	// Number of bits
 	mt.zero()

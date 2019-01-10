@@ -46,6 +46,24 @@ int ED_25519(csprng *RNG)
 	printf("Montgomery parameterization\n");
 #endif
 
+
+#if MODTYPE_F25519 == PSEUDO_MERSENNE
+	printf("Pseudo-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_F25519 == GENERALISED_MERSENNE
+	printf("Generalised-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_F25519 == MONTGOMERY_FRIENDLY
+	printf("Montgomery Friendly Modulus\n");
+#endif
+
+#if MODTYPE_F25519 == NOT_SPECIAL
+	printf("Not special Modulus\n");
+#endif
+
+
 #if CHUNK==16
 	printf("16-bit Build\n");
 #endif
@@ -108,6 +126,23 @@ int NIST_256(csprng *RNG)
 	printf("Montgomery parameterization\n");
 #endif
 
+
+#if MODTYPE_NIST256 == PSEUDO_MERSENNE
+	printf("Pseudo-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_NIST256 == GENERALISED_MERSENNE
+	printf("Generalised-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_NIST256 == MONTGOMERY_FRIENDLY
+	printf("Montgomery Friendly Modulus\n");
+#endif
+
+#if MODTYPE_NIST256 == NOT_SPECIAL
+	printf("Not special Modulus\n");
+#endif
+
 #if CHUNK==16
 	printf("16-bit Build\n");
 #endif
@@ -167,6 +202,22 @@ int GOLDI_LOCKS(csprng *RNG)
 #endif
 #if CURVETYPE_GOLDILOCKS==MONTGOMERY
 	printf("Montgomery parameterization\n");
+#endif
+
+#if MODTYPE_GOLDILOCKS == PSEUDO_MERSENNE
+	printf("Pseudo-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_GOLDILOCKS == GENERALISED_MERSENNE
+	printf("Generalised-Mersenne Modulus\n");
+#endif
+
+#if MODTYPE_GOLDILOCKS == MONTGOMERY_FRIENDLY
+	printf("Montgomery Friendly Modulus\n");
+#endif
+
+#if MODTYPE_GOLDILOCKS == NOT_SPECIAL
+	printf("Not special Modulus\n");
 #endif
 
 #if CHUNK==16
@@ -749,6 +800,7 @@ int BLS_48(csprng *RNG)
     printf("G1 mul              - %8d iterations  ",iterations);
     printf(" %8.2lf ms per iteration\n",elapsed);
 
+
 	ECP8_generator(&W);
 
 	ECP8_copy(&Q,&W);
@@ -772,6 +824,7 @@ int BLS_48(csprng *RNG)
     elapsed=1000.0*elapsed/iterations;
     printf("G2 mul              - %8d iterations  ",iterations);
     printf(" %8.2lf ms per iteration\n",elapsed);
+
 
 	PAIR_ate(&w,&Q,&P);
 	PAIR_fexp(&w);
@@ -952,7 +1005,7 @@ int main()
 	pr[1]=ran>>8;
 	pr[2]=ran>>16;
 	pr[3]=ran>>24;
-	for (i=4;i<10;i++) pr[i]=i;
+	for (i=0;i<10;i++) pr[i]=i;    /*****4****/
     RAND_seed(&RNG,10,pr);
 
 	ED_25519(&RNG);

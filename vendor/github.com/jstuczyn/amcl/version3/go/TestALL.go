@@ -17,7 +17,7 @@ specific language governing permissions and limitations
 under the License.
 */
 
-/* test driver and function exerciser for ECDH/ECIES/ECDSA API Functions */
+/* test driver and function exerciser for ECDH/ECIES/ECDSA and MPIN API Functions */
 
 package main
 
@@ -32,6 +32,11 @@ import "github.com/jstuczyn/amcl/version3/go/amcl/BLS383"
 import "github.com/jstuczyn/amcl/version3/go/amcl/BLS24"
 import "github.com/jstuczyn/amcl/version3/go/amcl/BLS48"
 import "github.com/jstuczyn/amcl/version3/go/amcl/RSA2048"
+
+//import "amcl"
+//import "amcl/ED25519"
+//import "amcl/BN254"
+//import "amcl/RSA2048"
 
 func printBinary(array []byte) {
 	for i := 0; i < len(array); i++ {

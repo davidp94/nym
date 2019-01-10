@@ -33,6 +33,11 @@ import "github.com/jstuczyn/amcl/version3/go/amcl/RSA2048"
 import "github.com/jstuczyn/amcl/version3/go/amcl/BLS24"
 import "github.com/jstuczyn/amcl/version3/go/amcl/BLS48"
 
+//import "amcl"
+//import "amcl/BN254"
+//import "amcl/ED25519"
+//import "amcl/RSA2048"
+
 import "time"
 
 const MIN_TIME int = 10

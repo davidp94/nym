@@ -47,17 +47,21 @@ def rsaset(tb,nb,base,ml) :
 	os.system(copytext+"DBIG.go "+fpath+"DBIG.go")
 	os.system(copytext+"FF32.go "+fpath+"FF.go")
 	os.system(copytext+"RSA.go "+fpath+"RSA.go")
+	os.system(copytext+"CONFIG_BIG.go "+fpath+"CONFIG_BIG.go")
+	os.system(copytext+"CONFIG_FF.go "+fpath+"CONFIG_FF.go")
 
 	replace(fpath+"ARCH.go","XXX",tb)
+	replace(fpath+"CONFIG_BIG.go","XXX",tb)
+	replace(fpath+"CONFIG_FF.go","XXX",tb)
 	replace(fpath+"BIG.go","XXX",tb)
 	replace(fpath+"DBIG.go","XXX",tb)
 	replace(fpath+"FF.go","XXX",tb)
 	replace(fpath+"RSA.go","XXX",tb)
 
-	replace(fpath+"BIG.go","@NB@",nb)
-	replace(fpath+"BIG.go","@BASE@",base)
+	replace(fpath+"CONFIG_BIG.go","@NB@",nb)
+	replace(fpath+"CONFIG_BIG.go","@BASE@",base)
 
-	replace(fpath+"FF.go","@ML@",ml);
+	replace(fpath+"CONFIG_FF.go","@ML@",ml);
 
 def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	global deltext,slashtext,copytext
@@ -75,6 +79,9 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	os.system(copytext+"FP.go "+fpath+"FP.go")
 	os.system(copytext+"ECP.go "+fpath+"ECP.go")
 	os.system(copytext+"ECDH.go "+fpath+"ECDH.go")
+	os.system(copytext+"CONFIG_BIG.go "+fpath+"CONFIG_BIG.go")
+	os.system(copytext+"CONFIG_FIELD.go "+fpath+"CONFIG_FIELD.go")
+	os.system(copytext+"CONFIG_CURVE.go "+fpath+"CONFIG_CURVE.go")
 	os.system(copytext+"ROM_"+tc+"_32.go "+fpath+"ROM.go")
 
 	replace(fpath+"ARCH.go","XXX",tc)
@@ -83,38 +90,42 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	replace(fpath+"FP.go","XXX",tc)
 	replace(fpath+"ECP.go","XXX",tc)
 	replace(fpath+"ECDH.go","XXX",tc)
+	replace(fpath+"CONFIG_BIG.go","XXX",tc)
+	replace(fpath+"CONFIG_FIELD.go","XXX",tc)
+	replace(fpath+"CONFIG_CURVE.go","XXX",tc)
 
-	replace(fpath+"BIG.go","@NB@",nb)
-	replace(fpath+"BIG.go","@BASE@",base)
 
-	replace(fpath+"FP.go","@NBT@",nbt)
-	replace(fpath+"FP.go","@M8@",m8)
-	replace(fpath+"FP.go","@MT@",mt)
+	replace(fpath+"CONFIG_BIG.go","@NB@",nb)
+	replace(fpath+"CONFIG_BIG.go","@BASE@",base)
+
+	replace(fpath+"CONFIG_FIELD.go","@NBT@",nbt)
+	replace(fpath+"CONFIG_FIELD.go","@M8@",m8)
+	replace(fpath+"CONFIG_FIELD.go","@MT@",mt)
 
 	ib=int(base)
 	inb=int(nb)
 	inbt=int(nbt)
 	sh=ib*(1+((8*inb-1)//ib))-inbt
-	if sh > 30 :
-		sh=30
-	replace(fpath+"FP.go","@SH@",str(sh))
+	if sh > 14 :
+		sh=14
+	replace(fpath+"CONFIG_FIELD.go","@SH@",str(sh))
 
 
-	replace(fpath+"ECP.go","@CT@",ct)
-	replace(fpath+"ECP.go","@PF@",pf)
+	replace(fpath+"CONFIG_CURVE.go","@CT@",ct)
+	replace(fpath+"CONFIG_CURVE.go","@PF@",pf)
 
-	replace(fpath+"ECP.go","@ST@",stw)
-	replace(fpath+"ECP.go","@SX@",sx)
+	replace(fpath+"CONFIG_CURVE.go","@ST@",stw)
+	replace(fpath+"CONFIG_CURVE.go","@SX@",sx)
 
 	if cs == "128" :
-		replace(fpath+"ECP.go","@HT@","32")
-		replace(fpath+"ECP.go","@AK@","16")
+		replace(fpath+"CONFIG_CURVE.go","@HT@","32")
+		replace(fpath+"CONFIG_CURVE.go","@AK@","16")
 	if cs == "192" :
-		replace(fpath+"ECP.go","@HT@","48")
-		replace(fpath+"ECP.go","@AK@","24")
+		replace(fpath+"CONFIG_CURVE.go","@HT@","48")
+		replace(fpath+"CONFIG_CURVE.go","@AK@","24")
 	if cs == "256" :
-		replace(fpath+"ECP.go","@HT@","64")
-		replace(fpath+"ECP.go","@AK@","32")
+		replace(fpath+"CONFIG_CURVE.go","@HT@","64")
+		replace(fpath+"CONFIG_CURVE.go","@AK@","32")
 
 	if pf != "NOT" :
 
@@ -129,11 +140,13 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			os.system(copytext+"FP12.go "+fpath+"FP12.go")
 			os.system(copytext+"PAIR.go "+fpath+"PAIR.go")
 			os.system(copytext+"MPIN.go "+fpath+"MPIN.go")
+			os.system(copytext+"BLS.go "+fpath+"BLS.go")
 
 			replace(fpath+"FP12.go","XXX",tc)
 			replace(fpath+"ECP2.go","XXX",tc)
 			replace(fpath+"PAIR.go","XXX",tc)
 			replace(fpath+"MPIN.go","XXX",tc)
+			replace(fpath+"BLS.go","XXX",tc)
 
 		if cs == "192" :
 			os.system(copytext+"FP24.go "+fpath+"FP24.go")
@@ -141,12 +154,15 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			os.system(copytext+"ECP4.go "+fpath+"ECP4.go")
 			os.system(copytext+"PAIR192.go "+fpath+"PAIR192.go")
 			os.system(copytext+"MPIN192.go "+fpath+"MPIN192.go")
+			os.system(copytext+"BLS192.go "+fpath+"BLS192.go")
 
 			replace(fpath+"FP24.go","XXX",tc)
 			replace(fpath+"FP8.go","XXX",tc)
 			replace(fpath+"ECP4.go","XXX",tc)
 			replace(fpath+"PAIR192.go","XXX",tc)
 			replace(fpath+"MPIN192.go","XXX",tc)
+			replace(fpath+"BLS192.go","XXX",tc)
+
 
 		if cs == "256" :
 			os.system(copytext+"FP48.go "+fpath+"FP48.go")
@@ -155,6 +171,7 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			os.system(copytext+"ECP8.go "+fpath+"ECP8.go")
 			os.system(copytext+"PAIR256.go "+fpath+"PAIR256.go")
 			os.system(copytext+"MPIN256.go "+fpath+"MPIN256.go")
+			os.system(copytext+"BLS256.go "+fpath+"BLS256.go")
 
 			replace(fpath+"FP48.go","XXX",tc)
 			replace(fpath+"FP16.go","XXX",tc)
@@ -162,7 +179,7 @@ def curveset(tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			replace(fpath+"ECP8.go","XXX",tc)
 			replace(fpath+"PAIR256.go","XXX",tc)
 			replace(fpath+"MPIN256.go","XXX",tc)
-
+			replace(fpath+"BLS256.go","XXX",tc)
 
 
 os.system("mkdir amcl")

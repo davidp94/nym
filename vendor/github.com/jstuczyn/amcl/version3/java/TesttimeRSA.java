@@ -37,7 +37,7 @@ public class TesttimeRSA extends TestCase
 		int i,iterations;
 		long start,elapsed;
 		double dur;
-		public_key pub=new public_key(FF.FFLEN);
+		public_key pub=new public_key(CONFIG_FF.FFLEN);
 		private_key priv=new private_key(FF.HFLEN);
 
 		rng.clean();
@@ -48,8 +48,8 @@ public class TesttimeRSA extends TestCase
 		byte[] M=new byte[RSA.RFS];
 		byte[] C=new byte[RSA.RFS];
 
-		System.out.println("Testing/Timing 2048-bit RSA");
-		System.out.println("Generating 2048-bit RSA public/private key pair");
+		System.out.println("Testing/Timing  RSA");
+		System.out.println("Generating RSA public/private key pair");
 
 		iterations=0;
 		start=System.currentTimeMillis();

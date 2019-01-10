@@ -17,10 +17,10 @@ specific language governing permissions and limitations
 under the License.
 */
 
-/* AMCL BIG number class */ 
+/* AMCL BIG number class */
 
 package BLS381
 
 type Chunk int64
-const CHUNK int=64	/* Set word size */
 
+const CHUNK int = 64 /* Set word size */

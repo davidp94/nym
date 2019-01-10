@@ -28,6 +28,8 @@ under the License.
 
 package amcl
 
+//import "fmt"
+
 const SHA512 int = 64
 
 const hash512_H0 uint64 = 0x6a09e667f3bcc908

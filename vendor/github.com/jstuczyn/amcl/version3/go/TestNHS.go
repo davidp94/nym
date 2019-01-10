@@ -26,6 +26,8 @@ import "fmt"
 
 import "github.com/jstuczyn/amcl/version3/go/amcl"
 
+//import "amcl"
+
 func main() {
 
 	srng := amcl.NewRAND()
@@ -62,5 +64,5 @@ func main() {
 	for i := 0; i < 32; i++ {
 		fmt.Printf("%02x", KEYA[i])
 	}
-
+	fmt.Printf("\n")
 }

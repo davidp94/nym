@@ -30,6 +30,8 @@ under the License.
 
 package amcl
 
+//import "fmt"
+
 const NHS_PRIME int32 = 0x3001   // q in Hex
 const NHS_LGN uint = 10          // Degree n=2^LGN
 const NHS_ND uint32 = 0xF7002FFF // 1/(R-q) mod R

@@ -30,40 +30,25 @@ public class DBIG {
 		for (int i=0;i<BIG.DNLEN-1;i++)
 		{
 			d=w[i]+carry;
-			carry=d>>BIG.BASEBITS;
+			carry=d>>CONFIG_BIG.BASEBITS;
 			w[i]=d&BIG.BMASK;
 		}
 		w[BIG.DNLEN-1]=(w[BIG.DNLEN-1]+carry);
 	}
 
 
-/*
-	public String toRawString()
-	{
-		DBIG b=new DBIG(this);
-		String s="(";
-		for (int i=0;i<BIG.DNLEN-1;i++)
-		{
-			s+=Long.toHexString(b.w[i]); s+=",";
-		}
-		s+=Long.toHexString(b.w[BIG.DNLEN-1]); s+=")";
-		return s;
-	}
-*/
-
 /* split DBIG at position n, return higher half, keep lower half */
 	public BIG split(int n)
 	{
 		BIG t=new BIG(0);
-		int m=n%BIG.BASEBITS;
-		long nw,carry=w[BIG.DNLEN-1]<<(BIG.BASEBITS-m);
+		int m=n%CONFIG_BIG.BASEBITS;
+		long nw,carry=w[BIG.DNLEN-1]<<(CONFIG_BIG.BASEBITS-m);
 
 		for (int i=BIG.DNLEN-2;i>=BIG.NLEN-1;i--)
 		{
 			nw=(w[i]>>m)|carry;
-			carry=(w[i]<<(BIG.BASEBITS-m))&BIG.BMASK;
+			carry=(w[i]<<(CONFIG_BIG.BASEBITS-m))&BIG.BMASK;
 			t.w[i-BIG.NLEN+1]=nw;
-			//t.set(i-BIG.NLEN+1,nw);
 		}
 		w[BIG.NLEN-1]&=(((long)1<<m)-1);
 		return t;
@@ -74,12 +59,13 @@ public class DBIG {
 /* return number of bits in this */
 	public int nbits() {
 		int bts,k=BIG.DNLEN-1;
+		DBIG t=new DBIG(this);
 		long c;
-		norm();
-		while (w[k]==0 && k>=0) k--;
+		t.norm();
+		while (t.w[k]==0 && k>=0) k--;
 		if (k<0) return 0;
-		bts=BIG.BASEBITS*k;
-		c=w[k];
+		bts=CONFIG_BIG.BASEBITS*k;
+		c=t.w[k];
 		while (c!=0) {c/=2; bts++;}
 		return bts;
 	}
@@ -130,7 +116,7 @@ public class DBIG {
 			w[i]=x.w[i]; //get(i);
 
 		w[BIG.NLEN-1]=x.w[(BIG.NLEN-1)]&BIG.BMASK; /* top word normalized */
-		w[BIG.NLEN]=(x.w[(BIG.NLEN-1)]>>BIG.BASEBITS);
+		w[BIG.NLEN]=(x.w[(BIG.NLEN-1)]>>CONFIG_BIG.BASEBITS);
 
 		for (int i=BIG.NLEN+1;i<BIG.DNLEN;i++) w[i]=0;
 	}
@@ -160,22 +146,22 @@ public class DBIG {
 
 /* shift this right by k bits */
 	public void shr(int k) {
-		int n=k%BIG.BASEBITS;
-		int m=k/BIG.BASEBITS;	
+		int n=k%CONFIG_BIG.BASEBITS;
+		int m=k/CONFIG_BIG.BASEBITS;	
 		for (int i=0;i<BIG.DNLEN-m-1;i++)
-			w[i]=(w[m+i]>>n)|((w[m+i+1]<<(BIG.BASEBITS-n))&BIG.BMASK);
+			w[i]=(w[m+i]>>n)|((w[m+i+1]<<(CONFIG_BIG.BASEBITS-n))&BIG.BMASK);
 		w[BIG.DNLEN-m-1]=w[BIG.DNLEN-1]>>n;
 		for (int i=BIG.DNLEN-m;i<BIG.DNLEN;i++) w[i]=0;
 	}
 
 /* shift this left by k bits */
 	public void shl(int k) {
-		int n=k%BIG.BASEBITS;
-		int m=k/BIG.BASEBITS;
+		int n=k%CONFIG_BIG.BASEBITS;
+		int m=k/CONFIG_BIG.BASEBITS;
 
-		w[BIG.DNLEN-1]=((w[BIG.DNLEN-1-m]<<n))|(w[BIG.DNLEN-m-2]>>(BIG.BASEBITS-n));
+		w[BIG.DNLEN-1]=((w[BIG.DNLEN-1-m]<<n))|(w[BIG.DNLEN-m-2]>>(CONFIG_BIG.BASEBITS-n));
 		for (int i=BIG.DNLEN-2;i>m;i--)
-			w[i]=((w[i-m]<<n)&BIG.BMASK)|(w[i-m-1]>>(BIG.BASEBITS-n));
+			w[i]=((w[i-m]<<n)&BIG.BMASK)|(w[i-m-1]>>(CONFIG_BIG.BASEBITS-n));
 		w[m]=(w[0]<<n)&BIG.BMASK; 
 		for (int i=0;i<m;i++) w[i]=0;
 	}

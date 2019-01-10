@@ -97,8 +97,8 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	inb=int(nb)
 	inbt=int(nbt)
 	sh=ib*(1+((8*inb-1)//ib))-inbt
-	if sh > 30 :
-		sh=30
+	if sh > 14 :
+		sh=14
 	replace(fnameh,"@SH@",str(sh))
 
 	fnameh="config_curve_"+tc+".h"	
@@ -244,6 +244,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			replace(fnameh,"XXX",bd)
 			os.system("gcc -O3 -std=c99 -c "+fnamec)
 
+			fnamec="bls_"+tc+".c"
+			fnameh="bls_"+tc+".h"
+
+			os.system(copytext+" bls.c "+fnamec)
+			os.system(copytext+" bls.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("gcc -O3 -std=c99 -c "+fnamec)
+
 		if cs == "192" :
 			fnamec="fp8_"+tf+".c"
 			fnameh="fp8_"+tf+".h"
@@ -308,6 +321,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			replace(fnameh,"YYY",tf)
 			replace(fnameh,"XXX",bd)
 			os.system("gcc -O3 -std=c99 -c "+fnamec)		
+
+			fnamec="bls192_"+tc+".c"
+			fnameh="bls192_"+tc+".h"
+
+			os.system(copytext+" bls192.c "+fnamec)
+			os.system(copytext+" bls192.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("gcc -O3 -std=c99 -c "+fnamec)	
 
 		if cs == "256" :
 
@@ -390,6 +416,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			replace(fnameh,"YYY",tf)
 			replace(fnameh,"XXX",bd)
 			os.system("gcc -O3 -std=c99 -c "+fnamec)				
+
+			fnamec="bls256_"+tc+".c"
+			fnameh="bls256_"+tc+".h"
+
+			os.system(copytext+" bls256.c "+fnamec)
+			os.system(copytext+" bls256.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("gcc -O3 -std=c99 -c "+fnamec)
 
 replace("arch.h","@WL@","32")
 print("Elliptic Curves")
@@ -503,7 +542,7 @@ while ptr<max:
 		curveset("256","256PME","NUMS256E","32","29","256","3","PSEUDO_MERSENNE","EDWARDS","NOT","","","128")
 		curve_selected=True
 	if x==13:
-		curveset("384","384PM","NUMS384W","48","29","284","3","PSEUDO_MERSENNE","WEIERSTRASS","NOT","","","192")
+		curveset("384","384PM","NUMS384W","48","29","384","3","PSEUDO_MERSENNE","WEIERSTRASS","NOT","","","192")
 		curve_selected=True
 	if x==14:
 		curveset("384","384PM","NUMS384E","48","29","384","3","PSEUDO_MERSENNE","EDWARDS","NOT","","","192")
@@ -606,12 +645,15 @@ os.system(deltext+" ecp8.*")
 
 os.system(deltext+" pair.*")
 os.system(deltext+" mpin.*")
+os.system(deltext+" bls.*")
 
 os.system(deltext+" pair192.*")
 os.system(deltext+" mpin192.*")
+os.system(deltext+" bls192.*")
 
 os.system(deltext+" pair256.*")
 os.system(deltext+" mpin256.*")
+os.system(deltext+" bls256.*")
 
 # create library
 os.system("gcc -O3 -std=c99 -c randapi.c")

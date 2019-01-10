@@ -19,10 +19,9 @@ under the License.
 
 use std::fmt;
 use std::cmp::Ordering;
-use std::str::SplitWhitespace;
 
 use rom;
-use rom::{Chunk, NLEN};
+use rom::Chunk;
 
 #[cfg(target_pointer_width = "32")]
 use rom::DChunk;
@@ -149,7 +148,7 @@ impl BIG {
 
 /* Test for equal to one */
 	pub fn isunity(&self) -> bool {
-		for i in 0 ..rom::NLEN {
+		for i in 1 ..rom::NLEN {
 			if self.w[i]!=0 {return false}
 		}
 		if self.w[0]!=1 {return false}
@@ -388,6 +387,23 @@ alise BIG - force all digits < 2^rom::BASEBITS */
 		return s;
 	}	
 
+    pub fn fromstring(val: String) -> BIG {
+        let mut res = BIG::new();
+        let len = val.len();
+
+        let op = &val[0..1];
+        let n = u8::from_str_radix(op, 16).unwrap();
+        res.w[0] += n as Chunk;
+
+        for i in 1..len {
+            res.shl(4);
+            let op = &val[i..i+1];
+            let n = u8::from_str_radix(op, 16).unwrap();
+            res.w[0] += n as Chunk;
+        }
+        return res;
+    }
+
     pub fn add(&mut self,r:&BIG) {
 		for i in 0 ..rom::NLEN {
 			self.w[i]+=r.w[i] 
@@ -483,38 +499,12 @@ alise BIG - force all digits < 2^rom::BASEBITS */
 		return BIG::frombytearray(b,0)
 	}
 
-    pub fn to_hex(&self) -> String {
-        let mut ret: String = String::with_capacity(NLEN * 16 + NLEN - 1);
-
-        for i in 0..NLEN {
-            if i == NLEN-1 {
-                ret.push_str(&format!("{:X}", self.w[i]));
-            } else {
-                ret.push_str(&format!("{:X} ", self.w[i]));
-            }
-        }
-        return ret;
-    }
-
-    pub fn from_hex_iter(iter: &mut SplitWhitespace) -> BIG {
-        let mut ret:BIG = BIG::new();
-        for i in 0..NLEN {
-            let v = iter.next();
-            match v {
-                Some(x) => {
-                    ret.w[i] = u64::from_str_radix(x, 16).unwrap() as Chunk;
-                },
-                None => {
-                    break;
-                }
-            }
-        }
-        return ret;
+    pub fn to_hex(&mut self) -> String {
+        self.tostring()
     }
 
     pub fn from_hex(val: String) -> BIG {
-        let mut iter = val.split_whitespace();
-        return BIG::from_hex_iter(&mut iter);
+        BIG::fromstring(val)
     }
 
 /* self*=x, where x is >NEXCESS */
@@ -971,7 +961,7 @@ alise BIG - force all digits < 2^rom::BASEBITS */
             
         b.zero();
             
-        let mut t=d.w[0] as DChunk; v[0]=(((t&rm) as Chunk)*rom::MCONST)&rom::BMASK; t+=(v[0] as DChunk)*(md.w[0] as DChunk); let mut c=(d.w[1] as DChunk)+(t>>rb); let mut s:DChunk=0;
+        let mut t=d.w[0] as DChunk; v[0]=(((t&rm) as Chunk).wrapping_mul(rom::MCONST))&rom::BMASK; t+=(v[0] as DChunk)*(md.w[0] as DChunk); let mut c=(d.w[1] as DChunk)+(t>>rb); let mut s:DChunk=0;
         for k in 1 ..rom::NLEN {
             t=c+s+(v[0] as DChunk)*(md.w[k] as DChunk);
             let mut i=1+k/2;
@@ -979,7 +969,7 @@ alise BIG - force all digits < 2^rom::BASEBITS */
                 t+=((v[k-i]-v[i]) as DChunk)*((md.w[i]-md.w[k-i]) as DChunk);
                 i+=1;
             }
-            v[k]=(((t&rm) as Chunk)*rom::MCONST)&rom::BMASK; t+=(v[k] as DChunk)*(md.w[0] as DChunk); c=(d.w[k+1] as DChunk)+(t>>rb);
+            v[k]=(((t&rm) as Chunk).wrapping_mul(rom::MCONST))&rom::BMASK; t+=(v[k] as DChunk)*(md.w[0] as DChunk); c=(d.w[k+1] as DChunk)+(t>>rb);
             dd[k]=(v[k] as DChunk)*(md.w[k] as DChunk); s+=dd[k];
         }
             
