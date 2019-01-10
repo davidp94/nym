@@ -22,6 +22,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/server/packet"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -53,6 +54,40 @@ type Command interface {
 
 // CommandID is wrapper for a byte defining ID of particular command.
 type CommandID byte
+
+// CommandToMarshaledPacket transforms the given command into a marshaled instance of a packet
+// sent to a TCP socket.
+func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
+	payloadBytes, err := proto.Marshal(cmd)
+	if err != nil {
+		return nil, err
+	}
+	var cmdID CommandID
+	switch cmd.(type) {
+	case *VerificationKeyRequest:
+		cmdID = GetVerificationKeyID
+	case *SignRequest:
+		cmdID = SignID
+	case *VerifyRequest:
+		cmdID = VerifyID
+	case *BlindSignRequest:
+		cmdID = BlindSignID
+	case *BlindVerifyRequest:
+		cmdID = BlindVerifyID
+	default:
+		return nil, errors.New("Unknown Command")
+	}
+
+	rawCmd := NewRawCommand(cmdID, payloadBytes)
+	cmdBytes := rawCmd.ToBytes()
+
+	packetIn := packet.NewPacket(cmdBytes)
+	packetBytes, err := packetIn.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	return packetBytes, nil
+}
 
 // RawCommand encapsulates arbitrary marshaled command and ID that defines it.
 type RawCommand struct {

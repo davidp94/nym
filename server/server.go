@@ -23,6 +23,8 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
+
 	"github.com/eapache/channels"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
@@ -46,13 +48,13 @@ type Server struct {
 	avk *coconut.VerificationKey
 
 	cmdCh *channels.InfiniteChannel
-	jobCh *channels.InfiniteChannel
+	jobCh *jobqueue.JobQueue
 	log   *logging.Logger
 
-	cryptoWorkers []*cryptoworker.Worker
+	cryptoWorkers []*cryptoworker.CryptoWorker
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
-	jobWorkers    []*jobworker.Worker
+	jobWorkers    []*jobworker.JobWorker
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -71,9 +73,10 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		s.log.Errorf("Failed to create Vk request: %v", err)
 		return nil, nil
 	}
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
-	if packetBytes == nil {
-		s.log.Error("Could not create VK data packet") // should never happen...
+
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		s.log.Error("Could not create VK data packet: %v", err) // should never happen...
 		return nil, nil
 	}
 
@@ -102,8 +105,10 @@ outLoop:
 						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
 						reqCh <- &utils.ServerRequest{
 							MarshaledData: packetBytes,
-							ServerAddress: s.cfg.Provider.IAAddresses[i],
-							ServerID:      s.cfg.Provider.IAIDs[i],
+							ServerMetadata: &utils.ServerMetadata{
+								Address: s.cfg.Provider.IAAddresses[i],
+								ID:      s.cfg.Provider.IAIDs[i],
+							},
 						}
 					}
 				}
@@ -113,7 +118,7 @@ outLoop:
 
 			for i := range responses {
 				if responses[i] != nil {
-					receivedResponses[responses[i].ServerAddress] = true
+					receivedResponses[responses[i].ServerMetadata.Address] = true
 				}
 			}
 
@@ -164,7 +169,7 @@ func New(cfg *config.Config) (*Server, error) {
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
-	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+	jobCh := jobqueue.New()                // commands issued by coconutworkers, like do pairing, g1mul, etc
 	cmdCh := channels.NewInfiniteChannel() // commands received via the socket, like sign those attributes
 
 	var params *coconut.Params
@@ -221,13 +226,23 @@ func New(cfg *config.Config) (*Server, error) {
 
 	avk := &coconut.VerificationKey{}
 
-	cryptoWorkers := make([]*cryptoworker.Worker, cfg.Debug.NumCoconutWorkers)
+	cryptoWorkers := make([]*cryptoworker.CryptoWorker, cfg.Debug.NumCryptoWorkers)
 	for i := range cryptoWorkers {
-		cryptoWorkers[i] = cryptoworker.New(jobCh.In(), cmdCh.Out(), uint64(i+1), log, params, sk, vk, avk)
+		cryptoWorkerCfg := &cryptoworker.Config{
+			JobQueue:   jobCh.In(),
+			IncomingCh: cmdCh.Out(),
+			ID:         uint64(i + 1),
+			Log:        log,
+			Params:     params,
+			Sk:         sk,
+			Vk:         vk,
+			Avk:        avk,
+		}
+		cryptoWorkers[i] = cryptoworker.New(cryptoWorkerCfg)
 	}
-	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCoconutWorkers)
+	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCryptoWorkers)
 
-	jobworkers := make([]*jobworker.Worker, cfg.Debug.NumJobWorkers)
+	jobworkers := make([]*jobworker.JobWorker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {
 		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), log)
 	}
@@ -278,7 +293,7 @@ func New(cfg *config.Config) (*Server, error) {
 		if vks == nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
-		*avk = *cryptoWorkers[0].CoconutWorker().AggregateVerificationKeysWrapper(vks, pp)
+		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
 

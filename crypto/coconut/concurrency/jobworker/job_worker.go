@@ -26,30 +26,30 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// Worker is an instance of jobWorker.
-type Worker struct {
+// JobWorker is an instance of jobWorker.
+type JobWorker struct {
 	worker.Worker
 
-	id       uint64
-	jobQueue <-chan interface{}
+	id          uint64
+	jobQueueOut <-chan *jobpacket.JobPacket
 
 	log *logging.Logger
 }
 
-func (w *Worker) worker() {
+func (jw *JobWorker) worker() {
 	for {
 		var jobpkt *jobpacket.JobPacket
 		select {
-		case <-w.HaltCh():
-			w.log.Debugf("Halting worker %d\n", w.id)
+		case <-jw.HaltCh():
+			jw.log.Debugf("Halting worker %d\n", jw.id)
 			return
-		case e := <-w.jobQueue:
-			w.log.Debug("Got JobPacket")
-			jobpkt = e.(*jobpacket.JobPacket)
+		case e := <-jw.jobQueueOut:
+			jw.log.Debug("Got JobPacket")
+			jobpkt = e
 		}
 
 		res, err := jobpkt.Op()
-		w.log.Debug("Finished working on the JobPacket")
+		jw.log.Debug("Finished working on the JobPacket")
 		// job provider will be able to distinguish those cases thanks to type assertions
 		if err != nil {
 			jobpkt.OutCh <- err
@@ -60,13 +60,13 @@ func (w *Worker) worker() {
 }
 
 // New creates new instance of a jobWorker.
-func New(jobQueue <-chan interface{}, id uint64, l *logger.Logger) *Worker {
-	w := &Worker{
-		jobQueue: jobQueue,
-		id:       id,
-		log:      l.GetLogger(fmt.Sprintf("CoconutJobWorker:%d", int(id))),
+func New(jobQueueOut <-chan *jobpacket.JobPacket, id uint64, l *logger.Logger) *JobWorker {
+	jw := &JobWorker{
+		jobQueueOut: jobQueueOut,
+		id:          id,
+		log:         l.GetLogger(fmt.Sprintf("CoconutJobWorker:%d", int(id))),
 	}
 
-	w.Go(w.worker)
-	return w
+	jw.Go(jw.worker)
+	return jw
 }
