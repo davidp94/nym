@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.1.0
+
+* Created template to generate infinite channel behaviour for any type
+
 ## v0.0.4
 
 * Reimplementation of JobQueue with different queue implementation to introduce thread safety
