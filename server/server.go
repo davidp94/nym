@@ -24,13 +24,11 @@ import (
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
-
-	"github.com/eapache/channels"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/listener"
+	"0xacab.org/jstuczyn/CoconutGo/server/comm/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
@@ -47,7 +45,7 @@ type Server struct {
 	vk  *coconut.VerificationKey
 	avk *coconut.VerificationKey
 
-	cmdCh *channels.InfiniteChannel
+	cmdCh *requestqueue.RequestQueue
 	jobCh *jobqueue.JobQueue
 	log   *logging.Logger
 
@@ -169,8 +167,8 @@ func New(cfg *config.Config) (*Server, error) {
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
-	jobCh := jobqueue.New()                // commands issued by coconutworkers, like do pairing, g1mul, etc
-	cmdCh := channels.NewInfiniteChannel() // commands received via the socket, like sign those attributes
+	jobCh := jobqueue.New()     // commands issued by coconutworkers, like do pairing, g1mul, etc
+	cmdCh := requestqueue.New() // commands received via the socket, like sign those attributes
 
 	var params *coconut.Params
 	sk := &coconut.SecretKey{}

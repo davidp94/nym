@@ -42,7 +42,7 @@ type Listener struct {
 
 	log *logging.Logger
 
-	incomingCh chan<- interface{}
+	incomingCh chan<- *commands.CommandRequest
 
 	l net.Listener
 
@@ -121,7 +121,7 @@ func (l *Listener) FinalizeStartup() {
 }
 
 // New creates new instance of a grpclistener using provided config and listening on specified address.
-func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
+func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l *logger.Logger, addr string) (*Listener, error) {
 	var err error
 
 	listener := &Listener{

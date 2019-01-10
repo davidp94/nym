@@ -23,15 +23,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang/protobuf/proto"
-
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"0xacab.org/jstuczyn/CoconutGo/server/packet"
-
 	"0xacab.org/jstuczyn/CoconutGo/worker"
+	"github.com/golang/protobuf/proto"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -44,7 +42,7 @@ type Listener struct {
 
 	log *logging.Logger
 
-	incomingCh chan<- interface{}
+	incomingCh chan<- *commands.CommandRequest
 	closeAllCh chan interface{}
 	closeAllWg sync.WaitGroup
 
@@ -168,7 +166,7 @@ func (l *Listener) FinalizeStartup() {
 }
 
 // New creates a new listener.
-func New(cfg *config.Config, inCh chan<- interface{}, id uint64, l *logger.Logger, addr string) (*Listener, error) {
+func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l *logger.Logger, addr string) (*Listener, error) {
 	var err error
 
 	listener := &Listener{

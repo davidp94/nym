@@ -38,7 +38,7 @@ type CryptoWorker struct {
 	worker.Worker
 	*coconutworker.CoconutWorker // TODO: since coconutWorker is created in New, does it need to be a reference?
 
-	incomingCh <-chan interface{}
+	incomingCh <-chan *commands.CommandRequest
 	log        *logging.Logger
 
 	sk *coconut.SecretKey // ensure they can be safely shared between multiple workers
@@ -65,7 +65,7 @@ func (cw *CryptoWorker) worker() {
 			cw.log.Noticef("Halting Coconut Server worker %d\n", cw.id)
 			return
 		case e := <-cw.incomingCh:
-			cmdReq = e.(*commands.CommandRequest)
+			cmdReq = e
 			cmd := cmdReq.Cmd()
 			response := &commands.Response{
 				Data:         nil,
@@ -167,8 +167,8 @@ func (cw *CryptoWorker) worker() {
 
 // Config encapsulates arguments passed in New to create new instance of the cryptoworker.
 type Config struct {
-	JobQueue   chan<- *jobpacket.JobPacket // type of channel will be updated in next patch version
-	IncomingCh <-chan interface{}          // type of channel will be updated in next patch version
+	JobQueue   chan<- *jobpacket.JobPacket
+	IncomingCh <-chan *commands.CommandRequest
 
 	ID uint64
 
