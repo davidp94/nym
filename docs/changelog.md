@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.1.1
+
+* Reimplementation of commandsQueue using the created template
+
 ## v0.1.0
 
 * Created template to generate infinite channel behaviour for any type

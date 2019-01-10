@@ -8,22 +8,16 @@
   version = "v0.3.1"
 
 [[projects]]
+  name = "github.com/Workiva/go-datastructures"
+  packages = ["queue"]
+  revision = "f07cbe3f82ca2fd6e5ab94afce65fe43319f675f"
+  version = "v1.0.50"
+
+[[projects]]
   name = "github.com/davecgh/go-spew"
   packages = ["spew"]
   revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
   version = "v1.1.1"
-
-[[projects]]
-  name = "github.com/eapache/channels"
-  packages = ["."]
-  revision = "47238d5aae8c0fefd518ef2bee46290909cf8263"
-  version = "v1.1.0"
-
-[[projects]]
-  name = "github.com/eapache/queue"
-  packages = ["."]
-  revision = "44cc805cf13205b55f69e14bcb69867d1ae92f98"
-  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/golang/protobuf"
@@ -88,6 +82,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "acc4861cbd7ad755854e5242791f0bc89a2044d7058e753e496e6f444de59eef"
+  inputs-digest = "326b7822ee0e2e179869ab29c3d92583a385de90f7ae91fe73926414a613203b"
   solver-name = "gps-cdcl"
   solver-version = 1

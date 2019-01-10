@@ -35,6 +35,8 @@ git status --porcelain
 ```bash
 cd $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue
 go generate
+cd $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/server/comm/requestqueue/
+go generate
 git status --porcelain
 ```
 
