@@ -32,32 +32,32 @@ import (
 )
 
 // nolint: lll
-func constructSignerProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
-	if ccw == nil {
+func constructSignerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
+	if cw == nil {
 		return coconut.ConstructSignerProof(params.(*coconut.Params), gamma, encs, cm, k, r, pubM, privM)
 	}
-	return ccw.ConstructSignerProof(params.(*coconutworker.MuxParams), gamma, encs, cm, k, r, pubM, privM)
+	return cw.ConstructSignerProof(params.(*coconutworker.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
 // nolint: lll
-func verifySignerProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
-	if ccw == nil {
+func verifySignerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, gamma *Curve.ECP, blindSignMats *coconut.BlindSignMats) bool {
+	if cw == nil {
 		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, blindSignMats)
 	}
-	return ccw.VerifySignerProof(params.(*coconutworker.MuxParams), gamma, blindSignMats)
+	return cw.VerifySignerProof(params.(*coconutworker.MuxParams), gamma, blindSignMats)
 }
 
 // nolint: lll
-func verifyVerifierProofWrapper(ccw *coconutworker.Worker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
-	if ccw == nil {
+func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+	if cw == nil {
 		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, showMats)
 	}
-	return ccw.VerifyVerifierProof(params.(*coconutworker.MuxParams), vk, sig, showMats)
+	return cw.VerifyVerifierProof(params.(*coconutworker.MuxParams), vk, sig, showMats)
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
 // nolint: lll
-func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
+func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 	tests := []struct {
 		pub  []string
 		priv []string
@@ -74,11 +74,11 @@ func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 	}
 
 	for _, test := range tests {
-		params, err := setupWrapper(ccw, len(test.pub)+len(test.priv))
+		params, err := setupWrapper(cw, len(test.pub)+len(test.priv))
 		assert.Nil(t, err)
 
 		var G *bpgroup.BpGroup
-		if ccw == nil {
+		if cw == nil {
 			G = params.(*coconut.Params).G
 		} else {
 			G = params.(*coconutworker.MuxParams).G
@@ -112,7 +112,7 @@ func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 		h, err := utils.HashBytesToG1(amcl.SHA512, b)
 		assert.Nil(t, err)
 
-		_, egPub := elGamalKeygenWrapper(ccw, params)
+		_, egPub := elGamalKeygenWrapper(cw, params)
 
 		encs := make([]*elgamal.Encryption, len(test.priv))
 		ks := make([]*Curve.BIG, len(test.priv))
@@ -123,20 +123,20 @@ func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 		}
 
 		if len(test.priv) > 0 {
-			_, err = constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks[1:], r, pubBig, privBig)
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks[1:], r, pubBig, privBig)
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 
-			_, err = constructSignerProofWrapper(ccw, params, egPub.Gamma, encs[1:], cm, ks, r, pubBig, privBig)
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs[1:], cm, ks, r, pubBig, privBig)
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 
-			_, err = constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig[1:])
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig[1:])
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 		}
 
-		_, err = constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
+		_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
 		assert.Error(t, err)
 
-		signerProof, err := constructSignerProofWrapper(ccw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
+		signerProof, err := constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
 		if len(test.priv) == 0 {
 			assert.Nil(t, signerProof)
 			assert.Error(t, err)
@@ -146,17 +146,17 @@ func TestSignerProof(t *testing.T, ccw *coconutworker.Worker) {
 		}
 
 		if len(test.priv) > 0 {
-			assert.False(t, verifySignerProofWrapper(ccw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs[1:], signerProof)), test.msg)
-			assert.False(t, verifySignerProofWrapper(ccw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs,
+			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs[1:], signerProof)), test.msg)
+			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs,
 				coconut.NewSignerProof(signerProof.C(), signerProof.Rr(), signerProof.Rk()[1:], signerProof.Rm()))),
 				test.msg)
 		}
-		assert.True(t, verifySignerProofWrapper(ccw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, signerProof)), test.msg)
+		assert.True(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, signerProof)), test.msg)
 	}
 }
 
 // TestVerifierProof tests properties of the appropriate NIZK
-func TestVerifierProof(t *testing.T, ccw *coconutworker.Worker) {
+func TestVerifierProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 	tests := []struct {
 		pub  []string
 		priv []string
@@ -171,10 +171,10 @@ func TestVerifierProof(t *testing.T, ccw *coconutworker.Worker) {
 	}
 
 	for _, test := range tests {
-		params, err := setupWrapper(ccw, len(test.pub)+len(test.priv))
+		params, err := setupWrapper(cw, len(test.pub)+len(test.priv))
 		assert.Nil(t, err)
 
-		sk, vk, err := keygenWrapper(ccw, params)
+		sk, vk, err := keygenWrapper(cw, params)
 		assert.Nil(t, err)
 
 		pubBig := make([]*Curve.BIG, len(test.pub))
@@ -188,18 +188,18 @@ func TestVerifierProof(t *testing.T, ccw *coconutworker.Worker) {
 			assert.Nil(t, err)
 		}
 
-		egPriv, egPub := elGamalKeygenWrapper(ccw, params)
-		blindSignMats, err := prepareBlindSignWrapper(ccw, params, egPub, pubBig, privBig)
+		egPriv, egPub := elGamalKeygenWrapper(cw, params)
+		blindSignMats, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
 		assert.Nil(t, err)
 
-		blindedSignature, err := blindSignWrapper(ccw, params, sk, blindSignMats, egPub, pubBig)
+		blindedSignature, err := blindSignWrapper(cw, params, sk, blindSignMats, egPub, pubBig)
 		assert.Nil(t, err)
 
-		sig := unblindWrapper(ccw, params, blindedSignature, egPriv)
+		sig := unblindWrapper(cw, params, blindedSignature, egPriv)
 
-		blindShowMats, err := showBlindSignatureWrapper(ccw, params, vk, sig, privBig)
+		blindShowMats, err := showBlindSignatureWrapper(cw, params, vk, sig, privBig)
 		assert.Nil(t, err)
 
-		assert.True(t, verifyVerifierProofWrapper(ccw, params, vk, sig, blindShowMats), test.msg)
+		assert.True(t, verifyVerifierProofWrapper(cw, params, vk, sig, blindShowMats), test.msg)
 	}
 }

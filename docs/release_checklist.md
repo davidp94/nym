@@ -27,10 +27,15 @@ go test -v ./...
 ```bash
 cd $GOPATH/src/0xacab.org/jstuczyn/CoconutGo
 go generate
-git diff $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/crypto/elgamal/types.pb.go
-git diff $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme/types.pb.go
-git diff $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/server/commands/types.pb.go
-git diff $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services/services.pb.go
+git status --porcelain
+```
+
+* ensure generated queue files did not unexpectedly change:
+
+```bash
+cd $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue
+go generate
+git status --porcelain
 ```
 
 * create appropriate version tag according to [Semantic Versioning](https://semver.org/) to reflect extent of changes made:

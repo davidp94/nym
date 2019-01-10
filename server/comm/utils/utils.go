@@ -1,11 +1,29 @@
-// set of helper functions used by both client and sever
+// utils.go - set of utility functions used by client and server.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+// Package utils consists of set of helper functions used by both client and server.
+// Note that in the next minor release, the package will be renamed and
+// the file will be moved to different directory.
 package utils
 
 import (
 	"encoding/binary"
 	"io"
 	"net"
+	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -16,31 +34,43 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// all we receive are either vk/sigs/blindsigs and all of them require ID (if treshold is used)
+// ServerMetadata encapsulates all server-related information passed in each
+// request and response.
+type ServerMetadata struct {
+	Address string
+	ID      int
+}
+
+// ServerResponse represents raw data returned from a particular server
+// as well as the associated metadata when the request was sent on a TCP socket.
 type ServerResponse struct {
-	MarshaledData []byte
-	ServerAddress string // not really needed, but might be useful for auditing
-	ServerID      int    // will be needed for threshold aggregation
+	MarshaledData  []byte
+	ServerMetadata *ServerMetadata
 }
 
+// ServerRequest represents raw data sent to a particular server
+// as well as the associated metadata when the request is sent on a TCP socket.
 type ServerRequest struct {
-	MarshaledData []byte // it's just a marshaled packet, but keep it generic in case the implementation changes
-	ServerAddress string
-	ServerID      int
+	MarshaledData  []byte // it's just a marshaled packet, but is kept generic in case the implementation changes
+	ServerMetadata *ServerMetadata
 }
 
+// ServerResponseGrpc represents raw data returned from a particular server
+// as well as the associated metadata when the request was sent as a gRPC request.
 type ServerResponseGrpc struct {
-	Message       proto.Message
-	ServerAddress string // not really needed, but might be useful for auditing
-	ServerID      int    // will be needed for threshold aggregation
+	Message        proto.Message
+	ServerMetadata *ServerMetadata
 }
 
+// ServerRequestGrpc represents raw data sent to a particular server
+// as well as the associated metadata when the request is sent as a gRPC request.
 type ServerRequestGrpc struct {
-	Message       proto.Message
-	ServerAddress string
-	ServerID      int
+	Message        proto.Message
+	ServerMetadata *ServerMetadata
 }
 
+// ReadPacketFromConn reads all data from a given connection and
+// unmarshals it into a packet instance.
 func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 	var err error
 	tmp := make([]byte, 4) // packetlength
@@ -56,25 +86,14 @@ func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 	return packet.FromBytes(packetOutBytes)
 }
 
-func CommandToMarshaledPacket(cmd commands.Command, cmdID commands.CommandID) []byte {
-	payloadBytes, err := proto.Marshal(cmd)
-	if err != nil {
-		return nil
-	}
-	rawCmd := commands.NewRawCommand(cmdID, payloadBytes)
-	cmdBytes := rawCmd.ToBytes()
-
-	packetIn := packet.NewPacket(cmdBytes)
-	packetBytes, err := packetIn.MarshalBinary()
-	if err != nil {
-		return nil
-	}
-	return packetBytes
-}
-
-func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *logging.Logger, connectTimeout int) chan<- *ServerRequest {
+// SendServerRequests starts set of goroutines sending requests on TCP sockets to particular servers.
+// Number of goroutines is limited by maxReqs argument.
+// It returns the channel to write the requests to.
+// errcheck is ignored to make it not complain about not checking for err in conn.Close()
+// nolint: errcheck
+func SendServerRequests(rCh chan<- *ServerResponse, maxReqs int, log *logging.Logger, connT int) chan<- *ServerRequest {
 	ch := make(chan *ServerRequest)
-	for i := 0; i < maxRequests; i++ {
+	for i := 0; i < maxReqs; i++ {
 		go func() {
 			for {
 				req, ok := <-ch
@@ -82,23 +101,37 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 					return
 				}
 
-				log.Debugf("Dialing %v", req.ServerAddress)
-				conn, err := net.Dial("tcp", req.ServerAddress)
+				log.Debugf("Dialing %v", req.ServerMetadata.Address)
+				conn, err := net.Dial("tcp", req.ServerMetadata.Address)
 				if err != nil {
-					log.Errorf("Could not dial %v", req.ServerAddress)
+					log.Errorf("Could not dial %v", req.ServerMetadata.Address)
 					continue
 				}
-				// defer
+				defer conn.Close()
 
-				conn.Write(req.MarshaledData)
-				conn.SetReadDeadline(time.Now().Add(time.Duration(connectTimeout) * time.Millisecond))
+				// currently will never be thrown since there is no writedeadline
+				if _, werr := conn.Write(req.MarshaledData); werr != nil {
+					log.Errorf("Failed to write to connection: %v", werr)
+					continue
+				}
+
+				sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(connT) * time.Millisecond))
+				if sderr != nil {
+					log.Errorf("Failed to set read deadline for connection: %v", sderr)
+					continue
+				}
 
 				resp, err := ReadPacketFromConn(conn)
-				conn.Close()
 				if err != nil {
-					log.Errorf("Received invalid response from %v: %v", req.ServerAddress, err)
+					log.Errorf("Received invalid response from %v: %v", req.ServerMetadata.Address, err)
 				} else {
-					respCh <- &ServerResponse{MarshaledData: resp.Payload(), ServerID: req.ServerID, ServerAddress: req.ServerAddress}
+					rCh <- &ServerResponse{
+						MarshaledData: resp.Payload(),
+						ServerMetadata: &ServerMetadata{
+							Address: req.ServerMetadata.Address,
+							ID:      req.ServerMetadata.ID,
+						},
+					}
 				}
 			}
 		}()
@@ -106,14 +139,15 @@ func SendServerRequests(respCh chan<- *ServerResponse, maxRequests int, log *log
 	return ch
 }
 
-// used by both clients and providers
-func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerResponse, log *logging.Logger, requestTimeout int) {
-	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
+// WaitForServerResponses is responsible for keeping track of request statuses and possible timeouts
+// if some requests fail to resolve in given time period.
+func WaitForServerResponses(rCh <-chan *ServerResponse, responses []*ServerResponse, log *logging.Logger, reqT int) {
+	timeout := time.After(time.Duration(reqT) * time.Millisecond)
 	i := 0
 	for {
 		select {
-		case resp := <-respCh:
-			log.Debug("Received a reply from IA (%v)", resp.ServerAddress)
+		case resp := <-rCh:
+			log.Debug("Received a reply from IA (%v)", resp.ServerMetadata.Address)
 			responses[i] = resp
 			i++
 
@@ -128,15 +162,24 @@ func WaitForServerResponses(respCh <-chan *ServerResponse, responses []*ServerRe
 	}
 }
 
+// ParseVerificationKeyResponses takes a slice containing ServerResponses with marshalled verification keys and
+// processes it accordingly to threshold system parameter.
+// nolint: lll
 func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	vks := make([]*coconut.VerificationKey, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
+
+	// works under assumption that servers specified in config file are ordered by their IDs
+	// which will in most cases be the case since they're just going to be 1,2,.., etc.
+	// a more general solution would require modifying the function signature
+	// and this use case is too niche to warrant the change.
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	for i := range responses {
 		if responses[i] != nil {
 			resp := &commands.VerificationKeyResponse{}
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
-				log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerAddress)
+				log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerMetadata.Address)
 				continue
 			}
 			if resp.Status.Code != int32(commands.StatusCode_OK) {
@@ -145,12 +188,13 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 			}
 			vk := &coconut.VerificationKey{}
 			if err := vk.FromProto(resp.Vk); err != nil {
-				log.Errorf("Failed to unmarshal received verification key from %v", responses[i].ServerAddress)
+				log.Errorf("Failed to unmarshal received verification key from %v", responses[i].ServerMetadata.Address)
 				continue // can still succeed with >= threshold vk
 			}
 			vks = append(vks, vk)
 			if isThreshold {
-				xs = append(xs, Curve.NewBIGint(responses[i].ServerID)) // no point in computing that if we won't need it
+				// no point in computing that if we won't need it
+				xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 			}
 		}
 	}
@@ -167,29 +211,35 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 	return vks, nil
 }
 
+func makeProtoStatus(code commands.StatusCode, message string) *commands.Status {
+	return &commands.Status{
+		Code:    int32(code),
+		Message: message,
+	}
+}
+
+// ResolveServerRequest awaits for a response from a cryptoworker and acts on it appropriately adding relevant metadata.
+// nolint: lll, gocyclo
 func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, log *logging.Logger, requestTimeout int, provReady bool) proto.Message {
 	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
 
 	var data interface{}
-	protoStatus := &commands.Status{}
+	var protoStatus *commands.Status
 
 	select {
 	case resp := <-resCh:
-		// var resVal *proto.Message
 		log.Debug("Received response from the worker")
 		if resp.Data != nil && len(resp.ErrorMessage) == 0 && resp.ErrorStatus == commands.StatusCode_UNKNOWN {
 			resp.ErrorStatus = commands.StatusCode_OK
 		}
 
 		data = resp.Data
-		protoStatus.Code = int32(resp.ErrorStatus)
-		protoStatus.Message = resp.ErrorMessage
+		protoStatus = makeProtoStatus(resp.ErrorStatus, resp.ErrorMessage)
 
-	// we can wait up to 500ms to resolve request
+	// we can wait up to requestTiemout to resolve request
 	// todo: a way to cancel the request because even though it timeouts, the worker is still working on it
 	case <-timeout:
-		protoStatus.Code = int32(commands.StatusCode_REQUEST_TIMEOUT)
-		protoStatus.Message = "Request took too long to resolve."
+		protoStatus = makeProtoStatus(commands.StatusCode_REQUEST_TIMEOUT, "Request took too long to resolve.")
 		log.Error("Failed to resolve request - timeout")
 	}
 
@@ -201,9 +251,8 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 		if data != nil {
 			protoSig, err = data.(*coconut.Signature).ToProto()
 			if err != nil {
+				protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 				log.Errorf("Error while creating response: %v", err)
-				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
-				protoStatus.Message = "Failed to marshal response"
 			}
 		}
 		protoResp = &commands.SignResponse{
@@ -215,9 +264,8 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 		if data != nil {
 			protoVk, err = data.(*coconut.VerificationKey).ToProto()
 			if err != nil {
+				protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 				log.Errorf("Error while creating response: %v", err)
-				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
-				protoStatus.Message = "Failed to marshal response"
 			}
 		}
 		protoResp = &commands.VerificationKeyResponse{
@@ -234,10 +282,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			log.Debugf("Was the received credential valid: %v", isValid)
 		} else {
 			protoResp = &commands.VerifyResponse{
-				Status: &commands.Status{
-					Code:    int32(commands.StatusCode_UNAVAILABLE),
-					Message: "The provider has not finished startup yet",
-				},
+				Status: makeProtoStatus(commands.StatusCode_UNAVAILABLE, "The provider has not finished startup yet"),
 			}
 			log.Notice("Verification request to the server, while it has not finished startup (or data was nil)")
 			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
@@ -247,9 +292,8 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 		if data != nil {
 			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
 			if err != nil {
+				protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 				log.Errorf("Error while creating response: %v", err)
-				protoStatus.Code = int32(commands.StatusCode_PROCESSING_ERROR)
-				protoStatus.Message = "Failed to marshal response"
 			}
 		}
 		protoResp = &commands.BlindSignResponse{
@@ -266,10 +310,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			log.Debugf("Was the received credential valid: %v", isValid)
 		} else {
 			protoResp = &commands.BlindVerifyResponse{
-				Status: &commands.Status{
-					Code:    int32(commands.StatusCode_UNAVAILABLE),
-					Message: "The provider has not finished startup yet",
-				},
+				Status: makeProtoStatus(commands.StatusCode_UNAVAILABLE, "The provider has not finished startup yet"),
 			}
 			log.Notice("Blind Verification request to the server, while it has not finished startup (or data was nil)")
 			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
@@ -281,20 +322,41 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 	return protoResp
 }
 
-func GetServerResponses(packet []byte, maxR int, log *logging.Logger, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
-	responses := make([]*ServerResponse, len(addrs)) // can't possibly get more results
+// RequestParams encapsulates all information required by GetServerResponses
+// including server addresses and all timeout values.
+type RequestParams struct {
+	MarshaledPacket   []byte
+	MaxRequests       int
+	ConnectionTimeout int
+	RequestTimeout    int
+	ServerAddresses   []string
+	ServerIDs         []int
+}
+
+// GetServerResponses writes requests to all server specified in the params according to the set params.
+// todo: once server.go is refactored, if the function is not used there, move it to client.go
+// func GetServerResponses(packet []byte, maxR int, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
+func GetServerResponses(requestParams *RequestParams, log *logging.Logger) []*ServerResponse {
+
+	responses := make([]*ServerResponse, len(requestParams.ServerAddresses)) // can't possibly get more results
 	respCh := make(chan *ServerResponse)
-	reqCh := SendServerRequests(respCh, maxR, log, connT)
+	reqCh := SendServerRequests(respCh, requestParams.MaxRequests, log, requestParams.ConnectionTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
-		for i := range addrs {
-			log.Debug("Writing request to %v", addrs[i])
-			reqCh <- &ServerRequest{MarshaledData: packet, ServerAddress: addrs[i], ServerID: ids[i]}
+		for i := range requestParams.ServerAddresses {
+			log.Debug("Writing request to %v", requestParams.ServerAddresses[i])
+			reqCh <- &ServerRequest{
+				MarshaledData: requestParams.MarshaledPacket,
+				ServerMetadata: &ServerMetadata{
+					Address: requestParams.ServerAddresses[i],
+					ID:      requestParams.ServerIDs[i],
+				},
+			}
 		}
 	}()
 
-	WaitForServerResponses(respCh, responses, log, reqT)
+	WaitForServerResponses(respCh, responses, log, requestParams.RequestTimeout)
 	close(reqCh)
 	return responses
 }

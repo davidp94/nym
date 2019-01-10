@@ -814,27 +814,28 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 		assert.Nil(t, err)
 		return &utils.ServerResponse{
 			MarshaledData: b,
-			ServerAddress: address,
-			ServerID:      id,
+			ServerMetadata: &utils.ServerMetadata{
+				Address: address,
+				ID:      id,
+			},
 		}
 	}
 	cmd, err := commands.NewSignRequest(pubM)
 	assert.Nil(t, err)
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.SignID)
-	assert.NotNil(t, packetBytes)
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 	return utils.GetServerResponses(
-		packetBytes,
-		16,
-		log.GetLogger("Foo"),
-		2000,
-		5000,
-		[]string{address},
-		[]int{id},
-	)[0]
-
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       16,
+			ConnectionTimeout: 2000,
+			RequestTimeout:    5000,
+			ServerAddresses:   []string{address},
+			ServerIDs:         []int{id},
+		}, log.GetLogger("Foo"))[0]
 }
 
 // nolint: lll
@@ -853,27 +854,29 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 		assert.Nil(t, err)
 		return &utils.ServerResponse{
 			MarshaledData: b,
-			ServerAddress: address,
-			ServerID:      id,
+			ServerMetadata: &utils.ServerMetadata{
+				Address: address,
+				ID:      id,
+			},
 		}
 	}
 	cmd, err := commands.NewBlindSignRequest(blindSignMats, egPub, pubM)
 	assert.Nil(t, err)
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.BlindSignID)
-	assert.NotNil(t, packetBytes)
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 
 	return utils.GetServerResponses(
-		packetBytes,
-		16,
-		log.GetLogger("Foo"),
-		2000,
-		5000,
-		[]string{address},
-		[]int{id},
-	)[0]
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       16,
+			ConnectionTimeout: 2000,
+			RequestTimeout:    5000,
+			ServerAddresses:   []string{address},
+			ServerIDs:         []int{id},
+		}, log.GetLogger("Foo"))[0]
 }
 
 // nolint: lll
@@ -887,27 +890,29 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 		assert.Nil(t, err)
 		return &utils.ServerResponse{
 			MarshaledData: b,
-			ServerAddress: address,
-			ServerID:      id,
+			ServerMetadata: &utils.ServerMetadata{
+				Address: address,
+				ID:      id,
+			},
 		}
 	}
 	cmd, err := commands.NewVerificationKeyRequest()
 	assert.Nil(t, err)
-	packetBytes := utils.CommandToMarshaledPacket(cmd, commands.GetVerificationKeyID)
-	assert.NotNil(t, packetBytes)
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 
 	return utils.GetServerResponses(
-		packetBytes,
-		16,
-		log.GetLogger("Foo"),
-		2000,
-		5000,
-		[]string{address},
-		[]int{id},
-	)[0]
+		&utils.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       16,
+			ConnectionTimeout: 2000,
+			RequestTimeout:    5000,
+			ServerAddresses:   []string{address},
+			ServerIDs:         []int{id},
+		}, log.GetLogger("Foo"))[0]
 }
 
 // nolint: lll
@@ -967,9 +972,8 @@ Level = "DEBUG"
 		nil,
 		makeValidVkServerResponse(t, "127.0.0.1:1234", 1, true),
 		&utils.ServerResponse{},
-		&utils.ServerResponse{MarshaledData: nil, ServerAddress: "127.0.0.1:1234", ServerID: 1},
-		&utils.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerAddress: "127.0.0.1:1234", ServerID: 1},
-
+		&utils.ServerResponse{MarshaledData: nil, ServerMetadata: &utils.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
+		&utils.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerMetadata: &utils.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
 		// + malformed marshaleddata in different ways
 	)
 
@@ -993,11 +997,13 @@ Level = "DEBUG"
 		invalidResponsesIn := invalidResponses
 		if test.isBlind {
 			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false)
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerAddress: sampleValid.ServerAddress})
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &utils.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
 			invalidResponsesIn = append(invalidResponsesIn, makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
 		} else {
 			sampleValid := makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false)
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerAddress: sampleValid.ServerAddress})
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &utils.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
 			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false))
 		}
 

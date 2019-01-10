@@ -18,60 +18,60 @@
 package cryptoworker
 
 import (
-	"github.com/eapache/channels"
 	"gopkg.in/op/go-logging.v1"
 
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 )
 
-// Worker allows writing coconut actions to a shared job queue,
+// CryptoWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
-type Worker struct {
-	cw  *coconutworker.Worker
+type CryptoWorker struct {
+	cw  *coconutworker.CoconutWorker
 	log *logging.Logger
 	id  uint64
 
-	jobWorkers []*jobworker.Worker
+	jobWorkers []*jobworker.JobWorker
 }
 
 // CoconutWorker returns coconut worker instance associated with cryptoworker.
-func (w *Worker) CoconutWorker() *coconutworker.Worker {
-	return w.cw
+func (cw *CryptoWorker) CoconutWorker() *coconutworker.CoconutWorker {
+	return cw.cw
 }
 
 // Halt cleanly shuts down a given cryptoworker instance.
-func (w *Worker) Halt() {
-	for i, wrk := range w.jobWorkers {
+func (cw *CryptoWorker) Halt() {
+	for i, wrk := range cw.jobWorkers {
 		if wrk != nil {
 			wrk.Halt()
-			w.jobWorkers[i] = nil
+			cw.jobWorkers[i] = nil
 		}
 	}
-	w.log.Notice("Stopped all job workers.")
+	cw.log.Notice("Stopped all job workers.")
 }
 
 // New creates new instance of a coconutWorker.
 // nolint: lll
-func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *Worker {
-	jobCh := channels.NewInfiniteChannel() // commands issued by coconutworkers, like do pairing, g1mul, etc
+func New(id uint64, l *logger.Logger, params *coconut.Params, numWorkers int) *CryptoWorker {
+	jobCh := jobqueue.New() // commands issued by coconutworkers, like do pairing, g1mul, etc
 	cw := coconutworker.New(jobCh.In(), params)
 
-	w := &Worker{
+	ccw := &CryptoWorker{
 		cw:  cw,
 		log: l.GetLogger(fmt.Sprintf("Clientcryptoworker:%d", int(id))),
 		id:  id,
 	}
 
-	jobworkers := make([]*jobworker.Worker, numWorkers)
+	jobworkers := make([]*jobworker.JobWorker, numWorkers)
 	for i := range jobworkers {
 		jobworkers[i] = jobworker.New(jobCh.Out(), uint64(i+1), l)
 	}
-	w.log.Noticef("Started %v Job Worker(s)", numWorkers)
+	ccw.log.Noticef("Started %v Job Worker(s)", numWorkers)
 
-	return w
+	return ccw
 }

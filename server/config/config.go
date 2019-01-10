@@ -29,7 +29,7 @@ import (
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultNumCoconutWorkers = 1
+	defaultNumCryptoWorkers = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
 	defaultRequestTimeout               = 5 * 1000  // 5 sec.
@@ -105,8 +105,8 @@ type Debug struct {
 	// NumJobWorkers specifies the number of worker instances to use for jobpacket processing.
 	NumJobWorkers int
 
-	// NumCoconutWorkers specifies the number of worker instances to use for client job requests.
-	NumCoconutWorkers int
+	// NumCryptoWorkers specifies the number of worker instances to use for client job requests.
+	NumCryptoWorkers int
 
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
@@ -135,8 +135,8 @@ func (dCfg *Debug) applyDefaults() {
 	if dCfg.NumJobWorkers <= 0 {
 		dCfg.NumJobWorkers = runtime.NumCPU()
 	}
-	if dCfg.NumCoconutWorkers <= 0 {
-		dCfg.NumCoconutWorkers = defaultNumCoconutWorkers
+	if dCfg.NumCryptoWorkers <= 0 {
+		dCfg.NumCryptoWorkers = defaultNumCryptoWorkers
 	}
 	if dCfg.ConnectTimeout <= 0 {
 		dCfg.ConnectTimeout = defaultConnectTimeout

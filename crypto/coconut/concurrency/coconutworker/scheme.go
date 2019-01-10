@@ -40,7 +40,7 @@ type MuxParams struct {
 
 // Setup generates the public parameters required by the Coconut scheme.
 // q indicates the maximum number of attributes that can be embed in the credentials.
-func (cw *Worker) Setup(q int) (*MuxParams, error) {
+func (cw *CoconutWorker) Setup(q int) (*MuxParams, error) {
 	// each hashing operation takes ~3ms, which is not necessarily worth parallelizing
 	// due to increased code complexity especially since Setup is only run once
 	params, err := coconut.Setup(q)
@@ -52,7 +52,7 @@ func (cw *Worker) Setup(q int) (*MuxParams, error) {
 
 // Keygen generates a single Coconut keypair ((x, y1, y2...), (g2, g2^x, g2^y1, ...)).
 // It is not suitable for threshold credentials as all generated keys are independent of each other.
-func (cw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
+func (cw *CoconutWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -97,7 +97,7 @@ func (cw *Worker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut.Verifi
 // such that they support threshold aggregation of t parties.
 // It is expected that this procedure is executed by a Trusted Third Party.
 // nolint: lll
-func (cw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+func (cw *CoconutWorker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -153,7 +153,7 @@ func (cw *Worker) TTPKeygen(params *MuxParams, t int, n int) ([]*coconut.SecretK
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
-func (cw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
+func (cw *CoconutWorker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.BIG) (*coconut.Signature, error) {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Sign(params.Params, sk, pubM)
 }
@@ -163,7 +163,7 @@ func (cw *Worker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*Curve.B
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (cw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (cw *CoconutWorker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
 	p, g1, hs, rng := params.P(), params.G1(), params.Hs(), params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -222,7 +222,7 @@ func (cw *Worker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, 
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func (cw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func (cw *CoconutWorker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	p, hs := params.P(), params.Hs()
 
 	if len(blindSignMats.Enc())+len(pubM) > len(hs) {
@@ -279,7 +279,7 @@ func (cw *Worker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignM
 
 // Unblind unblinds the blinded Coconut credential.
 // nolint: lll
-func (cw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPub *elgamal.PrivateKey) *coconut.Signature {
+func (cw *CoconutWorker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSignature, egPub *elgamal.PrivateKey) *coconut.Signature {
 	// there are no expensive operations that could be parallelized in sign
 	return coconut.Unblind(params.Params, blindedSignature, egPub)
 }
@@ -287,7 +287,7 @@ func (cw *Worker) Unblind(params *MuxParams, blindedSignature *coconut.BlindedSi
 // Verify verifies the Coconut credential that has been either issued exlusiviely on public attributes
 // or all private attributes have been publicly revealed.
 // nolint: lll
-func (cw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
+func (cw *CoconutWorker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []*Curve.BIG, sig *coconut.Signature) bool {
 	if len(pubM) > len(vk.Beta()) {
 		return false
 	}
@@ -327,7 +327,7 @@ func (cw *Worker) Verify(params *MuxParams, vk *coconut.VerificationKey, pubM []
 
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
 // from a fresh credential on different attributes
-func (cw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
+func (cw *CoconutWorker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.Signature {
 	p, rng := params.P(), params.G.Rng()
 
 	params.Lock()
@@ -349,7 +349,7 @@ func (cw *Worker) Randomize(params *MuxParams, sig *coconut.Signature) *coconut.
 // AggregateVerificationKeys aggregates verification keys of the signing authorities.
 // Optionally it does so in a threshold manner.
 // nolint: lll
-func (cw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
+func (cw *CoconutWorker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints) *coconut.VerificationKey {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateVerificationKeys(params.Params, vks, nil)
@@ -406,7 +406,7 @@ func (cw *Worker) AggregateVerificationKeys(params *MuxParams, vks []*coconut.Ve
 // that were produced by multiple signing authorities.
 // Optionally it does so in a threshold manner.
 // nolint: lll
-func (cw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
+func (cw *CoconutWorker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	// no point in repeating code as this bit can't benefit from concurrency anyway
 	if pp == nil {
 		return coconut.AggregateSignatures(params.Params, sigs, nil)
@@ -437,7 +437,7 @@ func (cw *Worker) AggregateSignatures(params *MuxParams, sigs []*coconut.Signatu
 // It returns kappa and nu - group elements needed to perform verification
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
 	p, rng := params.P(), params.G.Rng()
 
 	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() || !coconut.ValidateBigSlice(privM) {
@@ -478,7 +478,7 @@ func (cw *Worker) ShowBlindSignature(params *MuxParams, vk *coconut.Verification
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 // nolint: lll
-func (cw *Worker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
 	privateLen := len(blindShowMats.Proof().Rm())
 	if len(pubM)+privateLen > len(vk.Beta()) || !cw.VerifyVerifierProof(params, vk, sig, blindShowMats) {
 		return false
