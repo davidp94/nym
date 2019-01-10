@@ -1,4 +1,4 @@
-// queue_gen.go -
+// queue_gen.go - template for creating infinite channel/queues.
 // Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -41,6 +41,8 @@ func getOutputFileName() string {
 	return callee[:len(callee)-3] + "_queueGen.go"
 }
 
+// main is called via go generate from a specific file. It then fills the template defined below with the type specific
+// information in order to define queue of specific type based on the eapache's infinite channel.
 func main() {
 	name := flag.String("name", "", "name of the queue, ex. JobQueue")
 	fullType := flag.String("type", "", "full type that is being put on queue, ex. *jobpacket.JobPacket")
