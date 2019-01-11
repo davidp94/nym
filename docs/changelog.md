@@ -1,5 +1,12 @@
 # CoconutGo Changelog
 
+## v0.1.3
+
+* Refactored repository structure
+* Renamed BlindSignMats and BlindShowMats to Lambda and Theta respectively
+* Refactored server/CryptoWorker and simplified main processing loop
+* Fixed crash on GetVerificationKey[grpc] if any server was down
+
 ## v0.1.2
 
 * Updated milagro library to the current version as of 10.01.2019
