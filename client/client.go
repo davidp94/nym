@@ -557,10 +557,6 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
-	// works under assumption that servers specified in config file are ordered by their IDs
-	// which will in most cases be the case since they're just going to be 1,2,.., etc.
-	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
-
 	for i := range responses {
 		if responses[i] == nil {
 			c.log.Error("nil response received")
@@ -575,6 +571,10 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 		}
 	}
+
+	// works under assumption that servers specified in config file are ordered by their IDs
+	// which will in most cases be the case since they're just going to be 1,2,.., etc.
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	if c.cfg.Client.Threshold > 0 {
 		return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
