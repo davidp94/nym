@@ -1,4 +1,4 @@
-//go:generate go run $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/gen/queueGenMain.go --name=RequestQueue --type=*commands.CommandRequest --typeName=CommandRequest --typeImportPath=0xacab.org/jstuczyn/CoconutGo/server/commands
+//go:generate go run $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/gen/queueGenMain.go --name=RequestQueue --type=*commands.CommandRequest --typeName=CommandRequest --typeImportPath=0xacab.org/jstuczyn/CoconutGo/common/comm/commands
 
 // requestqueue.go - Entry point for go generate to create a server request queue.
 // Copyright (C) 2019  Jedrzej Stuczynski.

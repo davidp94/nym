@@ -29,15 +29,15 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
+	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	pb "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
-	"0xacab.org/jstuczyn/CoconutGo/server/packet"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -108,17 +108,17 @@ func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) (*coco
 	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey), nil
 }
 
-func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.Message) []*utils.ServerResponseGrpc {
-	responses := make([]*utils.ServerResponseGrpc, len(c.cfg.Client.IAgRPCAddresses))
-	respCh := make(chan *utils.ServerResponseGrpc)
+func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.Message) []*comm.ServerResponseGrpc {
+	responses := make([]*comm.ServerResponseGrpc, len(c.cfg.Client.IAgRPCAddresses))
+	respCh := make(chan *comm.ServerResponseGrpc)
 	reqCh, cancelFuncs := c.sendGRPCs(respCh, dialOptions)
 
 	go func() {
 		for i := range c.cfg.Client.IAgRPCAddresses {
 			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
-			reqCh <- &utils.ServerRequestGrpc{
+			reqCh <- &comm.ServerRequestGrpc{
 				Message: request,
-				ServerMetadata: &utils.ServerMetadata{
+				ServerMetadata: &comm.ServerMetadata{
 					Address: c.cfg.Client.IAgRPCAddresses[i],
 					ID:      c.cfg.Client.IAIDs[i],
 				},
@@ -132,7 +132,7 @@ func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.M
 }
 
 // nolint: lll
-func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponseGrpc, responses []*utils.ServerResponseGrpc, cancelFuncs []context.CancelFunc) {
+func (c *Client) waitForGrpcResponses(respCh <-chan *comm.ServerResponseGrpc, responses []*comm.ServerResponseGrpc, cancelFuncs []context.CancelFunc) {
 	i := 0
 	for {
 		select {
@@ -157,8 +157,8 @@ func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponseGrpc, r
 
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
 // nolint: lll, errcheck
-func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions []grpc.DialOption) (chan<- *utils.ServerRequestGrpc, []context.CancelFunc) {
-	reqCh := make(chan *utils.ServerRequestGrpc)
+func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc, dialOptions []grpc.DialOption) (chan<- *comm.ServerRequestGrpc, []context.CancelFunc) {
+	reqCh := make(chan *comm.ServerRequestGrpc)
 
 	// there can be at most that many connections active at given time,
 	// as each goroutine can only access a single index and will overwrite its previous entry
@@ -205,9 +205,9 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 				if errgrpc != nil {
 					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerMetadata.Address, err)
 				} else {
-					respCh <- &utils.ServerResponseGrpc{
+					respCh <- &comm.ServerResponseGrpc{
 						Message: resp,
-						ServerMetadata: &utils.ServerMetadata{
+						ServerMetadata: &comm.ServerMetadata{
 							Address: req.ServerMetadata.Address,
 							ID:      req.ServerMetadata.ID,
 						},
@@ -221,7 +221,7 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 
 // nolint: lll
 // currently it tries to parse everything and just ignores an invalid request, should it fail on any single invalid request?
-func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+func (c *Client) parseSignatureServerResponses(responses []*comm.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	if responses == nil {
 		return nil, nil
 	}
@@ -442,8 +442,8 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	}
 
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -603,8 +603,8 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 	}
 	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -614,7 +614,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 		},
 		c.log,
 	)
-	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
+	vks, pp := comm.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 	return c.handleReceivedVerificationKeys(vks, pp, shouldAggregate)
 }
 
@@ -723,8 +723,8 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 
 	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -806,7 +806,7 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to set read deadline for connection: %v", sderr)
 	}
 
-	respPacket, err := utils.ReadPacketFromConn(conn)
+	respPacket, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForVerification: Received invalid response from %v: %v", addr, err)
 	}
@@ -937,7 +937,7 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v", sderr)
 	}
 
-	resp, err := utils.ReadPacketFromConn(conn)
+	resp, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", addr, err)
 	}

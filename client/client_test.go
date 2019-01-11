@@ -31,13 +31,13 @@ import (
 	"testing"
 
 	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	sconfig "0xacab.org/jstuczyn/CoconutGo/server/config"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
@@ -802,7 +802,7 @@ Level = "DEBUG"
 }
 
 // nolint: lll
-func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, mock bool) *utils.ServerResponse {
+func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, mock bool) *comm.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
 		assert.Nil(t, err)
@@ -812,9 +812,9 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 		assert.Nil(t, err)
 		b, err := sig.MarshalBinary()
 		assert.Nil(t, err)
-		return &utils.ServerResponse{
+		return &comm.ServerResponse{
 			MarshaledData: b,
-			ServerMetadata: &utils.ServerMetadata{
+			ServerMetadata: &comm.ServerMetadata{
 				Address: address,
 				ID:      id,
 			},
@@ -827,8 +827,8 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
-	return utils.GetServerResponses(
-		&utils.RequestParams{
+	return comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
 			ConnectionTimeout: 2000,
@@ -839,7 +839,7 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 }
 
 // nolint: lll
-func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, privM []*Curve.BIG, egPub *elgamal.PublicKey, mock bool) *utils.ServerResponse {
+func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, privM []*Curve.BIG, egPub *elgamal.PublicKey, mock bool) *comm.ServerResponse {
 	params, err := coconut.Setup(5)
 	assert.Nil(t, err)
 	blindSignMats, err := coconut.PrepareBlindSign(params, egPub, pubM, privM)
@@ -852,9 +852,9 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 		assert.Nil(t, err)
 		b, err := blindSig.MarshalBinary()
 		assert.Nil(t, err)
-		return &utils.ServerResponse{
+		return &comm.ServerResponse{
 			MarshaledData: b,
-			ServerMetadata: &utils.ServerMetadata{
+			ServerMetadata: &comm.ServerMetadata{
 				Address: address,
 				ID:      id,
 			},
@@ -868,8 +868,8 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 
-	return utils.GetServerResponses(
-		&utils.RequestParams{
+	return comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
 			ConnectionTimeout: 2000,
@@ -880,7 +880,7 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 }
 
 // nolint: lll
-func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) *utils.ServerResponse {
+func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) *comm.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
 		assert.Nil(t, err)
@@ -888,9 +888,9 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 		assert.Nil(t, err)
 		b, err := vk.MarshalBinary()
 		assert.Nil(t, err)
-		return &utils.ServerResponse{
+		return &comm.ServerResponse{
 			MarshaledData: b,
-			ServerMetadata: &utils.ServerMetadata{
+			ServerMetadata: &comm.ServerMetadata{
 				Address: address,
 				ID:      id,
 			},
@@ -904,8 +904,8 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 
-	return utils.GetServerResponses(
-		&utils.RequestParams{
+	return comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
 			ConnectionTimeout: 2000,
@@ -965,20 +965,20 @@ Level = "DEBUG"
 		{true, true, 0, 5},
 	}
 
-	invalidResponses := make([]*utils.ServerResponse, 0, 10)
+	invalidResponses := make([]*comm.ServerResponse, 0, 10)
 
 	invalidResponses = append(
 		invalidResponses,
 		nil,
 		makeValidVkServerResponse(t, "127.0.0.1:1234", 1, true),
-		&utils.ServerResponse{},
-		&utils.ServerResponse{MarshaledData: nil, ServerMetadata: &utils.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
-		&utils.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerMetadata: &utils.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
+		&comm.ServerResponse{},
+		&comm.ServerResponse{MarshaledData: nil, ServerMetadata: &comm.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
+		&comm.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerMetadata: &comm.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
 		// + malformed marshaleddata in different ways
 	)
 
 	for _, test := range tests {
-		responsesMock := make([]*utils.ServerResponse, 0, test.invalidResponses+test.validResponses)
+		responsesMock := make([]*comm.ServerResponse, 0, test.invalidResponses+test.validResponses)
 		// nil responses
 		sigs, pp := client.parseSignatureServerResponses(nil, test.isThreshold, test.isBlind)
 		assert.Nil(t, sigs)
@@ -997,13 +997,13 @@ Level = "DEBUG"
 		invalidResponsesIn := invalidResponses
 		if test.isBlind {
 			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false)
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &utils.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
+			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
 			invalidResponsesIn = append(invalidResponsesIn, makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
 		} else {
 			sampleValid := makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false)
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
-			invalidResponsesIn = append(invalidResponsesIn, &utils.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &utils.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
+			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
 			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false))
 		}
 

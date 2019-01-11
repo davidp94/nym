@@ -10,7 +10,7 @@ protoc --go_out=../../.. ./crypto/coconut/scheme/proto/types.proto
 sed -i -e 's/package scheme/package coconut/g' ./crypto/coconut/scheme/types.pb.go
 
 # commands
-protoc --go_out=../../.. ./server/commands/proto/types.proto
+protoc --go_out=../../.. ./common/comm/commands/proto/types.proto
 
 # grpc
-protoc ./server/comm/grpc/proto/services.proto --go_out=plugins=grpc:../../..
+protoc ./common/grpc/services/proto/services.proto --go_out=plugins=grpc:../../..

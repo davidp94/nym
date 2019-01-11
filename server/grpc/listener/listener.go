@@ -22,10 +22,10 @@ import (
 	"fmt"
 	"net"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	pb "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/golang/protobuf/proto"
@@ -97,7 +97,7 @@ func (l *Listener) resolveCommand(req proto.Message) proto.Message {
 	cmdReq := commands.NewCommandRequest(req, resCh)
 	l.incomingCh <- cmdReq
 
-	return utils.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
+	return comm.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 }
 
 // Halt gracefully stops the listener.

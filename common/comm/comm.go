@@ -17,7 +17,7 @@
 // Package utils consists of set of helper functions used by both client and server.
 // Note that in the next minor release, the package will be renamed and
 // the file will be moved to different directory.
-package utils
+package comm
 
 import (
 	"encoding/binary"
@@ -26,9 +26,9 @@ import (
 	"sort"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
-	"0xacab.org/jstuczyn/CoconutGo/server/packet"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"

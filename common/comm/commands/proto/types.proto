@@ -3,7 +3,7 @@ import "crypto/coconut/scheme/proto/types.proto";
 import "crypto/elgamal/proto/types.proto";
 
 package commands;
-option go_package = "0xacab.org/jstuczyn/CoconutGo/server/commands";
+option go_package = "0xacab.org/jstuczyn/CoconutGo/common/comm/commands";
 
 enum StatusCode {
     OK = 0;

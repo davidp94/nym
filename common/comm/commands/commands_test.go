@@ -20,7 +20,7 @@ package commands_test
 import (
 	_ "testing"
 
-	_ "0xacab.org/jstuczyn/CoconutGo/server/commands"
+	_ "0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 

@@ -23,17 +23,17 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/listener"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/requestqueue"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"0xacab.org/jstuczyn/CoconutGo/server/cryptoworker"
+	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
+	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -80,8 +80,8 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
-	responses := make([]*utils.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *utils.ServerResponse)
+	responses := make([]*comm.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
+	respCh := make(chan *comm.ServerResponse)
 	receivedResponses := make(map[string]bool)
 
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
@@ -93,7 +93,7 @@ outLoop:
 		// todo: figure out how to enter the case immediately without waiting for first tick
 		case <-retryTicker.C:
 			// this is recreated every run so that we would not get stale results
-			reqCh := utils.SendServerRequests(respCh, maxRequests, s.log, s.cfg.Debug.ConnectTimeout)
+			reqCh := comm.SendServerRequests(respCh, maxRequests, s.log, s.cfg.Debug.ConnectTimeout)
 
 			// write requests in a goroutine so we wouldn't block when trying to read responses
 			go func() {
@@ -101,9 +101,9 @@ outLoop:
 					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
 						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
 						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
-						reqCh <- &utils.ServerRequest{
+						reqCh <- &comm.ServerRequest{
 							MarshaledData: packetBytes,
-							ServerMetadata: &utils.ServerMetadata{
+							ServerMetadata: &comm.ServerMetadata{
 								Address: s.cfg.Provider.IAAddresses[i],
 								ID:      s.cfg.Provider.IAIDs[i],
 							},
@@ -111,7 +111,7 @@ outLoop:
 					}
 				}
 			}()
-			utils.WaitForServerResponses(respCh, responses[len(receivedResponses):], s.log, s.cfg.Debug.RequestTimeout)
+			comm.WaitForServerResponses(respCh, responses[len(receivedResponses):], s.log, s.cfg.Debug.RequestTimeout)
 			close(reqCh)
 
 			for i := range responses {
@@ -138,7 +138,7 @@ outLoop:
 	}
 	retryTicker.Stop()
 
-	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
+	vks, pp := comm.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
 
 	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
 		s.log.Notice("Number of verification keys received is within threshold")

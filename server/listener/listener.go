@@ -23,11 +23,11 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	"0xacab.org/jstuczyn/CoconutGo/server/packet"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/golang/protobuf/proto"
 	"gopkg.in/op/go-logging.v1"
@@ -113,7 +113,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	}()
 
 	l.log.Noticef("New Connection from %v", conn.RemoteAddr())
-	inPacket, err := utils.ReadPacketFromConn(conn)
+	inPacket, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
 		l.log.Errorf("Failed to read received packet: %v", err)
 		return
@@ -148,7 +148,7 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 }
 
 func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
-	protoResp := utils.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
+	protoResp := comm.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 
 	b, err := proto.Marshal(protoResp)
 	if err != nil {

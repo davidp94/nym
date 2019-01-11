@@ -1,8 +1,8 @@
 syntax = "proto3";
-import "server/commands/proto/types.proto";
+import "common/comm/commands/proto/types.proto";
 
 package services;
-option go_package = "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services";
+option go_package = "0xacab.org/jstuczyn/CoconutGo/common/grpc/services";
 
 service Issuer {
     rpc GetVerificationKey(commands.VerificationKeyRequest) returns (commands.VerificationKeyResponse);
