@@ -110,7 +110,7 @@ func elGamalKeygenWrapper(cw *coconutworker.CoconutWorker, params coconut.Scheme
 }
 
 // nolint: lll
-func prepareBlindSignWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func prepareBlindSignWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Lambda, error) {
 	if cw == nil {
 		return coconut.PrepareBlindSign(params.(*coconut.Params), egPub, pubM, privM)
 	}
@@ -126,7 +126,7 @@ func unblindWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams
 }
 
 // nolint: lll
-func showBlindSignatureWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func showBlindSignatureWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
 	if cw == nil {
 		return coconut.ShowBlindSignature(params.(*coconut.Params), vk, sig, privM)
 	}
@@ -134,19 +134,19 @@ func showBlindSignatureWrapper(cw *coconutworker.CoconutWorker, params coconut.S
 }
 
 // nolint: lll
-func blindSignWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func blindSignWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, sk *coconut.SecretKey, lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	if cw == nil {
-		return coconut.BlindSign(params.(*coconut.Params), sk, blindSignMats, egPub, pubM)
+		return coconut.BlindSign(params.(*coconut.Params), sk, lambda, egPub, pubM)
 	}
-	return cw.BlindSign(params.(*coconutworker.MuxParams), sk, blindSignMats, egPub, pubM)
+	return cw.BlindSign(params.(*coconutworker.MuxParams), sk, lambda, egPub, pubM)
 }
 
 // nolint: lll
-func blindVerifyWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
+func blindVerifyWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta, pubM []*Curve.BIG) bool {
 	if cw == nil {
-		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, showMats, pubM)
+		return coconut.BlindVerify(params.(*coconut.Params), vk, sig, theta, pubM)
 	}
-	return cw.BlindVerify(params.(*coconutworker.MuxParams), vk, sig, showMats, pubM)
+	return cw.BlindVerify(params.(*coconutworker.MuxParams), vk, sig, theta, pubM)
 
 }
 
@@ -624,7 +624,7 @@ func TestBlindVerify(t *testing.T, cw *coconutworker.CoconutWorker) {
 			assert.Nil(t, err)
 		}
 
-		blindSignMats, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
+		lambda, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
 
 		if len(test.priv) == 0 {
 			assert.Equal(t, test.err, err)
@@ -636,17 +636,17 @@ func TestBlindVerify(t *testing.T, cw *coconutworker.CoconutWorker) {
 			assert.Nil(t, err)
 		}
 
-		// ensures len(blindSignMats.enc)+len(public_m) > len(params.hs)
+		// ensures len(lambda.enc)+len(public_m) > len(params.hs)
 		if test.q <= len(test.priv)+len(test.pub) {
-			_, err = blindSignWrapper(cw, params, sk, blindSignMats, egPub, append(pubBig, Curve.NewBIG()))
+			_, err = blindSignWrapper(cw, params, sk, lambda, egPub, append(pubBig, Curve.NewBIG()))
 			assert.Equal(t, coconut.ErrPrepareBlindSignParams, err, test.msg)
 
 			// just to ensure the error is returned; proofs of knowledge are properly tested in their own test file
-			_, err = blindSignWrapper(cw, params, sk, blindSignMats, egPub, append(pubBig, Curve.NewBIG()))
+			_, err = blindSignWrapper(cw, params, sk, lambda, egPub, append(pubBig, Curve.NewBIG()))
 			assert.Equal(t, coconut.ErrPrepareBlindSignParams, err, test.msg)
 		}
 
-		blindedSignature, err := blindSignWrapper(cw, params, sk, blindSignMats, egPub, pubBig)
+		blindedSignature, err := blindSignWrapper(cw, params, sk, lambda, egPub, pubBig)
 		assert.Nil(t, err)
 
 		sig := unblindWrapper(cw, params, blindedSignature, egPriv)
@@ -660,10 +660,10 @@ func TestBlindVerify(t *testing.T, cw *coconutworker.CoconutWorker) {
 			assert.Equal(t, coconut.ErrShowBlindAttr, err, test.msg)
 		}
 
-		blindShowMats, err := showBlindSignatureWrapper(cw, params, vk, sig, privBig)
+		theta, err := showBlindSignatureWrapper(cw, params, vk, sig, privBig)
 		assert.Nil(t, err)
 
-		assert.True(t, blindVerifyWrapper(cw, params, vk, sig, blindShowMats, pubBig), test.msg)
+		assert.True(t, blindVerifyWrapper(cw, params, vk, sig, theta, pubBig), test.msg)
 		// private attributes are revealed
 		assert.True(t, verifyWrapper(cw, params, vk, append(privBig, pubBig...), sig), test.msg)
 
@@ -709,7 +709,7 @@ func TestThresholdAuthorities(t *testing.T, cw *coconutworker.CoconutWorker) {
 			assert.Nil(t, err)
 		}
 
-		blindSignMats, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
+		lambda, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
 		assert.Nil(t, err)
 
 		sks, vks, err := ttpKeygenWrapper(cw, params, test.t, test.n)
@@ -733,7 +733,7 @@ func TestThresholdAuthorities(t *testing.T, cw *coconutworker.CoconutWorker) {
 
 			signatures := make([]*coconut.Signature, test.n)
 			for i := 0; i < test.n; i++ {
-				blindedSignature, err := blindSignWrapper(cw, params, sks[i], blindSignMats, egPub, pubBig)
+				blindedSignature, err := blindSignWrapper(cw, params, sks[i], lambda, egPub, pubBig)
 				assert.Nil(t, err)
 				signatures[i] = unblindWrapper(cw, params, blindedSignature, egPriv)
 			}
@@ -753,10 +753,10 @@ func TestThresholdAuthorities(t *testing.T, cw *coconutworker.CoconutWorker) {
 			aSig := aggregateSignaturesWrapper(cw, params, sigs2, coconut.NewPP(indices22))
 			rSig := randomizeWrapper(cw, params, aSig)
 
-			blindShowMats, err := showBlindSignatureWrapper(cw, params, avk, rSig, privBig)
+			theta, err := showBlindSignatureWrapper(cw, params, avk, rSig, privBig)
 			assert.Nil(t, err)
 
-			assert.True(t, blindVerifyWrapper(cw, params, avk, rSig, blindShowMats, pubBig))
+			assert.True(t, blindVerifyWrapper(cw, params, avk, rSig, theta, pubBig))
 		}
 	}
 }

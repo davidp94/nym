@@ -152,7 +152,7 @@ func (cw *CoconutWorker) ConstructSignerProof(params *MuxParams, gamma *Curve.EC
 }
 
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
-func (cw *CoconutWorker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMats *coconut.BlindSignMats) bool {
+func (cw *CoconutWorker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, signMats *coconut.Lambda) bool {
 	g1, g2, hs := params.G1(), params.G2(), params.Hs()
 	cm, encs, proof := signMats.Cm(), signMats.Enc(), signMats.Proof()
 
@@ -316,31 +316,31 @@ func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.V
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
 // nolint: lll
-func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, showMats *coconut.BlindShowMats) bool {
+func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) bool {
 	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
 
 	Aw := Curve.NewECP2()
 	var Bw *Curve.ECP
 
-	AwCh := make(chan interface{}, 3+len(showMats.Proof().Rm()))
+	AwCh := make(chan interface{}, 3+len(theta.Proof().Rm()))
 	BwCh := make(chan interface{}, 2)
 
 	// Aw = (c * kappa)
-	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, showMats.Kappa(), showMats.Proof().C())
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, theta.Kappa(), theta.Proof().C())
 	// Aw = (c * kappa) + (rt * g2)
-	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), showMats.Proof().Rt())
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), theta.Proof().Rt())
 	// Aw = (c * kappa) + (rt * g2) + (-c * alpha)
-	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Alpha(), Curve.Modneg(showMats.Proof().C(), p))
-	for i := range showMats.Proof().Rm() {
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Alpha(), Curve.Modneg(theta.Proof().C(), p))
+	for i := range theta.Proof().Rm() {
 		// Aw = (c * kappa) + (rt * g2) + (-c * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
-		cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], showMats.Proof().Rm()[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], theta.Proof().Rm()[i])
 	}
 
-	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, showMats.Nu(), showMats.Proof().C())
-	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, sig.Sig1(), showMats.Proof().Rt())
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, theta.Nu(), theta.Proof().C())
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, sig.Sig1(), theta.Proof().Rt())
 
 	Aw.Copy(vk.Alpha()) // this changes (-c * alpha) to ((1 - c) * alpha) as required
-	for i := 0; i < 3+len(showMats.Proof().Rm()); i++ {
+	for i := 0; i < 3+len(theta.Proof().Rm()); i++ {
 		AwElemRes := <-AwCh
 		Aw.Add(AwElemRes.(*Curve.ECP2))
 	}
@@ -369,5 +369,5 @@ func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.Veri
 		return false
 	}
 
-	return Curve.Comp(showMats.Proof().C(), c) == 0
+	return Curve.Comp(theta.Proof().C(), c) == 0
 }

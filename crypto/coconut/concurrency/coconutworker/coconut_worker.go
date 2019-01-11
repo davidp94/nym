@@ -41,8 +41,8 @@ func (cw *CoconutWorker) SignWrapper(sk *coconut.SecretKey, pubM []*Curve.BIG) (
 
 // BlindSignWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) BlindSignWrapper(sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
-	return cw.BlindSign(cw.muxParams, sk, blindSignMats, egPub, pubM)
+func (cw *CoconutWorker) BlindSignWrapper(sk *coconut.SecretKey, l *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+	return cw.BlindSign(cw.muxParams, sk, l, egPub, pubM)
 }
 
 // VerifyWrapper wraps the provided arguments with pre-generated params.
@@ -52,8 +52,8 @@ func (cw *CoconutWorker) VerifyWrapper(vk *coconut.VerificationKey, pubM []*Curv
 
 // BlindVerifyWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) BlindVerifyWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
-	return cw.BlindVerify(cw.muxParams, vk, sig, blindShowMats, pubM)
+func (cw *CoconutWorker) BlindVerifyWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, t *coconut.Theta, pubM []*Curve.BIG) bool {
+	return cw.BlindVerify(cw.muxParams, vk, sig, t, pubM)
 }
 
 // AggregateVerificationKeysWrapper wraps the provided arguments with pre-generated params.
@@ -81,13 +81,13 @@ func (cw *CoconutWorker) RandomizeWrapper(sig *coconut.Signature) *coconut.Signa
 
 // PrepareBlindSignWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (cw *CoconutWorker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Lambda, error) {
 	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
 }
 
 // ShowBlindSignatureWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
 	return cw.ShowBlindSignature(cw.muxParams, vk, sig, privM)
 }
 

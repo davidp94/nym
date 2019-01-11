@@ -163,7 +163,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
 // nolint: lll
-func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *BlindSignMats) bool {
+func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool {
 	g1, g2, hs := params.g1, params.g2, params.hs
 	cm, encs, proof := signMats.cm, signMats.enc, signMats.proof
 
@@ -289,24 +289,24 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L75
-func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats) bool {
+func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, theta *Theta) bool {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
-	Aw := Curve.G2mul(showMats.kappa, showMats.proof.c) // Aw = (c * kappa)
-	Aw.Add(Curve.G2mul(vk.g2, showMats.proof.rt))       // Aw = (c * kappa) + (rt * g2)
+	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
+	Aw.Add(Curve.G2mul(vk.g2, theta.proof.rt))    // Aw = (c * kappa) + (rt * g2)
 
 	// Aw = (c * kappa) + (rt * g2) + (alpha)
 	Aw.Add(vk.alpha)
 	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
-	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(showMats.proof.c, p)))
+	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(theta.proof.c, p)))
 
-	for i := range showMats.proof.rm {
+	for i := range theta.proof.rm {
 		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
-		Aw.Add(Curve.G2mul(vk.beta[i], showMats.proof.rm[i]))
+		Aw.Add(Curve.G2mul(vk.beta[i], theta.proof.rm[i]))
 	}
 
-	Bw := Curve.G1mul(showMats.nu, showMats.proof.c) // Bw = (c * nu)
-	Bw.Add(Curve.G1mul(sig.sig1, showMats.proof.rt)) // Bw = (c * nu) + (rt * h)
+	Bw := Curve.G1mul(theta.nu, theta.proof.c)    // Bw = (c * nu)
+	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
 	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
@@ -327,5 +327,5 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, sh
 		return false
 	}
 
-	return Curve.Comp(showMats.proof.c, c) == 0
+	return Curve.Comp(theta.proof.c, c) == 0
 }

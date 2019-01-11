@@ -155,8 +155,8 @@ func TestSignerProofMarshal(t *testing.T) {
 		}
 
 		// sanity check
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, signerProof)))
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewBlindSignMats(cm, encs, recoveredProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewLambda(cm, encs, signerProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewLambda(cm, encs, recoveredProof)))
 
 	}
 }
@@ -201,7 +201,7 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 		data, err := blindSignMats.MarshalBinary()
 
 		assert.Nil(t, err)
-		recoveredBlindSignMats := &coconut.BlindSignMats{}
+		recoveredBlindSignMats := &coconut.Lambda{}
 		assert.Nil(t, recoveredBlindSignMats.UnmarshalBinary(data))
 
 		assert.True(t, blindSignMats.Cm().Equals(recoveredBlindSignMats.Cm()))
@@ -254,9 +254,9 @@ func TestVerifierProofMarshal(t *testing.T) {
 		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
 		blindedSignature, _ := coconut.BlindSign(params, sk, blindSignMats, gamma, pubBig)
 		sig := coconut.Unblind(params, blindedSignature, d)
-		blindShowMats, _ := coconut.ShowBlindSignature(params, vk, sig, privBig)
+		theta, _ := coconut.ShowBlindSignature(params, vk, sig, privBig)
 
-		verifierProof := blindShowMats.Proof()
+		verifierProof := theta.Proof()
 		data, err := verifierProof.MarshalBinary()
 		assert.Nil(t, err)
 		recoveredProof := &coconut.VerifierProof{}
@@ -268,13 +268,13 @@ func TestVerifierProofMarshal(t *testing.T) {
 			assert.Zero(t, Curve.Comp(verifierProof.Rm()[i], recoveredProof.Rm()[i]))
 		}
 
-		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, blindShowMats))
-		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, coconut.NewBlindShowMats(blindShowMats.Kappa(), blindShowMats.Nu(), recoveredProof)))
+		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, theta))
+		assert.True(t, coconut.VerifyVerifierProof(params, vk, sig, coconut.NewTheta(theta.Kappa(), theta.Nu(), recoveredProof)))
 
 	}
 }
 
-func TestBlindShowMatsMarshal(t *testing.T) {
+func TestThetaMarshal(t *testing.T) {
 	tests := []struct {
 		pub  []string
 		priv []string
@@ -301,24 +301,24 @@ func TestBlindShowMatsMarshal(t *testing.T) {
 		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
 		blindedSignature, _ := coconut.BlindSign(params, sk, blindSignMats, gamma, pubBig)
 		sig := coconut.Unblind(params, blindedSignature, d)
-		blindShowMats, _ := coconut.ShowBlindSignature(params, vk, sig, privBig)
+		theta, _ := coconut.ShowBlindSignature(params, vk, sig, privBig)
 
-		data, err := blindShowMats.MarshalBinary()
+		data, err := theta.MarshalBinary()
 		assert.Nil(t, err)
-		recoveredBlindShowMats := &coconut.BlindShowMats{}
-		assert.Nil(t, recoveredBlindShowMats.UnmarshalBinary(data))
+		recoveredtheta := &coconut.Theta{}
+		assert.Nil(t, recoveredtheta.UnmarshalBinary(data))
 
-		assert.True(t, blindShowMats.Kappa().Equals(recoveredBlindShowMats.Kappa()))
-		assert.True(t, blindShowMats.Nu().Equals(recoveredBlindShowMats.Nu()))
+		assert.True(t, theta.Kappa().Equals(recoveredtheta.Kappa()))
+		assert.True(t, theta.Nu().Equals(recoveredtheta.Nu()))
 
-		assert.Zero(t, Curve.Comp(blindShowMats.Proof().C(), recoveredBlindShowMats.Proof().C()))
-		assert.Zero(t, Curve.Comp(blindShowMats.Proof().Rt(), recoveredBlindShowMats.Proof().Rt()))
-		for i := range blindShowMats.Proof().Rm() {
-			assert.Zero(t, Curve.Comp(blindShowMats.Proof().Rm()[i], recoveredBlindShowMats.Proof().Rm()[i]))
+		assert.Zero(t, Curve.Comp(theta.Proof().C(), recoveredtheta.Proof().C()))
+		assert.Zero(t, Curve.Comp(theta.Proof().Rt(), recoveredtheta.Proof().Rt()))
+		for i := range theta.Proof().Rm() {
+			assert.Zero(t, Curve.Comp(theta.Proof().Rm()[i], recoveredtheta.Proof().Rm()[i]))
 		}
 
 		// sanity checks
-		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, blindShowMats, pubBig)))
-		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, recoveredBlindShowMats, pubBig)))
+		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, theta, pubBig)))
+		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, recoveredtheta, pubBig)))
 	}
 }

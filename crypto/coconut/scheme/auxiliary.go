@@ -363,49 +363,49 @@ func (sp *SignerProof) FromProto(psp *ProtoSignerProof) error {
 
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (bsm *BlindSignMats) MarshalBinary() ([]byte, error) {
-	protoBlindSignMats, err := bsm.ToProto()
+func (lambda *Lambda) MarshalBinary() ([]byte, error) {
+	protoLambda, err := lambda.ToProto()
 	if err != nil {
 		return nil, err
 	}
-	return proto.Marshal(protoBlindSignMats)
+	return proto.Marshal(protoLambda)
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (bsm *BlindSignMats) UnmarshalBinary(data []byte) error {
-	protoBlindSignMats := &ProtoBlindSignMats{}
-	if err := proto.Unmarshal(data, protoBlindSignMats); err != nil {
+func (lambda *Lambda) UnmarshalBinary(data []byte) error {
+	protoLambda := &ProtoLambda{}
+	if err := proto.Unmarshal(data, protoLambda); err != nil {
 		return err
 	}
-	return bsm.FromProto(protoBlindSignMats)
+	return lambda.FromProto(protoLambda)
 }
 
 // ToProto creates a protobuf representation of the object.
-func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
-	if !bsm.Validate() {
+func (lambda *Lambda) ToProto() (*ProtoLambda, error) {
+	if !lambda.Validate() {
 		return nil, errors.New("the blind sign mats are malformed")
 	}
 	eclen := constants.ECPLen
 
 	cmb := make([]byte, eclen)
-	bsm.cm.ToBytes(cmb, true)
+	lambda.cm.ToBytes(cmb, true)
 
-	enc := make([]*elgamal.ProtoEncryption, len(bsm.enc))
+	enc := make([]*elgamal.ProtoEncryption, len(lambda.enc))
 	for i := range enc {
-		protoEnc, err := bsm.enc[i].ToProto()
+		protoEnc, err := lambda.enc[i].ToProto()
 		if err != nil {
 			return nil, err
 		}
 		enc[i] = protoEnc
 	}
 
-	protoSignerProof, err := bsm.proof.ToProto()
+	protoSignerProof, err := lambda.proof.ToProto()
 	if err != nil {
 		return nil, err
 	}
 
-	return &ProtoBlindSignMats{
+	return &ProtoLambda{
 		Cm:    cmb,
 		Enc:   enc,
 		Proof: protoSignerProof,
@@ -414,27 +414,27 @@ func (bsm *BlindSignMats) ToProto() (*ProtoBlindSignMats, error) {
 
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
-func (bsm *BlindSignMats) FromProto(pbsm *ProtoBlindSignMats) error {
+func (lambda *Lambda) FromProto(protoLambda *ProtoLambda) error {
 	eclen := constants.ECPLen
-	if pbsm == nil || len(pbsm.Cm) != eclen {
+	if protoLambda == nil || len(protoLambda.Cm) != eclen {
 		return errors.New("invalid proto blind sign mats")
 	}
-	cm := Curve.ECP_fromBytes(pbsm.Cm)
-	enc := make([]*elgamal.Encryption, len(pbsm.Enc))
+	cm := Curve.ECP_fromBytes(protoLambda.Cm)
+	enc := make([]*elgamal.Encryption, len(protoLambda.Enc))
 	for i := range enc {
 		enci := &elgamal.Encryption{}
-		if err := enci.FromProto(pbsm.Enc[i]); err != nil {
+		if err := enci.FromProto(protoLambda.Enc[i]); err != nil {
 			return err
 		}
 		enc[i] = enci
 	}
 	proof := &SignerProof{}
-	if err := proof.FromProto(pbsm.Proof); err != nil {
+	if err := proof.FromProto(protoLambda.Proof); err != nil {
 		return err
 	}
-	bsm.cm = cm
-	bsm.enc = enc
-	bsm.proof = proof
+	lambda.cm = cm
+	lambda.enc = enc
+	lambda.proof = proof
 	return nil
 }
 
@@ -510,43 +510,43 @@ func (vp *VerifierProof) FromProto(pvp *ProtoVerifierProof) error {
 
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
-func (bsm *BlindShowMats) MarshalBinary() ([]byte, error) {
-	protoBlindShowMats, err := bsm.ToProto()
+func (theta *Theta) MarshalBinary() ([]byte, error) {
+	ProtoTheta, err := theta.ToProto()
 	if err != nil {
 		return nil, err
 	}
-	return proto.Marshal(protoBlindShowMats)
+	return proto.Marshal(ProtoTheta)
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
-func (bsm *BlindShowMats) UnmarshalBinary(data []byte) error {
-	protoBlindShowMats := &ProtoBlindShowMats{}
-	if err := proto.Unmarshal(data, protoBlindShowMats); err != nil {
+func (theta *Theta) UnmarshalBinary(data []byte) error {
+	protoTheta := &ProtoTheta{}
+	if err := proto.Unmarshal(data, protoTheta); err != nil {
 		return err
 	}
-	return bsm.FromProto(protoBlindShowMats)
+	return theta.FromProto(protoTheta)
 }
 
 // ToProto creates a protobuf representation of the object.
-func (bsm *BlindShowMats) ToProto() (*ProtoBlindShowMats, error) {
-	if bsm == nil || bsm.kappa == nil || bsm.nu == nil || bsm.proof == nil {
+func (theta *Theta) ToProto() (*ProtoTheta, error) {
+	if theta == nil || theta.kappa == nil || theta.nu == nil || theta.proof == nil {
 		return nil, errors.New("the blind show mats are malformed")
 	}
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
 
 	kappab := make([]byte, ec2len)
-	bsm.kappa.ToBytes(kappab)
+	theta.kappa.ToBytes(kappab)
 	nub := make([]byte, eclen)
-	bsm.nu.ToBytes(nub, true)
+	theta.nu.ToBytes(nub, true)
 
-	proof, err := bsm.proof.ToProto()
+	proof, err := theta.proof.ToProto()
 	if err != nil {
 		return nil, err
 	}
 
-	return &ProtoBlindShowMats{
+	return &ProtoTheta{
 		Kappa: kappab,
 		Nu:    nub,
 		Proof: proof,
@@ -555,21 +555,21 @@ func (bsm *BlindShowMats) ToProto() (*ProtoBlindShowMats, error) {
 
 // FromProto takes a protobuf representation of the object and
 // unmarshals its attributes.
-func (bsm *BlindShowMats) FromProto(pbsm *ProtoBlindShowMats) error {
+func (theta *Theta) FromProto(protoTheta *ProtoTheta) error {
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
-	if pbsm == nil || len(pbsm.Kappa) != ec2len || len(pbsm.Nu) != eclen {
+	if protoTheta == nil || len(protoTheta.Kappa) != ec2len || len(protoTheta.Nu) != eclen {
 		return errors.New("invalid proto blind show mats")
 	}
-	kappa := Curve.ECP2_fromBytes(pbsm.Kappa)
-	nu := Curve.ECP_fromBytes(pbsm.Nu)
+	kappa := Curve.ECP2_fromBytes(protoTheta.Kappa)
+	nu := Curve.ECP_fromBytes(protoTheta.Nu)
 	proof := &VerifierProof{}
-	if err := proof.FromProto(pbsm.Proof); err != nil {
+	if err := proof.FromProto(protoTheta.Proof); err != nil {
 		return err
 	}
-	bsm.kappa = kappa
-	bsm.nu = nu
-	bsm.proof = proof
+	theta.kappa = kappa
+	theta.nu = nu
+	theta.proof = proof
 	return nil
 }
 

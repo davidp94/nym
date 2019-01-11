@@ -221,10 +221,10 @@ func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest
 }
 
 // NewBlindSignRequest returns new instance of a BlindSignRequest
-// given set of public attributes, blindSignMats and corresponding ElGamal public key.
+// given set of public attributes, lambda and corresponding ElGamal public key.
 // nolint: lll
-func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindSignRequest, error) {
-	protoBlindSignMats, err := blindSignMats.ToProto()
+func NewBlindSignRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindSignRequest, error) {
+	protoLambda, err := lambda.ToProto()
 	if err != nil {
 		return nil, err
 	}
@@ -237,21 +237,21 @@ func NewBlindSignRequest(blindSignMats *coconut.BlindSignMats, egPub *elgamal.Pu
 		return nil, err
 	}
 	return &BlindSignRequest{
-		BlindSignMats: protoBlindSignMats,
-		EgPub:         protoEgPub,
-		PubM:          pubMb,
+		Lambda: protoLambda,
+		EgPub:  protoEgPub,
+		PubM:   pubMb,
 	}, nil
 }
 
 // NewBlindVerifyRequest returns new instance of a BlinfVerifyRequest
-// given set of public attributes, blindShowMats and a coconut signature on them.
+// given set of public attributes, theta and a coconut signature on them.
 // nolint: lll
-func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Signature, pubM []*Curve.BIG) (*BlindVerifyRequest, error) {
+func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []*Curve.BIG) (*BlindVerifyRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
 		return nil, err
 	}
-	protoBlindShowMats, err := blindShowMats.ToProto()
+	protoTheta, err := theta.ToProto()
 	if err != nil {
 		return nil, err
 	}
@@ -260,8 +260,8 @@ func NewBlindVerifyRequest(blindShowMats *coconut.BlindShowMats, sig *coconut.Si
 		return nil, err
 	}
 	return &BlindVerifyRequest{
-		BlindShowMats: protoBlindShowMats,
-		Sig:           protoSig,
-		PubM:          pubMb,
+		Theta: protoTheta,
+		Sig:   protoSig,
+		PubM:  pubMb,
 	}, nil
 }

@@ -108,13 +108,13 @@ func (cw *CryptoWorker) worker() {
 				}
 			case *commands.BlindSignRequest:
 				cw.log.Notice("Received Blind Sign command")
-				bsm := &coconut.BlindSignMats{}
-				if err := bsm.FromProto(v.BlindSignMats); err != nil {
-					errMsg := "Could not recover received blindSignMats."
+				lambda := &coconut.Lambda{}
+				if err := lambda.FromProto(v.Lambda); err != nil {
+					errMsg := "Could not recover received lambda."
 					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 				}
-				if len(v.PubM)+len(bsm.Enc()) > len(cw.sk.Y()) {
-					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM)+len(bsm.Enc()), len(cw.sk.Y()))
+				if len(v.PubM)+len(lambda.Enc()) > len(cw.sk.Y()) {
+					errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports. Got: %v, expected at most: %v", len(v.PubM)+len(lambda.Enc()), len(cw.sk.Y()))
 					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					continue
 				}
@@ -124,7 +124,7 @@ func (cw *CryptoWorker) worker() {
 					cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 					break
 				}
-				sig, err := cw.BlindSignWrapper(cw.sk, bsm, egPub, coconut.BigSliceFromByteSlices(v.PubM))
+				sig, err := cw.BlindSignWrapper(cw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(v.PubM))
 				if err != nil {
 					// todo: should client really know those details?
 					errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -142,13 +142,13 @@ func (cw *CryptoWorker) worker() {
 						cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						break
 					}
-					bsm := &coconut.BlindShowMats{}
-					if err := bsm.FromProto(v.BlindShowMats); err != nil {
-						errMsg := "Could not recover received blindShowMats."
+					theta := &coconut.Theta{}
+					if err := theta.FromProto(v.Theta); err != nil {
+						errMsg := "Could not recover received theta."
 						cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 						break
 					}
-					response.Data = cw.BlindVerifyWrapper(cw.avk, sig, bsm, coconut.BigSliceFromByteSlices(v.PubM))
+					response.Data = cw.BlindVerifyWrapper(cw.avk, sig, theta, coconut.BigSliceFromByteSlices(v.PubM))
 				} else {
 					errMsg := "The aggregate verification key is nil. Is the server a provider? And if so, has it completed the start up sequence?"
 					cw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)

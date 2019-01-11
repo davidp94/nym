@@ -51,7 +51,7 @@ message VerifyResponse {
 
 message BlindSignRequest {
     repeated bytes pubM = 1;
-    coconut.ProtoBlindSignMats blindSignMats = 2;
+    coconut.ProtoLambda lambda = 2;
     elgamal.ProtoPublicKey egPub = 3;
 }
 
@@ -63,7 +63,7 @@ message BlindSignResponse {
 message BlindVerifyRequest {
     coconut.ProtoSignature sig = 1;
     repeated bytes pubM = 2;
-    coconut.ProtoBlindShowMats blindShowMats = 3;
+    coconut.ProtoTheta theta = 3;
 }
 
 message BlindVerifyResponse {

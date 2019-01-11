@@ -37,7 +37,7 @@ message ProtoSignerProof {
     repeated bytes rm = 4;
 }
 
-message ProtoBlindSignMats {
+message ProtoLambda {
     bytes cm = 1;
     repeated elgamal.ProtoEncryption enc = 2;
     ProtoSignerProof proof = 3;
@@ -49,7 +49,7 @@ message ProtoVerifierProof {
     bytes rt = 3;
 }
 
-message ProtoBlindShowMats {
+message ProtoTheta {
     bytes kappa = 1;
     bytes nu = 2;
     ProtoVerifierProof proof = 3;

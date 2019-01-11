@@ -128,9 +128,9 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 				}
 
 				signerProof, _ := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
-				bsm := NewBlindSignMats(cm, encs, signerProof)
+				lambda := NewLambda(cm, encs, signerProof)
 				b.StartTimer()
-				isValid := VerifySignerProof(params, egPub.Gamma, bsm)
+				isValid := VerifySignerProof(params, egPub.Gamma, lambda)
 				if !isValid {
 					panic(isValid)
 				}
