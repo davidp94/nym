@@ -89,6 +89,33 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 	return packetBytes, nil
 }
 
+// FromBytes creates a given Command object out of stream of bytes.
+func FromBytes(b []byte) (Command, error) {
+	id := CommandID(b[0])
+	payload := b[1:]
+	var cmd Command
+	switch id {
+	case GetVerificationKeyID:
+		cmd = &VerificationKeyRequest{}
+	case SignID:
+		cmd = &SignRequest{}
+	case VerifyID:
+		cmd = &VerifyRequest{}
+	case BlindSignID:
+		cmd = &BlindSignRequest{}
+	case BlindVerifyID:
+		cmd = &BlindVerifyRequest{}
+	default:
+		return nil, errors.New("Unknown CommandID")
+	}
+
+	if err := proto.Unmarshal(payload, cmd); err != nil {
+		return nil, err
+	}
+
+	return cmd, nil
+}
+
 // RawCommand encapsulates arbitrary marshaled command and ID that defines it.
 type RawCommand struct {
 	id      CommandID
@@ -144,33 +171,6 @@ type Response struct {
 	Data         interface{}
 	ErrorStatus  StatusCode
 	ErrorMessage string
-}
-
-// FromBytes creates a given Command object out of stream of bytes.
-func FromBytes(b []byte) (Command, error) {
-	id := CommandID(b[0])
-	payload := b[1:]
-	var cmd Command
-	switch id {
-	case GetVerificationKeyID:
-		cmd = &VerificationKeyRequest{}
-	case SignID:
-		cmd = &SignRequest{}
-	case VerifyID:
-		cmd = &VerifyRequest{}
-	case BlindSignID:
-		cmd = &BlindSignRequest{}
-	case BlindVerifyID:
-		cmd = &BlindVerifyRequest{}
-	default:
-		return nil, errors.New("Unknown CommandID")
-	}
-
-	if err := proto.Unmarshal(payload, cmd); err != nil {
-		return nil, err
-	}
-
-	return cmd, nil
 }
 
 // ProtoResponse is a protobuf server response.

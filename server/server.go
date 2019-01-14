@@ -60,29 +60,21 @@ type Server struct {
 
 // getIAsVerificationKeys gets verification keys of the issuers.
 // Returns at least threshold number of them or nil if it times out.
-func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
-	maxRequests := s.cfg.Debug.ProviderMaxRequests
-	if s.cfg.Debug.ProviderMaxRequests <= 0 {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
+func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints, error) {
 	cmd, err := commands.NewVerificationKeyRequest()
 	if err != nil {
-		s.log.Errorf("Failed to create Vk request: %v", err)
-		return nil, nil
+		return nil, nil, comm.LogAndReturnError(s.log, "Failed to create Vk request: %v", err)
 	}
 
 	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
 	if err != nil {
-		s.log.Error("Could not create VK data packet: %v", err) // should never happen...
-		return nil, nil
+		// should never happen...
+		return nil, nil, comm.LogAndReturnError(s.log, "Could not create VK data packet: %v", err)
 	}
 
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
 	responses := make([]*comm.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *comm.ServerResponse)
-	receivedResponses := make(map[string]bool)
 
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
 	timeout := time.After(time.Duration(s.cfg.Debug.ProviderStartupTimeout) * time.Millisecond)
@@ -92,62 +84,53 @@ outLoop:
 		select {
 		// todo: figure out how to enter the case immediately without waiting for first tick
 		case <-retryTicker.C:
-			// this is recreated every run so that we would not get stale results
-			reqCh := comm.SendServerRequests(respCh, maxRequests, s.log, s.cfg.Debug.ConnectTimeout)
 
-			// write requests in a goroutine so we wouldn't block when trying to read responses
-			go func() {
-				for i := range s.cfg.Provider.IAAddresses {
-					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
-						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
-						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
-						reqCh <- &comm.ServerRequest{
-							MarshaledData: packetBytes,
-							ServerMetadata: &comm.ServerMetadata{
-								Address: s.cfg.Provider.IAAddresses[i],
-								ID:      s.cfg.Provider.IAIDs[i],
-							},
-						}
-					}
-				}
-			}()
-			comm.WaitForServerResponses(respCh, responses[len(receivedResponses):], s.log, s.cfg.Debug.RequestTimeout)
-			close(reqCh)
+			// this is redone every run so that we would not get stale results
+			responses = comm.GetServerResponses(
+				&comm.RequestParams{
+					MarshaledPacket:   packetBytes,
+					MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
+					ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
+					RequestTimeout:    s.cfg.Debug.RequestTimeout,
+					ServerAddresses:   s.cfg.Provider.IAAddresses,
+					ServerIDs:         s.cfg.Provider.IAIDs,
+				},
+				s.log,
+			)
 
-			for i := range responses {
-				if responses[i] != nil {
-					receivedResponses[responses[i].ServerMetadata.Address] = true
-				}
-			}
-
-			if len(receivedResponses) == len(s.cfg.Provider.IAAddresses) {
+			if len(responses) == len(s.cfg.Provider.IAAddresses) {
 				s.log.Notice("Received Verification Keys from all IAs")
 				break outLoop
-			} else if len(receivedResponses) >= s.cfg.Provider.Threshold {
+			} else if len(responses) >= s.cfg.Provider.Threshold {
 				s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
 				break outLoop
 			} else {
 				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
-					len(receivedResponses), s.cfg.Provider.Threshold)
+					len(responses), s.cfg.Provider.Threshold)
 			}
 
 		case <-timeout:
 			s.log.Critical("Timed out while starting up...")
-			return nil, nil
+			return nil, nil, errors.New("Startup timeout")
 		}
 	}
 	retryTicker.Stop()
 
 	vks, pp := comm.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
+	vks, pp, err = comm.HandleVks(s.log, vks, pp, s.cfg.Provider.Threshold)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
 		s.log.Notice("Number of verification keys received is within threshold")
+		vks = vks[:s.cfg.Provider.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:s.cfg.Provider.Threshold])
 	} else {
-		s.log.Error("Received less than threshold number of verification keys")
-		return nil, nil
+		return nil, nil, comm.LogAndReturnError(s.log, "Received less than threshold number of verification keys")
 	}
 
-	return vks, pp
+	return vks, pp, nil
 }
 
 // New returns a new Server instance parameterized with the specified configuration.
@@ -287,8 +270,8 @@ func New(cfg *config.Config) (*Server, error) {
 	if !cfg.Server.IsProvider {
 		avk = nil
 	} else {
-		vks, pp := s.getIAsVerificationKeys()
-		if vks == nil {
+		vks, pp, err := s.getIAsVerificationKeys()
+		if err != nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
 		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)

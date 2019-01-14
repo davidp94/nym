@@ -33,7 +33,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
@@ -280,37 +279,10 @@ func (c *Client) parseSignatureServerResponses(responses []*comm.ServerResponse,
 	return sigs, nil
 }
 
-func (c *Client) handleIds(pp *coconut.PolynomialPoints) (map[int]bool, error) {
-	seenIds := make(map[string]bool)
-	entriesToRemove := make(map[int]bool)
-
-	if pp != nil {
-		for i, id := range pp.Xs() {
-			if id == nil {
-				// we ignore that entry
-				entriesToRemove[i] = true
-				continue
-			}
-			// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
-			b := make([]byte, constants.BIGLen)
-			id.ToBytes(b)
-			s := string(b)
-			if _, ok := seenIds[s]; ok {
-				return nil, c.logAndReturnError("handleIds: Multiple responses from server with ID: %v", id.ToString())
-			}
-			seenIds[s] = true
-		}
-	} else {
-		// we assume all sigs are 'valid', but system cannot be threshold
-		if c.cfg.Client.Threshold > 0 {
-			return nil, c.logAndReturnError("handleIds: This is a threshold system, yet received no server IDs!")
-		}
-	}
-	return entriesToRemove, nil
-}
-
 // nolint: lll, gocyclo
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
+	// TODO: the code has very similar structure to comm.HandleVks. Can it somehow be generalised?
+
 	if len(sigs) <= 0 {
 		return nil, c.logAndReturnError("handleReceivedSignatures: No signatures provided")
 	}
@@ -319,7 +291,11 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 		return nil, c.logAndReturnError("handleReceivedSignatures: Passed pp to a non-threshold system")
 	}
 
-	entriesToRemove, err := c.handleIds(pp)
+	if c.cfg.Client.Threshold > 0 && pp == nil {
+		return nil, c.logAndReturnError("handleReceivedSignatures: nil pp in a threshold system")
+	}
+
+	entriesToRemove, err := comm.ValidateIDs(c.log, pp, c.cfg.Client.Threshold > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -458,60 +434,10 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 
 // nolint: lll, gocyclo
 func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
-	if vks == nil {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: No verification keys provided")
-	}
-
-	if c.cfg.Client.Threshold == 0 && pp != nil {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: Passed pp to a non-threshold system")
-	}
-
-	entriesToRemove, err := c.handleIds(pp)
+	vks, pp, err := comm.HandleVks(c.log, vks, pp, c.cfg.Client.Threshold)
 	if err != nil {
+		// error was already logged at HandleVks
 		return nil, err
-	}
-
-	betalen := -1
-	for i := range vks {
-		if !vks[i].Validate() {
-			// the entire key is invalid
-			entriesToRemove[i] = true
-		} else {
-			if betalen == -1 { // only on first run
-				betalen = len(vks[i].Beta())
-				// we don't know which subset is correct - abandon further execution
-			} else if betalen != len(vks[i].Beta()) {
-				return nil, c.logAndReturnError("handleReceivedVerificationKeys: verification keys of inconsistent lengths provided")
-			}
-		}
-	}
-
-	if len(entriesToRemove) > 0 {
-		if c.cfg.Client.Threshold > 0 {
-			newXs := make([]*Curve.BIG, 0, len(pp.Xs()))
-			for i, x := range pp.Xs() {
-				if _, ok := entriesToRemove[i]; !ok {
-					newXs = append(newXs, x)
-				}
-			}
-			pp = coconut.NewPP(newXs)
-		}
-		newVks := make([]*coconut.VerificationKey, 0, len(vks))
-		for i, vk := range vks {
-			if _, ok := entriesToRemove[i]; !ok {
-				newVks = append(newVks, vk)
-			}
-		}
-		vks = newVks
-	}
-
-	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
-		if c.cfg.Client.Threshold > 0 && len(vks) != len(pp.Xs()) {
-			return nil, c.logAndReturnError("handleReceivedVerificationKeys: Inconsistent response, vks: %v, pp: %v", len(vks), len(pp.Xs()))
-		}
-		c.log.Notice("Number of verification keys received is within threshold")
-	} else {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: Received less than threshold number of verification keys")
 	}
 
 	// we only want threshold number of them, in future randomly choose them?

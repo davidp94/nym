@@ -19,6 +19,8 @@ package comm
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sort"
@@ -26,6 +28,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -65,6 +68,15 @@ type ServerResponseGrpc struct {
 type ServerRequestGrpc struct {
 	Message        proto.Message
 	ServerMetadata *ServerMetadata
+}
+
+func LogAndReturnError(log *logging.Logger, fmtString string, a ...interface{}) error {
+	errstr := fmtString
+	if a != nil {
+		errstr = fmt.Sprintf(fmtString, a...)
+	}
+	log.Error(errstr)
+	return errors.New(errstr)
 }
 
 // ReadPacketFromConn reads all data from a given connection and
@@ -207,6 +219,99 @@ func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool
 	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	return vks, nil
+}
+
+func ValidateIDs(log *logging.Logger, pp *coconut.PolynomialPoints, isThreshold bool) (map[int]bool, error) {
+	seenIds := make(map[string]bool)
+	entriesToRemove := make(map[int]bool)
+
+	if pp != nil {
+		for i, id := range pp.Xs() {
+			if id == nil {
+				// we ignore that entry
+				entriesToRemove[i] = true
+				continue
+			}
+			// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
+			b := make([]byte, constants.BIGLen)
+			id.ToBytes(b)
+			s := string(b)
+			if _, ok := seenIds[s]; ok {
+				return nil, LogAndReturnError(log, "ValidateIDs: Multiple responses from server with ID: %v", id.ToString())
+			}
+			seenIds[s] = true
+		}
+	} else {
+		// we assume all sigs are 'valid', but system cannot be threshold
+		if isThreshold {
+			return nil, LogAndReturnError(log, "ValidateIDs: This is a threshold system, yet received no server IDs!")
+		}
+	}
+	return entriesToRemove, nil
+}
+
+func HandleVks(log *logging.Logger, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, threshold int) ([]*coconut.VerificationKey, *coconut.PolynomialPoints, error) {
+	if vks == nil {
+		return nil, nil, LogAndReturnError(log, "ParseVks: No verification keys provided")
+	}
+
+	if threshold == 0 && pp != nil {
+		return nil, nil, LogAndReturnError(log, "ParseVks: Passed pp to a non-threshold system")
+	}
+
+	if threshold > 0 && pp == nil {
+		return nil, nil, LogAndReturnError(log, "ParseVks: nil pp in a threshold system")
+	}
+
+	entriesToRemove, err := ValidateIDs(log, pp, threshold > 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	betalen := -1
+	for i := range vks {
+		if !vks[i].Validate() {
+			// the entire key is invalid
+			entriesToRemove[i] = true
+		} else {
+			if betalen == -1 { // only on first run
+				betalen = len(vks[i].Beta())
+				// we don't know which subset is correct - abandon further execution
+			} else if betalen != len(vks[i].Beta()) {
+				return nil, nil, LogAndReturnError(log, "ParseVks: verification keys of inconsistent lengths provided")
+			}
+		}
+	}
+
+	if len(entriesToRemove) > 0 {
+		if threshold > 0 {
+			newXs := make([]*Curve.BIG, 0, len(pp.Xs()))
+			for i, x := range pp.Xs() {
+				if _, ok := entriesToRemove[i]; !ok {
+					newXs = append(newXs, x)
+				}
+			}
+			pp = coconut.NewPP(newXs)
+		}
+		newVks := make([]*coconut.VerificationKey, 0, len(vks))
+		for i, vk := range vks {
+			if _, ok := entriesToRemove[i]; !ok {
+				newVks = append(newVks, vk)
+			}
+		}
+		vks = newVks
+	}
+
+	if len(vks) >= threshold && len(vks) > 0 {
+		if threshold > 0 && len(vks) != len(pp.Xs()) {
+			return nil, nil, LogAndReturnError(log, "ParseVks: Inconsistent response, vks: %v, pp: %v", len(vks), len(pp.Xs()))
+		}
+		log.Notice("Number of verification keys received is within threshold")
+	} else {
+		return nil, nil, LogAndReturnError(log, "ParseVks: Received less than threshold number of verification keys")
+	}
+
+	return vks, pp, err
 }
 
 func makeProtoStatus(code commands.StatusCode, message string) *commands.Status {
