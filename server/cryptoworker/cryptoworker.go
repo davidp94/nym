@@ -173,7 +173,6 @@ func (cw *CryptoWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 	return response
 }
 
-// nolint: gocyclo
 func (cw *CryptoWorker) worker() {
 	for {
 		select {

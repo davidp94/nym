@@ -230,7 +230,7 @@ func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BI
 		ks[i] = k
 	}
 
-	signerProof, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +251,7 @@ func BlindSign(params *Params, sk *SecretKey, lambda *Lambda, egPub *elgamal.Pub
 	if len(lambda.enc)+len(pubM) > len(hs) {
 		return nil, ErrBlindSignParams
 	}
-	if !VerifySignerProof(params, egPub.Gamma, lambda) {
+	if !VerifySignerProof(params, egPub.Gamma(), lambda) {
 		return nil, ErrBlindSignProof
 	}
 

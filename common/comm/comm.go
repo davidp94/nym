@@ -1,4 +1,4 @@
-// utils.go - set of utility functions used by client and server.
+// comm.go - set of utility functions used by client and server.
 // Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package utils consists of set of helper functions used by both client and server.
-// Note that in the next minor release, the package will be renamed and
-// the file will be moved to different directory.
+// Package comm consists of set of helper communication related functions used by both client and server.
 package comm
 
 import (

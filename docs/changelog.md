@@ -13,7 +13,7 @@
 
 ## v0.1.1
 
-* Reimplementation of commandsQueue using the created template
+* Reimplemented commandsQueue using the created template
 
 ## v0.1.0
 
@@ -21,7 +21,7 @@
 
 ## v0.0.4
 
-* Reimplementation of JobQueue with different queue implementation to introduce thread safety
+* Reimplemented JobQueue with different queue implementation to introduce thread safety
 
 ## v0.0.3
 

@@ -2394,10 +2394,10 @@ func TestNew(t *testing.T) {
 			assert.Nil(t, elGamalPrivateKeySt.FromPEMFile(validPrivF))
 			assert.Nil(t, elGamalPublicKeySt.FromPEMFile(validPubF))
 
-			assert.Zero(t, Curve.Comp(elGamalPrivateKeySt.D, client.elGamalPrivateKey.D))
-			assert.True(t, elGamalPublicKeySt.G.Equals(client.elGamalPublicKey.G))
-			assert.True(t, elGamalPublicKeySt.Gamma.Equals(client.elGamalPublicKey.Gamma))
-			assert.Zero(t, Curve.Comp(elGamalPublicKeySt.P, client.elGamalPublicKey.P))
+			assert.Zero(t, Curve.Comp(elGamalPrivateKeySt.D(), client.elGamalPrivateKey.D()))
+			assert.True(t, elGamalPublicKeySt.G().Equals(client.elGamalPublicKey.G()))
+			assert.True(t, elGamalPublicKeySt.Gamma().Equals(client.elGamalPublicKey.Gamma()))
+			assert.Zero(t, Curve.Comp(elGamalPublicKeySt.P(), client.elGamalPublicKey.P()))
 		}
 
 	}
@@ -2420,14 +2420,14 @@ func TestNew(t *testing.T) {
 		// ensure we wrote what we actually generated
 		elGamalPrivateKeyWr := &elgamal.PrivateKey{}
 		assert.Nil(t, elGamalPrivateKeyWr.FromPEMFile(tmpprivf))
-		assert.Zero(t, Curve.Comp(elGamalPrivateKeyWr.D, client.elGamalPrivateKey.D))
+		assert.Zero(t, Curve.Comp(elGamalPrivateKeyWr.D(), client.elGamalPrivateKey.D()))
 
 		if cfg.Client.PublicKeyFile != "" {
 			elGamalPublicKeyWr := &elgamal.PublicKey{}
 			assert.Nil(t, elGamalPublicKeyWr.FromPEMFile(tmppubf))
-			assert.True(t, elGamalPublicKeyWr.G.Equals(client.elGamalPublicKey.G))
-			assert.True(t, elGamalPublicKeyWr.Gamma.Equals(client.elGamalPublicKey.Gamma))
-			assert.Zero(t, Curve.Comp(elGamalPublicKeyWr.P, client.elGamalPublicKey.P))
+			assert.True(t, elGamalPublicKeyWr.G().Equals(client.elGamalPublicKey.G()))
+			assert.True(t, elGamalPublicKeyWr.Gamma().Equals(client.elGamalPublicKey.Gamma()))
+			assert.Zero(t, Curve.Comp(elGamalPublicKeyWr.P(), client.elGamalPublicKey.P()))
 		}
 
 		os.Remove(tmpprivf)

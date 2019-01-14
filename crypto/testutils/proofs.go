@@ -123,20 +123,20 @@ func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		}
 
 		if len(test.priv) > 0 {
-			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks[1:], r, pubBig, privBig)
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks[1:], r, pubBig, privBig)
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 
-			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs[1:], cm, ks, r, pubBig, privBig)
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma(), encs[1:], cm, ks, r, pubBig, privBig)
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 
-			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig[1:])
+			_, err = constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks, r, pubBig, privBig[1:])
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 		}
 
-		_, err = constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
+		_, err = constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
 		assert.Error(t, err)
 
-		signerProof, err := constructSignerProofWrapper(cw, params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
+		signerProof, err := constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks, r, pubBig, privBig)
 		if len(test.priv) == 0 {
 			assert.Nil(t, signerProof)
 			assert.Error(t, err)
@@ -146,12 +146,12 @@ func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		}
 
 		if len(test.priv) > 0 {
-			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewLambda(cm, encs[1:], signerProof)), test.msg)
-			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewLambda(cm, encs,
+			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs[1:], signerProof)), test.msg)
+			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs,
 				coconut.NewSignerProof(signerProof.C(), signerProof.Rr(), signerProof.Rk()[1:], signerProof.Rm()))),
 				test.msg)
 		}
-		assert.True(t, verifySignerProofWrapper(cw, params, egPub.Gamma, coconut.NewLambda(cm, encs, signerProof)), test.msg)
+		assert.True(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs, signerProof)), test.msg)
 	}
 }
 

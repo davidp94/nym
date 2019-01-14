@@ -40,7 +40,7 @@ func (cw *CoconutWorker) ElGamalEncrypt(params *MuxParams, pub *elgamal.PublicKe
 	// having both would require changing entire worker structure to perhaps have some priority queues
 	// and somehow detect deadlocks (say there's a single worker which works on encryption, then it spawns G1mulpacket,
 	// which worker is gonna read it and how if they are stuck waiting for said results?)
-	gamma, p, g1, rng := pub.Gamma, params.P(), params.G1(), params.G.Rng()
+	gamma, p, g1, rng := pub.Gamma(), params.P(), params.G1(), params.G.Rng()
 
 	params.Lock()
 	k := Curve.Randomnum(p, rng)

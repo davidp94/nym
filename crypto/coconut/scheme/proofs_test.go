@@ -83,7 +83,7 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 				}
 
 				b.StartTimer()
-				_, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				_, err := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, []*Curve.BIG{}, privs)
 				if err != nil {
 					panic(err)
 				}
@@ -127,10 +127,10 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 					ks[i] = k
 				}
 
-				signerProof, _ := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				signerProof, _ := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, []*Curve.BIG{}, privs)
 				lambda := NewLambda(cm, encs, signerProof)
 				b.StartTimer()
-				isValid := VerifySignerProof(params, egPub.Gamma, lambda)
+				isValid := VerifySignerProof(params, egPub.Gamma(), lambda)
 				if !isValid {
 					panic(isValid)
 				}

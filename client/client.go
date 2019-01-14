@@ -1025,7 +1025,7 @@ func New(cfg *config.Config) (*Client, error) {
 			elGamalPublicKey = elgamal.PublicKeyFromPrivate(elGamalPrivateKey)
 		}
 
-		if !elGamalPublicKey.Gamma.Equals(Curve.G1mul(elGamalPublicKey.G, elGamalPrivateKey.D)) {
+		if !elgamal.ValidateKeyPair(elGamalPrivateKey, elGamalPublicKey) {
 			clientLog.Error("Couldn't Load the keys")
 			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
 		}

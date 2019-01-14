@@ -213,7 +213,7 @@ func (cw *CoconutWorker) PrepareBlindSign(params *MuxParams, egPub *elgamal.Publ
 		ks[i] = encFull.K()
 	}
 
-	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,7 @@ func (cw *CoconutWorker) BlindSign(params *MuxParams, sk *coconut.SecretKey, lam
 	if len(lambda.Enc())+len(pubM) > len(hs) {
 		return nil, coconut.ErrBlindSignParams
 	}
-	if !cw.VerifySignerProof(params, egPub.Gamma, lambda) {
+	if !cw.VerifySignerProof(params, egPub.Gamma(), lambda) {
 		return nil, coconut.ErrBlindSignProof
 	}
 

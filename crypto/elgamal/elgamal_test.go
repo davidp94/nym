@@ -30,7 +30,7 @@ func TestElGamalKeygen(t *testing.T) {
 	g1 := G.Gen1()
 	pk, pub := elgamal.Keygen(G)
 
-	assert.True(t, pub.Gamma.Equals(Curve.G1mul(g1, pk.D)), "Gamma should be equal to g1 * d")
+	assert.True(t, pub.Gamma().Equals(Curve.G1mul(g1, pk.D())), "Gamma should be equal to g1 * d")
 }
 
 func TestElGamalEncryption(t *testing.T) {
@@ -47,8 +47,8 @@ func TestElGamalEncryption(t *testing.T) {
 
 	assert.True(t, enc.C1().Equals(Curve.G1mul(g1, k)), "a should be equal to g1^k")
 
-	tmp := Curve.G1mul(pub.Gamma, k) // b = (k * gamma)
-	tmp.Add(Curve.G1mul(h, m))       // b = (k * gamma) + (m * h)
+	tmp := Curve.G1mul(pub.Gamma(), k) // b = (k * gamma)
+	tmp.Add(Curve.G1mul(h, m))         // b = (k * gamma) + (m * h)
 
 	assert.True(t, enc.C2().Equals(tmp), "b should be equal to (k * gamma) + (m * h)")
 }
@@ -104,9 +104,9 @@ func TestPublicKeyMarshal(t *testing.T) {
 
 	recoveredPub := &elgamal.PublicKey{}
 	assert.Nil(t, recoveredPub.UnmarshalBinary(data))
-	assert.True(t, pub.G.Equals(recoveredPub.G))
-	assert.True(t, pub.Gamma.Equals(recoveredPub.Gamma))
-	assert.Zero(t, Curve.Comp(recoveredPub.P, pub.P))
+	assert.True(t, pub.G().Equals(recoveredPub.G()))
+	assert.True(t, pub.Gamma().Equals(recoveredPub.Gamma()))
+	assert.Zero(t, Curve.Comp(recoveredPub.P(), pub.P()))
 
 }
 
@@ -119,7 +119,7 @@ func TestPrivateKeyMarshal(t *testing.T) {
 
 	recoveredPK := &elgamal.PrivateKey{}
 	assert.Nil(t, recoveredPK.UnmarshalBinary(data))
-	assert.Zero(t, Curve.Comp(recoveredPK.D, pk.D))
+	assert.Zero(t, Curve.Comp(recoveredPK.D(), pk.D()))
 }
 
 var kencRes *Curve.BIG

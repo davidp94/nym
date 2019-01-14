@@ -130,7 +130,7 @@ func TestSignerProofMarshal(t *testing.T) {
 			ks[i] = k
 		}
 
-		signerProof, err := coconut.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubBig, privBig)
+		signerProof, err := coconut.ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, pubBig, privBig)
 		if len(test.priv) == 0 {
 			assert.Nil(t, signerProof)
 			assert.Error(t, err)
@@ -155,8 +155,8 @@ func TestSignerProofMarshal(t *testing.T) {
 		}
 
 		// sanity check
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewLambda(cm, encs, signerProof)))
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, coconut.NewLambda(cm, encs, recoveredProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma(), coconut.NewLambda(cm, encs, signerProof)))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma(), coconut.NewLambda(cm, encs, recoveredProof)))
 
 	}
 }
@@ -221,8 +221,8 @@ func TestBlindSignMatsMarshal(t *testing.T) {
 		}
 
 		// sanity check
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, blindSignMats))
-		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma, recoveredBlindSignMats))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma(), blindSignMats))
+		assert.True(t, coconut.VerifySignerProof(params, egPub.Gamma(), recoveredBlindSignMats))
 	}
 }
 

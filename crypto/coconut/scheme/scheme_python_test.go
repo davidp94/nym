@@ -490,11 +490,11 @@ func TestCoconut(t *testing.T) {
 
 	// elgamal keypair
 	d := BIGFromHex(t, dHex)
-	egPriv := &elgamal.PrivateKey{D: d}
+	egPriv := elgamal.NewPrivateKey(d)
 
 	gamma := Curve.G1mul(g1, d)
 	p := BIGFromHex(t, "2523648240000001BA344D8000000007FF9F800000000010A10000000000000D")
-	egPub := &elgamal.PublicKey{P: p, G: g1, Gamma: gamma}
+	egPub := elgamal.NewPublicKey(p, g1, gamma)
 
 	r := BIGFromHex(t, rHex)
 	ks := recoverBIGSlice(t, k1Hex, k2Hex)
