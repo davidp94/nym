@@ -1,5 +1,10 @@
 # CoconutGo Changelog
 
+## v0.1.5
+
+* More shared code between cliente and server
+* Fixed a bug where provider server would fail to aggregate received verification keys of IAs if it received more than threshold of them (even if they all were valid)
+
 ## v0.1.4
 
 * Made ElGamal Public and Private key fields private and only accessible via method receivers
