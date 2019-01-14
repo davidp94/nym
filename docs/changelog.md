@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.1.4
+
+* Made ElGamal Public and Private key fields private and only accessible via method receivers
+
 ## v0.1.3
 
 * Refactored repository structure
