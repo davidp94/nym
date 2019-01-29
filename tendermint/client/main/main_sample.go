@@ -18,8 +18,9 @@ package main
 import (
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
@@ -27,7 +28,7 @@ import (
 )
 
 // currently used entirely for debug purposes
-func main() {
+func mainOld() {
 
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
@@ -69,4 +70,27 @@ func main() {
 	fmt.Println(res)
 
 	client.Stop()
+}
+
+func main() {
+	// priv := ed25519.GenPrivKey()
+	// pub := priv.PubKey()
+	// fmt.Println(priv)
+	// fmt.Println(priv.Bytes())
+	// fmt.Println(pub)
+	// fmt.Println(pub.Bytes())
+
+	bpgroup := bpgroup.New()
+
+	z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
+
+	b1 := make([]byte, constants.ECPLen)
+	b2 := make([]byte, constants.ECPLenUC)
+
+	z1.ToBytes(b1, true)
+	z1.ToBytes(b2, false)
+
+	fmt.Println(b1)
+
+	fmt.Println(b2)
 }

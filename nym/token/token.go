@@ -38,7 +38,7 @@ type Token struct {
 	privateKey  PrivateKey `coconut:"private"`
 	sequenceNum *Curve.BIG `coconut:"private"`
 	value       int        `coconut:"public"` // should be limited to set of possible values to prevent traffic analysis
-	ttl         time.Time  `coconut:public"`
+	ttl         time.Time  `coconut:"public"`
 }
 
 // should be associated with given client/user rather than token

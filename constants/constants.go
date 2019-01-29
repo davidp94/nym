@@ -22,6 +22,9 @@ import (
 )
 
 const (
+	// NumberOfEntropyBytes defines number of bytes of entropy used to seed RNG.
+	NumberOfEntropyBytes = 256
+
 	// MB represents number of bytes each BIG takes.
 	MB = int(Curve.MODBYTES)
 
@@ -31,8 +34,11 @@ const (
 	// ECPLen represents number of bytes each ECP takes.
 	ECPLen = MB + 1
 
+	// ECPLenUC represents number of bytes each ECP takes in uncompressed form.
+	ECPLenUC = 2*MB + 1
+
 	// ECP2Len represents number of bytes each ECP2 takes.
-	ECP2Len = MB * 4
+	ECP2Len = 4 * MB
 
 	// SecretKeyType defines PEM Type for Coconut Secret Key.
 	SecretKeyType = "COCONUT SECRET KEY"
