@@ -15,9 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 package server
 
-// TODO: SENDING GRPC PACKET (OR PROBABLY JUST AN INVALID ONE) TO A TCP PORT
-// CAUSES SERVER TO RUN OUT OF MEMORY -> ReadPacketFromConn FAILS
-
 import (
 	"fmt"
 	"log"
@@ -85,6 +82,6 @@ func startAllIssuers() {
 	}
 }
 
-func TestProviderStartup(t *testing.T) {
+func TestGetIAsVerificationKeys(t *testing.T) {
 
 }
