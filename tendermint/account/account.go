@@ -19,6 +19,8 @@
 package account
 
 import (
+	"errors"
+
 	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 
@@ -44,8 +46,10 @@ func init() {
 }
 
 const (
-	// PublicKeySize is the size, in bytes, of public keys as used in this package.
-	PublicKeySize = constants.ECPLenUC
+	// PublicKeySize is the size, in bytes, of uncompressed public keys as used in this package.
+	PublicKeyUCSize = constants.ECPLenUC
+	// PublicKeySize is the size, in bytes, of compressed public keys as used in this package.
+	PublicKeySize = constants.ECPLen
 	// PrivateKeySize is the size, in bytes, of private keys as used in this package.
 	PrivateKeySize = constants.BIGLen
 	// SignatureSize is the size, in bytes, of signatures generated and verified by this package.
@@ -63,7 +67,7 @@ type ECPublicKey []byte
 // It is a wrapper for ECDH_KEY_PAIR_GENERATE by Milagro.
 func Keygen() (ECPrivateKey, ECPublicKey) {
 	S := make([]byte, PrivateKeySize)
-	W := make([]byte, PublicKeySize)
+	W := make([]byte, PublicKeyUCSize)
 
 	Curve.ECDH_KEY_PAIR_GENERATE(rng, S, W)
 	return S, W
@@ -92,4 +96,16 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 
 	res := Curve.ECDH_ECPVP_DSA(ECDSA_SHA, pub, msg, C, D)
 	return res == 0
+}
+
+func (pub *ECPublicKey) Compress() error {
+	if len(*pub) == PublicKeySize {
+		return errors.New("The key is already compressed")
+	}
+	b, err := utils.CompressECPBytes(*pub)
+	if err != nil {
+		return err
+	}
+	*pub = b
+	return nil
 }

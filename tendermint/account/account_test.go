@@ -47,3 +47,24 @@ func TestSignAndValidate(t *testing.T) {
 
 	assert.False(t, W.VerifyBytes(msg, sig))
 }
+
+func TestCompressPublicKey(t *testing.T) {
+	S, W := account.Keygen()
+	lenBefore := len(W)
+	err := W.Compress()
+	assert.Nil(t, err)
+	lenAfter := len(W)
+	assert.True(t, lenAfter < lenBefore)
+
+	msg, err := utils.GenerateRandomBytes(128)
+	assert.Nil(t, err)
+
+	sig := S.SignBytes(msg)
+
+	assert.True(t, W.VerifyBytes(msg, sig))
+
+	// Mutate single bit of the signature
+	sig[42] ^= byte(0x01)
+
+	assert.False(t, W.VerifyBytes(msg, sig))
+}
