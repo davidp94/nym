@@ -46,7 +46,7 @@ func init() {
 }
 
 const (
-	// PublicKeySize is the size, in bytes, of uncompressed public keys as used in this package.
+	// PublicKeyUCSize is the size, in bytes, of uncompressed public keys as used in this package.
 	PublicKeyUCSize = constants.ECPLenUC
 	// PublicKeySize is the size, in bytes, of compressed public keys as used in this package.
 	PublicKeySize = constants.ECPLen
@@ -98,6 +98,7 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 	return res == 0
 }
 
+// Compress compresses the byte array representing the public key.
 func (pub *ECPublicKey) Compress() error {
 	if len(*pub) == PublicKeySize {
 		return errors.New("The key is already compressed")
