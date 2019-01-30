@@ -165,11 +165,14 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	txType := tx[0]
 	switch txType {
 	case transaction.TxTypeLookUpZeta:
-		app.log.Info("CheckTx for lookup zeta")
+		app.log.Info("DeliverTx for lookup zeta")
 		app.log.Info(fmt.Sprintf("looking up %v", tx[1:]))
 		present := app.lookUpZeta(tx[1:])
 		return types.ResponseDeliverTx{Code: code.OK, Data: present}
 
+	case transaction.TxNewAccount:
+		app.log.Info("New Account tx")
+		return app.createNewAccount(tx[1:])
 	case invalidPrefix:
 		app.log.Info("Test Invalid Deliver")
 		return types.ResponseDeliverTx{Code: code.UNKNOWN}
@@ -209,6 +212,9 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	switch txType {
 	case transaction.TxTypeLookUpZeta:
 		app.log.Info("CheckTx for lookup zeta")
+	case transaction.TxNewAccount:
+		app.log.Info("CheckTx for TxNewAccount")
+
 	default:
 		app.log.Info("default CheckTx")
 	}

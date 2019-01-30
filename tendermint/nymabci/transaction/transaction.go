@@ -19,11 +19,14 @@ package transaction
 
 import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 const (
 	TxTypeLookUpZeta byte = 0x01
+	TxNewAccount     byte = 0x02
 )
 
 var (
@@ -42,4 +45,25 @@ func NewLookUpZetaTx(zeta *Curve.ECP) []byte {
 	tx[0] = TxTypeLookUpZeta
 	copy(tx[1:], zb)
 	return tx
+}
+
+// CreateNewAccountRequest creates new request for tx for new account creation.
+func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte, error) {
+	msg := make([]byte, len(account.PublicKey)+len(credential))
+	copy(msg, account.PublicKey)
+	copy(msg[len(account.PublicKey):], credential)
+	sig := account.PrivateKey.SignBytes(msg)
+	req := &NewAccountRequest{
+		PublicKey:  account.PublicKey,
+		Credential: credential,
+		Sig:        sig,
+	}
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = TxNewAccount
+	copy(b[1:], protob)
+	return b, nil
 }

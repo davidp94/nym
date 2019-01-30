@@ -18,8 +18,10 @@ package main
 import (
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
@@ -39,11 +41,27 @@ func main() {
 	}
 
 	acc := account.NewAccount()
+	credential := []byte("foo")
+
+	req, err := transaction.CreateNewAccountRequest(acc, credential)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(client.Broadcast(req))
+
+	key := acc.PublicKey
+	key.Compress()
 
 	path := query.QueryCheckBalancePath
-	data := []byte(acc.PublicKey)
+	data := []byte(key)
 
 	fmt.Println(client.Query(path, data))
+
+	_, anotherKey := account.Keygen()
+	anotherKey.Compress()
+
+	fmt.Println(client.Query(path, []byte(anotherKey)))
 
 	// bpgroup := bpgroup.New()
 
