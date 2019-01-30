@@ -18,17 +18,15 @@ package main
 import (
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // currently used entirely for debug purposes
-func mainOld() {
+func main() {
 
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
@@ -40,57 +38,64 @@ func mainOld() {
 		panic(fmt.Sprintf("Failed to create a client: %v", err))
 	}
 
-	bpgroup := bpgroup.New()
+	acc := account.NewAccount()
 
-	z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
-	z2 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
+	path := query.QueryCheckBalancePath
+	data := []byte(acc.PublicKey)
 
-	// basically lazy way to convert to bytes
-	t := transaction.NewLookUpZetaTx(z1)
-	client.Broadcast(t[1:])
+	fmt.Println(client.Query(path, data))
 
-	// shouldn be
-	isPresent1 := client.LookUpZeta(z1)
+	// bpgroup := bpgroup.New()
 
-	// shouldn't be
-	isPresent2 := client.LookUpZeta(z2)
+	// z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
+	// z2 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
 
-	fmt.Println(isPresent1, isPresent2)
+	// // basically lazy way to convert to bytes
+	// t := transaction.NewLookUpZetaTx(z1)
+	// client.Broadcast(t[1:])
 
-	client.SendAsync(t)
-	client.SendAsync(t[1:])
-	client.SendAsync(t[2:])
+	// // shouldn be
+	// isPresent1 := client.LookUpZeta(z1)
 
-	// error
-	res, err := client.Broadcast([]byte{'a'})
+	// // shouldn't be
+	// isPresent2 := client.LookUpZeta(z2)
 
-	if err != nil {
-		fmt.Printf("Error response: %v", err)
-	}
-	fmt.Println(res)
+	// fmt.Println(isPresent1, isPresent2)
+
+	// client.SendAsync(t)
+	// client.SendAsync(t[1:])
+	// client.SendAsync(t[2:])
+
+	// // error
+	// res, err := client.Broadcast([]byte{'a'})
+
+	// if err != nil {
+	// 	fmt.Printf("Error response: %v", err)
+	// }
+	// fmt.Println(res)
 
 	client.Stop()
 }
 
-func main() {
-	// priv := ed25519.GenPrivKey()
-	// pub := priv.PubKey()
-	// fmt.Println(priv)
-	// fmt.Println(priv.Bytes())
-	// fmt.Println(pub)
-	// fmt.Println(pub.Bytes())
+// func main() {
+// 	// priv := ed25519.GenPrivKey()
+// 	// pub := priv.PubKey()
+// 	// fmt.Println(priv)
+// 	// fmt.Println(priv.Bytes())
+// 	// fmt.Println(pub)
+// 	// fmt.Println(pub.Bytes())
 
-	bpgroup := bpgroup.New()
+// 	bpgroup := bpgroup.New()
 
-	z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
+// 	z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
 
-	b1 := make([]byte, constants.ECPLen)
-	b2 := make([]byte, constants.ECPLenUC)
+// 	b1 := make([]byte, constants.ECPLen)
+// 	b2 := make([]byte, constants.ECPLenUC)
 
-	z1.ToBytes(b1, true)
-	z1.ToBytes(b2, false)
+// 	z1.ToBytes(b1, true)
+// 	z1.ToBytes(b2, false)
 
-	fmt.Println(b1)
+// 	fmt.Println(b1)
 
-	fmt.Println(b2)
-}
+// 	fmt.Println(b2)
+// }

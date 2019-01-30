@@ -1,4 +1,4 @@
-// code.go - Nym application return codes
+// query.go - Query-related logic for Tendermint ABCI for Nym
 // Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,24 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package code defines return codes for the Nym application
-package code
+package nymapplication
 
-const (
-	// as per spec, codes have to be represented as uint32 and 0 is reserved for OK
-	OK                     uint32 = 0
-	UNKNOWN                uint32 = 1
-	INVALID_TX_LENGTH      uint32 = 2
-	INVALID_TX_PARAMS      uint32 = 3
-	INVALID_QUERY_PARAMS   uint32 = 4
-	ACCOUNT_DOES_NOT_EXIST uint32 = 5
-	INSUFFICIENT_BALANCE   uint32 = 6
+import (
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 )
+
+// returns balance represented uint64 as BiGEndian encoded byte array and the code
+func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
+	if !account.ValidateAddress(address) {
+		return nil, code.INVALID_QUERY_PARAMS
+	}
+
+	key := prefixKey(accountsPrefix, address)
+
+	_, val := app.state.db.Get(key)
+	if val != nil {
+		return val, code.OK
+	}
+	return nil, code.ACCOUNT_DOES_NOT_EXIST
+}

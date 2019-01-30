@@ -56,6 +56,28 @@ const (
 	SignatureSize = 2 * constants.BIGLen
 )
 
+// Account encapsulates public and private key.
+type Account struct {
+	PublicKey  ECPublicKey
+	PrivateKey ECPrivateKey
+}
+
+// NewAccount returns new instance an account with fresh public/private key pair.
+func NewAccount() Account {
+	pk, pub := Keygen()
+	return Account{
+		PublicKey:  pub,
+		PrivateKey: pk,
+	}
+}
+
+// ValidateAddress checks for the correct formation of account address.
+// Theoretically it can be an arbitrary byte array, but in current iteration, the public key
+// is used directly
+func ValidateAddress(address []byte) bool {
+	return true
+}
+
 // ECPrivateKey represents private key used for signing messages for authentication.
 type ECPrivateKey []byte
 

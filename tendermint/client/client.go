@@ -24,6 +24,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	cmn "github.com/tendermint/tendermint/libs/common"
 	tmclient "github.com/tendermint/tendermint/rpc/client"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	"gopkg.in/op/go-logging.v1"
@@ -43,6 +44,11 @@ func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 // temp for debug
 func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	return c.tmclient.BroadcastTxAsync(tx)
+}
+
+// temp for debug
+func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery, error) {
+	return c.tmclient.ABCIQuery(path, data)
 }
 
 // deprecated -> no need for that function anymore

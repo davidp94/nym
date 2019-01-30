@@ -22,6 +22,8 @@ package nymapplication
 import (
 	"fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
@@ -38,9 +40,11 @@ const (
 )
 
 var (
-	stateKey       = []byte("stateKey")
-	zetaPrefix     = []byte("zeta")
-	accountsPrefix = []byte("account")
+	// todo: move vars to appropriate files
+	stateKey              = []byte("stateKey")
+	zetaPrefix            = []byte("zeta")
+	accountsPrefix        = []byte("account")
+	holdingAccountAddress = []byte("HOLDING ACCOUNT")
 
 	// entirely for debug purposes
 	invalidPrefix = byte('a')
@@ -67,6 +71,14 @@ func prefixZeta(zeta [zl]byte) [zl + 4]byte {
 	copy(arr[4:], zeta[:])
 
 	return arr
+}
+
+func prefixKey(prefix []byte, key []byte) []byte {
+	b := make([]byte, len(key)+len(prefix))
+	copy(b, prefix)
+	copy(b[len(prefix):], key)
+
+	return b
 }
 
 type State struct {
@@ -136,6 +148,7 @@ func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseS
 	return types.ResponseSetOption{}
 }
 
+// todo: move to transaction package and pass db as argument
 func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 	_, val := app.state.db.Get(zeta)
 
@@ -219,7 +232,19 @@ func (app *NymApplication) Commit() types.ResponseCommit {
 }
 
 func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
+	switch req.Path {
+	case query.QueryCheckBalancePath:
+		val, code := app.queryBalance(req.Data)
+		// TODO: include index (as found in the db)?
+		return types.ResponseQuery{Code: code, Key: req.Data, Value: val}
+	default:
+		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
+	}
 	fmt.Println("Query")
+
+	// This information can be a simple query rather than tx because there's no risk in delivering possibly stale result
+	fmt.Println(req.Path)
+	fmt.Println(req.Data)
 
 	return types.ResponseQuery{Code: code.OK}
 }

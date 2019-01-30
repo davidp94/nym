@@ -1,4 +1,4 @@
-// code.go - Nym application return codes
+// query.go - query logic
 // Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,21 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package code defines return codes for the Nym application
-package code
+// Package query defines query logic for the Nym application.
+package query
+
+// todo: restructure somehow to not have 2 query.go files
+
+import (
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+)
 
 const (
-	// as per spec, codes have to be represented as uint32 and 0 is reserved for OK
-	OK                     uint32 = 0
-	UNKNOWN                uint32 = 1
-	INVALID_TX_LENGTH      uint32 = 2
-	INVALID_TX_PARAMS      uint32 = 3
-	INVALID_QUERY_PARAMS   uint32 = 4
-	ACCOUNT_DOES_NOT_EXIST uint32 = 5
-	INSUFFICIENT_BALANCE   uint32 = 6
+	QueryCheckBalancePath string = "/balance"
+)
+
+var (
+	_ = constants.ECP2Len
+	_ = Curve.MODBITS
 )
