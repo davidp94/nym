@@ -19,7 +19,11 @@
 package account
 
 import (
+	"encoding/json"
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -58,8 +62,8 @@ const (
 
 // Account encapsulates public and private key.
 type Account struct {
-	PublicKey  ECPublicKey
-	PrivateKey ECPrivateKey
+	PublicKey  ECPublicKey  `json:"public_key"`
+	PrivateKey ECPrivateKey `json:"private_key"`
 }
 
 // NewAccount returns new instance an account with fresh public/private key pair.
@@ -69,6 +73,31 @@ func NewAccount() Account {
 		PublicKey:  pub,
 		PrivateKey: pk,
 	}
+}
+
+// ToJSONFile writes the key pair to a JSON file at the specified path.
+func (acc Account) ToJSONFile(f string) error {
+	acc.PublicKey.Compress()
+	b, err := json.Marshal(acc)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(f, b, 0600); err != nil {
+		return err
+	}
+	return nil
+}
+
+// FromJSONFile reads the key pair from a JSON file at the specified path.
+func (acc *Account) FromJSONFile(f string) error {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
+		if err := json.Unmarshal(buf, acc); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 // ValidateAddress checks for the correct formation of account address.
