@@ -18,6 +18,8 @@
 package transaction
 
 import (
+	"encoding/binary"
+
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	proto "github.com/golang/protobuf/proto"
@@ -25,8 +27,9 @@ import (
 )
 
 const (
-	TxTypeLookUpZeta byte = 0x01
-	TxNewAccount     byte = 0x02
+	TxTypeLookUpZeta          byte = 0x01
+	TxNewAccount              byte = 0x02
+	TxTransferBetweenAccounts byte = 0x03
 )
 
 var (
@@ -64,6 +67,32 @@ func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte
 	}
 	b := make([]byte, len(protob)+1)
 	b[0] = TxNewAccount
+	copy(b[1:], protob)
+	return b, nil
+}
+
+// CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
+// Currently and possibly only for debug purposes
+// to freely transfer tokens between accounts to setup different scenarios.
+func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, ammount uint64) ([]byte, error) {
+	msg := make([]byte, len(account.PublicKey)+len(target)+8)
+	copy(msg, account.PublicKey)
+	copy(msg[len(account.PublicKey):], target)
+	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], ammount)
+
+	sig := account.PrivateKey.SignBytes(msg)
+	req := &AccountTransferRequest{
+		SourcePublicKey: account.PublicKey,
+		TargetPublicKey: target,
+		Ammount:         ammount,
+		Sig:             sig,
+	}
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = TxTransferBetweenAccounts
 	copy(b[1:], protob)
 	return b, nil
 }

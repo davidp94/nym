@@ -16,8 +16,8 @@
 package nymapplication
 
 import (
+	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
@@ -75,8 +75,76 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 	dbEntry := prefixKey(accountsPrefix, publicKey)
 	app.state.db.Set(dbEntry, value)
 
-	hexname := hex.EncodeToString(publicKey)
+	hexname := base64.StdEncoding.EncodeToString(publicKey)
 	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, startingBalance))
 
+	return types.ResponseDeliverTx{Code: code.OK}
+}
+
+// Currently and possibly only for debug purposes
+// to freely transfer tokens between accounts to setup different scenarios.
+func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.AccountTransferRequest{}
+	var sourcePublicKey account.ECPublicKey
+	var targetPublicKey account.ECPublicKey
+
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	sourcePublicKey = req.SourcePublicKey
+	targetPublicKey = req.TargetPublicKey
+	ammountB := make([]byte, 8)
+	binary.BigEndian.PutUint64(ammountB, req.Ammount)
+
+	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
+	copy(msg, sourcePublicKey)
+	copy(msg[len(sourcePublicKey):], targetPublicKey)
+	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], ammountB)
+
+	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+		app.log.Info("Failed to verify signature on request")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
+
+	sourcePublicKey.Compress()
+	sourceBalanceB, retCode := app.queryBalance(sourcePublicKey)
+	if retCode != code.OK {
+		return types.ResponseDeliverTx{Code: retCode} // among other things checks if the source account exists
+	}
+
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+	ammount := binary.BigEndian.Uint64(ammountB)
+	if sourceBalance < ammount { // + some gas?
+		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
+	}
+
+	targetPublicKey.Compress()
+	targetBalanceB, retCodeT := app.queryBalance(targetPublicKey)
+	if retCodeT != code.OK {
+		return types.ResponseDeliverTx{Code: retCodeT} // among other things checks if the source account exists
+	}
+
+	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
+
+	// finally initiate the transfer
+	sourceResult := sourceBalance - ammount
+	targetResult := targetBalance + ammount
+
+	sourceResultB := make([]byte, 8)
+	targetResultB := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
+	binary.BigEndian.PutUint64(targetResultB, targetResult)
+
+	sourceDbEntry := prefixKey(accountsPrefix, sourcePublicKey)
+	app.state.db.Set(sourceDbEntry, sourceResultB)
+
+	targetDbEntry := prefixKey(accountsPrefix, targetPublicKey)
+	app.state.db.Set(targetDbEntry, targetResultB)
+
+	app.log.Info(fmt.Sprintf("Transfered %v from %v to %v",
+		ammount, base64.StdEncoding.EncodeToString(sourcePublicKey), base64.StdEncoding.EncodeToString(targetPublicKey)))
 	return types.ResponseDeliverTx{Code: code.OK}
 }

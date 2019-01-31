@@ -45,8 +45,8 @@ const (
 
 var (
 	// todo: move vars to appropriate files
-	stateKey              = []byte("stateKey")
-	zetaPrefix            = []byte("zeta")
+	stateKey = []byte("stateKey")
+	// zetaPrefix            = []byte("zeta")
 	accountsPrefix        = []byte("account")
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
 
@@ -69,13 +69,13 @@ var _ types.Application = (*NymApplication)(nil)
 
 // TODO: is this an efficient solution? after all it doesnt return pointer to array since its not a slice and hence
 // copies everything by value
-func prefixZeta(zeta [zl]byte) [zl + 4]byte {
-	// TODO: surely there must be a better syntax for that
-	arr := [zl + 4]byte{zetaPrefix[0], zetaPrefix[1], zetaPrefix[2], zetaPrefix[3]}
-	copy(arr[4:], zeta[:])
+// func prefixZeta(zeta [zl]byte) [zl + 4]byte {
+// 	// TODO: surely there must be a better syntax for that
+// 	arr := [zl + 4]byte{zetaPrefix[0], zetaPrefix[1], zetaPrefix[2], zetaPrefix[3]}
+// 	copy(arr[4:], zeta[:])
 
-	return arr
-}
+// 	return arr
+// }
 
 func prefixKey(prefix []byte, key []byte) []byte {
 	b := make([]byte, len(key)+len(prefix))
@@ -98,7 +98,7 @@ type NymApplication struct {
 	state State
 
 	// data cache for current block
-	zetaCache map[[zl + 4]byte][]byte // unlike slices, arrays can be used as keys in maps
+	// zetaCache map[[zl + 4]byte][]byte // unlike slices, arrays can be used as keys in maps
 	// todo: rethink the entire idea of caches, or remove them completely for now if it's not neccessary to keep
 	// intermediate state for now.
 
@@ -127,7 +127,6 @@ func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication 
 
 	return &NymApplication{
 		state:      state,
-		zetaCache:  make(map[[zl + 4]byte][]byte),
 		log:        logger,
 		Version:    version.ABCIVersion,
 		AppVersion: ProtocolVersion.Uint64(),
@@ -181,12 +180,18 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxNewAccount:
 		app.log.Info("New Account tx")
 		return app.createNewAccount(tx[1:])
+
+	case transaction.TxTransferBetweenAccounts:
+		app.log.Info("Transfer tx")
+		return app.transferFunds(tx[1:])
+
 	case invalidPrefix:
 		app.log.Info("Test Invalid Deliver")
 		return types.ResponseDeliverTx{Code: code.UNKNOWN}
 
+		// purely for debug purposes to populate the state and advance the blocks
 	default:
-		app.log.Info("default CheckTx")
+		app.log.Info("default tx")
 		app.log.Info(fmt.Sprintf("storing up %v", tx))
 
 		app.state.db.Set(tx, []byte{1})
@@ -240,7 +245,7 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 func (app *NymApplication) Commit() types.ResponseCommit {
 	fmt.Println("Commit; height: ", app.state.db.Version())
 	app.state.db.SaveVersion()
-	app.zetaCache = make(map[[zl + 4]byte][]byte)
+	// app.zetaCache = make(map[[zl + 4]byte][]byte)
 	return types.ResponseCommit{Data: app.state.db.Hash()}
 	// return types.ResponseCommit{}
 }

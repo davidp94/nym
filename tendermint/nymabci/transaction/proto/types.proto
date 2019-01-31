@@ -4,8 +4,23 @@ package transaction;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
 
 message NewAccountRequest {
-    bytes PublicKey = 1; // Public Key of the user used to derive account address and validate signature
-    bytes Credential = 2; // represents some optional credential from an IP if required
-    bytes Sig = 3; // Signature on request to confirm its validity + asserts knowledge of private key
+    // Public Key of the user used to derive account address and validate signature
+    bytes PublicKey = 1; 
+    // represents some optional credential from an IP if required
+    bytes Credential = 2; 
+    // Signature on request to confirm its validity + asserts knowledge of private key
+    bytes Sig = 3; 
 }
 
+message AccountTransferRequest {
+    // Used to validate signature + determine source address
+    bytes SourcePublicKey = 1;
+    // Used to determine target address
+    bytes TargetPublicKey = 2; 
+    // Ammount to be transferred 
+    uint64 Ammount = 3; 
+    // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
+    // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
+    // Signature on request to confirm its validitiy
+    bytes Sig = 4; 
+}

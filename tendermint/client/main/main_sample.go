@@ -16,83 +16,73 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 )
 
 // currently used entirely for debug purposes
 func main() {
 
-	// log, err := logger.New("", "DEBUG", false)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to create a logger: %v", err))
-	// }
+	log, err := logger.New("", "DEBUG", false)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a logger: %v", err))
+	}
 
-	// client, err := client.New("tcp://0.0.0.0:46667", log)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to create a client: %v", err))
-	// }
+	client, err := client.New("tcp://0.0.0.0:46667", log)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a client: %v", err))
+	}
 
-	acc := &account.Account{}
-	if err := acc.FromJSONFile("debugAccount.json"); err != nil {
+	debugAcc := &account.Account{}
+	if err := debugAcc.FromJSONFile("debugAccount.json"); err != nil {
 		panic(err)
 	}
-	// acc.ToJSONFile("debugAccount.json")
 
-	fmt.Println(acc.PublicKey)
-	// credential := []byte("foo")
+	testAcc := account.NewAccount()
+	credential := []byte("foo")
 
-	// req, err := transaction.CreateNewAccountRequest(acc, credential)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	req, err := transaction.CreateNewAccountRequest(testAcc, credential)
+	if err != nil {
+		panic(err)
+	}
 
-	// fmt.Println(client.Broadcast(req))
+	res, _ := client.Broadcast(req)
+	fmt.Println("create", res.DeliverTx.Code)
 
-	// key := acc.PublicKey
-	// key.Compress()
+	path := query.QueryCheckBalancePath
+	testAcc.PublicKey.Compress()
 
-	// path := query.QueryCheckBalancePath
-	// data := []byte(key)
+	// should be start
+	resQ, _ := client.Query(path, []byte(debugAcc.PublicKey))
+	fmt.Println("pre1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	// fmt.Println(client.Query(path, data))
+	// should be 0
+	resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
+	fmt.Println("pre2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	// _, anotherKey := account.Keygen()
-	// anotherKey.Compress()
+	reqT, err := transaction.CreateNewTransferRequest(*debugAcc, testAcc.PublicKey, 9001)
+	if err != nil {
+		panic(err)
+	}
 
-	// fmt.Println(client.Query(path, []byte(anotherKey)))
+	res, _ = client.Broadcast(reqT)
+	fmt.Println("transfer", res.DeliverTx.Code)
 
-	// bpgroup := bpgroup.New()
+	// should be start - 9001
+	resQ, _ = client.Query(path, []byte(debugAcc.PublicKey))
+	fmt.Println("post1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	// z1 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
-	// z2 := Curve.G1mul(bpgroup.Gen1(), Curve.Randomnum(bpgroup.Order(), bpgroup.Rng()))
+	// should be 9001
+	resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
+	fmt.Println("post2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	// // basically lazy way to convert to bytes
-	// t := transaction.NewLookUpZetaTx(z1)
-	// client.Broadcast(t[1:])
-
-	// // shouldn be
-	// isPresent1 := client.LookUpZeta(z1)
-
-	// // shouldn't be
-	// isPresent2 := client.LookUpZeta(z2)
-
-	// fmt.Println(isPresent1, isPresent2)
-
-	// client.SendAsync(t)
-	// client.SendAsync(t[1:])
-	// client.SendAsync(t[2:])
-
-	// // error
-	// res, err := client.Broadcast([]byte{'a'})
-
-	// if err != nil {
-	// 	fmt.Printf("Error response: %v", err)
-	// }
-	// fmt.Println(res)
-
-	// client.Stop()
+	client.Stop()
 }
 
 // func main() {
