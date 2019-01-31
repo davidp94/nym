@@ -20,8 +20,12 @@
 package nymapplication
 
 import (
+	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -79,6 +83,10 @@ func prefixKey(prefix []byte, key []byte) []byte {
 	copy(b[len(prefix):], key)
 
 	return b
+}
+
+type GenesisAppState struct {
+	Accounts []account.GenesisAccount `json:"accounts"`
 }
 
 type State struct {
@@ -143,7 +151,7 @@ func (app *NymApplication) Info(req types.RequestInfo) types.ResponseInfo {
 }
 
 func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseSetOption {
-	fmt.Println("SetOption; height: ", app.state.db.Version())
+	fmt.Println("SetOption; height: ", app.state.db.Version(), req)
 
 	return types.ResponseSetOption{}
 }
@@ -256,8 +264,32 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 }
 
 func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseInitChain {
-	fmt.Println("InitChain")
+	genesisState := &GenesisAppState{}
+	if err := json.Unmarshal(req.AppStateBytes, genesisState); err != nil {
+		app.log.Error("Failed to unmarshal genesis app state")
+		panic(err)
+	}
+	app.log.Info(fmt.Sprintf("Adding %v genesis accounts", len(genesisState.Accounts)))
 
+	for _, acc := range genesisState.Accounts {
+		// always store account pubkey in compressed form, but accept any in the genesis file
+		if err := acc.PublicKey.Compress(); err != nil {
+			app.log.Error("Failed to compress the key")
+			panic(err)
+		}
+
+		balance := make([]byte, 8)
+		binary.BigEndian.PutUint64(balance, acc.Balance)
+
+		dbEntry := prefixKey(accountsPrefix, acc.PublicKey)
+		app.state.db.Set(dbEntry, balance)
+
+		hexname := hex.EncodeToString(acc.PublicKey)
+		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, balance))
+	}
+
+	// dont save state?
+	// app.state.db.SaveVersion()
 	return types.ResponseInitChain{}
 }
 

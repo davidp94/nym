@@ -20,7 +20,6 @@ package account
 
 import (
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -59,6 +58,12 @@ const (
 	// SignatureSize is the size, in bytes, of signatures generated and verified by this package.
 	SignatureSize = 2 * constants.BIGLen
 )
+
+// GenesisAccount represents key:balance mapping present in the genesis block of the chain.
+type GenesisAccount struct {
+	PublicKey ECPublicKey `json:"address"`
+	Balance   uint64      `json:"balance"`
+}
 
 // Account encapsulates public and private key.
 type Account struct {
@@ -152,7 +157,7 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 // Compress compresses the byte array representing the public key.
 func (pub *ECPublicKey) Compress() error {
 	if len(*pub) == PublicKeySize {
-		return errors.New("The key is already compressed")
+		return nil // key is already compressed
 	}
 	b, err := utils.CompressECPBytes(*pub)
 	if err != nil {

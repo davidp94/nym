@@ -18,50 +18,50 @@ package main
 import (
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-
-	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 )
 
 // currently used entirely for debug purposes
 func main() {
 
-	log, err := logger.New("", "DEBUG", false)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a logger: %v", err))
-	}
+	// log, err := logger.New("", "DEBUG", false)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Failed to create a logger: %v", err))
+	// }
 
-	client, err := client.New("tcp://0.0.0.0:46667", log)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a client: %v", err))
-	}
+	// client, err := client.New("tcp://0.0.0.0:46667", log)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Failed to create a client: %v", err))
+	// }
 
-	acc := account.NewAccount()
-	credential := []byte("foo")
-
-	req, err := transaction.CreateNewAccountRequest(acc, credential)
-	if err != nil {
+	acc := &account.Account{}
+	if err := acc.FromJSONFile("debugAccount.json"); err != nil {
 		panic(err)
 	}
+	// acc.ToJSONFile("debugAccount.json")
 
-	fmt.Println(client.Broadcast(req))
+	fmt.Println(acc.PublicKey)
+	// credential := []byte("foo")
 
-	key := acc.PublicKey
-	key.Compress()
+	// req, err := transaction.CreateNewAccountRequest(acc, credential)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	path := query.QueryCheckBalancePath
-	data := []byte(key)
+	// fmt.Println(client.Broadcast(req))
 
-	fmt.Println(client.Query(path, data))
+	// key := acc.PublicKey
+	// key.Compress()
 
-	_, anotherKey := account.Keygen()
-	anotherKey.Compress()
+	// path := query.QueryCheckBalancePath
+	// data := []byte(key)
 
-	fmt.Println(client.Query(path, []byte(anotherKey)))
+	// fmt.Println(client.Query(path, data))
+
+	// _, anotherKey := account.Keygen()
+	// anotherKey.Compress()
+
+	// fmt.Println(client.Query(path, []byte(anotherKey)))
 
 	// bpgroup := bpgroup.New()
 
@@ -92,7 +92,7 @@ func main() {
 	// }
 	// fmt.Println(res)
 
-	client.Stop()
+	// client.Stop()
 }
 
 // func main() {
