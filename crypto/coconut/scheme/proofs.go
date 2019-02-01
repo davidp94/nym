@@ -52,12 +52,28 @@ func ConstructChallenge(elems []utils.Printable) (*Curve.BIG, error) {
 	return utils.HashStringToBig(amcl.SHA256, cs)
 }
 
+// CreateWitnessResponses creates responses for the witnesses for the proofs of knowledge, where
+// p is the curve order
+// ws are the witnesses
+// c is the challenge
+// xs are the secrets
+func CreateWitnessResponses(p *Curve.BIG, ws []*Curve.BIG, c *Curve.BIG, xs []*Curve.BIG) []*Curve.BIG {
+	rs := make([]*Curve.BIG, len(ws))
+	for i := range ws {
+		rs[i] = ws[i].Minus(Curve.Modmul(c, xs[i], p))
+		rs[i] = rs[i].Plus(p)
+		rs[i].Mod(p) // rs[i] = (ws[i] - c * xs[i]) % p
+	}
+
+	return rs
+}
+
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
 // nolint: interfacer, lll, gocyclo
 func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
-	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
+	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
 	attributes := append(privM, pubM...)
 	// if there are no encryptions it means there are no private attributes and hence blind signature should not be used
@@ -72,16 +88,9 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	}
 
 	// witnesses creation
-	wr := Curve.Randomnum(p, rng)
-	wk := make([]*Curve.BIG, len(k))
-	wm := make([]*Curve.BIG, len(attributes))
-
-	for i := range k {
-		wk[i] = Curve.Randomnum(p, rng)
-	}
-	for i := range attributes {
-		wm[i] = Curve.Randomnum(p, rng)
-	}
+	wr := GetRandomNums(params, 1)[0]
+	wk := GetRandomNums(params, len(k))
+	wm := GetRandomNums(params, len(attributes))
 
 	b := make([]byte, constants.ECPLen)
 	cm.ToBytes(b, true)
@@ -133,23 +142,9 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	}
 
 	// responses
-	rr := wr.Minus(Curve.Modmul(c, r, p))
-	rr = rr.Plus(p)
-	rr.Mod(p) // rr = (wr - c * r) % o
-
-	rk := make([]*Curve.BIG, len(wk))
-	for i := range wk {
-		rk[i] = wk[i].Minus(Curve.Modmul(c, k[i], p))
-		rk[i] = rk[i].Plus(p)
-		rk[i].Mod(p) // rk[i] = (wk[i] - c * k[i]) % o
-	}
-
-	rm := make([]*Curve.BIG, len(wm))
-	for i := range wm {
-		rm[i] = wm[i].Minus(Curve.Modmul(c, attributes[i], p))
-		rm[i] = rm[i].Plus(p)
-		rm[i].Mod(p) // rm[i] = (wm[i] - c * attributes[i]) % o
-	}
+	rr := CreateWitnessResponses(p, []*Curve.BIG{wr}, c, []*Curve.BIG{r})[0] // rr = (wr - c * r) % o
+	rk := CreateWitnessResponses(p, wk, c, k)                                // rk[i] = (wk[i] - c * k[i]) % o
+	rm := CreateWitnessResponses(p, wm, c, attributes)                       // rm[i] = (wm[i] - c * attributes[i]) % o
 
 	return &SignerProof{
 		c:  c,
@@ -231,14 +226,11 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool 
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
 // nolint: lll
 func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*VerifierProof, error) {
-	p, g1, g2, hs, rng := params.p, params.g1, params.g2, params.hs, params.G.Rng()
+	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
 	// witnesses creation
-	wm := make([]*Curve.BIG, len(privM))
-	for i := 0; i < len(privM); i++ {
-		wm[i] = Curve.Randomnum(p, rng)
-	}
-	wt := Curve.Randomnum(p, rng)
+	wm := GetRandomNums(params, len(privM))
+	wt := GetRandomNums(params, 1)[0]
 
 	// witnesses commitments
 	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
@@ -268,16 +260,8 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	}
 
 	// responses
-	rm := make([]*Curve.BIG, len(privM))
-	for i := range privM {
-		rm[i] = wm[i].Minus(Curve.Modmul(c, privM[i], p))
-		rm[i] = rm[i].Plus(p)
-		rm[i].Mod(p)
-	}
-
-	rt := wt.Minus(Curve.Modmul(c, t, p))
-	rt = rt.Plus(p)
-	rt.Mod(p)
+	rm := CreateWitnessResponses(p, wm, c, privM)                            // rm[i] = (wm[i] - c * privM[i]) % o
+	rt := CreateWitnessResponses(p, []*Curve.BIG{wt}, c, []*Curve.BIG{t})[0] // rt = (wt - c * t) % o
 
 	return &VerifierProof{
 		c:  c,
