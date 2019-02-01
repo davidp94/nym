@@ -119,22 +119,12 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Aw {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Bw {
-		ca[i] = item
-		i++
-	}
+	ca := utils.CombinePrintables(
+		tmpSlice,
+		utils.ECPSliceToPrintable(hs),
+		utils.ECPSliceToPrintable(Aw),
+		utils.ECPSliceToPrintable(Bw),
+	)
 
 	c, err := ConstructChallenge(ca)
 	if err != nil {
@@ -196,22 +186,12 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool 
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Aw {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Bw {
-		ca[i] = item
-		i++
-	}
+	ca := utils.CombinePrintables(
+		tmpSlice,
+		utils.ECPSliceToPrintable(hs),
+		utils.ECPSliceToPrintable(Aw),
+		utils.ECPSliceToPrintable(Bw),
+	)
 
 	c, err := ConstructChallenge(ca)
 	if err != nil {
@@ -241,19 +221,7 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range vk.beta {
-		ca[i] = item
-		i++
-	}
-
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
@@ -293,19 +261,7 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, th
 	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.beta))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range vk.beta {
-		ca[i] = item
-		i++
-	}
-
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
 	if err != nil {
 		return false

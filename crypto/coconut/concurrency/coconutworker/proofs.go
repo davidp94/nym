@@ -100,22 +100,12 @@ func (cw *CoconutWorker) ConstructSignerProof(params *MuxParams, gamma *Curve.EC
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Aw {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Bw {
-		ca[i] = item
-		i++
-	}
+	ca := utils.CombinePrintables(
+		tmpSlice,
+		utils.ECPSliceToPrintable(hs),
+		utils.ECPSliceToPrintable(Aw),
+		utils.ECPSliceToPrintable(Bw),
+	)
 
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
@@ -197,22 +187,12 @@ func (cw *CoconutWorker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, 
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, cm, h, Cw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(Aw)+len(Bw))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Aw {
-		ca[i] = item
-		i++
-	}
-	for _, item := range Bw {
-		ca[i] = item
-		i++
-	}
+	ca := utils.CombinePrintables(
+		tmpSlice,
+		utils.ECPSliceToPrintable(hs),
+		utils.ECPSliceToPrintable(Aw),
+		utils.ECPSliceToPrintable(Bw),
+	)
 
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
@@ -257,19 +237,7 @@ func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.V
 	Bw = BwRes.(*Curve.ECP) // Bw = wt * h
 
 	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.Beta()))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range vk.Beta() {
-		ca[i] = item
-		i++
-	}
-
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
@@ -319,19 +287,7 @@ func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.Veri
 	Bw.Add(BwRes2.(*Curve.ECP)) // Bw = (c * nu) + (rt * h)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
-	ca := make([]utils.Printable, len(tmpSlice)+len(hs)+len(vk.Beta()))
-	i := copy(ca, tmpSlice)
-
-	// can't use copy for those due to type difference (utils.Printable vs *Curve.ECP and *Curve.ECP2)
-	for _, item := range hs {
-		ca[i] = item
-		i++
-	}
-	for _, item := range vk.Beta() {
-		ca[i] = item
-		i++
-	}
-
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
 		return false

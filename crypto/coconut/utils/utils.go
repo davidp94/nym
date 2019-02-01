@@ -33,6 +33,39 @@ type Printable interface {
 	ToString() string
 }
 
+// ECPSliceToPrintable converts slice of ECP to slice of Printable.
+func ECPSliceToPrintable(s []*Curve.ECP) []Printable {
+	p := make([]Printable, len(s))
+	for i := range s {
+		p[i] = s[i]
+	}
+	return p
+}
+
+// ECP2SliceToPrintable converts slice of ECP2 to slice of Printable.
+func ECP2SliceToPrintable(s []*Curve.ECP2) []Printable {
+	p := make([]Printable, len(s))
+	for i := range s {
+		p[i] = s[i]
+	}
+	return p
+}
+
+// CombinePrintables combines multiple slices of Printable into a single slice.
+func CombinePrintables(p ...[]Printable) []Printable {
+	l := 0
+	for _, ps := range p {
+		l += len(ps)
+	}
+	po := make([]Printable, l)
+	i := 0
+	for _, ps := range p {
+		j := copy(po[i:], ps)
+		i += j
+	}
+	return po
+}
+
 // ToCoconutString returns string representation of ECP or ECP2 object such that it is compatible with
 // representation of Python implementation.
 func ToCoconutString(p Printable) string {
