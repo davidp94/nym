@@ -39,6 +39,16 @@ func getBaseFromAttributes(pubM []*Curve.BIG) (*Curve.ECP, error) {
 	return utils.HashStringToG1(amcl.SHA512, strings.Join(s, ","))
 }
 
+// GetRandomNums generates n random numbers.
+func GetRandomNums(params *Params, n int) []*Curve.BIG {
+	p, rng := params.p, params.G.Rng()
+	r := make([]*Curve.BIG, n)
+	for i := range r {
+		r[i] = Curve.Randomnum(p, rng)
+	}
+	return r
+}
+
 // ValidateKeyPair checks if the coconut keypair was correctly formed.
 func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
 	if len(sk.y) != len(vk.beta) || !sk.Validate() || !vk.Validate() {

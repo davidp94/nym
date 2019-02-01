@@ -345,24 +345,36 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
-// ShowBlindSignature builds cryptographic material required for blind verification.
-// It returns kappa and nu - group elements needed to perform verification
-// and zero-knowledge proof asserting corectness of the above.
+// ConstructKappaNu creates Kappa and Nu based on values in the signature
+// to allow for proofs with different application-specific predicates
+// by not tying it to Show protocol
 // nolint: lll
-func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*Theta, error) {
-	p, rng := params.p, params.G.Rng()
-
+func ConstructKappaNu(vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*Curve.ECP2, *Curve.ECP, error) {
 	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() || !ValidateBigSlice(privM) {
-		return nil, ErrShowBlindAttr
+		return nil, nil, ErrShowBlindAttr
 	}
 
-	t := Curve.Randomnum(p, rng)
 	kappa := Curve.G2mul(vk.g2, t)
 	kappa.Add(vk.alpha)
 	for i := range privM {
 		kappa.Add(Curve.G2mul(vk.beta[i], privM[i]))
 	}
 	nu := Curve.G1mul(sig.sig1, t)
+
+	return kappa, nu, nil
+}
+
+// ShowBlindSignature builds cryptographic material required for blind verification.
+// It returns kappa and nu - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*Theta, error) {
+	p, rng := params.p, params.G.Rng()
+	t := Curve.Randomnum(p, rng)
+
+	kappa, nu, err := ConstructKappaNu(vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
 
 	verifierProof, err := ConstructVerifierProof(params, vk, sig, privM, t)
 	if err != nil {

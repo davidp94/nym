@@ -433,20 +433,14 @@ func (cw *CoconutWorker) AggregateSignatures(params *MuxParams, sigs []*coconut.
 	return coconut.NewSignature(sigs[0].Sig1(), sig2)
 }
 
-// ShowBlindSignature builds cryptographic material required for blind verification.
-// It returns kappa and nu - group elements needed to perform verification
-// and zero-knowledge proof asserting corectness of the above.
+// ConstructKappaNu creates Kappa and Nu based on values in the signature
+// to allow for proofs with different application-specific predicates
+// by not tying it to Show protocol
 // nolint: lll
-func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
-	p, rng := params.P(), params.G.Rng()
-
+func (cw *CoconutWorker) ConstructKappaNu(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*Curve.ECP2, *Curve.ECP, error) {
 	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() || !coconut.ValidateBigSlice(privM) {
-		return nil, coconut.ErrShowBlindAttr
+		return nil, nil, coconut.ErrShowBlindAttr
 	}
-
-	params.Lock()
-	t := Curve.Randomnum(p, rng)
-	params.Unlock()
 
 	kappaCh := make(chan interface{}, len(privM)+1)
 	cw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.G2(), t)
@@ -467,6 +461,24 @@ func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.Verif
 
 	nuRes := <-nuCh
 	nu := nuRes.(*Curve.ECP)
+
+	return kappa, nu, nil
+}
+
+// ShowBlindSignature builds cryptographic material required for blind verification.
+// It returns kappa and nu - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+// nolint: lll
+func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
+	p, rng := params.P(), params.G.Rng()
+	params.Lock()
+	t := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	kappa, nu, err := cw.ConstructKappaNu(vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
 
 	verifierProof, err := cw.ConstructVerifierProof(params, vk, sig, privM, t)
 	if err != nil {
