@@ -581,12 +581,12 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: invalid slice of attributes provided")
 	}
 
-	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
-		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Could not create blindSignMats: %v", err)
+		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Could not create lambda: %v", err)
 	}
 
-	blindSignRequest, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	blindSignRequest, err := commands.NewBlindSignRequest(lambda, c.elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Failed to create BlindSign request: %v", err)
 	}
@@ -632,12 +632,12 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError("BlindSignAttributes: invalid slice of attributes provided")
 	}
 
-	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
 	if err != nil {
-		return nil, c.logAndReturnError("BlindSignAttributes: Could not create blindSignMats: %v", err)
+		return nil, c.logAndReturnError("BlindSignAttributes: Could not create lambda: %v", err)
 	}
 
-	cmd, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	cmd, err := commands.NewBlindSignRequest(lambda, c.elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributes: Failed to create BlindSign request: %v", err)
 	}
@@ -779,12 +779,12 @@ func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG
 		}
 	}
 
-	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
+	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
 	if err != nil {
 		return nil, c.logAndReturnError("prepareBlindVerifyRequest: Failed when creating proofs for verification: %v", err)
 	}
 
-	blindVerifyRequest, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
+	blindVerifyRequest, err := commands.NewBlindVerifyRequest(theta, sig, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("prepareBlindVerifyRequest: Failed to create BlindVerify request: %v", err)
 	}
