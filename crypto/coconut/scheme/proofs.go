@@ -225,6 +225,41 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool 
 	return Curve.Comp(proof.c, c) == 0
 }
 
+func constructKappaNuCommitments(vk *VerificationKey, h *Curve.ECP, wt *Curve.BIG, wm, privM []*Curve.BIG) (*Curve.ECP2, *Curve.ECP) {
+	g2 := vk.g2
+	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
+	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
+	for i := range privM {
+		Aw.Add(Curve.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
+	}
+	Bw := Curve.G1mul(h, wt) // Bw = wt * h
+
+	return Aw, Bw
+}
+
+// TODO: replace theta.``
+func reconstructKappaNuCommitments(params *Params, vk *VerificationKey, sig *Signature, theta *Theta) (*Curve.ECP2, *Curve.ECP) {
+	p := params.p
+
+	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
+	Aw.Add(Curve.G2mul(vk.g2, theta.proof.rt))    // Aw = (c * kappa) + (rt * g2)
+
+	// Aw = (c * kappa) + (rt * g2) + (alpha)
+	Aw.Add(vk.alpha)
+	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
+	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(theta.proof.c, p)))
+
+	for i := range theta.proof.rm {
+		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
+		Aw.Add(Curve.G2mul(vk.beta[i], theta.proof.rm[i]))
+	}
+
+	Bw := Curve.G1mul(theta.nu, theta.proof.c)    // Bw = (c * nu)
+	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
+
+	return Aw, Bw
+}
+
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
@@ -237,13 +272,9 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	wt := GetRandomNums(params, 1)[0]
 
 	// witnesses commitments
-	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
-	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
-	for i := range privM {
-		Aw.Add(Curve.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
-	}
-	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
+	Aw, Bw := constructKappaNuCommitments(vk, sig.sig1, wt, wm, privM)
 
+	// construct challenge
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
@@ -266,23 +297,9 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L75
 func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, theta *Theta) bool {
-	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
+	g1, g2, hs := params.g1, params.g2, params.hs
 
-	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
-	Aw.Add(Curve.G2mul(vk.g2, theta.proof.rt))    // Aw = (c * kappa) + (rt * g2)
-
-	// Aw = (c * kappa) + (rt * g2) + (alpha)
-	Aw.Add(vk.alpha)
-	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
-	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(theta.proof.c, p)))
-
-	for i := range theta.proof.rm {
-		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
-		Aw.Add(Curve.G2mul(vk.beta[i], theta.proof.rm[i]))
-	}
-
-	Bw := Curve.G1mul(theta.nu, theta.proof.c)    // Bw = (c * nu)
-	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
+	Aw, Bw := reconstructKappaNuCommitments(params, vk, sig, theta)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
@@ -309,12 +326,8 @@ func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, 
 	wt := GetRandomNums(params, 1)[0]
 
 	// witnesses commitments
-	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
-	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
-	for i := range privM {
-		Aw.Add(Curve.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
-	}
-	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
+	Aw, Bw := constructKappaNuCommitments(vk, sig.sig1, wt, wm, privM)
+
 	// wm[0] is the coin's sequence number
 	Cw := Curve.G1mul(g1, wm[0]) // Cw = wm[0] * g1
 
@@ -348,23 +361,9 @@ func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, 
 
 // VerifyTumblerProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa, nu and zeta.
 func VerifyTumblerProof(params *Params, vk *VerificationKey, sig *Signature, theta *Theta, zeta *Curve.ECP, address []byte) bool {
-	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
+	g1, g2, hs := params.g1, params.g2, params.hs
 
-	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
-	Aw.Add(Curve.G2mul(vk.g2, theta.proof.rt))    // Aw = (c * kappa) + (rt * g2)
-
-	// Aw = (c * kappa) + (rt * g2) + (alpha)
-	Aw.Add(vk.alpha)
-	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
-	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(theta.proof.c, p)))
-
-	for i := range theta.proof.rm {
-		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
-		Aw.Add(Curve.G2mul(vk.beta[i], theta.proof.rm[i]))
-	}
-
-	Bw := Curve.G1mul(theta.nu, theta.proof.c)    // Bw = (c * nu)
-	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
+	Aw, Bw := reconstructKappaNuCommitments(params, vk, sig, theta)
 
 	Cw := Curve.G1mul(g1, theta.proof.rm[0])
 	Cw.Add(Curve.G1mul(zeta, theta.proof.c))
