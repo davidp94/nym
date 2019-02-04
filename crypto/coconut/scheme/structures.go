@@ -321,17 +321,17 @@ type VerifierProof struct {
 	rt *Curve.BIG
 }
 
-// C returns challenge part of the signer proof
+// C returns challenge part of the signer proof.
 func (vp *VerifierProof) C() *Curve.BIG {
 	return vp.c
 }
 
-// Rm returns set of rm responses of the signer proof
+// Rm returns set of rm responses of the signer proof.
 func (vp *VerifierProof) Rm() []*Curve.BIG {
 	return vp.rm
 }
 
-// Rt returns set of rt responses of the signer proof
+// Rt returns set of rt responses of the signer proof.
 func (vp *VerifierProof) Rt() *Curve.BIG {
 	return vp.rt
 }
@@ -347,6 +347,39 @@ func (vp *VerifierProof) Validate() bool {
 		}
 	}
 	return true
+}
+
+// type VerifierProof interface {
+// 	C() *Curve.BIG
+// 	Rm() []*Curve.BIG
+// 	Rt() *Curve.BIG
+// 	Validate() bool
+// 	Verify() bool
+// }
+
+// TumblerProof is a special case of VerifierProof that is bound to some address
+// and also encapsulates some zeta (g^s).
+type TumblerProof struct {
+	baseProof *VerifierProof
+	zeta      *Curve.ECP
+}
+
+// BaseProof returns the base proof containing (c, rm, rt).
+func (tp *TumblerProof) BaseProof() *VerifierProof {
+	return tp.baseProof
+}
+
+// Zeta returns zeta used in the proof.
+func (tp *TumblerProof) Zeta() *Curve.ECP {
+	return tp.zeta
+}
+
+// Validate checks for nil elements in the proof.
+func (tp *TumblerProof) Validate() bool {
+	if tp == nil || tp.zeta == nil {
+		return false
+	}
+	return tp.baseProof.Validate()
 }
 
 // NewSk returns instance of verification key from the provided attributes.

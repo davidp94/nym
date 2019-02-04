@@ -68,6 +68,30 @@ func CreateWitnessResponses(p *Curve.BIG, ws []*Curve.BIG, c *Curve.BIG, xs []*C
 	return rs
 }
 
+// CreateBinding creates a binding to given byte sequence by either recovering it's direct value as ECP
+// or by hashing it onto G1.
+func CreateBinding(seq []byte) (*Curve.ECP, error) {
+	if len(seq) <= 0 {
+		return nil, errors.New("Nil or slice of length 0 provided")
+	}
+	var bind *Curve.ECP
+	// if it is a bytes ECP just use that
+	// if it's compressed, per RFC, it needs to start with either byte 0x02 or 0x03 (based on parity)
+	if (len(seq) == constants.ECPLen && (seq[0] == 0x02 || seq[0] == 0x03)) ||
+		// and if it's compressed it needs to start with 0x04 byte
+		(len(seq) == constants.ECPLenUC && seq[0] == 0x04) {
+		bind = Curve.ECP_fromBytes(seq)
+	} else {
+		// otherwise hash whatever we have onto a G1
+		var err error
+		bind, err = utils.HashBytesToG1(amcl.SHA256, seq)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return bind, nil
+}
+
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
@@ -261,6 +285,96 @@ func VerifyVerifierProof(params *Params, vk *VerificationKey, sig *Signature, th
 	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw}
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return false
+	}
+
+	return Curve.Comp(theta.proof.c, c) == 0
+}
+
+// ConstructTumblerProof constructs a zero knowledge proof required to
+// implement Coconut's coin tumbler (https://arxiv.org/pdf/1802.07344.pdf).
+// It proves knowledge of all private attributes in the credential and binds the proof to the address.
+// Note that the first privM parameter HAS TO be coin's sequence number since the zeta is later revealed.
+// loosely based on: https://github.com/asonnino/coconut-chainspace/blob/master/contracts/tumbler_proofs.py
+// TODO: NEED SOMEBODY TO VERIFY CORECTNESS OF IMPLEMENTATION
+// nolint: lll
+func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*TumblerProof, error) {
+	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
+
+	// witnesses creation
+	wm := GetRandomNums(params, len(privM))
+	wt := GetRandomNums(params, 1)[0]
+
+	// witnesses commitments
+	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
+	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
+	for i := range privM {
+		Aw.Add(Curve.G2mul(vk.beta[i], wm[i])) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
+	}
+	Bw := Curve.G1mul(sig.sig1, wt) // Bw = wt * h
+	// wm[0] is the coin's sequence number
+	Cw := Curve.G1mul(g1, wm[0]) // Cw = wm[0] * g1
+
+	bind, err := CreateBinding(address)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to bind to address: %v", err)
+	}
+
+	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw, Cw, bind}
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
+	c, err := ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
+
+	// responses
+	rm := CreateWitnessResponses(p, wm, c, privM)                            // rm[i] = (wm[i] - c * privM[i]) % o
+	rt := CreateWitnessResponses(p, []*Curve.BIG{wt}, c, []*Curve.BIG{t})[0] // rt = (wt - c * t) % o
+
+	zeta := Curve.G1mul(g1, privM[0])
+
+	return &TumblerProof{
+		baseProof: &VerifierProof{
+			c:  c,
+			rm: rm,
+			rt: rt,
+		},
+		zeta: zeta,
+	}, nil
+}
+
+// VerifyTumblerProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa, nu and zeta.
+func VerifyTumblerProof(params *Params, vk *VerificationKey, sig *Signature, theta *Theta, zeta *Curve.ECP, address []byte) bool {
+	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
+
+	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
+	Aw.Add(Curve.G2mul(vk.g2, theta.proof.rt))    // Aw = (c * kappa) + (rt * g2)
+
+	// Aw = (c * kappa) + (rt * g2) + (alpha)
+	Aw.Add(vk.alpha)
+	// Aw = (c * kappa) + (rt * g2) + (alpha - alpha * c) = (c * kappa) + (rt * g2) + ((1 - c) * alpha)
+	Aw.Add(Curve.G2mul(vk.alpha, Curve.Modneg(theta.proof.c, p)))
+
+	for i := range theta.proof.rm {
+		// Aw = (c * kappa) + (rt * g2) + ((1 - c) * alpha) + (rm[0] * beta[0]) + ... + (rm[i] * beta[i])
+		Aw.Add(Curve.G2mul(vk.beta[i], theta.proof.rm[i]))
+	}
+
+	Bw := Curve.G1mul(theta.nu, theta.proof.c)    // Bw = (c * nu)
+	Bw.Add(Curve.G1mul(sig.sig1, theta.proof.rt)) // Bw = (c * nu) + (rt * h)
+
+	Cw := Curve.G1mul(g1, theta.proof.rm[0])
+	Cw.Add(Curve.G1mul(zeta, theta.proof.c))
+
+	bind, err := CreateBinding(address)
+	if err != nil {
+		return false
+	}
+
+	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw, Cw, bind}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
 	if err != nil {

@@ -41,6 +41,10 @@ func TestSchemeVerifierProof(t *testing.T) {
 	TestVerifierProof(t, nil)
 }
 
+func TestSchemeTumblerProof(t *testing.T) {
+	TestTumblerProof(t, nil)
+}
+
 //
 // BENCHMARKS
 //
