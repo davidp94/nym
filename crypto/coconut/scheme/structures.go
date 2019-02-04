@@ -198,17 +198,17 @@ func (l *Lambda) Validate() bool {
 	return l.proof.Validate()
 }
 
-// Cm returns the commitment part of the BlindSignMats
+// Cm returns the commitment part of the Lambda.
 func (l *Lambda) Cm() *Curve.ECP {
 	return l.cm
 }
 
-// Enc returns the encryptions part of the BlindSignMats
+// Enc returns the encryptions part of the Lambda.
 func (l *Lambda) Enc() []*elgamal.Encryption {
 	return l.enc
 }
 
-// Proof returns the proof part of the BlindSignMats
+// Proof returns the proof part of the Lambda.
 func (l *Lambda) Proof() *SignerProof {
 	return l.proof
 }
@@ -220,17 +220,17 @@ type Theta struct {
 	proof *VerifierProof
 }
 
-// Kappa returns the kappa part of the BlindShowMats
+// Kappa returns the kappa part of the Theta.
 func (t *Theta) Kappa() *Curve.ECP2 {
 	return t.kappa
 }
 
-// Nu returns the nu part of the BlindShowMats
+// Nu returns the nu part of the Theta.
 func (t *Theta) Nu() *Curve.ECP {
 	return t.nu
 }
 
-// Proof returns the proof part of the BlindShowMats
+// Proof returns the proof part of the Theta.
 func (t *Theta) Proof() *VerifierProof {
 	return t.proof
 }
