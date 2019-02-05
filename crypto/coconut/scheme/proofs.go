@@ -237,7 +237,6 @@ func constructKappaNuCommitments(vk *VerificationKey, h *Curve.ECP, wt *Curve.BI
 	return Aw, Bw
 }
 
-// TODO: replace theta.``
 func reconstructKappaNuCommitments(params *Params, vk *VerificationKey, sig *Signature, theta *Theta) (*Curve.ECP2, *Curve.ECP) {
 	p := params.p
 

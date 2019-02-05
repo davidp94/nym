@@ -202,32 +202,21 @@ func (cw *CoconutWorker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, 
 	return Curve.Comp(proof.C(), c) == 0
 }
 
-// ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
-// nolint: lll
-func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*coconut.VerifierProof, error) {
-	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
-
-	// witnesses creation
-	params.Lock()
-	wm := coconut.GetRandomNums(params.Params, len(privM))
-	wt := coconut.GetRandomNums(params.Params, 1)[0]
-	params.Unlock()
-
-	// witnesses commitments
+func (cw *CoconutWorker) constructKappaNuCommitments(vk *coconut.VerificationKey, h *Curve.ECP, wt *Curve.BIG, wm, privM []*Curve.BIG) (*Curve.ECP2, *Curve.ECP) {
 	Aw := Curve.NewECP2()
 	var Bw *Curve.ECP
 
 	AwCh := make(chan interface{}, 1+len(privM))
 	BwCh := make(chan interface{}, 1)
 
-	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, g2, wt)
+	cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.G2(), wt) // (wt * g2)
 	for i := range privM {
-		cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], wm[i])
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(AwCh, vk.Beta()[i], wm[i]) // wm[i] * beta[i]
 	}
 
-	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, sig.Sig1(), wt)
+	cw.jobQueue <- jobpacket.MakeG1MulPacket(BwCh, h, wt) // wt * h
 
-	Aw.Copy(vk.Alpha())
+	Aw.Copy(vk.Alpha()) // Aw = alpha
 	for i := 0; i <= len(privM); i++ {
 		AwElemRes := <-AwCh
 		Aw.Add(AwElemRes.(*Curve.ECP2)) // Aw = (wt * g2) + alpha + (wm[0] * beta[0]) + ... + (wm[i] * beta[i])
@@ -236,24 +225,11 @@ func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.V
 	BwRes := <-BwCh
 	Bw = BwRes.(*Curve.ECP) // Bw = wt * h
 
-	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
-	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
-	c, err := coconut.ConstructChallenge(ca)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
-	}
-
-	// responses
-	rm := coconut.CreateWitnessResponses(p, wm, c, privM)                            // rm[i] = (wm[i] - c * privM[i]) % o
-	rt := coconut.CreateWitnessResponses(p, []*Curve.BIG{wt}, c, []*Curve.BIG{t})[0] // rt = (wt - c * t) % o
-
-	return coconut.NewVerifierProof(c, rm, rt), nil
+	return Aw, Bw
 }
 
-// VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
-// nolint: lll
-func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) bool {
-	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
+func (cw *CoconutWorker) reconstructKappaNuCommitments(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) (*Curve.ECP2, *Curve.ECP) {
+	p := params.P()
 
 	Aw := Curve.NewECP2()
 	var Bw *Curve.ECP
@@ -285,6 +261,43 @@ func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.Veri
 	BwRes2 := <-BwCh
 	Bw = BwRes1.(*Curve.ECP)    // Bw = (c * nu) OR Bw = (rt * h)
 	Bw.Add(BwRes2.(*Curve.ECP)) // Bw = (c * nu) + (rt * h)
+
+	return Aw, Bw
+}
+
+// ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
+// nolint: lll
+func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*coconut.VerifierProof, error) {
+	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
+
+	// witnesses creation
+	params.Lock()
+	wm := coconut.GetRandomNums(params.Params, len(privM))
+	wt := coconut.GetRandomNums(params.Params, 1)[0]
+	params.Unlock()
+
+	Aw, Bw := cw.constructKappaNuCommitments(vk, sig.Sig1(), wt, wm, privM)
+
+	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
+	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
+	c, err := coconut.ConstructChallenge(ca)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+	}
+
+	// responses
+	rm := coconut.CreateWitnessResponses(p, wm, c, privM)                            // rm[i] = (wm[i] - c * privM[i]) % o
+	rt := coconut.CreateWitnessResponses(p, []*Curve.BIG{wt}, c, []*Curve.BIG{t})[0] // rt = (wt - c * t) % o
+
+	return coconut.NewVerifierProof(c, rm, rt), nil
+}
+
+// VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
+// nolint: lll
+func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) bool {
+	g1, g2, hs := params.G1(), params.G2(), params.Hs()
+
+	Aw, Bw := cw.reconstructKappaNuCommitments(params, vk, sig, theta)
 
 	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
