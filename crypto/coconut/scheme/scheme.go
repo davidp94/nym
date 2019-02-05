@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"

@@ -66,11 +66,11 @@ func constructTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconu
 // params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
 
 // nolint: lll
-func verifyTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta, zeta *Curve.ECP, address []byte) bool {
+func verifyTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.ThetaTumbler, address []byte) bool {
 	if cw == nil {
-		return coconut.VerifyTumblerProof(params.(*coconut.Params), vk, sig, theta, zeta, address)
+		return coconut.VerifyTumblerProof(params.(*coconut.Params), vk, sig, theta, address)
 	}
-	return cw.VerifyTumblerProof(params.(*coconutworker.MuxParams), vk, sig, theta, zeta, address)
+	return cw.VerifyTumblerProof(params.(*coconutworker.MuxParams), vk, sig, theta, address)
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
@@ -305,10 +305,9 @@ func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 				continue
 			}
 
-			theta := coconut.NewTheta(kappa, nu, tp.BaseProof())
-			zeta := tp.Zeta()
+			theta := coconut.NewThetaTumbler(coconut.NewTheta(kappa, nu, tp.BaseProof()), tp.Zeta())
 
-			assert.True(t, verifyTumblerProofWrapper(cw, params, vk, sig, theta, zeta, addr))
+			assert.True(t, verifyTumblerProofWrapper(cw, params, vk, sig, theta, addr))
 		}
 	}
 }

@@ -357,31 +357,6 @@ func (vp *VerifierProof) Validate() bool {
 // 	Verify() bool
 // }
 
-// TumblerProof is a special case of VerifierProof that is bound to some address
-// and also encapsulates some zeta (g^s).
-type TumblerProof struct {
-	baseProof *VerifierProof
-	zeta      *Curve.ECP
-}
-
-// BaseProof returns the base proof containing (c, rm, rt).
-func (tp *TumblerProof) BaseProof() *VerifierProof {
-	return tp.baseProof
-}
-
-// Zeta returns zeta used in the proof.
-func (tp *TumblerProof) Zeta() *Curve.ECP {
-	return tp.zeta
-}
-
-// Validate checks for nil elements in the proof.
-func (tp *TumblerProof) Validate() bool {
-	if tp == nil || tp.zeta == nil {
-		return false
-	}
-	return tp.baseProof.Validate()
-}
-
 // NewSk returns instance of verification key from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewSk(x *Curve.BIG, y []*Curve.BIG) *SecretKey {
@@ -465,14 +440,5 @@ func NewBlindedSignature(sig1 *Curve.ECP, sig2Tilda *elgamal.Encryption) *Blinde
 	return &BlindedSignature{
 		sig1:      sig1,
 		sig2Tilda: sig2Tilda,
-	}
-}
-
-// NewTumblerProof returns instance of TumblerProof from the provided attributes.
-// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
-func NewTumblerProof(baseProof *VerifierProof, zeta *Curve.ECP) *TumblerProof {
-	return &TumblerProof{
-		baseProof: baseProof,
-		zeta:      zeta,
 	}
 }
