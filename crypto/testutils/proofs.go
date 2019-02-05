@@ -55,6 +55,24 @@ func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker, params coconut.
 	return cw.VerifyVerifierProof(params.(*coconutworker.MuxParams), vk, sig, theta)
 }
 
+// nolint: lll
+func constructTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
+	if cw == nil {
+		return coconut.ConstructTumblerProof(params.(*coconut.Params), vk, sig, privM, t, address)
+	}
+	return cw.ConstructTumblerProof(params.(*coconutworker.MuxParams), vk, sig, privM, t, address)
+}
+
+// params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
+
+// nolint: lll
+func verifyTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta, zeta *Curve.ECP, address []byte) bool {
+	if cw == nil {
+		return coconut.VerifyTumblerProof(params.(*coconut.Params), vk, sig, theta, zeta, address)
+	}
+	return cw.VerifyTumblerProof(params.(*coconutworker.MuxParams), vk, sig, theta, zeta, address)
+}
+
 // TestSignerProof tests properties of the appropriate NIZK
 // nolint: lll
 func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
@@ -206,10 +224,6 @@ func TestVerifierProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 
 // TestTumblerProof tests properties of the appropriate NIZK
 func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
-	if cw != nil {
-		t.Errorf("NOT IMPLEMENTED")
-	}
-
 	tests := []struct {
 		pub  []string
 		priv []string
@@ -284,7 +298,7 @@ func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		}
 
 		for _, addr := range addresses {
-			tp, err := coconut.ConstructTumblerProof(params.(*coconut.Params), vk, sig, privBig, tr, addr)
+			tp, err := constructTumblerProofWrapper(cw, params, vk, sig, privBig, tr, addr)
 			if addr == nil {
 				assert.Nil(t, tp)
 				assert.Error(t, err)
@@ -294,7 +308,7 @@ func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 			theta := coconut.NewTheta(kappa, nu, tp.BaseProof())
 			zeta := tp.Zeta()
 
-			assert.True(t, coconut.VerifyTumblerProof(params.(*coconut.Params), vk, sig, theta, zeta, addr))
+			assert.True(t, verifyTumblerProofWrapper(cw, params, vk, sig, theta, zeta, addr))
 		}
 	}
 }

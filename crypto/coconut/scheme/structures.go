@@ -467,3 +467,12 @@ func NewBlindedSignature(sig1 *Curve.ECP, sig2Tilda *elgamal.Encryption) *Blinde
 		sig2Tilda: sig2Tilda,
 	}
 }
+
+// NewTumblerProof returns instance of TumblerProof from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewTumblerProof(baseProof *VerifierProof, zeta *Curve.ECP) *TumblerProof {
+	return &TumblerProof{
+		baseProof: baseProof,
+		zeta:      zeta,
+	}
+}
