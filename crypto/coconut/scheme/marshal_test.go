@@ -13,6 +13,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestParamsMarshal(t *testing.T) {
+	qs := []int{1, 3, 5, 10}
+	for _, q := range qs {
+		params, err := coconut.Setup(q)
+		assert.Nil(t, err)
+		data, err := params.MarshalBinary()
+		assert.Nil(t, err)
+		recoveredParams := &coconut.Params{}
+		assert.Nil(t, recoveredParams.UnmarshalBinary(data))
+
+		assert.Zero(t, Curve.Comp(params.P(), recoveredParams.P()))
+		assert.True(t, params.G1().Equals(recoveredParams.G1()))
+		assert.True(t, params.G2().Equals(recoveredParams.G2()))
+		for i := range params.Hs() {
+			assert.True(t, params.Hs()[i].Equals(recoveredParams.Hs()[i]))
+		}
+
+		newBp := recoveredParams.G
+		someR := Curve.Randomnum(recoveredParams.P(), newBp.Rng())
+		assert.NotNil(t, someR)
+	}
+}
+
 func TestSecretKeyMarshal(t *testing.T) {
 	params, _ := coconut.Setup(4)
 	sk, _, _ := coconut.Keygen(params)

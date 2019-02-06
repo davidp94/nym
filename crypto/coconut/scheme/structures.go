@@ -178,6 +178,20 @@ func (p *Params) Hs() []*Curve.ECP {
 	return p.hs
 }
 
+// Validate checks for nil elements in the params.
+func (p *Params) Validate() bool {
+	if p == nil || p.p == nil || p.g1 == nil || p.g2 == nil || p.hs == nil {
+		return false
+	}
+	for i := range p.hs {
+		if p.hs[i] == nil {
+			return false
+		}
+	}
+	// todo: check bpgroup, dont assume its valid
+	return true
+}
+
 // Lambda encapsulates data created by PrepareBlindSign function.
 type Lambda struct {
 	cm    *Curve.ECP

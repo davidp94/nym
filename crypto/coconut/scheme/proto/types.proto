@@ -54,3 +54,11 @@ message ProtoTheta {
     bytes nu = 2;
     ProtoVerifierProof proof = 3;
 }
+
+message ProtoParams {
+    reserved 1; // In case we figure out a way to nicely send bpgroup or at least rng seed
+    bytes p = 2;
+    bytes g1 = 3;
+    bytes g2 = 4;
+    repeated bytes hs = 5;
+}

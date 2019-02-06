@@ -21,6 +21,8 @@ import (
 	"errors"
 	"strings"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
@@ -63,6 +65,87 @@ func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
 		}
 	}
 	return true
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (params *Params) MarshalBinary() ([]byte, error) {
+	protoParams, err := params.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(protoParams)
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (params *Params) UnmarshalBinary(data []byte) error {
+	protoParams := &ProtoParams{}
+	if err := proto.Unmarshal(data, protoParams); err != nil {
+		return err
+	}
+	return params.FromProto(protoParams)
+}
+
+// ToProto creates a protobuf representation of the object.
+func (params *Params) ToProto() (*ProtoParams, error) {
+	if !params.Validate() {
+		return nil, errors.New("the params are malformed")
+	}
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+
+	pb := make([]byte, blen)
+	g1b := make([]byte, eclen)
+	g2b := make([]byte, ec2len)
+	hsb := make([][]byte, len(params.hs))
+
+	params.p.ToBytes(pb)
+	params.g1.ToBytes(g1b, true)
+	params.g2.ToBytes(g2b)
+
+	for i := range hsb {
+		hsb[i] = make([]byte, eclen)
+		params.hs[i].ToBytes(hsb[i], true)
+	}
+	return &ProtoParams{
+		P:  pb,
+		G1: g1b,
+		G2: g2b,
+		Hs: hsb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (params *Params) FromProto(pp *ProtoParams) error {
+	blen := constants.BIGLen
+	eclen := constants.ECPLen
+	ec2len := constants.ECP2Len
+
+	if pp == nil || len(pp.P) != blen || len(pp.G1) != eclen || len(pp.G2) != ec2len {
+		return errors.New("invalid proto params")
+	}
+
+	p := Curve.FromBytes(pp.P)
+	g1 := Curve.ECP_fromBytes(pp.G1)
+	g2 := Curve.ECP2_fromBytes(pp.G2)
+	hs := make([]*Curve.ECP, len(pp.Hs))
+	for i := range hs {
+		if len(pp.Hs[i]) != eclen {
+			return errors.New("invalid proto params")
+		}
+		hs[i] = Curve.ECP_fromBytes(pp.Hs[i])
+	}
+
+	params.p = p
+	params.g1 = g1
+	params.g2 = g2
+	params.hs = hs
+	params.G = bpgroup.New()
+
+	return nil
 }
 
 // MarshalBinary is an implementation of a method on the
