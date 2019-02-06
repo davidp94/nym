@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -30,6 +31,7 @@ const (
 	TxTypeLookUpZeta          byte = 0x01
 	TxNewAccount              byte = 0x02
 	TxTransferBetweenAccounts byte = 0x03
+	TxVerifyCredential        byte = 0xf0 // entirely for debug purposes
 )
 
 var (
@@ -93,6 +95,35 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 	}
 	b := make([]byte, len(protob)+1)
 	b[0] = TxTransferBetweenAccounts
+	copy(b[1:], protob)
+	return b, nil
+}
+
+// CreateNewVerifyCoconutCredenialRequest creates new request for tx to verify a coconut credential on public attributes.
+// Currently and possibly only for debug purposes.
+func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curve.BIG) ([]byte, error) {
+
+	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &VerifyCoconutCredentialRequest{
+		Sig:  protoSig,
+		PubM: pubMb,
+	}
+
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = TxVerifyCredential
 	copy(b[1:], protob)
 	return b, nil
 }

@@ -6,7 +6,6 @@ package http2
 
 import (
 	"bytes"
-	"context"
 	"crypto/tls"
 	"errors"
 	"flag"
@@ -1761,6 +1760,42 @@ func TestServer_Response_Data_Sniff_DoesntOverride(t *testing.T) {
 	})
 }
 
+func TestServer_Response_Nosniff_WithoutContentType(t *testing.T) {
+	const msg = "<html>this is HTML."
+	testServerResponse(t, func(w http.ResponseWriter, r *http.Request) error {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(200)
+		io.WriteString(w, msg)
+		return nil
+	}, func(st *serverTester) {
+		getSlash(st)
+		hf := st.wantHeaders()
+		if hf.StreamEnded() {
+			t.Fatal("don't want END_STREAM, expecting data")
+		}
+		if !hf.HeadersEnded() {
+			t.Fatal("want END_HEADERS flag")
+		}
+		goth := st.decodeHeader(hf.HeaderBlockFragment())
+		wanth := [][2]string{
+			{":status", "200"},
+			{"x-content-type-options", "nosniff"},
+			{"content-type", "application/octet-stream"},
+			{"content-length", strconv.Itoa(len(msg))},
+		}
+		if !reflect.DeepEqual(goth, wanth) {
+			t.Errorf("Got headers %v; want %v", goth, wanth)
+		}
+		df := st.wantData()
+		if !df.StreamEnded() {
+			t.Error("expected DATA to have END_STREAM flag")
+		}
+		if got := string(df.Data()); got != msg {
+			t.Errorf("got DATA %q; want %q", got, msg)
+		}
+	})
+}
+
 func TestServer_Response_TransferEncoding_chunked(t *testing.T) {
 	const msg = "hi"
 	testServerResponse(t, func(w http.ResponseWriter, r *http.Request) error {
@@ -2361,6 +2396,9 @@ func TestServer_NoCrash_HandlerClose_Then_ClientClose(t *testing.T) {
 		// it did before.
 		st.writeData(1, true, []byte("foo"))
 
+		// Get our flow control bytes back, since the handler didn't get them.
+		st.wantWindowUpdate(0, uint32(len("foo")))
+
 		// Sent after a peer sends data anyway (admittedly the
 		// previous RST_STREAM might've still been in-flight),
 		// but they'll get the more friendly 'cancel' code
@@ -2416,8 +2454,6 @@ func testRejectTLS(t *testing.T, max uint16) {
 
 func TestServer_Rejects_TLSBadCipher(t *testing.T) {
 	st := newServerTester(t, nil, func(c *tls.Config) {
-		// All TLS 1.3 ciphers are good. Test with TLS 1.2.
-		c.MaxVersion = tls.VersionTLS12
 		// Only list bad ones:
 		c.CipherSuites = []uint16{
 			tls.TLS_RSA_WITH_RC4_128_SHA,
@@ -3808,17 +3844,17 @@ func TestServerHandlerConnectionClose(t *testing.T) {
 
 func TestServer_Headers_HalfCloseRemote(t *testing.T) {
 	var st *serverTester
-	writeData := make(chan bool)
+	inHandler := make(chan bool)
 	writeHeaders := make(chan bool)
 	leaveHandler := make(chan bool)
 	st = newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
+		inHandler <- true
 		if st.stream(1) == nil {
 			t.Errorf("nil stream 1 in handler")
 		}
 		if got, want := st.streamState(1), stateOpen; got != want {
 			t.Errorf("in handler, state is %v; want %v", got, want)
 		}
-		writeData <- true
 		if n, err := r.Body.Read(make([]byte, 1)); n != 0 || err != io.EOF {
 			t.Errorf("body read = %d, %v; want 0, EOF", n, err)
 		}
@@ -3837,7 +3873,7 @@ func TestServer_Headers_HalfCloseRemote(t *testing.T) {
 		EndStream:     false, // keep it open
 		EndHeaders:    true,
 	})
-	<-writeData
+	<-inHandler
 	st.writeData(1, true, nil)
 
 	<-writeHeaders
@@ -3852,48 +3888,4 @@ func TestServer_Headers_HalfCloseRemote(t *testing.T) {
 	defer close(leaveHandler)
 
 	st.wantRSTStream(1, ErrCodeStreamClosed)
-}
-
-func TestServerGracefulShutdown(t *testing.T) {
-	var st *serverTester
-	handlerDone := make(chan struct{})
-	st = newServerTester(t, func(w http.ResponseWriter, r *http.Request) {
-		defer close(handlerDone)
-		go st.ts.Config.Shutdown(context.Background())
-
-		ga := st.wantGoAway()
-		if ga.ErrCode != ErrCodeNo {
-			t.Errorf("GOAWAY error = %v; want ErrCodeNo", ga.ErrCode)
-		}
-		if ga.LastStreamID != 1 {
-			t.Errorf("GOAWAY LastStreamID = %v; want 1", ga.LastStreamID)
-		}
-
-		w.Header().Set("x-foo", "bar")
-	})
-	defer st.Close()
-
-	st.greet()
-	st.bodylessReq1()
-
-	select {
-	case <-handlerDone:
-	case <-time.After(5 * time.Second):
-		t.Fatalf("server did not shutdown?")
-	}
-	hf := st.wantHeaders()
-	goth := st.decodeHeader(hf.HeaderBlockFragment())
-	wanth := [][2]string{
-		{":status", "200"},
-		{"x-foo", "bar"},
-		{"content-length", "0"},
-	}
-	if !reflect.DeepEqual(goth, wanth) {
-		t.Errorf("Got headers %v; want %v", goth, wanth)
-	}
-
-	n, err := st.cc.Read([]byte{0})
-	if n != 0 || err == nil {
-		t.Errorf("Read = %v, %v; want 0, non-nil", n, err)
-	}
 }

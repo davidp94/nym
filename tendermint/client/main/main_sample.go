@@ -17,26 +17,63 @@ package main
 
 import (
 	"fmt"
+	"os"
 
+	cclient "0xacab.org/jstuczyn/CoconutGo/client"
+	"0xacab.org/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
+	attrs := make([]*Curve.BIG, n)
+	for i := 0; i < n; i++ {
+		attrs[i] = Curve.Randomnum(G.Order(), G.Rng())
+	}
+	return attrs
+}
 
 // currently used entirely for debug purposes
 func main() {
+	cfg, err := config.LoadFile("config.toml")
+	if err != nil {
+		panic(err)
+	}
+
+	cclient, err := cclient.New(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to spawn client instance: %v\n", err)
+		panic(err)
+	}
+
+	params, _ := coconut.Setup(5)
+	G := params.G
+	pubM := getRandomAttributes(G, 3)
+
+	sig, _ := cclient.SignAttributes(pubM)
 
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
 	}
 
-	client, err := client.New("tcp://0.0.0.0:46667", log)
+	tmclient, err := tmclient.New("tcp://0.0.0.0:46667", log)
 	if err != nil {
-		panic(fmt.Sprintf("Failed to create a client: %v", err))
+		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
 
-	client.Query(query.DEBUG_printVk, nil)
+	// tmclient.Query(query.DEBUG_printVk, nil)
+	reqT, err := transaction.CreateNewVerifyCoconutCredenialRequest(sig, pubM)
+	if err != nil {
+		panic(err)
+	}
+
+	res, _ := tmclient.Broadcast(reqT)
+	fmt.Println("verify", res.DeliverTx.Code, res.DeliverTx.Data)
 
 	// debugAcc := &account.Account{}
 	// if err := debugAcc.FromJSONFile("debugAccount.json"); err != nil {

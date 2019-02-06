@@ -20,8 +20,8 @@
 package nymapplication
 
 import (
+	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
@@ -180,7 +180,7 @@ func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 
 // TODO: make sure to handle situation where in the same block there are both txs to lookup and spend given credential
 func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
-	fmt.Println("DeliverTx:; height: ", app.state.db.Version())
+	fmt.Println("DeliverTx; height: ", app.state.db.Version())
 
 	txType := tx[0]
 	switch txType {
@@ -197,6 +197,9 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
+	case transaction.TxVerifyCredential:
+		app.log.Info("Verify credential tx")
+		return app.verifyCoconutCredential(tx[1:])
 
 	case invalidPrefix:
 		app.log.Info("Test Invalid Deliver")
@@ -237,12 +240,14 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	txType := tx[0]
 	switch txType {
 	case transaction.TxTypeLookUpZeta:
-		app.log.Info("CheckTx for lookup zeta")
+		app.log.Debug("CheckTx for lookup zeta")
 	case transaction.TxNewAccount:
-		app.log.Info("CheckTx for TxNewAccount")
+		app.log.Debug("CheckTx for TxNewAccount")
+	case transaction.TxVerifyCredential:
+		app.log.Debug("CheckTx for TxVerifyCredential")
 
 	default:
-		app.log.Info("default CheckTx")
+		app.log.Debug("default CheckTx")
 	}
 
 	checkCode := app.validateTx(tx)
@@ -312,21 +317,25 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		dbEntry := prefixKey(accountsPrefix, acc.PublicKey)
 		app.state.db.Set(dbEntry, balance)
 
-		hexname := hex.EncodeToString(acc.PublicKey)
-		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, acc.Balance))
+		b64name := base64.StdEncoding.EncodeToString(acc.PublicKey)
+		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, acc.Balance))
 	}
 
 	numIAs := len(genesisState.CoconutProperties.IssuingAuthorities)
+	threshold := genesisState.CoconutProperties.Threshold
 	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
-	if genesisState.CoconutProperties.Threshold > numIAs {
+	if threshold > numIAs {
 		app.log.Error(fmt.Sprintf("Only %v Issuing Authorities declared in the genesis block out of minimum %v",
-			numIAs, genesisState.CoconutProperties.Threshold))
+			numIAs, threshold))
 		return types.ResponseInitChain{}
 	}
 
-	vks := make([]*coconut.VerificationKey, numIAs)
-	xs := make([]*Curve.BIG, numIAs)
+	vks := make([]*coconut.VerificationKey, threshold)
+	xs := make([]*Curve.BIG, threshold)
 	for i, ia := range genesisState.CoconutProperties.IssuingAuthorities {
+		if i == threshold {
+			break // TODO: choose different subsets of keys
+		}
 		vk := &coconut.VerificationKey{}
 		err := vk.UnmarshalBinary(ia.Vk)
 		if err != nil {
@@ -343,7 +352,9 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// EXPLICITLY SET BPGROUP (AND HENCE RNG) TO NIL SINCE IT SHOULD NOT BE USED ANYWAY,
 	// BUT IF IT WAS USED ITS UNDETERMINISTIC
 	params.G = nil
-	avk := coconut.AggregateVerificationKeys(params, vks, coconut.NewPP(xs))
+	pp := coconut.NewPP(xs)
+
+	avk := coconut.AggregateVerificationKeys(params, vks, pp)
 	avkb, err := avk.MarshalBinary()
 	if err != nil {
 		// there's no alternative but panic now

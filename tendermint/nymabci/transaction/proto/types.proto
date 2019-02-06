@@ -1,4 +1,5 @@
 syntax = "proto3";
+import "crypto/coconut/scheme/proto/types.proto";
 
 package transaction;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
@@ -24,3 +25,27 @@ message AccountTransferRequest {
     // Signature on request to confirm its validitiy
     bytes Sig = 4; 
 }
+
+
+// We have defined similar messages before for the grpc provider, however, we can't rely on their definitions 
+// in case something changed here (or there) 
+message VerifyCoconutCredentialRequest {
+    coconut.ProtoSignature sig = 1;
+    repeated bytes pubM = 2;
+}
+
+// message TransferToHoldingRequest {
+//     // Used to indicate which particular IA is requesting it; for simplifying validation and auditing purposes
+//     bytes IAPublicKey = 1;
+//     // Which user's funds should be moved
+//     bytes ClientPublicKey = 2;
+//     // Ammount to move
+//     uint64 Ammount = 3;
+//     // Commitment to attributes the credential, ensures uniquness of request
+//     bytes Commitment = 4;
+//     // To check if the user really wanted the transfer to happen
+//     bytes ClientSig = 5;
+//     // To authorise the transfer
+//     bytes IASig = 6;
+
+// }

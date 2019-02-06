@@ -20,6 +20,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
@@ -147,4 +149,37 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 	app.log.Info(fmt.Sprintf("Transfered %v from %v to %v",
 		ammount, base64.StdEncoding.EncodeToString(sourcePublicKey), base64.StdEncoding.EncodeToString(targetPublicKey)))
 	return types.ResponseDeliverTx{Code: code.OK}
+}
+
+func (app *NymApplication) verifyCoconutCredential(reqb []byte) types.ResponseDeliverTx {
+	protoRequest := &transaction.VerifyCoconutCredentialRequest{}
+	if err := proto.Unmarshal(reqb, protoRequest); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	cred := &coconut.Signature{}
+	if err := cred.FromProto(protoRequest.Sig); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	pubM := coconut.BigSliceFromByteSlices(protoRequest.PubM)
+
+	_, avkb := app.state.db.Get(aggregateVkKey)
+	avk := &coconut.VerificationKey{}
+	if err := avk.UnmarshalBinary(avkb); err != nil {
+		app.log.Error("Failed to unarsmahl vk...")
+		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	}
+
+	params, err := coconut.Setup(1)
+	if err != nil {
+		app.log.Error("Unexpected error while generating params...")
+		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	}
+	isValid := coconut.Verify(params, avk, pubM, cred)
+
+	if isValid {
+		return types.ResponseDeliverTx{Code: code.OK, Data: transaction.TruthBytes}
+	}
+	return types.ResponseDeliverTx{Code: code.OK, Data: transaction.FalseBytes}
 }

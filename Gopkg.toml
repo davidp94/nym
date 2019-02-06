@@ -16,10 +16,13 @@
 #   branch = "dev"
 #   source = "github.com/myfork/project2"
 #
-# [[override]]
-#  name = "github.com/x/y"
-#  version = "2.4.0"
+[[override]]
+  name = "github.com/tendermint/tendermint"
+  branch = "master"
 
+[[override]]
+  name = "github.com/tendermint/iavl"
+  branch = "master"
 
 [[constraint]]
   branch = "master"
@@ -28,3 +31,7 @@
 [[constraint]]
   name = "github.com/stretchr/testify"
   version = "1.2.2"
+
+[[override]]
+  name = "github.com/golang/protobuf"
+  branch = "master"
