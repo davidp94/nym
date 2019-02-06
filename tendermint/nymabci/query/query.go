@@ -26,6 +26,7 @@ import (
 
 const (
 	QueryCheckBalancePath string = "/balance"
+	DEBUG_printVk                = "/DEBUG_PRINTVK"
 )
 
 var (

@@ -25,18 +25,21 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
-
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/tendermint/iavl"
 	"github.com/tendermint/tendermint/abci/types"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/version"
 )
+
+// TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
 
 const (
 	DBNAME = "nymDB"
@@ -49,6 +52,8 @@ var (
 	// zetaPrefix            = []byte("zeta")
 	accountsPrefix        = []byte("account")
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
+	aggregateVkKey        = []byte("avk")
+	// TODO: will need to store all vks
 
 	// entirely for debug purposes
 	invalidPrefix = byte('a')
@@ -86,7 +91,15 @@ func prefixKey(prefix []byte, key []byte) []byte {
 }
 
 type GenesisAppState struct {
-	Accounts []account.GenesisAccount `json:"accounts"`
+	Accounts          []account.GenesisAccount `json:"accounts"`
+	CoconutProperties struct {
+		MaxAttrs           int `json:"q"`
+		Threshold          int `json:"threshold`
+		IssuingAuthorities []struct {
+			Id int    `json:"id"`
+			Vk []byte `json:"vk"`
+		} `json:"issuingAuthorities"`
+	} `json:"coconutProperties"`
 }
 
 type State struct {
@@ -256,6 +269,16 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 		val, code := app.queryBalance(req.Data)
 		// TODO: include index (as found in the db)?
 		return types.ResponseQuery{Code: code, Key: req.Data, Value: val}
+	case query.DEBUG_printVk:
+		_, avkb := app.state.db.Get(aggregateVkKey)
+		avk := &coconut.VerificationKey{}
+		err := avk.UnmarshalBinary(avkb)
+		if err != nil {
+			app.log.Error("Couldnt unmarshal avk")
+			return types.ResponseQuery{Code: code.UNKNOWN}
+		}
+		fmt.Println(avk)
+		return types.ResponseQuery{Code: code.OK}
 	default:
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
@@ -290,8 +313,45 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		app.state.db.Set(dbEntry, balance)
 
 		hexname := hex.EncodeToString(acc.PublicKey)
-		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, balance))
+		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, acc.Balance))
 	}
+
+	numIAs := len(genesisState.CoconutProperties.IssuingAuthorities)
+	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
+	if genesisState.CoconutProperties.Threshold > numIAs {
+		app.log.Error(fmt.Sprintf("Only %v Issuing Authorities declared in the genesis block out of minimum %v",
+			numIAs, genesisState.CoconutProperties.Threshold))
+		return types.ResponseInitChain{}
+	}
+
+	vks := make([]*coconut.VerificationKey, numIAs)
+	xs := make([]*Curve.BIG, numIAs)
+	for i, ia := range genesisState.CoconutProperties.IssuingAuthorities {
+		vk := &coconut.VerificationKey{}
+		err := vk.UnmarshalBinary(ia.Vk)
+		if err != nil {
+			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", err))
+		}
+		xs[i] = Curve.NewBIGint(ia.Id)
+		vks[i] = vk
+	}
+	params, err := coconut.Setup(genesisState.CoconutProperties.MaxAttrs)
+	if err != nil {
+		// there's no alternative but panic now
+		panic(err)
+	}
+	// EXPLICITLY SET BPGROUP (AND HENCE RNG) TO NIL SINCE IT SHOULD NOT BE USED ANYWAY,
+	// BUT IF IT WAS USED ITS UNDETERMINISTIC
+	params.G = nil
+	avk := coconut.AggregateVerificationKeys(params, vks, coconut.NewPP(xs))
+	avkb, err := avk.MarshalBinary()
+	if err != nil {
+		// there's no alternative but panic now
+		panic(err)
+	}
+
+	app.state.db.Set(aggregateVkKey, avkb)
+	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
 	// dont save state?
 	// app.state.db.SaveVersion()

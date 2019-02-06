@@ -16,14 +16,11 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 )
 
 // currently used entirely for debug purposes
@@ -39,50 +36,52 @@ func main() {
 		panic(fmt.Sprintf("Failed to create a client: %v", err))
 	}
 
-	debugAcc := &account.Account{}
-	if err := debugAcc.FromJSONFile("debugAccount.json"); err != nil {
-		panic(err)
-	}
+	client.Query(query.DEBUG_printVk, nil)
 
-	testAcc := account.NewAccount()
-	credential := []byte("foo")
+	// debugAcc := &account.Account{}
+	// if err := debugAcc.FromJSONFile("debugAccount.json"); err != nil {
+	// 	panic(err)
+	// }
 
-	req, err := transaction.CreateNewAccountRequest(testAcc, credential)
-	if err != nil {
-		panic(err)
-	}
+	// testAcc := account.NewAccount()
+	// credential := []byte("foo")
 
-	res, _ := client.Broadcast(req)
-	fmt.Println("create", res.DeliverTx.Code)
+	// req, err := transaction.CreateNewAccountRequest(testAcc, credential)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	path := query.QueryCheckBalancePath
-	testAcc.PublicKey.Compress()
+	// res, _ := client.Broadcast(req)
+	// fmt.Println("create", res.DeliverTx.Code)
 
-	// should be start
-	resQ, _ := client.Query(path, []byte(debugAcc.PublicKey))
-	fmt.Println("pre1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
+	// path := query.QueryCheckBalancePath
+	// testAcc.PublicKey.Compress()
 
-	// should be 0
-	resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
-	fmt.Println("pre2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
+	// // should be start
+	// resQ, _ := client.Query(path, []byte(debugAcc.PublicKey))
+	// fmt.Println("pre1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	reqT, err := transaction.CreateNewTransferRequest(*debugAcc, testAcc.PublicKey, 9001)
-	if err != nil {
-		panic(err)
-	}
+	// // should be 0
+	// resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
+	// fmt.Println("pre2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	res, _ = client.Broadcast(reqT)
-	fmt.Println("transfer", res.DeliverTx.Code)
+	// reqT, err := transaction.CreateNewTransferRequest(*debugAcc, testAcc.PublicKey, 9001)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	// should be start - 9001
-	resQ, _ = client.Query(path, []byte(debugAcc.PublicKey))
-	fmt.Println("post1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
+	// res, _ = client.Broadcast(reqT)
+	// fmt.Println("transfer", res.DeliverTx.Code)
 
-	// should be 9001
-	resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
-	fmt.Println("post2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
+	// // should be start - 9001
+	// resQ, _ = client.Query(path, []byte(debugAcc.PublicKey))
+	// fmt.Println("post1", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
 
-	client.Stop()
+	// // should be 9001
+	// resQ, _ = client.Query(path, []byte(testAcc.PublicKey))
+	// fmt.Println("post2", resQ.Response.Code, binary.BigEndian.Uint64(resQ.Response.Value))
+
+	// client.Stop()
 }
 
 // func main() {

@@ -85,6 +85,8 @@ type AccountTransferRequest struct {
 	TargetPublicKey []byte `protobuf:"bytes,2,opt,name=TargetPublicKey,proto3" json:"TargetPublicKey,omitempty"`
 	// Ammount to be transferred
 	Ammount uint64 `protobuf:"varint,3,opt,name=Ammount,proto3" json:"Ammount,omitempty"`
+	// TODO: if this is going to stay past debug, perhaps some field indicating max fee?
+	// TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
 	// Signature on request to confirm its validitiy
 	Sig                  []byte   `protobuf:"bytes,4,opt,name=Sig,proto3" json:"Sig,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
