@@ -23,9 +23,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -104,9 +106,13 @@ func startProvider(addr string, grpcaddr string, threshold bool) *server.Server 
 		thresholdStr = "Threshold = 0\n"
 	}
 
+	// it doesn't matter that seed is constant
+	id := strconv.Itoa(rand.Intn(10000))
 	cfgstr := strings.Join([]string{string(`
 [Server]
-MaximumAttributes = 5
+`),
+		fmt.Sprintf("Identifier = \"%v\"\n", id),
+		string(`MaximumAttributes = 5
 IsProvider = true
 `),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
@@ -132,9 +138,13 @@ Level = "NOTICE"
 }
 
 func startIssuer(n int, addr string, grpcaddr string) *server.Server {
+	// it doesn't matter that seed is constant
+	id := strconv.Itoa(rand.Intn(10000))
 	cfgstr := strings.Join([]string{string(`
-		[Server]
-		MaximumAttributes = 5
+[Server]
+`),
+		fmt.Sprintf("Identifier = \"%v\"\n", id),
+		string(`MaximumAttributes = 5
 		IsIssuer = true
 		`),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),

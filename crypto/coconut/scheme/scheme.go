@@ -397,7 +397,7 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, theta *The
 		return false
 	}
 
-	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+	if !sig.Validate() {
 		return false
 	}
 

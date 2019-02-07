@@ -496,7 +496,7 @@ func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.Verification
 		return false
 	}
 
-	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+	if !sig.Validate() {
 		return false
 	}
 

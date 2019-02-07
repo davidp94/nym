@@ -122,11 +122,11 @@ outLoop:
 		return nil, nil, err
 	}
 
-	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
+	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 && s.cfg.Provider.Threshold > 0 {
 		s.log.Notice("Number of verification keys received is within threshold")
 		vks = vks[:s.cfg.Provider.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:s.cfg.Provider.Threshold])
-	} else {
+	} else if s.cfg.Provider.Threshold > 0 {
 		return nil, nil, comm.LogAndReturnError(s.log, "Received less than threshold number of verification keys")
 	}
 
@@ -145,7 +145,8 @@ func New(cfg *config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create a logger: %v", err)
 	}
-	serverLog := log.GetLogger("Server")
+	// without this, the servers during tests would have same id and would run into concurrency issues
+	serverLog := log.GetLogger("Server - " + cfg.Server.Identifier)
 
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
@@ -274,6 +275,7 @@ func New(cfg *config.Config) (*Server, error) {
 		if err != nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
+
 		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
