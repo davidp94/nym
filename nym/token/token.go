@@ -18,9 +18,8 @@
 package token
 
 import (
-	"time"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -37,11 +36,49 @@ var (
 type Token struct {
 	privateKey  PrivateKey `coconut:"private"`
 	sequenceNum *Curve.BIG `coconut:"private"`
-	value       int        `coconut:"public"` // should be limited to set of possible values to prevent traffic analysis
-	ttl         time.Time  `coconut:"public"`
+	value       int32      `coconut:"public"` // should be limited to set of possible values to prevent traffic analysis
+	// ttl         time.Time  `coconut:"public"`
 }
 
-// should be associated with given client/user rather than token
+func (t *Token) PrivateKey() PrivateKey {
+	return t.privateKey
+}
+
+func (t *Token) SequenceNum() *Curve.BIG {
+	return t.sequenceNum
+}
+
+func (t *Token) Value() int32 {
+	return t.value
+}
+
+func (t *Token) GetPublicAndPrivateSlices() ([]*Curve.BIG, []*Curve.BIG) {
+	// first private attribute has to be the sequence number
+	// and the first public attribute should be the value
+	pubM := make([]*Curve.BIG, 1)
+	privM := make([]*Curve.BIG, 2)
+
+	valBig := Curve.NewBIGint(int(t.value))
+	// for any additional public attributes (that are not ints), just hash them into BIG:
+	// attrBig := utils.HashBytesToBig(amcl.SHA256, attr)
+
+	privM[0] = t.sequenceNum
+	privM[1] = t.privateKey
+
+	pubM[0] = valBig
+	return pubM, privM
+}
+
+// should be associated with given client/user rather than token if I understand it correctly
 type PrivateKey *Curve.BIG
 
 type Credential *coconut.Signature
+
+func (t *Token) PrepareBlindSign(params *coconut.Params, egPub *elgamal.PublicKey) (*coconut.Lambda, error) {
+	pubM, privM := t.GetPublicAndPrivateSlices()
+	return coconut.PrepareBlindSign(params, egPub, pubM, privM)
+}
+
+func New() *Token {
+	return nil
+}

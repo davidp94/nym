@@ -9,6 +9,10 @@ protoc --go_out=../../.. ./crypto/elgamal/proto/types.proto
 protoc --go_out=../../.. ./crypto/coconut/scheme/proto/types.proto 
 sed -i -e 's/package scheme/package coconut/g' ./crypto/coconut/scheme/types.pb.go
 
+# tumbler-related
+protoc --go_out=../../.. ./crypto/coconut/scheme/proto/tumblertypes.proto 
+sed -i -e 's/package scheme/package coconut/g' ./crypto/coconut/scheme/tumblertypes.pb.go
+
 # commands
 protoc --go_out=../../.. ./common/comm/commands/proto/types.proto
 

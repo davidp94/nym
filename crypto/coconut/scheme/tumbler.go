@@ -18,9 +18,12 @@
 package coconut
 
 import (
+	"errors"
 	fmt "fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
+	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -77,6 +80,66 @@ func (t *ThetaTumbler) Validate() bool {
 	return t.Theta.Validate()
 }
 
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (t *ThetaTumbler) MarshalBinary() ([]byte, error) {
+	protoThetaTumbler, err := t.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(protoThetaTumbler)
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (t *ThetaTumbler) UnmarshalBinary(data []byte) error {
+	protoThetaTumbler := &ProtoThetaTumbler{}
+	if err := proto.Unmarshal(data, protoThetaTumbler); err != nil {
+		return err
+	}
+	return t.FromProto(protoThetaTumbler)
+}
+
+// ToProto creates a protobuf representation of the object.
+func (t *ThetaTumbler) ToProto() (*ProtoThetaTumbler, error) {
+	if t == nil || t.zeta == nil || !t.Theta.Validate() {
+		return nil, errors.New("thetaTumbler is malformed")
+	}
+
+	eclen := constants.ECPLen
+	zetab := make([]byte, eclen)
+	t.zeta.ToBytes(zetab, true)
+
+	protoTheta, err := t.Theta.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProtoThetaTumbler{
+		Theta: protoTheta,
+		Zeta:  zetab,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (t *ThetaTumbler) FromProto(protoThetaTumbler *ProtoThetaTumbler) error {
+	eclen := constants.ECPLen
+	if protoThetaTumbler == nil || len(protoThetaTumbler.Zeta) != eclen {
+		return errors.New("invalid proto thetaTumbler")
+	}
+
+	zeta := Curve.ECP_fromBytes(protoThetaTumbler.Zeta)
+	theta := &Theta{}
+	if err := theta.FromProto(protoThetaTumbler.Theta); err != nil {
+		return err
+	}
+
+	t.Theta = theta
+	t.zeta = zeta
+	return nil
+}
+
 // NewThetaTumbler returns instance of ThetaTumbler from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewThetaTumbler(theta *Theta, zeta *Curve.ECP) *ThetaTumbler {
@@ -103,7 +166,7 @@ func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, 
 	// witnesses commitments
 	Aw, Bw := constructKappaNuCommitments(vk, sig.sig1, wt, wm, privM)
 
-	// wm[0] is the coin's sequence number
+	// privM[0] is the coin's sequence number
 	Cw := Curve.G1mul(g1, wm[0]) // Cw = wm[0] * g1
 
 	bind, err := CreateBinding(address)

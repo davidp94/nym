@@ -624,7 +624,7 @@ func (theta *Theta) UnmarshalBinary(data []byte) error {
 // ToProto creates a protobuf representation of the object.
 func (theta *Theta) ToProto() (*ProtoTheta, error) {
 	if theta == nil || theta.kappa == nil || theta.nu == nil || theta.proof == nil {
-		return nil, errors.New("the blind show mats are malformed")
+		return nil, errors.New("the theta is malformed")
 	}
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
@@ -652,7 +652,7 @@ func (theta *Theta) FromProto(protoTheta *ProtoTheta) error {
 	eclen := constants.ECPLen
 	ec2len := constants.ECP2Len
 	if protoTheta == nil || len(protoTheta.Kappa) != ec2len || len(protoTheta.Nu) != eclen {
-		return errors.New("invalid proto blind show mats")
+		return errors.New("invalid proto theta")
 	}
 	kappa := Curve.ECP2_fromBytes(protoTheta.Kappa)
 	nu := Curve.ECP_fromBytes(protoTheta.Nu)

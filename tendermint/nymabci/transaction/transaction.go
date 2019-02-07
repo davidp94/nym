@@ -22,16 +22,18 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 const (
-	TxTypeLookUpZeta          byte = 0x01
-	TxNewAccount              byte = 0x02
-	TxTransferBetweenAccounts byte = 0x03
-	TxVerifyCredential        byte = 0xf0 // entirely for debug purposes
+	TxTypeLookUpZeta           byte = 0x01
+	TxNewAccount               byte = 0x02
+	TxTransferBetweenAccounts  byte = 0x03
+	TxDepositCoconutCredential byte = 0xa0
+	TxVerifyCredential         byte = 0xf0 // entirely for debug purposes
 )
 
 var (
@@ -102,7 +104,6 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 // CreateNewVerifyCoconutCredenialRequest creates new request for tx to verify a coconut credential on public attributes.
 // Currently and possibly only for debug purposes.
 func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curve.BIG) ([]byte, error) {
-
 	protoSig, err := sig.ToProto()
 	if err != nil {
 		return nil, err
@@ -124,6 +125,48 @@ func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curv
 	}
 	b := make([]byte, len(protob)+1)
 	b[0] = TxVerifyCredential
+	copy(b[1:], protob)
+	return b, nil
+}
+
+func CreateNewDepositCoconutCredentialRequest(params *coconut.Params, avk *coconut.VerificationKey, sig *coconut.Signature, token *token.Token, address []byte) ([]byte, error) {
+	pubM, privM := token.GetPublicAndPrivateSlices()
+
+	theta, err := coconut.ShowBlindSignatureTumbler(params, avk, sig, privM, address)
+	if err != nil {
+		return nil, err
+	}
+
+	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
+	if err != nil {
+		return nil, err
+	}
+
+	protoThetaTumbler, err := theta.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	req := &DepositCoconutCredentialRequest{
+		Sig:             protoSig,
+		PubM:            pubMb,
+		Theta:           protoThetaTumbler,
+		Value:           token.Value(),
+		MerchantAddress: address,
+	}
+
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+
+	b[0] = TxDepositCoconutCredential
 	copy(b[1:], protob)
 	return b, nil
 }
