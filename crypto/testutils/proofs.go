@@ -55,24 +55,6 @@ func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker, params coconut.
 	return cw.VerifyVerifierProof(params.(*coconutworker.MuxParams), vk, sig, theta)
 }
 
-// nolint: lll
-func constructTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
-	if cw == nil {
-		return coconut.ConstructTumblerProof(params.(*coconut.Params), vk, sig, privM, t, address)
-	}
-	return cw.ConstructTumblerProof(params.(*coconutworker.MuxParams), vk, sig, privM, t, address)
-}
-
-// params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
-
-// nolint: lll
-func verifyTumblerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.ThetaTumbler, address []byte) bool {
-	if cw == nil {
-		return coconut.VerifyTumblerProof(params.(*coconut.Params), vk, sig, theta, address)
-	}
-	return cw.VerifyTumblerProof(params.(*coconutworker.MuxParams), vk, sig, theta, address)
-}
-
 // TestSignerProof tests properties of the appropriate NIZK
 // nolint: lll
 func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
@@ -219,95 +201,5 @@ func TestVerifierProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		assert.Nil(t, err)
 
 		assert.True(t, verifyVerifierProofWrapper(cw, params, vk, sig, theta), test.msg)
-	}
-}
-
-// TestTumblerProof tests properties of the appropriate NIZK
-func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
-	tests := []struct {
-		pub  []string
-		priv []string
-		msg  string
-	}{
-		{pub: []string{}, priv: []string{"Foo2"},
-			msg: "The proof should verify on single private attribute"},
-		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"},
-			msg: "The proof should verify on three private attributes"},
-		{pub: []string{"Foo"}, priv: []string{"Foo2"},
-			msg: "The proof should verify on single public and private attributes"},
-		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"},
-			msg: "The proof should verify on three public and private attributes"},
-	}
-
-	for _, test := range tests {
-		params, err := setupWrapper(cw, len(test.pub)+len(test.priv))
-		assert.Nil(t, err)
-
-		var G *bpgroup.BpGroup
-		if cw == nil {
-			G = params.(*coconut.Params).G
-		} else {
-			G = params.(*coconutworker.MuxParams).G
-		}
-
-		sk, vk, err := keygenWrapper(cw, params)
-		assert.Nil(t, err)
-
-		pubBig := make([]*Curve.BIG, len(test.pub))
-		privBig := make([]*Curve.BIG, len(test.priv))
-		for i := range test.pub {
-			pubBig[i], err = utils.HashStringToBig(amcl.SHA256, test.pub[i])
-			assert.Nil(t, err)
-		}
-		for i := range test.priv {
-			privBig[i], err = utils.HashStringToBig(amcl.SHA256, test.priv[i])
-			assert.Nil(t, err)
-		}
-
-		egPriv, egPub := elGamalKeygenWrapper(cw, params)
-		lambda, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
-		assert.Nil(t, err)
-
-		blindedSignature, err := blindSignWrapper(cw, params, sk, lambda, egPub, pubBig)
-		assert.Nil(t, err)
-
-		sig := unblindWrapper(cw, params, blindedSignature, egPriv)
-		sig = randomizeWrapper(cw, params, sig)
-
-		p, rng := params.P(), G.Rng()
-		tr := Curve.Randomnum(p, rng)
-		kappa, nu, err := coconut.ConstructKappaNu(vk, sig, privBig, tr)
-
-		r1 := Curve.Randomnum(p, rng)
-		r2 := Curve.Randomnum(p, rng)
-
-		ucecp := Curve.G1mul(params.G1(), r1)
-		cecp := Curve.G1mul(params.G1(), r2)
-
-		ucecpb := make([]byte, constants.ECPLenUC)
-		cecpb := make([]byte, constants.ECPLen)
-
-		ucecp.ToBytes(ucecpb, false)
-		cecp.ToBytes(cecpb, true)
-
-		addresses := [][]byte{
-			nil,
-			[]byte{1, 2, 3},
-			ucecpb,
-			cecpb,
-		}
-
-		for _, addr := range addresses {
-			tp, err := constructTumblerProofWrapper(cw, params, vk, sig, privBig, tr, addr)
-			if addr == nil {
-				assert.Nil(t, tp)
-				assert.Error(t, err)
-				continue
-			}
-
-			theta := coconut.NewThetaTumbler(coconut.NewTheta(kappa, nu, tp.BaseProof()), tp.Zeta())
-
-			assert.True(t, verifyTumblerProofWrapper(cw, params, vk, sig, theta, addr))
-		}
 	}
 }

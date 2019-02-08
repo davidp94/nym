@@ -1,5 +1,5 @@
 // proofs_test.go - tests for NIZK
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -39,10 +39,6 @@ func TestSchemeSignerProof(t *testing.T) {
 
 func TestSchemeVerifierProof(t *testing.T) {
 	TestVerifierProof(t, nil)
-}
-
-func TestSchemeTumblerProof(t *testing.T) {
-	TestTumblerProof(t, nil)
 }
 
 //

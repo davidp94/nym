@@ -345,3 +345,81 @@ func TestThetaMarshal(t *testing.T) {
 		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, recoveredtheta, pubBig)))
 	}
 }
+
+func TestThetaTumblerMarshal(t *testing.T) {
+	tests := []struct {
+		pub  []string
+		priv []string
+	}{
+		{pub: []string{}, priv: []string{"Foo2"}},
+		{pub: []string{}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+		{pub: []string{"Foo"}, priv: []string{"Foo2"}},
+		{pub: []string{"Foo", "Bar", "Baz"}, priv: []string{"Foo2", "Bar2", "Baz2"}},
+	}
+
+	for _, test := range tests {
+		params, _ := coconut.Setup(len(test.pub) + len(test.priv))
+		sk, vk, _ := coconut.Keygen(params)
+		pubBig := make([]*Curve.BIG, len(test.pub))
+		privBig := make([]*Curve.BIG, len(test.priv))
+		for i := range test.pub {
+			pubBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.pub[i])
+		}
+		for i := range test.priv {
+			privBig[i], _ = utils.HashStringToBig(amcl.SHA256, test.priv[i])
+		}
+
+		d, gamma := elgamal.Keygen(params.G)
+		blindSignMats, _ := coconut.PrepareBlindSign(params, gamma, pubBig, privBig)
+		blindedSignature, _ := coconut.BlindSign(params, sk, blindSignMats, gamma, pubBig)
+		sig := coconut.Unblind(params, blindedSignature, d)
+
+		p, rng := params.P(), params.G.Rng()
+		r1 := Curve.Randomnum(p, rng)
+		r2 := Curve.Randomnum(p, rng)
+
+		ucecp := Curve.G1mul(params.G1(), r1)
+		cecp := Curve.G1mul(params.G1(), r2)
+
+		ucecpb := make([]byte, constants.ECPLenUC)
+		cecpb := make([]byte, constants.ECPLen)
+
+		ucecp.ToBytes(ucecpb, false)
+		cecp.ToBytes(cecpb, true)
+
+		addresses := [][]byte{
+			nil,
+			[]byte{1, 2, 3},
+			ucecpb,
+			cecpb,
+		}
+
+		for _, addr := range addresses {
+			thetaTumbler, err := coconut.ShowBlindSignatureTumbler(params, vk, sig, privBig, addr)
+			if addr == nil {
+				assert.Nil(t, thetaTumbler)
+				assert.Error(t, err)
+				continue
+			}
+
+			data, err := thetaTumbler.MarshalBinary()
+			assert.Nil(t, err)
+			recoveredtheta := &coconut.ThetaTumbler{}
+			assert.Nil(t, recoveredtheta.UnmarshalBinary(data))
+
+			assert.True(t, thetaTumbler.Kappa().Equals(recoveredtheta.Kappa()))
+			assert.True(t, thetaTumbler.Nu().Equals(recoveredtheta.Nu()))
+			assert.True(t, thetaTumbler.Zeta().Equals(recoveredtheta.Zeta()))
+
+			assert.Zero(t, Curve.Comp(thetaTumbler.Proof().C(), recoveredtheta.Proof().C()))
+			assert.Zero(t, Curve.Comp(thetaTumbler.Proof().Rt(), recoveredtheta.Proof().Rt()))
+			for i := range thetaTumbler.Proof().Rm() {
+				assert.Zero(t, Curve.Comp(thetaTumbler.Proof().Rm()[i], recoveredtheta.Proof().Rm()[i]))
+			}
+
+			// sanity checks
+			assert.True(t, bool(coconut.BlindVerifyTumbler(params, vk, sig, thetaTumbler, pubBig, addr)))
+			assert.True(t, bool(coconut.BlindVerifyTumbler(params, vk, sig, recoveredtheta, pubBig, addr)))
+		}
+	}
+}
