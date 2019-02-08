@@ -109,6 +109,58 @@ func TestSchemeThresholdAuthorities(t *testing.T) {
 	TestThresholdAuthorities(t, nil)
 }
 
+// func BenchmarkDoubleAtePairing(b *testing.B) {
+// 	params, _ := coconut.Setup(1)
+// 	p, rng := params.P(), params.G.Rng()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		b.StopTimer()
+// 		x := Curve.Randomnum(p, rng)
+// 		y := Curve.Randomnum(p, rng)
+
+// 		g11 := Curve.G1mul(params.G1(), x)
+// 		g21 := Curve.G2mul(params.G2(), y)
+
+// 		g12 := Curve.G1mul(params.G1(), y)
+// 		g22 := Curve.G2mul(params.G2(), x)
+
+// 		b.StartTimer()
+
+// 		Gt1 := Curve.Fexp(Curve.Ate(g21, g11))
+// 		Gt2 := Curve.Fexp(Curve.Ate(g22, g12))
+
+// 		if !Gt1.Equals(Gt2) {
+// 			panic("fail")
+// 		}
+// 	}
+// }
+
+// func BenchmarkAte2Pairing(b *testing.B) {
+// 	params, _ := coconut.Setup(1)
+// 	p, rng := params.P(), params.G.Rng()
+// 	b.ResetTimer()
+// 	for i := 0; i < b.N; i++ {
+// 		b.StopTimer()
+// 		x := Curve.Randomnum(p, rng)
+// 		y := Curve.Randomnum(p, rng)
+
+// 		g11 := Curve.G1mul(params.G1(), x)
+// 		g21 := Curve.G2mul(params.G2(), y)
+
+// 		g12 := Curve.G1mul(params.G1(), y)
+// 		g22 := Curve.G2mul(params.G2(), x)
+
+// 		b.StartTimer()
+
+// 		v := Curve.Ate2(g21, g11, g22, g12)
+// 		v = Curve.Fexp(v)
+
+// 		if !v.Isunity() {
+// 			panic("fail")
+// 		}
+// 	}
+// }
+
 // func BenchmarkSetup(b *testing.B) {
 // 	qs := []int{1, 3, 5, 10, 20}
 // 	for _, q := range qs {

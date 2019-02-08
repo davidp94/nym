@@ -249,12 +249,16 @@ func ShowBlindSignatureTumbler(params *Params, vk *VerificationKey, sig *Signatu
 	}, nil
 }
 
+// PairingWrapper basically performs what bpgroup.Pair does, however, it does not require the object.
+// This is desirable as the function is called by Tendermint ABCI and bpgroup object is undetereministic due to rng.
+func PairingWrapper(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
+	return Curve.Fexp(Curve.Ate(g2, g1))
+}
+
 // BlindVerifyTumbler verifies the Coconut credential on the private and optional public attributes.
 // It also checks the attached proof. It is designed to work for the tumbler system.
 // nolint: lll
 func BlindVerifyTumbler(params *Params, vk *VerificationKey, sig *Signature, theta *ThetaTumbler, pubM []*Curve.BIG, address []byte) bool {
-	G := params.G
-
 	privateLen := len(theta.proof.rm)
 	if len(pubM)+privateLen > len(vk.beta) || !VerifyTumblerProof(params, vk, sig, theta, address) {
 		return false
@@ -279,8 +283,8 @@ func BlindVerifyTumbler(params *Params, vk *VerificationKey, sig *Signature, the
 	t2.Copy(sig.sig2)
 	t2.Add(theta.nu)
 
-	Gt1 := G.Pair(sig.sig1, t1)
-	Gt2 := G.Pair(t2, vk.g2)
+	Gt1 := PairingWrapper(sig.sig1, t1)
+	Gt2 := PairingWrapper(t2, vk.g2)
 
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
