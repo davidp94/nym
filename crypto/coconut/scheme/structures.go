@@ -371,6 +371,18 @@ func (vp *VerifierProof) Validate() bool {
 // 	Verify() bool
 // }
 
+// NewParams returns instance of params key from the provided attributes.
+// Created for tendermint ABCI to create params without the bpgroup.
+func NewParams(G *bpgroup.BpGroup, p *Curve.BIG, g1 *Curve.ECP, g2 *Curve.ECP2, hs []*Curve.ECP) *Params {
+	return &Params{
+		G:  G,
+		p:  p,
+		g1: g1,
+		g2: g2,
+		hs: hs,
+	}
+}
+
 // NewSk returns instance of verification key from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewSk(x *Curve.BIG, y []*Curve.BIG) *SecretKey {

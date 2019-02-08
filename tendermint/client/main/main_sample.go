@@ -21,9 +21,11 @@ import (
 
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -51,10 +53,15 @@ func main() {
 	}
 
 	params, _ := coconut.Setup(5)
-	G := params.G
-	pubM := getRandomAttributes(G, 3)
 
-	sig, _ := cclient.SignAttributes(pubM)
+	value := int32(1000)
+	seq := Curve.Randomnum(params.P(), params.G.Rng())
+	privateKey := Curve.Randomnum(params.P(), params.G.Rng())
+
+	token := token.New(seq, privateKey, value)
+	pubM, privM := token.GetPublicAndPrivateSlices()
+
+	sig, _ := cclient.BlindSignAttributes(pubM, privM)
 
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
@@ -66,8 +73,13 @@ func main() {
 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
 
-	// tmclient.Query(query.DEBUG_printVk, nil)
-	reqT, err := transaction.CreateNewVerifyCoconutCredenialRequest(sig, pubM)
+	merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
+	merchantAddr := make([]byte, constants.ECPLen)
+	merchantAddrEC.ToBytes(merchantAddr, true)
+
+	avk, _ := cclient.GetAggregateVerificationKey()
+
+	reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
 	if err != nil {
 		panic(err)
 	}

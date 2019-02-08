@@ -26,7 +26,7 @@ import (
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
@@ -40,10 +40,12 @@ import (
 )
 
 // TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
+// TODO: cleanup the file with old code used to get hang of tendermint
 
 const (
-	DBNAME = "nymDB"
-	zl     = constants.ECPLen
+	DBNAME                              = "nymDB"
+	zl                                  = constants.ECPLen
+	createAccountOnDepositIfDoesntExist = true
 )
 
 var (
@@ -53,6 +55,8 @@ var (
 	accountsPrefix        = []byte("account")
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
 	aggregateVkKey        = []byte("avk")
+	coconutHs             = []byte("coconutHs")
+
 	// TODO: will need to store all vks
 
 	// entirely for debug purposes
@@ -193,13 +197,15 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxNewAccount:
 		app.log.Info("New Account tx")
 		return app.createNewAccount(tx[1:])
-
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
 	case transaction.TxVerifyCredential:
 		app.log.Info("Verify credential tx")
 		return app.verifyCoconutCredential(tx[1:])
+	case transaction.TxDepositCoconutCredential:
+		app.log.Info("Deposit Credential")
+		return app.depositCoconutCredential(tx[1:])
 
 	case invalidPrefix:
 		app.log.Info("Test Invalid Deliver")
@@ -352,8 +358,14 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// EXPLICITLY SET BPGROUP (AND HENCE RNG) TO NIL SINCE IT SHOULD NOT BE USED ANYWAY,
 	// BUT IF IT WAS USED ITS UNDETERMINISTIC
 	params.G = nil
-	pp := coconut.NewPP(xs)
 
+	// we will need to have access to g1, g2 and hs in order to verify credentials
+	// while we can get g1 and g2 from curve params, hs depends on number of attributes
+	// so store them; the point are always compressed
+	hsb := coconut.ECPSliceToCompressedBytes(params.Hs())
+	app.state.db.Set(coconutHs, hsb)
+
+	pp := coconut.NewPP(xs)
 	avk := coconut.AggregateVerificationKeys(params, vks, pp)
 	avkb, err := avk.MarshalBinary()
 	if err != nil {

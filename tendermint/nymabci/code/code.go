@@ -19,13 +19,15 @@ package code
 
 const (
 	// as per spec, codes have to be represented as uint32 and 0 is reserved for OK
-	OK                     uint32 = 0
-	UNKNOWN                uint32 = 1
-	INVALID_TX_LENGTH      uint32 = 2
-	INVALID_TX_PARAMS      uint32 = 3
-	INVALID_QUERY_PARAMS   uint32 = 4
-	ACCOUNT_DOES_NOT_EXIST uint32 = 5
-	INSUFFICIENT_BALANCE   uint32 = 6
-	INVALID_CREDENTIAL     uint32 = 7
-	INVALID_SIGNATURE      uint32 = 8
+	OK                       uint32 = 0
+	UNKNOWN                  uint32 = 1
+	INVALID_TX_LENGTH        uint32 = 2
+	INVALID_TX_PARAMS        uint32 = 3
+	INVALID_QUERY_PARAMS     uint32 = 4
+	ACCOUNT_DOES_NOT_EXIST   uint32 = 5
+	INSUFFICIENT_BALANCE     uint32 = 6
+	INVALID_CREDENTIAL       uint32 = 7
+	INVALID_SIGNATURE        uint32 = 8
+	INVALID_MERCHANT_ADDRESS uint32 = 9
+	MERCHANT_DOES_NOT_EXIST  uint32 = 10
 )

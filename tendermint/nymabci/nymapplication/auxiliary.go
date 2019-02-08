@@ -17,7 +17,9 @@
 package nymapplication
 
 import (
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // checks if account with given address exists in the database
@@ -32,4 +34,14 @@ func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 		return true
 	}
 	return false
+}
+
+func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
+	p := Curve.NewBIGints(Curve.CURVE_Order)
+	g1 := Curve.ECP_generator()
+	g2 := Curve.ECP2_generator()
+	_, hsb := app.state.db.Get(coconutHs)
+	hs := coconut.CompressedBytesToECPSlice(hsb)
+
+	return coconut.NewParams(nil, p, g1, g2, hs)
 }

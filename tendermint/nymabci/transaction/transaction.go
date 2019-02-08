@@ -129,6 +129,8 @@ func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curv
 	return b, nil
 }
 
+// CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
+// (that is bound to particular merchant address) to be spent.
 func CreateNewDepositCoconutCredentialRequest(params *coconut.Params, avk *coconut.VerificationKey, sig *coconut.Signature, token *token.Token, address []byte) ([]byte, error) {
 	pubM, privM := token.GetPublicAndPrivateSlices()
 
