@@ -17,8 +17,14 @@
 package nymapplication
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
+	"fmt"
+
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -44,4 +50,68 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	hs := coconut.CompressedBytesToECPSlice(hsb)
 
 	return coconut.NewParams(nil, p, g1, g2, hs)
+}
+
+func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
+	if err := publicKey.Compress(); err != nil {
+		app.log.Error("All checks were successful, but failed to compress the key. UNDEFINED BEHAVIOUR")
+		return false
+	}
+
+	value := make([]byte, 8)
+	binary.BigEndian.PutUint64(value, startingBalance)
+
+	dbEntry := prefixKey(accountsPrefix, publicKey)
+	app.state.db.Set(dbEntry, value)
+
+	hexname := base64.StdEncoding.EncodeToString(publicKey)
+	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, startingBalance))
+	return true
+}
+
+// returns if operation was successful
+// todo: change return to include ret code
+func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, ammount uint64) bool {
+	// we can't compress it
+	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
+		inAddr.Compress()
+	}
+	sourceBalanceB, retCode := app.queryBalance(inAddr)
+	if retCode != code.OK {
+		return false // among other things checks if the source account exists
+	}
+
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+	if sourceBalance < ammount { // + some gas?
+		return false
+	}
+
+	outAddr.Compress()
+	targetBalanceB, retCodeT := app.queryBalance(outAddr)
+	if retCodeT != code.OK {
+		return false // among other things checks if the source account exists
+	}
+
+	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
+
+	// finally initiate the transfer
+	sourceResult := sourceBalance - ammount
+	targetResult := targetBalance + ammount
+
+	sourceResultB := make([]byte, 8)
+	targetResultB := make([]byte, 8)
+
+	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
+	binary.BigEndian.PutUint64(targetResultB, targetResult)
+
+	sourceDbEntry := prefixKey(accountsPrefix, inAddr)
+	app.state.db.Set(sourceDbEntry, sourceResultB)
+
+	targetDbEntry := prefixKey(accountsPrefix, outAddr)
+	app.state.db.Set(targetDbEntry, targetResultB)
+
+	app.log.Info(fmt.Sprintf("Transfered %v from %v to %v",
+		ammount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
+
+	return true
 }

@@ -16,9 +16,7 @@
 package nymapplication
 
 import (
-	"encoding/base64"
 	"encoding/binary"
-	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 
@@ -64,23 +62,11 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
-	// we know public key is valid because otherwise the signature would not have been validated
-	// if key is already in its compressed form, the function will just return so there's no harm
-	if err := publicKey.Compress(); err != nil {
-		app.log.Error("All checks were successful, but failed to compress the key. UNDEFINED BEHAVIOUR")
-		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	didSucceed := app.createNewAccountOp(publicKey)
+	if didSucceed {
+		return types.ResponseDeliverTx{Code: code.OK}
 	}
-
-	value := make([]byte, 8)
-	binary.BigEndian.PutUint64(value, startingBalance)
-
-	dbEntry := prefixKey(accountsPrefix, publicKey)
-	app.state.db.Set(dbEntry, value)
-
-	hexname := base64.StdEncoding.EncodeToString(publicKey)
-	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, startingBalance))
-
-	return types.ResponseDeliverTx{Code: code.OK}
+	return types.ResponseDeliverTx{Code: code.UNKNOWN}
 }
 
 // Currently and possibly only for debug purposes
@@ -110,45 +96,11 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
-	sourcePublicKey.Compress()
-	sourceBalanceB, retCode := app.queryBalance(sourcePublicKey)
-	if retCode != code.OK {
-		return types.ResponseDeliverTx{Code: retCode} // among other things checks if the source account exists
+	didSucceed := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Ammount)
+	if didSucceed {
+		return types.ResponseDeliverTx{Code: code.OK}
 	}
-
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-	ammount := binary.BigEndian.Uint64(ammountB)
-	if sourceBalance < ammount { // + some gas?
-		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
-	}
-
-	targetPublicKey.Compress()
-	targetBalanceB, retCodeT := app.queryBalance(targetPublicKey)
-	if retCodeT != code.OK {
-		return types.ResponseDeliverTx{Code: retCodeT} // among other things checks if the source account exists
-	}
-
-	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
-
-	// finally initiate the transfer
-	sourceResult := sourceBalance - ammount
-	targetResult := targetBalance + ammount
-
-	sourceResultB := make([]byte, 8)
-	targetResultB := make([]byte, 8)
-
-	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
-	binary.BigEndian.PutUint64(targetResultB, targetResult)
-
-	sourceDbEntry := prefixKey(accountsPrefix, sourcePublicKey)
-	app.state.db.Set(sourceDbEntry, sourceResultB)
-
-	targetDbEntry := prefixKey(accountsPrefix, targetPublicKey)
-	app.state.db.Set(targetDbEntry, targetResultB)
-
-	app.log.Info(fmt.Sprintf("Transfered %v from %v to %v",
-		ammount, base64.StdEncoding.EncodeToString(sourcePublicKey), base64.StdEncoding.EncodeToString(targetPublicKey)))
-	return types.ResponseDeliverTx{Code: code.OK}
+	return types.ResponseDeliverTx{Code: code.UNKNOWN}
 }
 
 // Currently and possibly only for debug purposes. Written mostly for proof of concept.
@@ -213,6 +165,19 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 		return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
 	}
 
+	if !app.checkIfAccountExists(merchantAddress) {
+		if createAccountOnDepositIfDoesntExist {
+			didSucceed := app.createNewAccountOp(merchantAddress)
+			if !didSucceed {
+				app.log.Error("Could not create account for the merchant")
+				return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
+			}
+		} else {
+			app.log.Error("Merchant's account doesnt exist")
+			return types.ResponseDeliverTx{Code: code.MERCHANT_DOES_NOT_EXIST}
+		}
+	}
+
 	_, avkb := app.state.db.Get(aggregateVkKey)
 	avk := &coconut.VerificationKey{}
 	if err := avk.UnmarshalBinary(avkb); err != nil {
@@ -225,11 +190,14 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	// verify the credential
 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
-	// todo: balance transferring etc
-
 	// for now just return whether credential itself is valid
 	if isValid {
-		return types.ResponseDeliverTx{Code: code.OK, Data: transaction.TruthBytes}
+		didSucceed := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
+		if didSucceed {
+			return types.ResponseDeliverTx{Code: code.OK}
+		} else {
+			return types.ResponseDeliverTx{Code: code.COULD_NOT_TRANSFER}
+		}
 	}
-	return types.ResponseDeliverTx{Code: code.OK, Data: transaction.FalseBytes}
+	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 }

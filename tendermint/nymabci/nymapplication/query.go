@@ -17,14 +17,19 @@
 package nymapplication
 
 import (
+	"bytes"
+
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 )
 
 // returns balance represented uint64 as BiGEndian encoded byte array and the code
 func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
-	if !account.ValidateAddress(address) {
-		return nil, code.INVALID_QUERY_PARAMS
+	// dont perform validation on holding account since it will fail
+	if bytes.Compare(address, holdingAccountAddress) != 0 {
+		if !account.ValidateAddress(address) {
+			return nil, code.INVALID_QUERY_PARAMS
+		}
 	}
 
 	key := prefixKey(accountsPrefix, address)

@@ -46,6 +46,7 @@ const (
 	DBNAME                              = "nymDB"
 	zl                                  = constants.ECPLen
 	createAccountOnDepositIfDoesntExist = true
+	holdingStartingBalance              = 100000 // entirely for debug purposes
 )
 
 var (
@@ -327,6 +328,15 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, acc.Balance))
 	}
 
+	// create holdingAccount
+	holdingBalance := make([]byte, 8)
+	binary.BigEndian.PutUint64(holdingBalance, holdingStartingBalance)
+	dbEntry := prefixKey(accountsPrefix, holdingAccountAddress)
+	app.state.db.Set(dbEntry, holdingBalance)
+
+	b64name := base64.StdEncoding.EncodeToString(holdingAccountAddress)
+	app.log.Info(fmt.Sprintf("Created holdingAccount: %v with starting balance: %v", b64name, holdingStartingBalance))
+
 	numIAs := len(genesisState.CoconutProperties.IssuingAuthorities)
 	threshold := genesisState.CoconutProperties.Threshold
 	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
@@ -364,6 +374,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// so store them; the point are always compressed
 	hsb := coconut.ECPSliceToCompressedBytes(params.Hs())
 	app.state.db.Set(coconutHs, hsb)
+	app.log.Info(fmt.Sprintf("Stored hs in DB"))
 
 	pp := coconut.NewPP(xs)
 	avk := coconut.AggregateVerificationKeys(params, vks, pp)
