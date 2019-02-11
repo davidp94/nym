@@ -34,6 +34,7 @@ const (
 	TxTransferBetweenAccounts  byte = 0x03
 	TxDepositCoconutCredential byte = 0xa0
 	TxVerifyCredential         byte = 0xf0 // entirely for debug purposes
+	TxAdvanceBlock             byte = 0xff
 )
 
 var (

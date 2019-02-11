@@ -13,6 +13,7 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package nymapplication
 
 import (
@@ -195,9 +196,8 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 		didSucceed := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
 		if didSucceed {
 			return types.ResponseDeliverTx{Code: code.OK}
-		} else {
-			return types.ResponseDeliverTx{Code: code.COULD_NOT_TRANSFER}
 		}
+		return types.ResponseDeliverTx{Code: code.COULD_NOT_TRANSFER}
 	}
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 }

@@ -28,6 +28,14 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+func prefixKey(prefix []byte, key []byte) []byte {
+	b := make([]byte, len(key)+len(prefix))
+	copy(b, prefix)
+	copy(b[len(prefix):], key)
+
+	return b
+}
+
 // checks if account with given address exists in the database
 func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	if !account.ValidateAddress(address) {
@@ -71,10 +79,13 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 
 // returns if operation was successful
 // todo: change return to include ret code
-func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, ammount uint64) bool {
-	// we can't compress it
+func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) bool {
+	// holding account is a special case - it's not an EC point but just a string which is uncompressable
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
-		inAddr.Compress()
+		if err := inAddr.Compress(); err != nil {
+			// 'normal' address is invalid
+			return false
+		}
 	}
 	sourceBalanceB, retCode := app.queryBalance(inAddr)
 	if retCode != code.OK {
@@ -82,11 +93,13 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	}
 
 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-	if sourceBalance < ammount { // + some gas?
+	if sourceBalance < amount { // + some gas?
 		return false
 	}
 
-	outAddr.Compress()
+	if err := outAddr.Compress(); err != nil {
+		return false
+	}
 	targetBalanceB, retCodeT := app.queryBalance(outAddr)
 	if retCodeT != code.OK {
 		return false // among other things checks if the source account exists
@@ -95,8 +108,8 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
 
 	// finally initiate the transfer
-	sourceResult := sourceBalance - ammount
-	targetResult := targetBalance + ammount
+	sourceResult := sourceBalance - amount
+	targetResult := targetBalance + amount
 
 	sourceResultB := make([]byte, 8)
 	targetResultB := make([]byte, 8)
@@ -110,8 +123,8 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	targetDbEntry := prefixKey(accountsPrefix, outAddr)
 	app.state.db.Set(targetDbEntry, targetResultB)
 
-	app.log.Info(fmt.Sprintf("Transfered %v from %v to %v",
-		ammount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
+	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
+		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
 
 	return true
 }
