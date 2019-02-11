@@ -20,7 +20,7 @@ message AccountTransferRequest {
     // Used to determine target address
     bytes TargetPublicKey = 2; 
     // Ammount to be transferred 
-    uint64 Ammount = 3; 
+    uint64 Amount = 3; 
     // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
     // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
     // Signature on request to confirm its validitiy

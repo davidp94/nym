@@ -29,22 +29,30 @@ import (
 )
 
 const (
-	TxTypeLookUpZeta           byte = 0x01
-	TxNewAccount               byte = 0x02
-	TxTransferBetweenAccounts  byte = 0x03
+	// TxTypeLookUpZeta is byte prefix for transaction to check for presence of zeta.
+	TxTypeLookUpZeta byte = 0x01
+	// TxNewAccount is byte prefix for transaction to create new account.
+	TxNewAccount byte = 0x02
+	// TxTransferBetweenAccounts is byte prefix for transaction to transfer funds between 2 accounts. for debug
+	TxTransferBetweenAccounts byte = 0x03
+	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
-	TxVerifyCredential         byte = 0xf0 // entirely for debug purposes
-	TxAdvanceBlock             byte = 0xff // entirely for debug purposes
+	// TxVerifyCredential is byte prefix for transaction to verify a cococnut credential on public attributes.
+	TxVerifyCredential byte = 0xf0 // entirely for debug purposes
+	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
+	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
 
 var (
-	// TODO: better alternative
-	TruthBytes []byte = []byte("TRUE")
-	FalseBytes []byte = []byte("FALSE")
+	// TODO: better alternatives for below
+
+	// TruthBytes represent 'truth' for data field return type.
+	TruthBytes = []byte("TRUE")
+	// FalseBytes represent 'false' for data field return type.
+	FalseBytes = []byte("FALSE")
 )
 
-type lookUpZetaTx []byte
-
+// NewLookUpZetaTx creates new request for tx to lookup provided zeta.
 func NewLookUpZetaTx(zeta *Curve.ECP) []byte {
 	tx := make([]byte, 1+constants.ECPLen)
 	zb := make([]byte, constants.ECPLen)
@@ -79,17 +87,17 @@ func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte
 // CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
 // Currently and possibly only for debug purposes
 // to freely transfer tokens between accounts to setup different scenarios.
-func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, ammount uint64) ([]byte, error) {
+func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, amount uint64) ([]byte, error) {
 	msg := make([]byte, len(account.PublicKey)+len(target)+8)
 	copy(msg, account.PublicKey)
 	copy(msg[len(account.PublicKey):], target)
-	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], ammount)
+	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], amount)
 
 	sig := account.PrivateKey.SignBytes(msg)
 	req := &AccountTransferRequest{
 		SourcePublicKey: account.PublicKey,
 		TargetPublicKey: target,
-		Ammount:         ammount,
+		Amount:          amount,
 		Sig:             sig,
 	}
 	protob, err := proto.Marshal(req)
@@ -102,7 +110,8 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 	return b, nil
 }
 
-// CreateNewVerifyCoconutCredenialRequest creates new request for tx to verify a coconut credential on public attributes.
+// CreateNewVerifyCoconutCredenialRequest creates new request for tx to
+// verify a coconut credential on public attributes.
 // Currently and possibly only for debug purposes.
 func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curve.BIG) ([]byte, error) {
 	protoSig, err := sig.ToProto()
