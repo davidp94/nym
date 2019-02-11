@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
@@ -319,19 +320,23 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		return types.ResponseInitChain{}
 	}
 
-	vks := make([]*coconut.VerificationKey, threshold)
-	xs := make([]*Curve.BIG, threshold)
-	for i, ia := range genesisState.CoconutProperties.IssuingAuthorities {
-		if i == threshold {
-			break // TODO: choose different subsets of keys
-		}
+	// choose pseudorandomly set of keys to use. Each node will produce same result due to constant seed
+	// Note: the Time used is that of creation of genesis block, NOT CURRENT TIME AT THE TIME OF CALLING THIS FUNCTION
+	randSource := rand.NewSource(req.Time.UnixNano())
+	indices := randomInts(threshold, numIAs, randSource)
+
+	vks := make([]*coconut.VerificationKey, 0, threshold)
+	xs := make([]*Curve.BIG, 0, threshold)
+
+	for _, i := range indices {
 		vk := &coconut.VerificationKey{}
-		err := vk.UnmarshalBinary(ia.Vk)
-		if err != nil {
+		if err := vk.UnmarshalBinary(genesisState.CoconutProperties.IssuingAuthorities[i].Vk); err != nil {
 			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", err))
+			panic("Failed startup") // Todo: choose new subset
 		}
-		xs[i] = Curve.NewBIGint(ia.ID)
-		vks[i] = vk
+
+		vks = append(vks, vk)
+		xs = append(xs, Curve.NewBIGint(genesisState.CoconutProperties.IssuingAuthorities[i].ID))
 	}
 
 	// generate coconut params required for credential verification later on

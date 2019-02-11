@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"encoding/binary"
 	"fmt"
+	"math/rand"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
@@ -34,6 +35,29 @@ func prefixKey(prefix []byte, key []byte) []byte {
 	copy(b[len(prefix):], key)
 
 	return b
+}
+
+func randomInt(seen map[int]struct{}, max int, rand *rand.Rand) int {
+	candidate := 1 + rand.Intn(max-1)
+	if _, ok := seen[candidate]; ok {
+		return randomInt(seen, max, rand)
+	}
+	return candidate
+}
+
+// randomInts returns random (non-repetitive) q ints, s.t. 0 < n < max
+// It initialises everything with the provided source to remove all possible sources of non-determinism
+func randomInts(q int, max int, source rand.Source) []int {
+	rand := rand.New(source)
+
+	ints := make([]int, q)
+	seen := make(map[int]struct{})
+	for i := range ints {
+		r := randomInt(seen, max, rand)
+		ints[i] = r
+		seen[r] = struct{}{}
+	}
+	return ints
 }
 
 // checks if account with given address exists in the database
