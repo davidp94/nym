@@ -60,6 +60,7 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	return coconut.NewParams(nil, p, g1, g2, hs)
 }
 
+// returns bool to indicate if the operation was successful
 func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
 	if err := publicKey.Compress(); err != nil {
 		app.log.Error("All checks were successful, but failed to compress the key. UNDEFINED BEHAVIOUR")
@@ -77,32 +78,33 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 	return true
 }
 
-// returns if operation was successful
+// returns code to indicate if the operation was successful and, if applicable, how it failed
+// Simple bool would not provide enough information
 // todo: change return to include ret code
-func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) bool {
+func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) uint32 {
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
 		if err := inAddr.Compress(); err != nil {
 			// 'normal' address is invalid
-			return false
+			return code.ACCOUNT_DOES_NOT_EXIST
 		}
 	}
 	sourceBalanceB, retCode := app.queryBalance(inAddr)
 	if retCode != code.OK {
-		return false // among other things checks if the source account exists
+		return code.ACCOUNT_DOES_NOT_EXIST
 	}
 
 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
 	if sourceBalance < amount { // + some gas?
-		return false
+		return code.INSUFFICIENT_BALANCE
 	}
 
 	if err := outAddr.Compress(); err != nil {
-		return false
+		return code.ACCOUNT_DOES_NOT_EXIST
 	}
 	targetBalanceB, retCodeT := app.queryBalance(outAddr)
 	if retCodeT != code.OK {
-		return false // among other things checks if the source account exists
+		return code.ACCOUNT_DOES_NOT_EXIST
 	}
 
 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
@@ -126,5 +128,5 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
 		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
 
-	return true
+	return code.OK
 }

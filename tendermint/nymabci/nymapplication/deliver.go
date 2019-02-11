@@ -97,11 +97,9 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
-	didSucceed := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Ammount)
-	if didSucceed {
-		return types.ResponseDeliverTx{Code: code.OK}
-	}
-	return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	retCode := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Ammount)
+
+	return types.ResponseDeliverTx{Code: retCode}
 }
 
 // Currently and possibly only for debug purposes. Written mostly for proof of concept.
@@ -191,13 +189,9 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	// verify the credential
 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
-	// for now just return whether credential itself is valid
 	if isValid {
-		didSucceed := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
-		if didSucceed {
-			return types.ResponseDeliverTx{Code: code.OK}
-		}
-		return types.ResponseDeliverTx{Code: code.COULD_NOT_TRANSFER}
+		retCode := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
+		return types.ResponseDeliverTx{Code: retCode}
 	}
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 }
