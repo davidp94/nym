@@ -40,8 +40,7 @@ import (
 )
 
 // TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
-// TODO: cleanup the file with old code used to get hang of tendermint
-
+// TODO:
 const (
 	DBNAME                              = "nymDB"
 	zl                                  = constants.ECPLen
@@ -50,8 +49,6 @@ const (
 )
 
 var (
-	// todo: move vars to appropriate files
-	stateKey = []byte("stateKey")
 	// zetaPrefix            = []byte("zeta")
 	accountsPrefix        = []byte("account")
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
@@ -60,9 +57,7 @@ var (
 
 	// TODO: will need to store all vks
 
-	// entirely for debug purposes
-	invalidPrefix = byte('a')
-
+	// ProtocolVersion defines version of the protocol used.
 	ProtocolVersion version.Protocol = 0x1
 )
 
@@ -70,66 +65,46 @@ var (
 
 var _ types.Application = (*NymApplication)(nil)
 
-// type State struct {
-// 	db      dbm.DB
-// 	Size    int64  `json:"size"`
-// 	Height  int64  `json:"height"`
-// 	AppHash []byte `json:"app_hash"`
-// }
-
-// TODO: is this an efficient solution? after all it doesnt return pointer to array since its not a slice and hence
-// copies everything by value
-// func prefixZeta(zeta [zl]byte) [zl + 4]byte {
-// 	// TODO: surely there must be a better syntax for that
-// 	arr := [zl + 4]byte{zetaPrefix[0], zetaPrefix[1], zetaPrefix[2], zetaPrefix[3]}
-// 	copy(arr[4:], zeta[:])
-
-// 	return arr
-// }
-
-func prefixKey(prefix []byte, key []byte) []byte {
-	b := make([]byte, len(key)+len(prefix))
-	copy(b, prefix)
-	copy(b[len(prefix):], key)
-
-	return b
-}
-
+// GenesisAppState defines the json structure of the the AppState in the Genesis block. This allows parsing it
+// and applying appropriate changes to the state upon InitChain.
+// Currently it includes list of genesis accounts and Coconut properties required for credential validation.
 type GenesisAppState struct {
 	Accounts          []account.GenesisAccount `json:"accounts"`
 	CoconutProperties struct {
 		MaxAttrs           int `json:"q"`
 		Threshold          int `json:"threshold`
 		IssuingAuthorities []struct {
-			Id int    `json:"id"`
+			ID int    `json:"id"`
 			Vk []byte `json:"vk"`
 		} `json:"issuingAuthorities"`
 	} `json:"coconutProperties"`
 }
 
+// State defines ABCI app state. Currently it is a iavl tree. Reason for the choice: it was recurring case in example.
+// It provides height (changes after each save -> perfect for blockchain) + fast hash which is also needed.
 type State struct {
 	db *iavl.MutableTree // hash and height (version) are obtained from the tree methods
 }
 
+// NymApplication defines basic structure for the Nym-specific ABCI.
 type NymApplication struct {
 	types.BaseApplication
 	state State
 
-	// data cache for current block
-	// zetaCache map[[zl + 4]byte][]byte // unlike slices, arrays can be used as keys in maps
-	// todo: rethink the entire idea of caches, or remove them completely for now if it's not neccessary to keep
-	// intermediate state for now.
-
 	log log.Logger
 
-	Version      string
-	AppVersion   uint64
-	CurrentBlock int64 // any point in this at this point?
+	// Version is the semantic version of the ABCI library used.
+	Version string
+
+	// AppVersion defines version of the app used. Unless explicitly required,
+	// it is going to be the same as ProtocolVersion
+	AppVersion uint64
+
+	// CurrentBlock int64 // any point in this at this point?
 }
 
+// NewNymApplication initialises Nym-specific Tendermint ABCI.
 func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication {
-	fmt.Println("new")
-
 	db := dbm.NewDB(DBNAME, dbm.DBBackendType(dbType), dbDir)
 	tree := iavl.NewMutableTree(db, 0)
 	_, err := tree.Load()
@@ -151,29 +126,31 @@ func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication 
 	}
 }
 
+// Info returns the application information. Required by the nodes to sync in case they crashed.
 func (app *NymApplication) Info(req types.RequestInfo) types.ResponseInfo {
-	fmt.Println("Info; height: ", app.state.db.Version())
-
 	res := types.ResponseInfo{
-		Data:             fmt.Sprintf("testmsg"),
+		// Data:             fmt.Sprintf("testmsg"),
 		Version:          app.Version,
 		AppVersion:       app.AppVersion,
 		LastBlockHeight:  app.state.db.Version(),
 		LastBlockAppHash: app.state.db.Hash(),
 	}
 
-	app.CurrentBlock = app.state.db.Version() // todo: needed?
-
+	// app.CurrentBlock = app.state.db.Version() // todo: needed?
 	return res
 }
 
+// SetOption sets non-consensus critical application specific options.
+// Such as fee required for CheckTx, but not DeliverTx as that would be consensus critical.
+//
+// Currently I'm not sure where it is called or how to do it.
 func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseSetOption {
 	fmt.Println("SetOption; height: ", app.state.db.Version(), req)
 
 	return types.ResponseSetOption{}
 }
 
-// todo: move to transaction package and pass db as argument
+// currently for debug purposes to check if given g^s is in the spent set
 func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 	_, val := app.state.db.Get(zeta)
 
@@ -183,12 +160,13 @@ func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 	return transaction.FalseBytes
 }
 
-// TODO: make sure to handle situation where in the same block there are both txs to lookup and spend given credential
+// DeliverTx delivers a tx for full processing.
 func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	fmt.Println("DeliverTx; height: ", app.state.db.Version())
 
 	txType := tx[0]
 	switch txType {
+	// currently for debug purposes to check if given g^s is in the spent set
 	case transaction.TxTypeLookUpZeta:
 		app.log.Info("DeliverTx for lookup zeta")
 		app.log.Info(fmt.Sprintf("looking up %v", tx[1:]))
@@ -196,65 +174,53 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		return types.ResponseDeliverTx{Code: code.OK, Data: present}
 
 	case transaction.TxNewAccount:
+		// creates new account
 		app.log.Info("New Account tx")
 		return app.createNewAccount(tx[1:])
 	case transaction.TxTransferBetweenAccounts:
+		// DEBUG: transfer funds from account X to account Y
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
 	case transaction.TxVerifyCredential:
+		// DEBUG: verifies coconut credential on public attributes
 		app.log.Info("Verify credential tx")
 		return app.verifyCoconutCredential(tx[1:])
 	case transaction.TxDepositCoconutCredential:
+		// deposits coconut credential and transforms appropriate ammount from holding to merchant
 		app.log.Info("Deposit Credential")
 		return app.depositCoconutCredential(tx[1:])
 
-	case invalidPrefix:
-		app.log.Info("Test Invalid Deliver")
-		return types.ResponseDeliverTx{Code: code.UNKNOWN}
-
 		// purely for debug purposes to populate the state and advance the blocks
+	case transaction.TxAdvanceBlock:
+		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
+		app.state.db.Set(tx[1:], []byte{1})
+
+		return types.ResponseDeliverTx{Code: code.OK}
 	default:
-		app.log.Info("default tx")
-		app.log.Info(fmt.Sprintf("storing up %v", tx))
+		app.log.Error("Unknown tx")
 
-		app.state.db.Set(tx, []byte{1})
-	}
-
-	return types.ResponseDeliverTx{Code: code.OK, Data: tx}
-}
-
-func (app *NymApplication) validateTxLength(tx []byte) uint32 {
-	txType := tx[0]
-	switch txType {
-	case transaction.TxTypeLookUpZeta:
-		if len(tx) == constants.ECPLen+1 {
-			return code.OK
-		}
-		return code.INVALID_TX_LENGTH
-	default:
-		// we can't compare the tx length with the expected one - we don't know what the correct one is supposed to be
-		// TODO: contradicts the rule of failsafe defaults?
-		return code.OK
+		return types.ResponseDeliverTx{Code: code.UNKNOWN}
 	}
 }
 
-func (app *NymApplication) validateTx(tx []byte) uint32 {
-	// TODO: more validations
-	return app.validateTxLength(tx)
-}
-
+// CheckTx validates tx in the mempool to discard obviously invalid ones so they would not be included in the block.
 func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	txType := tx[0]
+
 	switch txType {
-	case transaction.TxTypeLookUpZeta:
-		app.log.Debug("CheckTx for lookup zeta")
 	case transaction.TxNewAccount:
 		app.log.Debug("CheckTx for TxNewAccount")
+	case transaction.TxTransferBetweenAccounts:
+		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
 	case transaction.TxVerifyCredential:
 		app.log.Debug("CheckTx for TxVerifyCredential")
-
+	case transaction.TxDepositCoconutCredential:
+		app.log.Debug("CheckTx for TxDepositCoconutCredential")
+	case transaction.TxAdvanceBlock:
+		app.log.Debug("CheckTx for TxAdvanceBlock")
 	default:
-		app.log.Debug("default CheckTx")
+		app.log.Error("Default CheckTX")
+
 	}
 
 	checkCode := app.validateTx(tx)
@@ -267,14 +233,15 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	return types.ResponseCheckTx{Code: checkCode}
 }
 
+// Commit commits the state and returns the application Merkle root hash
 func (app *NymApplication) Commit() types.ResponseCommit {
 	fmt.Println("Commit; height: ", app.state.db.Version())
 	app.state.db.SaveVersion()
-	// app.zetaCache = make(map[[zl + 4]byte][]byte)
+	// reset caches etc here
 	return types.ResponseCommit{Data: app.state.db.Hash()}
-	// return types.ResponseCommit{}
 }
 
+// Query queries App State. It is not guaranteed to always give the freshest entries as it is not ordered like txs are.
 func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 	switch req.Path {
 	case query.QueryCheckBalancePath:
@@ -294,15 +261,16 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 	default:
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
-	fmt.Println("Query")
 
-	// This information can be a simple query rather than tx because there's no risk in delivering possibly stale result
+	fmt.Println("Query")
 	fmt.Println(req.Path)
 	fmt.Println(req.Data)
 
 	return types.ResponseQuery{Code: code.OK}
 }
 
+// InitChain initializes blockchain with validators and other info from TendermintCore.
+// It also populates genesis appstate with information from the genesis block.
 func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseInitChain {
 	genesisState := &GenesisAppState{}
 	if err := json.Unmarshal(req.AppStateBytes, genesisState); err != nil {
@@ -311,6 +279,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	}
 	app.log.Info(fmt.Sprintf("Adding %v genesis accounts", len(genesisState.Accounts)))
 
+	// create genesis accounts
 	for _, acc := range genesisState.Accounts {
 		// always store account pubkey in compressed form, but accept any in the genesis file
 		if err := acc.PublicKey.Compress(); err != nil {
@@ -337,6 +306,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	b64name := base64.StdEncoding.EncodeToString(holdingAccountAddress)
 	app.log.Info(fmt.Sprintf("Created holdingAccount: %v with starting balance: %v", b64name, holdingStartingBalance))
 
+	// import vk of IAs
 	numIAs := len(genesisState.CoconutProperties.IssuingAuthorities)
 	threshold := genesisState.CoconutProperties.Threshold
 	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
@@ -357,9 +327,11 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		if err != nil {
 			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", err))
 		}
-		xs[i] = Curve.NewBIGint(ia.Id)
+		xs[i] = Curve.NewBIGint(ia.ID)
 		vks[i] = vk
 	}
+
+	// generate coconut params required for credential verification later on
 	params, err := coconut.Setup(genesisState.CoconutProperties.MaxAttrs)
 	if err != nil {
 		// there's no alternative but panic now
@@ -376,6 +348,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(coconutHs, hsb)
 	app.log.Info(fmt.Sprintf("Stored hs in DB"))
 
+	// finally aggregate the verification keys
 	pp := coconut.NewPP(xs)
 	avk := coconut.AggregateVerificationKeys(params, vks, pp)
 	avkb, err := avk.MarshalBinary()
@@ -387,17 +360,20 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(aggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
-	// dont save state?
+	// saving app state here causes replay issues, so if app crashes before 1st block is commited it has to
+	// redo initchain
 	// app.state.db.SaveVersion()
 	return types.ResponseInitChain{}
 }
 
+// BeginBlock is executed at beginning of each block.
 func (app *NymApplication) BeginBlock(req types.RequestBeginBlock) types.ResponseBeginBlock {
 	fmt.Println("BeginBlock")
 
 	return types.ResponseBeginBlock{}
 }
 
+// EndBlock is executed at the end of each block. Used to update validator set.
 func (app *NymApplication) EndBlock(req types.RequestEndBlock) types.ResponseEndBlock {
 	fmt.Println("EndBlock", req.Height)
 
