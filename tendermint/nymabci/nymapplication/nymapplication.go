@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -42,8 +41,8 @@ import (
 // TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
 // TODO:
 const (
-	DBNAME                              = "nymDB"
-	zl                                  = constants.ECPLen
+	DBNAME = "nymDB"
+	// zl                                  = constants.ECPLen
 	createAccountOnDepositIfDoesntExist = true
 	holdingStartingBalance              = 100000 // entirely for debug purposes
 )
@@ -72,7 +71,7 @@ type GenesisAppState struct {
 	Accounts          []account.GenesisAccount `json:"accounts"`
 	CoconutProperties struct {
 		MaxAttrs           int `json:"q"`
-		Threshold          int `json:"threshold`
+		Threshold          int `json:"threshold"`
 		IssuingAuthorities []struct {
 			ID int    `json:"id"`
 			Vk []byte `json:"vk"`
@@ -186,7 +185,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		app.log.Info("Verify credential tx")
 		return app.verifyCoconutCredential(tx[1:])
 	case transaction.TxDepositCoconutCredential:
-		// deposits coconut credential and transforms appropriate ammount from holding to merchant
+		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
 		return app.depositCoconutCredential(tx[1:])
 
@@ -236,7 +235,11 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 // Commit commits the state and returns the application Merkle root hash
 func (app *NymApplication) Commit() types.ResponseCommit {
 	fmt.Println("Commit; height: ", app.state.db.Version())
-	app.state.db.SaveVersion()
+	_, _, err := app.state.db.SaveVersion()
+	if err != nil {
+		app.log.Error(fmt.Sprintf("Error while saving state: %v", err))
+		// should we just panic?
+	}
 	// reset caches etc here
 	return types.ResponseCommit{Data: app.state.db.Hash()}
 }
@@ -360,7 +363,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(aggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
-	// saving app state here causes replay issues, so if app crashes before 1st block is commited it has to
+	// saving app state here causes replay issues, so if app crashes before 1st block is committed it has to
 	// redo initchain
 	// app.state.db.SaveVersion()
 	return types.ResponseInitChain{}
