@@ -35,6 +35,8 @@ const (
 	TxNewAccount byte = 0x02
 	// TxTransferBetweenAccounts is byte prefix for transaction to transfer funds between 2 accounts. for debug
 	TxTransferBetweenAccounts byte = 0x03
+	// TxTransferToHolding is byte prefix for transaction to transfer client's funds to holding account.
+	TxTransferToHolding byte = 0x04
 	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
 	// TxVerifyCredential is byte prefix for transaction to verify a cococnut credential on public attributes.
@@ -179,6 +181,58 @@ func CreateNewDepositCoconutCredentialRequest(params *coconut.Params, avk *cocon
 	b := make([]byte, len(protob)+1)
 
 	b[0] = TxDepositCoconutCredential
+	copy(b[1:], protob)
+	return b, nil
+}
+
+// TransferToHoldingReqParams defines params required for CreateNewTransferToHoldingRequest function.
+// They could have fit in the function declaration, but it would have been too easy to accidentally confuse
+// order of byte slices.
+type TransferToHoldingReqParams struct {
+	ID              uint32
+	PrivateKey      account.ECPrivateKey
+	ClientPublicKey []byte
+	Amount          uint64
+	Commitment      []byte
+	ClientSig       []byte
+}
+
+// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from client's account
+// to the holding account.
+// It is designed to be executed by an issuing authority.
+func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byte, error) {
+	id := params.ID
+	priv := params.PrivateKey
+	clientPublicKey := params.ClientPublicKey
+	amount := params.Amount
+	commitment := params.Commitment
+	clientSig := params.ClientPublicKey
+
+	msg := make([]byte, 4+len(clientPublicKey)+8+len(commitment)+len(clientSig))
+	binary.BigEndian.PutUint32(msg, id)
+	copy(msg[4:], clientPublicKey)
+	binary.BigEndian.PutUint64(msg[4+len(clientPublicKey):], amount)
+	copy(msg[4+len(clientPublicKey)+8:], commitment)
+	copy(msg[4+len(clientPublicKey)+8+len(commitment):], clientSig)
+
+	sig := priv.SignBytes(msg)
+
+	req := &TransferToHoldingRequest{
+		IAID:            id,
+		ClientPublicKey: clientPublicKey,
+		Amount:          amount,
+		Commitment:      commitment,
+		ClientSig:       clientSig,
+		IASig:           sig,
+	}
+
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+
+	b[0] = TxTransferToHolding
 	copy(b[1:], protob)
 	return b, nil
 }

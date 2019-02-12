@@ -19,7 +19,7 @@ message AccountTransferRequest {
     bytes SourcePublicKey = 1;
     // Used to determine target address
     bytes TargetPublicKey = 2; 
-    // Ammount to be transferred 
+    // Amount to be transferred 
     uint64 Amount = 3; 
     // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
     // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
@@ -49,16 +49,20 @@ message VerifyCoconutCredentialRequest {
 }
 
 message TransferToHoldingRequest {
-    // Used to indicate which particular IA is requesting it; for simplifying validation and auditing purposes
-    bytes IAPublicKey = 1;
+    // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
+    // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
+    // it obtains key in constant time and uses stored key to verify the signature
+    uint32 IAID = 1;
     // Which user's funds should be moved
     bytes ClientPublicKey = 2;
-    // Ammount to move
-    uint64 Ammount = 3;
+    // Amount to move
+    uint64 Amount = 3;
     // Commitment to attributes the credential, ensures uniqueness of request
     bytes Commitment = 4;
     // To check if the user really wanted the transfer to happen
+    // It is done on {ClientPublicKey, Ammount, Commitment}
     bytes ClientSig = 5;
     // To authorise the transfer
+    // It is done on {IAID, ClientPublicKey, Ammount, Commitment, ClientSig}
     bytes IASig = 6;
 }
