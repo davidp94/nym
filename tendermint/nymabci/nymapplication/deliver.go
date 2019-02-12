@@ -84,20 +84,20 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 
 	sourcePublicKey = req.SourcePublicKey
 	targetPublicKey = req.TargetPublicKey
-	ammountB := make([]byte, 8)
-	binary.BigEndian.PutUint64(ammountB, req.Ammount)
+	amountB := make([]byte, 8)
+	binary.BigEndian.PutUint64(amountB, req.Amount)
 
 	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
 	copy(msg, sourcePublicKey)
 	copy(msg[len(sourcePublicKey):], targetPublicKey)
-	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], ammountB)
+	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
 
 	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
 		app.log.Info("Failed to verify signature on request")
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
-	retCode := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Ammount)
+	retCode := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
 
 	return types.ResponseDeliverTx{Code: retCode}
 }

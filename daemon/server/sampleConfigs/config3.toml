@@ -28,10 +28,10 @@
 [Issuer]
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/ttp/keys7501/verification2-n=3-t=2.pem"
+  VerificationKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/coconutkeys/verification2-n=3-t=2.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/ttp/keys7501/secret2-n=3-t=2.pem"
+  SecretKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/coconutkeys/secret2-n=3-t=2.pem"
 
 
 [Provider]

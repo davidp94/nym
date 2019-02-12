@@ -23,6 +23,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
@@ -50,6 +52,11 @@ func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 
 // nolint: gosec, lll, errcheck
 func main() {
+
+	acc := account.NewAccount()
+	acc.ToJSONFile("ia3.json")
+
+	return
 	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
 	flag.Parse()
 

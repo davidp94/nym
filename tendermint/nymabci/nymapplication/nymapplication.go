@@ -54,6 +54,7 @@ var (
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
 	aggregateVkKey        = []byte("avk")
 	coconutHs             = []byte("coconutHs")
+	iaKeyPrefix           = []byte("IssuingAuthority")
 
 	// TODO: will need to store all vks
 
@@ -74,8 +75,9 @@ type GenesisAppState struct {
 		MaxAttrs           int `json:"q"`
 		Threshold          int `json:"threshold"`
 		IssuingAuthorities []struct {
-			ID int    `json:"id"`
-			Vk []byte `json:"vk"`
+			ID        uint32 `json:"id"`
+			Vk        []byte `json:"vk"`
+			PublicKey []byte `json:"pub_key"`
 		} `json:"issuingAuthorities"`
 	} `json:"coconutProperties"`
 }
@@ -336,7 +338,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		}
 
 		vks = append(vks, vk)
-		xs = append(xs, Curve.NewBIGint(genesisState.CoconutProperties.IssuingAuthorities[i].ID))
+		xs = append(xs, Curve.NewBIGint(int(genesisState.CoconutProperties.IssuingAuthorities[i].ID)))
 	}
 
 	// generate coconut params required for credential verification later on
@@ -356,7 +358,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(coconutHs, hsb)
 	app.log.Info(fmt.Sprintf("Stored hs in DB"))
 
-	// finally aggregate the verification keys
+	// aggregate the verification keys
 	pp := coconut.NewPP(xs)
 	avk := coconut.AggregateVerificationKeys(params, vks, pp)
 	avkb, err := avk.MarshalBinary()
@@ -367,6 +369,16 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	app.state.db.Set(aggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
+
+	// finally save pubkeys of ias (used to verify requests for transfering to holding account)
+	for _, ia := range genesisState.CoconutProperties.IssuingAuthorities {
+		idb := make([]byte, 4)
+		binary.BigEndian.PutUint32(idb, ia.ID)
+
+		dbEntry := prefixKey(iaKeyPrefix, idb)
+		app.state.db.Set(dbEntry, ia.PublicKey)
+	}
+	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))
 
 	// saving app state here causes replay issues, so if app crashes before 1st block is committed it has to
 	// redo initchain

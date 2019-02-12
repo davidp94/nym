@@ -40,7 +40,7 @@ message DepositCoconutCredentialRequest {
     bytes MerchantAddress = 5;
 }
 
-
+// TODO: remove in next iteration - it was proto msg for testing purposes anyway
 // We have defined similar messages before for the grpc provider, however, we can't rely on their definitions 
 // in case something changed here (or there) 
 message VerifyCoconutCredentialRequest {
@@ -48,18 +48,17 @@ message VerifyCoconutCredentialRequest {
     repeated bytes PubM = 2;
 }
 
-// message TransferToHoldingRequest {
-//     // Used to indicate which particular IA is requesting it; for simplifying validation and auditing purposes
-//     bytes IAPublicKey = 1;
-//     // Which user's funds should be moved
-//     bytes ClientPublicKey = 2;
-//     // Ammount to move
-//     uint64 Ammount = 3;
-//     // Commitment to attributes the credential, ensures uniquness of request
-//     bytes Commitment = 4;
-//     // To check if the user really wanted the transfer to happen
-//     bytes ClientSig = 5;
-//     // To authorise the transfer
-//     bytes IASig = 6;
-
-// }
+message TransferToHoldingRequest {
+    // Used to indicate which particular IA is requesting it; for simplifying validation and auditing purposes
+    bytes IAPublicKey = 1;
+    // Which user's funds should be moved
+    bytes ClientPublicKey = 2;
+    // Ammount to move
+    uint64 Ammount = 3;
+    // Commitment to attributes the credential, ensures uniqueness of request
+    bytes Commitment = 4;
+    // To check if the user really wanted the transfer to happen
+    bytes ClientSig = 5;
+    // To authorise the transfer
+    bytes IASig = 6;
+}
