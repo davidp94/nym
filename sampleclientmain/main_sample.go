@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
@@ -25,16 +26,13 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -52,11 +50,6 @@ func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 
 // nolint: gosec, lll, errcheck
 func main() {
-
-	acc := account.NewAccount()
-	acc.ToJSONFile("ia3.json")
-
-	return
 	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
 	flag.Parse()
 
@@ -86,31 +79,69 @@ func main() {
 		}
 	}()
 
-	params, _ := coconut.Setup(5)
-	G := params.G
+	_ = cc
+
+	// params, _ := coconut.Setup(5)
+	// G := params.G
 	// pubM := getRandomAttributes(G, 3)
 	// privM := getRandomAttributes(G, 2)
 
-	// generate token
-	value := int32(1000)
-	seq := Curve.Randomnum(params.P(), G.Rng())
-	privateKey := Curve.Randomnum(params.P(), G.Rng())
+	// create new account
+	acc := account.NewAccount()
+	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))
+	if err != nil {
+		panic(err)
+	}
 
-	token := token.New(seq, privateKey, value)
-	pubM, privM := token.GetPublicAndPrivateSlices()
+	debugAcc := &account.Account{}
+	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
 
-	// get credential
-	sig, _ := cc.BlindSignAttributes(pubM, privM)
+	// transfer some funds to the new account
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
+	if err != nil {
+		panic(err)
+	}
 
-	// get aggregate vk needed for show protocol
-	avk, _ := cc.GetAggregateVerificationKey()
+	// send to holding
+	// create client sig on {ClientPublicKey, Ammount, Commitment}; TODO: do it in client file on actual token
+	// currently just use anything for commitment as no proper validation on its value is performed
+	cm := []byte("Foo")
+	value := uint64(10)
+	clientMsg := make([]byte, len(acc.PublicKey)+8+len(cm))
+	copy(clientMsg, acc.PublicKey)
+	binary.BigEndian.PutUint64(clientMsg[len(acc.PublicKey):], value)
+	copy(clientMsg[len(acc.PublicKey)+8:], cm)
 
-	// generate random merchant (abci is set to create new accounts for new merchants)
-	merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
-	merchantAddr := make([]byte, constants.ECPLen)
-	merchantAddrEC.ToBytes(merchantAddr, true)
+	clientSig := acc.PrivateKey.SignBytes(clientMsg)
 
-	// tendermint-abci client
+	// simulate an IA (but don't do any verification - no point now)
+	IAAcc := &account.Account{}
+	IAAcc.FromJSONFile("../daemon/server/sampleKeys/tendermintkeys/ia1.json")
+	ID := uint32(1)
+
+	idb := make([]byte, 4)
+	binary.BigEndian.PutUint32(idb, ID)
+
+	msg := make([]byte, 4+len(clientMsg)+len(clientSig))
+	copy(msg, idb)
+	copy(msg[4:], clientMsg)
+	copy(msg[4+len(clientMsg):], clientSig)
+
+	sendToHoldingReqParam := transaction.TransferToHoldingReqParams{
+		ID:              ID,
+		PrivateKey:      IAAcc.PrivateKey,
+		ClientPublicKey: acc.PublicKey,
+		Amount:          value,
+		Commitment:      cm,
+		ClientSig:       clientSig,
+	}
+
+	sendToHoldingReq, err := transaction.CreateNewTransferToHoldingRequest(sendToHoldingReqParam)
+	if err != nil {
+		panic(err)
+	}
+
+	// create client to interact with the abci
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
@@ -121,13 +152,63 @@ func main() {
 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
 
-	reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
+	// send the requests:
+	// new acc
+	res, err := tmclient.Broadcast(newAccReq)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("Createw new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// add some funds
+	res, err = tmclient.Broadcast(transferReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transfered funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// transfer some to holding
+	res, err = tmclient.Broadcast(sendToHoldingReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transfered funds from new account to holding. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 
-	res, _ := tmclient.Broadcast(reqT)
-	fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), res.DeliverTx.Data)
+	// // generate token
+	// value := int32(1000)
+	// seq := Curve.Randomnum(params.P(), G.Rng())
+	// privateKey := Curve.Randomnum(params.P(), G.Rng())
+
+	// token := token.New(seq, privateKey, value)
+	// pubM, privM := token.GetPublicAndPrivateSlices()
+
+	// // get credential
+	// sig, _ := cc.BlindSignAttributes(pubM, privM)
+
+	// // get aggregate vk needed for show protocol
+	// avk, _ := cc.GetAggregateVerificationKey()
+
+	// // generate random merchant (abci is set to create new accounts for new merchants)
+	// merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
+	// merchantAddr := make([]byte, constants.ECPLen)
+	// merchantAddrEC.ToBytes(merchantAddr, true)
+
+	// tendermint-abci client
+	// log, err := logger.New("", "DEBUG", false)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Failed to create a logger: %v", err))
+	// }
+
+	// tmclient, err := tmclient.New("tcp://0.0.0.0:46667", log)
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
+	// }
+
+	// reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// res, _ := tmclient.Broadcast(reqT)
+	// fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), res.DeliverTx.Data)
 
 	// all possible interactions with the IAs/SPs
 	//

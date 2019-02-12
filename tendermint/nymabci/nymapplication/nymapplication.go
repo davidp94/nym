@@ -191,9 +191,12 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
 		return app.depositCoconutCredential(tx[1:])
-
-		// purely for debug purposes to populate the state and advance the blocks
+	case transaction.TxTransferToHolding:
+		// transfer given amount of client's funds to the holding account
+		app.log.Info("Transfer to Holding")
+		return app.transferToHolding(tx[1:])
 	case transaction.TxAdvanceBlock:
+		// purely for debug purposes to populate the state and advance the blocks
 		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
 		app.state.db.Set(tx[1:], []byte{1})
 
@@ -220,6 +223,8 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
+	case transaction.TxTransferToHolding:
+		app.log.Debug("ChecTx for TxTransferToHolding")
 	default:
 		app.log.Error("Default CheckTX")
 

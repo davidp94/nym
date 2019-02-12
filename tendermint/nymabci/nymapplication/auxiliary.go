@@ -104,31 +104,36 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 
 // returns code to indicate if the operation was successful and, if applicable, how it failed
 // Simple bool would not provide enough information
-// todo: change return to include ret code
-func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) uint32 {
+// also returns any additional data
+func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
 		if err := inAddr.Compress(); err != nil {
 			// 'normal' address is invalid
-			return code.ACCOUNT_DOES_NOT_EXIST
+			return code.MALFORMED_ADDRESS, []byte("SOURCE")
 		}
 	}
 	sourceBalanceB, retCode := app.queryBalance(inAddr)
 	if retCode != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
 	}
 
 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
 	if sourceBalance < amount { // + some gas?
-		return code.INSUFFICIENT_BALANCE
+		return code.INSUFFICIENT_BALANCE, nil
 	}
 
-	if err := outAddr.Compress(); err != nil {
-		return code.ACCOUNT_DOES_NOT_EXIST
+	// holding account is a special case - it's not an EC point but just a string which is uncompressable
+	if bytes.Compare(outAddr, holdingAccountAddress) != 0 {
+		if err := outAddr.Compress(); err != nil {
+			// 'normal' address is invalid
+			return code.MALFORMED_ADDRESS, []byte("TARGET")
+		}
 	}
+
 	targetBalanceB, retCodeT := app.queryBalance(outAddr)
 	if retCodeT != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
 	}
 
 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
@@ -152,5 +157,5 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
 		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
 
-	return code.OK
+	return code.OK, nil
 }

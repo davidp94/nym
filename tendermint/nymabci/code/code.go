@@ -43,8 +43,13 @@ const (
 	// MERCHANT_DOES_NOT_EXIST represents error when trying to spend credential at non-existing merchant.
 	// Only applicable if system is set to not create accounts for non-existent merchants.
 	MERCHANT_DOES_NOT_EXIST uint32 = 10
+	// ISSUING_AUTHORITY_DOES_NOT_EXIST represents error when trying to verify credential/signature with IA that
+	// is not known by the abci
+	ISSUING_AUTHORITY_DOES_NOT_EXIST uint32 = 11
+	// MALFORMED_ADDRESS represents error due to address being malformed (incorrect length, incorrect prefix, etc)
+	MALFORMED_ADDRESS = 12
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
-	COULD_NOT_TRANSFER uint32 = 11 // todo: replace occurences with more specific errors
+	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurences with more specific errors
 )
 
 // ToString returns string representation of the return code. It is useful for making human-readable responses.
@@ -72,6 +77,8 @@ func ToString(code uint32) string {
 		return "Invalid Merchant Address"
 	case MERCHANT_DOES_NOT_EXIST:
 		return "Merchant Does Not Exist"
+	case ISSUING_AUTHORITY_DOES_NOT_EXIST:
+		return "Issuing Authority Does Not Exist"
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
 	default:

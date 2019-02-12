@@ -206,7 +206,7 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byt
 	clientPublicKey := params.ClientPublicKey
 	amount := params.Amount
 	commitment := params.Commitment
-	clientSig := params.ClientPublicKey
+	clientSig := params.ClientSig
 
 	msg := make([]byte, 4+len(clientPublicKey)+8+len(commitment)+len(clientSig))
 	binary.BigEndian.PutUint32(msg, id)

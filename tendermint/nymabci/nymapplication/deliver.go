@@ -97,9 +97,9 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
-	retCode := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
+	retCode, data := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
 
-	return types.ResponseDeliverTx{Code: retCode}
+	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
 
 // Currently and possibly only for debug purposes. Written mostly for proof of concept.
@@ -190,8 +190,74 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
 	if isValid {
-		retCode := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
-		return types.ResponseDeliverTx{Code: retCode}
+		retCode, data := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
+		return types.ResponseDeliverTx{Code: retCode, Data: data}
 	}
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
+}
+
+func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
+	var IAPub account.ECPublicKey
+	var clientPub account.ECPublicKey
+
+	protoRequest := &transaction.TransferToHoldingRequest{}
+	if err := proto.Unmarshal(reqb, protoRequest); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	idb := make([]byte, 4)
+	binary.BigEndian.PutUint32(idb, protoRequest.IAID)
+	dbEntry := prefixKey(iaKeyPrefix, idb)
+	_, IAPubb := app.state.db.Get(dbEntry)
+
+	// check if IA exists
+	if IAPubb == nil {
+		return types.ResponseDeliverTx{Code: code.ISSUING_AUTHORITY_DOES_NOT_EXIST}
+	}
+
+	IAPub = IAPubb
+	clientPub = protoRequest.ClientPublicKey
+
+	// error would be returned if address is malformed
+	if err := clientPub.Compress(); err != nil {
+		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("CLIENT")}
+	}
+
+	// check if client exists and has sufficient balance to actually transfer
+	clientBalanceB, retCode := app.queryBalance(clientPub)
+	if retCode != code.OK {
+		return types.ResponseDeliverTx{Code: code.ACCOUNT_DOES_NOT_EXIST}
+	}
+
+	// balance is actually also checked when transferring funds, but since we have to query db to check if
+	// the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
+	// so that we would not have to verify the below signatures
+	clientBalance := binary.BigEndian.Uint64(clientBalanceB)
+	if clientBalance < protoRequest.Amount {
+		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
+	}
+
+	// Verify both sigs
+	clientMsg := make([]byte, len(protoRequest.ClientPublicKey)+8+len(protoRequest.Commitment))
+	copy(clientMsg, protoRequest.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
+	binary.BigEndian.PutUint64(clientMsg[len(protoRequest.ClientPublicKey):], protoRequest.Amount)
+	copy(clientMsg[len(protoRequest.ClientPublicKey)+8:], protoRequest.Commitment)
+
+	if !clientPub.VerifyBytes(clientMsg, protoRequest.ClientSig) {
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("CLIENT")}
+	}
+
+	msg := make([]byte, 4+len(clientMsg)+len(protoRequest.ClientSig))
+	copy(msg, idb)
+	copy(msg[4:], clientMsg)
+	copy(msg[4+len(clientMsg):], protoRequest.ClientSig)
+
+	if !IAPub.VerifyBytes(msg, protoRequest.IASig) {
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("ISSUING AUTHORITY")}
+	}
+
+	// the request is valid, so transfer the amount
+	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, protoRequest.Amount)
+
+	return types.ResponseDeliverTx{Code: transferRetCode, Data: data}
 }
