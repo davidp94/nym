@@ -83,6 +83,7 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 	// exactly after ProviderStartupTimeout, but instead after N * ProviderStartupRetryInterval,
 	// such that N * ProviderStartupRetryInterval > ProviderStartupTimeout, where N is a natural number.
 	for ; true; <-retryTicker.C {
+		s.log.Debug("Trying to obtain vks of all IAs...")
 		// this is redone every run so that we would not get stale results
 		responses = comm.GetServerResponses(
 			&comm.RequestParams{
@@ -96,15 +97,22 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 			s.log,
 		)
 
-		if len(responses) == len(s.cfg.Provider.IAAddresses) {
+		validResponses := 0
+		for _, resp := range responses {
+			if resp != nil {
+				validResponses++
+			}
+		}
+
+		if validResponses == len(s.cfg.Provider.IAAddresses) {
 			s.log.Notice("Received Verification Keys from all IAs")
 			break
-		} else if len(responses) >= s.cfg.Provider.Threshold {
+		} else if validResponses >= s.cfg.Provider.Threshold && s.cfg.Provider.Threshold > 0 {
 			s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
 			break
 		} else {
 			s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
-				len(responses), s.cfg.Provider.Threshold)
+				validResponses, s.cfg.Provider.Threshold)
 		}
 
 		select {

@@ -187,7 +187,7 @@ func init() {
 	var wg sync.WaitGroup
 	wg.Add(2)
 
-	// since they need to get their aggregate key (+ need to fix initial wait time), it takes a while to start them up
+	// since they need to get their aggregate key, it takes a while to start them up
 	// and we can start those together
 	go func() {
 		thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)

@@ -437,7 +437,6 @@ type RequestParams struct {
 }
 
 // GetServerResponses writes requests to all server specified in the params according to the set params.
-// todo: once server.go is refactored, if the function is not used there, move it to client.go
 // func GetServerResponses(packet []byte, maxR int, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
 func GetServerResponses(requestParams *RequestParams, log *logging.Logger) []*ServerResponse {
 
