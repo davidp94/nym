@@ -79,39 +79,39 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
 	timeout := time.After(time.Duration(s.cfg.Debug.ProviderStartupTimeout) * time.Millisecond)
 
-outLoop:
-	for {
+	// this allows to enter the case immediately, but in return timeout won't happen
+	// exactly after ProviderStartupTimeout, but instead after N * ProviderStartupRetryInterval,
+	// such that N * ProviderStartupRetryInterval > ProviderStartupTimeout, where N is a natural number.
+	for ; true; <-retryTicker.C {
+		// this is redone every run so that we would not get stale results
+		responses = comm.GetServerResponses(
+			&comm.RequestParams{
+				MarshaledPacket:   packetBytes,
+				MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
+				ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
+				RequestTimeout:    s.cfg.Debug.RequestTimeout,
+				ServerAddresses:   s.cfg.Provider.IAAddresses,
+				ServerIDs:         s.cfg.Provider.IAIDs,
+			},
+			s.log,
+		)
+
+		if len(responses) == len(s.cfg.Provider.IAAddresses) {
+			s.log.Notice("Received Verification Keys from all IAs")
+			break
+		} else if len(responses) >= s.cfg.Provider.Threshold {
+			s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
+			break
+		} else {
+			s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
+				len(responses), s.cfg.Provider.Threshold)
+		}
+
 		select {
-		// todo: figure out how to enter the case immediately without waiting for first tick
-		case <-retryTicker.C:
-
-			// this is redone every run so that we would not get stale results
-			responses = comm.GetServerResponses(
-				&comm.RequestParams{
-					MarshaledPacket:   packetBytes,
-					MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
-					ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
-					RequestTimeout:    s.cfg.Debug.RequestTimeout,
-					ServerAddresses:   s.cfg.Provider.IAAddresses,
-					ServerIDs:         s.cfg.Provider.IAIDs,
-				},
-				s.log,
-			)
-
-			if len(responses) == len(s.cfg.Provider.IAAddresses) {
-				s.log.Notice("Received Verification Keys from all IAs")
-				break outLoop
-			} else if len(responses) >= s.cfg.Provider.Threshold {
-				s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
-				break outLoop
-			} else {
-				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
-					len(responses), s.cfg.Provider.Threshold)
-			}
-
 		case <-timeout:
 			s.log.Critical("Timed out while starting up...")
 			return nil, nil, errors.New("Startup timeout")
+		default:
 		}
 	}
 	retryTicker.Stop()
