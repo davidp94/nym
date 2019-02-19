@@ -26,6 +26,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"github.com/stretchr/testify/assert"
@@ -91,21 +92,12 @@ func dummyServer(res []byte, address string) net.Listener {
 	if err != nil {
 		panic(err)
 	}
-
-	// closeCh := make(chan struct{})
-
 	go func() {
 		defer l.Close()
 		for {
-			// select {
-			// case <-closeCh:
-			// fmt.Println("closing dummy", address)
-			// return
-			// default:
-			// }
+
 			conn, err := l.Accept()
 			if err != nil {
-				fmt.Println("Error accepting: ", err.Error())
 				// conn error happens on closing listener, so we can abuse that to terminate the goroutine
 				return
 			}
@@ -144,7 +136,7 @@ IsProvider = true
 		IAAddressesStr,
 		string(`
 [Logging]
-Disable = false
+Disable = true
 Level = "Warning"
 [Debug]
 `),
@@ -184,7 +176,7 @@ func startIssuer(n int, addr string, grpcaddr string) *Server {
 		string(`
 		[Logging]
 		Disable = true
-		Level = "Warning"
+		Level = "Debug"
 		`)}, "")
 
 	cfg, err := config.LoadBinary([]byte(cfgstr))
@@ -325,5 +317,45 @@ func TestGetIAsVerificationKeys(t *testing.T) {
 			assert.EqualError(t, err, "Startup timeout")
 		}
 		dummy.Close()
+	}
+}
+
+// it is sufficient to test arbitrary malformed requests as all valid cases and valid querys with invalid attributes
+// were tested by client_test.go
+func TestIssuer(t *testing.T) {
+	stopAllIssuers() // to ensure all addresses are available
+	startIssuer(1, issuerTCPAddresses[1], issuerGRPCAddresses[1])
+
+	testAddressTCP := issuerTCPAddresses[1]
+	testAddressGRPC := issuerGRPCAddresses[1]
+
+	connTCP, err := net.Dial("tcp", testAddressTCP)
+	assert.Nil(t, err)
+
+	connGRPC, err := net.Dial("tcp", testAddressGRPC)
+	assert.Nil(t, err)
+
+	garbageBytes := [][]byte{
+		{},
+		nil,
+		[]byte("foo"),
+		make([]byte, 100000),
+	}
+
+	for _, b := range garbageBytes {
+		// we try to write them
+		if _, werr := connTCP.Write(b); werr != nil {
+			t.Logf("Failed to write to connection: %v", werr)
+		}
+
+		// and check if the server is still running afterwards
+		_, err = net.DialTimeout("tcp", testAddressTCP, time.Millisecond*500)
+		assert.Nil(t, err)
+
+		if _, werr := connGRPC.Write(b); werr != nil {
+			t.Logf("Failed to write to connection: %v", werr)
+		}
+		_, err = net.DialTimeout("tcp", testAddressGRPC, time.Millisecond*500)
+		assert.Nil(t, err)
 	}
 }
