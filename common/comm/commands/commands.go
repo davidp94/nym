@@ -23,6 +23,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -276,7 +277,7 @@ func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []
 // NewGetCredentialRequest returns new instance of a GetCredentialRequest
 // given set of public attributes, theta and a coconut signature on them.
 // nolint: lll
-func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG, val int, pub, sig []byte) (*GetCredentialRequest, error) {
+func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, token *token.Token, pub, sig []byte) (*GetCredentialRequest, error) {
 	protoLambda, err := lambda.ToProto()
 	if err != nil {
 		return nil, err
@@ -285,6 +286,8 @@ func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, p
 	if err != nil {
 		return nil, err
 	}
+
+	pubM, _ := token.GetPublicAndPrivateSlices()
 	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
@@ -293,7 +296,7 @@ func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, p
 		PublicKey: pub,
 		EgPub:     protoEgPub,
 		Lambda:    protoLambda,
-		Value:     int32(val),
+		Value:     token.Value(),
 		PubM:      pubMb,
 		Sig:       sig,
 	}, nil

@@ -151,7 +151,7 @@ func (m *AccountTransferRequest) GetSig() []byte {
 type DepositCoconutCredentialRequest struct {
 	// The actual credential
 	Sig *scheme.ProtoSignature `protobuf:"bytes,1,opt,name=Sig,proto3" json:"Sig,omitempty"`
-	// The public attributes in credential. Note that pubM[0] = H(value)
+	// The public attributes in credential. Note that pubM[0] = BIG(value)
 	PubM [][]byte `protobuf:"bytes,2,rep,name=PubM,proto3" json:"PubM,omitempty"`
 	// Crypto materials to verify the credential + required NIZK
 	Theta *scheme.ProtoThetaTumbler `protobuf:"bytes,3,opt,name=Theta,proto3" json:"Theta,omitempty"`

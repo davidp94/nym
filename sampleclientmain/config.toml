@@ -1,9 +1,5 @@
 # Coconut CLient configuration file.
 
-#
-# The Server section contains mandatory information common to all nodes.
-#
-
 [Client]
 
   # Identifier is the human readable identifier for the instance.
@@ -40,6 +36,11 @@
 
   # MaximumAttributes specifies the maximum number of attributes the client will want to have signed.
   MaximumAttributes = 5
+
+[Nym]
+
+  # AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
+  AccountKeysFile = "account.json"
 
 [Logging]
 

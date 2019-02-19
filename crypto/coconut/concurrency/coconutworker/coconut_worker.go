@@ -24,6 +24,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -89,6 +90,14 @@ func (cw *CoconutWorker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM 
 // nolint: lll
 func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
 	return cw.ShowBlindSignature(cw.muxParams, vk, sig, privM)
+}
+
+// PrepareBlindSignTokenWrapper wraps the provided arguments with pre-generated params
+// and unwraps attributes embedded in the token.
+// nolint: lll
+func (cw *CoconutWorker) PrepareBlindSignTokenWrapper(egPub *elgamal.PublicKey, token *token.Token) (*coconut.Lambda, error) {
+	pubM, privM := token.GetPublicAndPrivateSlices()
+	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
 }
 
 // New creates new instance of a coconutWorker.

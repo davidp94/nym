@@ -45,6 +45,10 @@
       { 
         "address": "AxXOmCXFcuZKyKVhC3Vkoyewtydx7GPnqRF3zczVc1oBwSYb0+D1RxicnnsTvnGOUg==",
         "balance": 1000000
+      },
+      {
+        "address": "AwCmV+emaAUznxv0pqe30qK4HaMzofY0cTM+upC0hKtJIGg58YJt26Ppqyl0L+9BXQ==",
+        "balance": 42
       }
     ],
     "coconutProperties": {

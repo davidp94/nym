@@ -1,5 +1,5 @@
 // client.go - coconut client API
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -37,6 +37,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -53,6 +54,8 @@ type Client struct {
 
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
+
+	nymAccount account.Account
 }
 
 const (
@@ -958,6 +961,17 @@ func New(cfg *config.Config) (*Client, error) {
 		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
 	}
 
+	acc := account.Account{}
+	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
+		if err := acc.FromJSONFile(cfg.Nym.AccountKeysFile); err != nil {
+			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			clientLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+	} else {
+		clientLog.Notice("No keys for the Nym Blockchain were specified.")
+	}
+
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
 		return nil, errors.New("Error while generating params")
@@ -978,6 +992,8 @@ func New(cfg *config.Config) (*Client, error) {
 		defaultDialOptions: []grpc.DialOption{
 			grpc.WithInsecure(),
 		},
+
+		nymAccount: acc,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

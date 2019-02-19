@@ -82,6 +82,12 @@ type Client struct {
 	MaximumAttributes int
 }
 
+// Nym defines Nym-specific configuration options.
+type Nym struct {
+	// AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
+	AccountKeysFile string
+}
+
 // Debug is the Coconut Client debug configuration.
 type Debug struct {
 	// NumJobWorkers specifies the number of worker instances to use for jobpacket processing.
@@ -124,6 +130,7 @@ type Logging struct {
 // Config is the top level Coconut Client configuration.
 type Config struct {
 	Client  *Client
+	Nym     *Nym
 	Logging *Logging
 
 	Debug *Debug
