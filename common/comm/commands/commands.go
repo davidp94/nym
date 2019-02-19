@@ -42,6 +42,9 @@ const (
 
 	// BlindVerifyID is commandID for verifying a blind signature on public and private attributes.
 	BlindVerifyID CommandID = 104
+
+	// GetCredentialID is commandID for obtaining credential on provided Nym tokens.
+	GetCredentialID CommandID = 128
 )
 
 // Command defines interface that is implemented by all commands defined in the package.
@@ -74,6 +77,8 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 		cmdID = BlindSignID
 	case *BlindVerifyRequest:
 		cmdID = BlindVerifyID
+	case *GetCredentialRequest:
+		cmdID = GetCredentialID
 	default:
 		return nil, errors.New("Unknown Command")
 	}
@@ -105,6 +110,8 @@ func FromBytes(b []byte) (Command, error) {
 		cmd = &BlindSignRequest{}
 	case BlindVerifyID:
 		cmd = &BlindVerifyRequest{}
+	case GetCredentialID:
+		cmd = &GetCredentialRequest{}
 	default:
 		return nil, errors.New("Unknown CommandID")
 	}
@@ -263,5 +270,31 @@ func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []
 		Theta: protoTheta,
 		Sig:   protoSig,
 		PubM:  pubMb,
+	}, nil
+}
+
+// NewGetCredentialRequest returns new instance of a GetCredentialRequest
+// given set of public attributes, theta and a coconut signature on them.
+// nolint: lll
+func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG, val int, pub, sig []byte) (*GetCredentialRequest, error) {
+	protoLambda, err := lambda.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	protoEgPub, err := egPub.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
+	if err != nil {
+		return nil, err
+	}
+	return &GetCredentialRequest{
+		PublicKey: pub,
+		EgPub:     protoEgPub,
+		Lambda:    protoLambda,
+		Value:     int32(val),
+		PubM:      pubMb,
+		Sig:       sig,
 	}, nil
 }
