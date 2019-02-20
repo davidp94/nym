@@ -34,6 +34,7 @@ import (
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -41,9 +42,10 @@ import (
 type Server struct {
 	cfg *config.Config
 
-	sk  *coconut.SecretKey
-	vk  *coconut.VerificationKey
-	avk *coconut.VerificationKey
+	sk         *coconut.SecretKey
+	vk         *coconut.VerificationKey
+	avk        *coconut.VerificationKey
+	nymAccount account.Account
 
 	cmdCh *requestqueue.RequestQueue
 	jobCh *jobqueue.JobQueue
@@ -214,6 +216,19 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
+	acc := account.Account{}
+	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
+		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
+			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		} else {
+			serverLog.Notice("Loaded Nym Blochain keys from the file.")
+		}
+	} else {
+		serverLog.Notice("No keys for the Nym Blockchain were specified.")
+	}
+
 	avk := &coconut.VerificationKey{}
 
 	cryptoWorkers := make([]*cryptoworker.CryptoWorker, cfg.Debug.NumCryptoWorkers)
@@ -261,8 +276,10 @@ func New(cfg *config.Config) (*Server, error) {
 	s := &Server{
 		cfg: cfg,
 
-		sk:    sk,
-		vk:    vk,
+		sk:         sk,
+		vk:         vk,
+		nymAccount: acc,
+
 		cmdCh: cmdCh,
 		jobCh: jobCh,
 		log:   serverLog,

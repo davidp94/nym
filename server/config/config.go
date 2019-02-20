@@ -81,6 +81,13 @@ type Issuer struct {
 
 	// SecretKeyFile specifies the file containing the Coconut Secret Key.
 	SecretKeyFile string
+
+	// BlockchainNodeAddress specifies address of a blockchain node
+	// to which the issuer should send all relevant requests.
+	BlockchainNodeAddress string
+
+	// BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+	BlockchainKeysFile string
 }
 
 // Provider is the Coconut provider server configuration.
