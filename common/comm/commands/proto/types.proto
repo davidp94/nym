@@ -87,3 +87,8 @@ message GetCredentialRequest {
     // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
     bytes sig = 6; 
 }
+
+message GetCredentialResponse {
+    coconut.ProtoBlindedSignature sig = 1;
+    Status status = 2;
+}

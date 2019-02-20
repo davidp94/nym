@@ -58,6 +58,12 @@ type Client struct {
 	nymAccount account.Account
 }
 
+// used to share code for parsing BlindSign and GetCredential responses. They return same data but under different name
+type blindedSignatureResponse interface {
+	GetSig() *coconut.ProtoBlindedSignature
+	commands.ProtoResponse
+}
+
 const (
 	nonGRPCClientErr = "Non-gRPC client trying to call gRPC method"
 	gRPCClientErr    = "gRPC client trying to call non-gRPC method"
@@ -99,12 +105,12 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 	return sig, nil
 }
 
-func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) (*coconut.Signature, error) {
+func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse) (*coconut.Signature, error) {
 	if err := c.checkResponseStatus(resp); err != nil {
 		return nil, err
 	}
 	blindSig := &coconut.BlindedSignature{}
-	if err := blindSig.FromProto(resp.Sig); err != nil {
+	if err := blindSig.FromProto(resp.GetSig()); err != nil {
 		return nil, c.logAndReturnError("parseBlindSignResponse: Failed to unmarshal received signature")
 	}
 	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey), nil
