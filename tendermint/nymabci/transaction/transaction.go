@@ -192,7 +192,7 @@ type TransferToHoldingReqParams struct {
 	ID              uint32
 	PrivateKey      account.ECPrivateKey
 	ClientPublicKey []byte
-	Amount          uint64
+	Amount          int32
 	Commitment      []byte
 	ClientSig       []byte
 }
@@ -208,12 +208,12 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byt
 	commitment := params.Commitment
 	clientSig := params.ClientSig
 
-	msg := make([]byte, 4+len(clientPublicKey)+8+len(commitment)+len(clientSig))
+	msg := make([]byte, 4+len(clientPublicKey)+4+len(commitment)+len(clientSig))
 	binary.BigEndian.PutUint32(msg, id)
 	copy(msg[4:], clientPublicKey)
-	binary.BigEndian.PutUint64(msg[4+len(clientPublicKey):], amount)
-	copy(msg[4+len(clientPublicKey)+8:], commitment)
-	copy(msg[4+len(clientPublicKey)+8+len(commitment):], clientSig)
+	binary.BigEndian.PutUint32(msg[4+len(clientPublicKey):], uint32(amount))
+	copy(msg[4+len(clientPublicKey)+4:], commitment)
+	copy(msg[4+len(clientPublicKey)+4+len(commitment):], clientSig)
 
 	sig := priv.SignBytes(msg)
 

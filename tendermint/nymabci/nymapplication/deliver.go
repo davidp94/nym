@@ -233,15 +233,15 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	// the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
 	// so that we would not have to verify the below signatures
 	clientBalance := binary.BigEndian.Uint64(clientBalanceB)
-	if clientBalance < protoRequest.Amount {
+	if clientBalance < uint64(protoRequest.Amount) {
 		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
 	}
 
 	// Verify both sigs
-	clientMsg := make([]byte, len(protoRequest.ClientPublicKey)+8+len(protoRequest.Commitment))
+	clientMsg := make([]byte, len(protoRequest.ClientPublicKey)+4+len(protoRequest.Commitment))
 	copy(clientMsg, protoRequest.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
-	binary.BigEndian.PutUint64(clientMsg[len(protoRequest.ClientPublicKey):], protoRequest.Amount)
-	copy(clientMsg[len(protoRequest.ClientPublicKey)+8:], protoRequest.Commitment)
+	binary.BigEndian.PutUint32(clientMsg[len(protoRequest.ClientPublicKey):], uint32(protoRequest.Amount))
+	copy(clientMsg[len(protoRequest.ClientPublicKey)+4:], protoRequest.Commitment)
 
 	if !clientPub.VerifyBytes(clientMsg, protoRequest.ClientSig) {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("CLIENT")}
@@ -257,7 +257,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 
 	// the request is valid, so transfer the amount
-	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, protoRequest.Amount)
+	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, uint64(protoRequest.Amount))
 
 	return types.ResponseDeliverTx{Code: transferRetCode, Data: data}
 }

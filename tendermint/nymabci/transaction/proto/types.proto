@@ -56,7 +56,7 @@ message TransferToHoldingRequest {
     // Which user's funds should be moved
     bytes ClientPublicKey = 2;
     // Amount to move
-    uint64 Amount = 3;
+    int32 Amount = 3;
     // Commitment to attributes the credential, ensures uniqueness of request
     bytes Commitment = 4;
     // To check if the user really wanted the transfer to happen

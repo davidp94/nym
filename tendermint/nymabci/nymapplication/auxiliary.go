@@ -105,6 +105,7 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 // returns code to indicate if the operation was successful and, if applicable, how it failed
 // Simple bool would not provide enough information
 // also returns any additional data
+// TODO: also limit transaction value to signed int32?
 func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
