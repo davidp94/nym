@@ -26,6 +26,8 @@
 
 
 [Issuer]
+	# ID represents the ID of the server used during generation of threshold keys.
+	ID = 3
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
   VerificationKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/coconutkeys/verification2-n=3-t=2.pem"

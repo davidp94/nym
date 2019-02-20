@@ -76,6 +76,9 @@ type Server struct {
 // It is responsible for signing attributes it receives
 // and providing its public verification key upon request.
 type Issuer struct {
+	// ID represents the ID of the server used during generation of threshold keys.
+	ID uint32
+
 	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
 	VerificationKeyFile string
 
