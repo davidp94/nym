@@ -14,6 +14,7 @@ enum StatusCode {
     NOT_IMPLEMENTED = 5;
     REQUEST_TIMEOUT = 6;
     UNAVAILABLE = 7;
+    INVALID_TRANSACTION = 8;
 }
 
 message Status {

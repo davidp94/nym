@@ -20,6 +20,12 @@ package cryptoworker
 
 import (
 	"fmt"
+	"time"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
@@ -28,6 +34,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
+	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -48,10 +55,11 @@ type CryptoWorker struct {
 	incomingCh <-chan *commands.CommandRequest
 	log        *logging.Logger
 
-	sk *coconut.SecretKey // ensure they can be safely shared between multiple workers
-	vk *coconut.VerificationKey
-
-	avk *coconut.VerificationKey // only used if server is a provider
+	iaid       uint32
+	sk         *coconut.SecretKey // ensure they can be safely shared between multiple workers
+	vk         *coconut.VerificationKey
+	avk        *coconut.VerificationKey // only used if server is a provider
+	nymAccount account.Account
 
 	id uint64
 }
@@ -173,6 +181,82 @@ func (cw *CryptoWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 	return response
 }
 
+func (cw *CryptoWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
+	// any prior checks on the actual request would go here:
+
+	response := getDefaultResponse()
+	lambda := &coconut.Lambda{}
+	if err := lambda.FromProto(req.Lambda); err != nil {
+		errMsg := "Could not recover received lambda."
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+	if len(req.PubM)+len(lambda.Enc()) > len(cw.sk.Y()) {
+		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
+			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(cw.sk.Y()))
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+	egPub := &elgamal.PublicKey{}
+	if err := egPub.FromProto(req.EgPub); err != nil {
+		errMsg := "Could not recover received ElGamal Public Key."
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+
+	// before we can issue credential we need to check if the request is valid on the blockchain side and if so,
+	// transfer the specified amount of user's tokens to the holding account
+	reqParams := transaction.TransferToHoldingReqParams{
+		ID:              cw.iaid,
+		PrivateKey:      cw.nymAccount.PrivateKey,
+		ClientPublicKey: req.PublicKey,
+		Amount:          req.Value,
+		Commitment:      req.Lambda.Cm,
+		ClientSig:       req.Sig,
+	}
+
+	blockchainRequest, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	}
+
+	_ = blockchainRequest
+	cw.log.Info("A call to the blockchain is happening here")
+	// TODO:
+	// TODO:
+	// TODO:
+
+	time.Sleep(time.Second * 1)
+
+	// FIXME: should we wait until tx is actually included in the block or just to hear it was valid? i.e.
+	// to wait for deliver_tx to happen or check_tx
+	blockchainResponse := &ctypes.ResultBroadcastTxCommit{}
+
+	// this will be set in actual response...
+	blockchainResponse.DeliverTx.Code = code.OK
+
+	if blockchainResponse.DeliverTx.Code != code.OK {
+		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
+			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+		return response
+	}
+
+	sig, err := cw.BlindSignWrapper(cw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	if err != nil {
+		// TODO: should client really know those details?
+		errMsg := fmt.Sprintf("Error while signing message: %v", err)
+		cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+
+	cw.log.Debugf("Writing back blinded signature")
+	response.Data = sig
+	return response
+
+}
+
 func (cw *CryptoWorker) worker() {
 	for {
 		select {
@@ -204,6 +288,10 @@ func (cw *CryptoWorker) worker() {
 				cw.log.Notice("Received Blind Verify Command")
 				response = cw.handleBlindVerifyRequest(req)
 
+			case *commands.GetCredentialRequest:
+				cw.log.Notice("Received Get Credential Command")
+				response = cw.handleGetCredentialRequest(req)
+
 			default:
 				errMsg := "Received Invalid Command"
 				cw.log.Critical(errMsg)
@@ -224,10 +312,12 @@ type Config struct {
 
 	Log *logger.Logger
 
-	Params *coconut.Params
-	Sk     *coconut.SecretKey
-	Vk     *coconut.VerificationKey
-	Avk    *coconut.VerificationKey
+	Params     *coconut.Params
+	IAID       uint32
+	Sk         *coconut.SecretKey
+	Vk         *coconut.VerificationKey
+	Avk        *coconut.VerificationKey
+	NymAccount account.Account
 }
 
 // New creates new instance of a coconutWorker.
@@ -236,9 +326,11 @@ func New(cfg *Config) *CryptoWorker {
 		CoconutWorker: coconutworker.New(cfg.JobQueue, cfg.Params),
 		incomingCh:    cfg.IncomingCh,
 		id:            cfg.ID,
+		iaid:          cfg.IAID,
 		sk:            cfg.Sk,
 		vk:            cfg.Vk,
 		avk:           cfg.Avk,
+		nymAccount:    cfg.NymAccount,
 		log:           cfg.Log.GetLogger(fmt.Sprintf("Servercryptoworker:%d", int(cfg.ID))),
 	}
 

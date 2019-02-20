@@ -418,6 +418,20 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			log.Notice("Blind Verification request to the server, while it has not finished startup (or data was nil)")
 			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
+	case *commands.GetCredentialRequest:
+		protoBlindSig := &coconut.ProtoBlindedSignature{}
+		if data != nil {
+			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
+			if err != nil {
+				protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
+				log.Errorf("Error while creating response: %v", err)
+			}
+		}
+		protoResp = &commands.GetCredentialResponse{
+			Sig:    protoBlindSig,
+			Status: protoStatus,
+		}
+
 	default:
 		log.Errorf("Received an unrecognized command.")
 		return nil

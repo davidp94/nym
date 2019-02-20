@@ -222,9 +222,8 @@ func New(cfg *config.Config) (*Server, error) {
 			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
 			serverLog.Error(errStr)
 			return nil, errors.New(errStr)
-		} else {
-			serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		}
+		serverLog.Notice("Loaded Nym Blochain keys from the file.")
 	} else {
 		serverLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
@@ -242,6 +241,7 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
+			NymAccount: acc,
 		}
 		cryptoWorkers[i] = cryptoworker.New(cryptoWorkerCfg)
 	}

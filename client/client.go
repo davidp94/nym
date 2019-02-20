@@ -973,9 +973,8 @@ func New(cfg *config.Config) (*Client, error) {
 			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
 			clientLog.Error(errStr)
 			return nil, errors.New(errStr)
-		} else {
-			clientLog.Notice("Loaded Nym Blochain keys from the file.")
 		}
+		clientLog.Notice("Loaded Nym Blochain keys from the file.")
 	} else {
 		clientLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
