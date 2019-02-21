@@ -216,6 +216,7 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
+	blockchainNodeAddresses := []string{}
 	acc := account.Account{}
 	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
 		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
@@ -224,28 +225,43 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, errors.New(errStr)
 		}
 		serverLog.Notice("Loaded Nym Blochain keys from the file.")
+		blockchainNodeAddresses = cfg.Issuer.BlockchainNodeAddresses
+
 	} else {
 		serverLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
 
 	avk := &coconut.VerificationKey{}
 
-	serverWorkers := make([]*serverworker.ServerWorker, cfg.Debug.NumServerWorkers)
-	for i := range serverWorkers {
+	serverWorkers := make([]*serverworker.ServerWorker, 0, cfg.Debug.NumServerWorkers)
+	for i := 0; i < cfg.Debug.NumServerWorkers; i++ {
 		serverWorkerCfg := &serverworker.Config{
 			JobQueue:   jobCh.In(),
 			IncomingCh: cmdCh.Out(),
 			ID:         uint64(i + 1),
 			Log:        log,
-			Params:     params,
-			Sk:         sk,
-			Vk:         vk,
-			Avk:        avk,
-			NymAccount: acc,
+			BlockchainNodeAddresses: blockchainNodeAddresses,
+			Params:                  params,
+			Sk:                      sk,
+			Vk:                      vk,
+			Avk:                     avk,
+			NymAccount:              acc,
 		}
-		serverWorkers[i] = serverworker.New(serverWorkerCfg)
+		serverWorker, err := serverworker.New(serverWorkerCfg)
+
+		if err == nil {
+			serverWorkers = append(serverWorkers, serverWorker)
+		} else {
+			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, err)
+		}
 	}
-	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumServerWorkers)
+
+	if len(serverWorkers) == 0 {
+		errMsg := "Could not start any server worker"
+		serverLog.Critical(errMsg)
+		return nil, errors.New(errMsg)
+	}
+	serverLog.Noticef("Started %v Server Worker(s)", cfg.Debug.NumServerWorkers)
 
 	jobworkers := make([]*jobworker.JobWorker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {

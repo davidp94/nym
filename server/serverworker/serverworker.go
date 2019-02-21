@@ -311,6 +311,8 @@ type Config struct {
 
 	Log *logger.Logger
 
+	BlockchainNodeAddresses []string
+
 	Params     *coconut.Params
 	IAID       uint32
 	Sk         *coconut.SecretKey
@@ -319,8 +321,8 @@ type Config struct {
 	NymAccount account.Account
 }
 
-// New creates new instance of a coconutWorker.
-func New(cfg *Config) *ServerWorker {
+// New creates new instance of a serverWorker.
+func New(cfg *Config) (*ServerWorker, error) {
 	sw := &ServerWorker{
 		CoconutWorker: coconutworker.New(cfg.JobQueue, cfg.Params),
 		incomingCh:    cfg.IncomingCh,
@@ -333,6 +335,8 @@ func New(cfg *Config) *ServerWorker {
 		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
+	// TODO: create client to BlockchainNodeAddresses[...] (can return error!)
+
 	sw.Go(sw.worker)
-	return sw
+	return sw, nil
 }

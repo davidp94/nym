@@ -35,9 +35,11 @@
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
   SecretKeyFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/coconutkeys/secret0-n=3-t=2.pem"
 
-	# BlockchainNodeAddress specifies address of a blockchain node
-	# to which the issuer should send all relevant requests.
-	BlockchainNodeAddress = "127.0.0.1:46657"
+	# BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	# to which the issuer should send all relevant requests. 
+	# Note that only a single request will ever be sent, but multiple addresses are provided in case 
+	# the particular node was unavailable.
+	BlockchainNodeAddresses = [ "127.0.0.1:46657" ]
 
 	# BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
 	BlockchainKeysFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/blockchainkeys/ia1.json"
