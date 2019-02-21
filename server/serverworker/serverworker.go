@@ -1,4 +1,4 @@
-// cryptoworker.go - Coconut Worker for Coconut server.
+// serverworker.go - Worker for Coconut server.
 // Copyright (C) 2018  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -14,16 +14,15 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Package cryptoworker gives additional functionalities to regular CoconutWorker
+// Package serverworker gives additional functionalities to regular CoconutWorker
 // that are required by a server instance.
-package cryptoworker
+package serverworker
 
 import (
 	"fmt"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 
@@ -46,9 +45,9 @@ const (
 		"Is the server a provider? And if so, has it completed the start up sequence?"
 )
 
-// CryptoWorker allows writing coconut actions to a shared job queue,
+// ServerWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
-type CryptoWorker struct {
+type ServerWorker struct {
 	worker.Worker
 	*coconutworker.CoconutWorker // TODO: since coconutWorker is created in New, does it need to be a reference?
 
@@ -72,143 +71,143 @@ func getDefaultResponse() *commands.Response {
 	}
 }
 
-func (cw *CryptoWorker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
-	cw.log.Error(errMsg)
+func (sw *ServerWorker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
+	sw.log.Error(errMsg)
 	response.Data = nil
 	response.ErrorMessage = errMsg
 	response.ErrorStatus = errCode
 }
 
-func (cw *CryptoWorker) handleSignRequest(req *commands.SignRequest) *commands.Response {
+func (sw *ServerWorker) handleSignRequest(req *commands.SignRequest) *commands.Response {
 	response := getDefaultResponse()
 
-	if len(req.PubM) > len(cw.sk.Y()) {
+	if len(req.PubM) > len(sw.sk.Y()) {
 		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM), len(cw.sk.Y()))
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+			" Got: %v, expected at most: %v", len(req.PubM), len(sw.sk.Y()))
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := cw.SignWrapper(cw.sk, coconut.BigSliceFromByteSlices(req.PubM))
+	sig, err := sw.SignWrapper(sw.sk, coconut.BigSliceFromByteSlices(req.PubM))
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
-	cw.log.Debugf("Writing back signature")
+	sw.log.Debugf("Writing back signature")
 	response.Data = sig
 	return response
 }
 
-func (cw *CryptoWorker) handleVerificationKeyRequest(req *commands.VerificationKeyRequest) *commands.Response {
+func (sw *ServerWorker) handleVerificationKeyRequest(req *commands.VerificationKeyRequest) *commands.Response {
 	response := getDefaultResponse()
-	response.Data = cw.vk
+	response.Data = sw.vk
 	return response
 }
 
-func (cw *CryptoWorker) handleVerifyRequest(req *commands.VerifyRequest) *commands.Response {
+func (sw *ServerWorker) handleVerifyRequest(req *commands.VerifyRequest) *commands.Response {
 	response := getDefaultResponse()
 
-	if cw.avk == nil {
+	if sw.avk == nil {
 		errMsg := providerStartupErr
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
 		return response
 	}
 	sig := &coconut.Signature{}
 	if err := sig.FromProto(req.Sig); err != nil {
 		errMsg := "Could not recover received signature."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = cw.VerifyWrapper(cw.avk, coconut.BigSliceFromByteSlices(req.PubM), sig)
+	response.Data = sw.VerifyWrapper(sw.avk, coconut.BigSliceFromByteSlices(req.PubM), sig)
 	return response
 }
 
-func (cw *CryptoWorker) handleBlindSignRequest(req *commands.BlindSignRequest) *commands.Response {
+func (sw *ServerWorker) handleBlindSignRequest(req *commands.BlindSignRequest) *commands.Response {
 	response := getDefaultResponse()
 
 	lambda := &coconut.Lambda{}
 	if err := lambda.FromProto(req.Lambda); err != nil {
 		errMsg := "Could not recover received lambda."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	if len(req.PubM)+len(lambda.Enc()) > len(cw.sk.Y()) {
+	if len(req.PubM)+len(lambda.Enc()) > len(sw.sk.Y()) {
 		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(cw.sk.Y()))
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(sw.sk.Y()))
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
 	egPub := &elgamal.PublicKey{}
 	if err := egPub.FromProto(req.EgPub); err != nil {
 		errMsg := "Could not recover received ElGamal Public Key."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := cw.BlindSignWrapper(cw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
-	cw.log.Debugf("Writing back blinded signature")
+	sw.log.Debugf("Writing back blinded signature")
 	response.Data = sig
 	return response
 }
 
-func (cw *CryptoWorker) handleBlindVerifyRequest(req *commands.BlindVerifyRequest) *commands.Response {
+func (sw *ServerWorker) handleBlindVerifyRequest(req *commands.BlindVerifyRequest) *commands.Response {
 	response := getDefaultResponse()
 
-	if cw.avk == nil {
+	if sw.avk == nil {
 		errMsg := providerStartupErr
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
 		return response
 	}
 	sig := &coconut.Signature{}
 	if err := sig.FromProto(req.Sig); err != nil {
 		errMsg := "Could not recover received signature."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
 	theta := &coconut.Theta{}
 	if err := theta.FromProto(req.Theta); err != nil {
 		errMsg := "Could not recover received theta."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = cw.BlindVerifyWrapper(cw.avk, sig, theta, coconut.BigSliceFromByteSlices(req.PubM))
+	response.Data = sw.BlindVerifyWrapper(sw.avk, sig, theta, coconut.BigSliceFromByteSlices(req.PubM))
 	return response
 }
 
-func (cw *CryptoWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
+func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
 	// any prior checks on the actual request would go here:
 
 	response := getDefaultResponse()
 	lambda := &coconut.Lambda{}
 	if err := lambda.FromProto(req.Lambda); err != nil {
 		errMsg := "Could not recover received lambda."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	if len(req.PubM)+len(lambda.Enc()) > len(cw.sk.Y()) {
+	if len(req.PubM)+len(lambda.Enc()) > len(sw.sk.Y()) {
 		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(cw.sk.Y()))
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(sw.sk.Y()))
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
 	egPub := &elgamal.PublicKey{}
 	if err := egPub.FromProto(req.EgPub); err != nil {
 		errMsg := "Could not recover received ElGamal Public Key."
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
 
 	// before we can issue credential we need to check if the request is valid on the blockchain side and if so,
 	// transfer the specified amount of user's tokens to the holding account
 	reqParams := transaction.TransferToHoldingReqParams{
-		ID:              cw.iaid,
-		PrivateKey:      cw.nymAccount.PrivateKey,
+		ID:              sw.iaid,
+		PrivateKey:      sw.nymAccount.PrivateKey,
 		ClientPublicKey: req.PublicKey,
 		Amount:          req.Value,
 		Commitment:      req.Lambda.Cm,
@@ -218,11 +217,11 @@ func (cw *CryptoWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 	blockchainRequest, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 	}
 
 	_ = blockchainRequest
-	cw.log.Info("A call to the blockchain is happening here")
+	sw.log.Info("A call to the blockchain is happening here")
 	// TODO:
 	// TODO:
 	// TODO:
@@ -239,62 +238,62 @@ func (cw *CryptoWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 	if blockchainResponse.DeliverTx.Code != code.OK {
 		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
 			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
 		return response
 	}
 
-	sig, err := cw.BlindSignWrapper(cw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		cw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
 
-	cw.log.Debugf("Writing back blinded signature")
+	sw.log.Debugf("Writing back blinded signature")
 	response.Data = sig
 	return response
 
 }
 
-func (cw *CryptoWorker) worker() {
+func (sw *ServerWorker) worker() {
 	for {
 		select {
-		case <-cw.HaltCh():
-			cw.log.Noticef("Halting Coconut Server worker %d\n", cw.id)
+		case <-sw.HaltCh():
+			sw.log.Noticef("Halting Coconut Server worker %d\n", sw.id)
 			return
-		case cmdReq := <-cw.incomingCh:
+		case cmdReq := <-sw.incomingCh:
 			cmd := cmdReq.Cmd()
 			var response *commands.Response
 
 			switch req := cmd.(type) {
 			case *commands.SignRequest:
-				cw.log.Notice("Received Sign (NOT blind) command")
-				response = cw.handleSignRequest(req)
+				sw.log.Notice("Received Sign (NOT blind) command")
+				response = sw.handleSignRequest(req)
 
 			case *commands.VerificationKeyRequest:
-				cw.log.Notice("Received Get Verification Key command")
-				response = cw.handleVerificationKeyRequest(req)
+				sw.log.Notice("Received Get Verification Key command")
+				response = sw.handleVerificationKeyRequest(req)
 
 			case *commands.VerifyRequest:
-				cw.log.Notice("Received Verify (NOT blind) command")
-				response = cw.handleVerifyRequest(req)
+				sw.log.Notice("Received Verify (NOT blind) command")
+				response = sw.handleVerifyRequest(req)
 
 			case *commands.BlindSignRequest:
-				cw.log.Notice("Received Blind Sign command")
-				response = cw.handleBlindSignRequest(req)
+				sw.log.Notice("Received Blind Sign command")
+				response = sw.handleBlindSignRequest(req)
 
 			case *commands.BlindVerifyRequest:
-				cw.log.Notice("Received Blind Verify Command")
-				response = cw.handleBlindVerifyRequest(req)
+				sw.log.Notice("Received Blind Verify Command")
+				response = sw.handleBlindVerifyRequest(req)
 
 			case *commands.GetCredentialRequest:
-				cw.log.Notice("Received Get Credential Command")
-				response = cw.handleGetCredentialRequest(req)
+				sw.log.Notice("Received Get Credential Command")
+				response = sw.handleGetCredentialRequest(req)
 
 			default:
 				errMsg := "Received Invalid Command"
-				cw.log.Critical(errMsg)
+				sw.log.Critical(errMsg)
 				response = getDefaultResponse()
 				response.ErrorStatus = commands.StatusCode_INVALID_COMMAND
 			}
@@ -303,7 +302,7 @@ func (cw *CryptoWorker) worker() {
 	}
 }
 
-// Config encapsulates arguments passed in New to create new instance of the cryptoworker.
+// Config encapsulates arguments passed in New to create new instance of the serverworker.
 type Config struct {
 	JobQueue   chan<- *jobpacket.JobPacket
 	IncomingCh <-chan *commands.CommandRequest
@@ -321,8 +320,8 @@ type Config struct {
 }
 
 // New creates new instance of a coconutWorker.
-func New(cfg *Config) *CryptoWorker {
-	cw := &CryptoWorker{
+func New(cfg *Config) *ServerWorker {
+	sw := &ServerWorker{
 		CoconutWorker: coconutworker.New(cfg.JobQueue, cfg.Params),
 		incomingCh:    cfg.IncomingCh,
 		id:            cfg.ID,
@@ -331,9 +330,9 @@ func New(cfg *Config) *CryptoWorker {
 		vk:            cfg.Vk,
 		avk:           cfg.Avk,
 		nymAccount:    cfg.NymAccount,
-		log:           cfg.Log.GetLogger(fmt.Sprintf("Servercryptoworker:%d", int(cfg.ID))),
+		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
-	cw.Go(cw.worker)
-	return cw
+	sw.Go(sw.worker)
+	return sw
 }

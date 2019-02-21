@@ -30,10 +30,10 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	"0xacab.org/jstuczyn/CoconutGo/server/cryptoworker"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
+	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -51,7 +51,7 @@ type Server struct {
 	jobCh *jobqueue.JobQueue
 	log   *logging.Logger
 
-	cryptoWorkers []*cryptoworker.CryptoWorker
+	serverWorkers []*serverworker.ServerWorker
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.JobWorker
@@ -230,9 +230,9 @@ func New(cfg *config.Config) (*Server, error) {
 
 	avk := &coconut.VerificationKey{}
 
-	cryptoWorkers := make([]*cryptoworker.CryptoWorker, cfg.Debug.NumCryptoWorkers)
-	for i := range cryptoWorkers {
-		cryptoWorkerCfg := &cryptoworker.Config{
+	serverWorkers := make([]*serverworker.ServerWorker, cfg.Debug.NumServerWorkers)
+	for i := range serverWorkers {
+		serverWorkerCfg := &serverworker.Config{
 			JobQueue:   jobCh.In(),
 			IncomingCh: cmdCh.Out(),
 			ID:         uint64(i + 1),
@@ -243,9 +243,9 @@ func New(cfg *config.Config) (*Server, error) {
 			Avk:        avk,
 			NymAccount: acc,
 		}
-		cryptoWorkers[i] = cryptoworker.New(cryptoWorkerCfg)
+		serverWorkers[i] = serverworker.New(serverWorkerCfg)
 	}
-	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCryptoWorkers)
+	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumServerWorkers)
 
 	jobworkers := make([]*jobworker.JobWorker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {
@@ -284,7 +284,7 @@ func New(cfg *config.Config) (*Server, error) {
 		jobCh: jobCh,
 		log:   serverLog,
 
-		cryptoWorkers: cryptoWorkers,
+		serverWorkers: serverWorkers,
 		listeners:     listeners,
 		grpclisteners: grpclisteners,
 		jobWorkers:    jobworkers,
@@ -301,7 +301,7 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
 
-		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
+		*avk = *serverWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
 
@@ -345,10 +345,10 @@ func (s *Server) halt() {
 		}
 	}
 
-	for i, w := range s.cryptoWorkers {
+	for i, w := range s.serverWorkers {
 		if w != nil {
 			w.Halt()
-			s.cryptoWorkers[i] = nil
+			s.serverWorkers[i] = nil
 		}
 	}
 
