@@ -32,51 +32,47 @@ import (
 )
 
 const (
-	connectionConnected    connectionStatus = 0
-	connectionDisconnected connectionStatus = 1
-	connectionConnecting   connectionStatus = 2
-
 	reconnectionValidityPeriod = time.Second * 10
 )
-
-type connectionStatus byte
-
-func (cs *connectionStatus) disconnect() {
-	if *cs == connectionConnected {
-
-	}
-}
-
-// if error -> try to switch from connected to disconnected
 
 type Client struct {
 	log               *logging.Logger
 	possibleAddresses []string
 	tmclient          *tmclient.HTTP
-	connectionStatus  *connectionStatus
 	failedToReconnect bool
+	lastReconnection  time.Time
 
-	lastReconnection time.Time
+	connLock sync.Mutex
+	logLock  sync.Mutex
 
-	sync.Mutex
-	logLock sync.Mutex
+	stopOnce sync.Once
 }
 
 var (
-	ReconnectError = errors.New("Could not reconnect to any node")
+	// ErrReconnectFailure indicates error due to inability to reconnect to any specified node.
+	ErrReconnectFailure = errors.New("Could not reconnect to any node")
 )
 
-// temp for debug
+// Broadcast sends a transaction to specified blockchain nodes and waits until it is included on the chain.
 func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 	return c.tmclient.BroadcastTxCommit(tx)
 }
 
-// temp for debug
+// SendSync sends an sync transaction to specified blockchain node. Note that there is no guarantee the transaction
+// suceeded, but it definitely passed CheckTx and was included in the mempool. However, it still
+// might return an error at DeliverTx.
+func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
+	return c.tmclient.BroadcastTxSync(tx)
+}
+
+// SendAsync sends an async transaction to specified blockchain node. Note that there is no guarantee the transaction
+// was included on the chain (it might not have been even added to the mempool because it could have failed CheckTx)
 func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	return c.tmclient.BroadcastTxAsync(tx)
 }
 
-// temp for debug
+// Query sends a query to specified blockchain node at given path. Note that it just returns state information
+// (that might be stale) and is NOT included in transactions.
 func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery, error) {
 	c.logMsg("DEBUG", "Doing Query at path %v", path)
 	var res *ctypes.ResultABCIQuery
@@ -102,8 +98,8 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 }
 
 func (c *Client) reconnect(forceTry bool) error {
-	c.Lock()
-	defer c.Unlock()
+	c.connLock.Lock()
+	defer c.connLock.Unlock()
 	c.logMsg("NOTICE", "Trying to reconnect to any working blockchain node")
 
 	if c.lastReconnection.Add(reconnectionValidityPeriod).UnixNano() > time.Now().UnixNano() {
@@ -114,7 +110,7 @@ func (c *Client) reconnect(forceTry bool) error {
 
 	// so that we would not try connecting with all addresses as somebody else already tried and failed
 	if !forceTry && c.failedToReconnect {
-		return ReconnectError
+		return ErrReconnectFailure
 	}
 
 	// we could try to reconnect to existing one, hoping itd come back, but might as well connect to another node
@@ -139,18 +135,20 @@ func (c *Client) reconnect(forceTry bool) error {
 
 	if c.tmclient == nil {
 		c.failedToReconnect = true
-		return ReconnectError
+		return ErrReconnectFailure
 	}
 
 	c.lastReconnection = time.Now()
-
 	return nil
 }
 
+// Stop gracefully stops the client
 func (c *Client) Stop() {
-	// use sync.once here
-
-	c.tmclient.Stop()
+	c.stopOnce.Do(func() {
+		if c.tmclient != nil {
+			c.tmclient.Stop()
+		}
+	})
 }
 
 // a thread-safe logging
@@ -195,18 +193,4 @@ func New(nodeAddresses []string, logger *logger.Logger) (*Client, error) {
 	}
 
 	return c, nil
-
-	// tmclient := tmclient.NewHTTP(nodeAddress, "/websocket")
-	// err := tmclient.Start()
-
-	// // IsRunning
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// return &Client{
-	// 	tmclient: tmclient,
-	// 	log:      log.GetLogger("Tendermint-Client"),
-	// }, nil
 }
