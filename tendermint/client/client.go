@@ -55,20 +55,80 @@ var (
 
 // Broadcast sends a transaction to specified blockchain nodes and waits until it is included on the chain.
 func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
-	return c.tmclient.BroadcastTxCommit(tx)
+	c.logMsg("DEBUG", "Broadcasting a TX")
+	var res *ctypes.ResultBroadcastTxCommit
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BroadcastTxCommit(tx)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// try to send the tx again
+		return c.Broadcast(tx)
+	}
+	c.logMsg("DEBUG", "Query call done")
+	return res, err
 }
 
 // SendSync sends an sync transaction to specified blockchain node. Note that there is no guarantee the transaction
 // suceeded, but it definitely passed CheckTx and was included in the mempool. However, it still
 // might return an error at DeliverTx.
 func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
-	return c.tmclient.BroadcastTxSync(tx)
+	c.logMsg("DEBUG", "Sending a Sync TX")
+	var res *ctypes.ResultBroadcastTx
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BroadcastTxSync(tx)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// try to send the tx again
+		return c.SendSync(tx)
+	}
+	c.logMsg("DEBUG", "Query call done")
+	return res, err
 }
 
 // SendAsync sends an async transaction to specified blockchain node. Note that there is no guarantee the transaction
 // was included on the chain (it might not have been even added to the mempool because it could have failed CheckTx)
 func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
-	return c.tmclient.BroadcastTxAsync(tx)
+	c.logMsg("DEBUG", "Sending an async TX")
+	var res *ctypes.ResultBroadcastTx
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BroadcastTxAsync(tx)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// try to send the tx again
+		return c.SendAsync(tx)
+	}
+	c.logMsg("DEBUG", "Query call done")
+	return res, err
 }
 
 // Query sends a query to specified blockchain node at given path. Note that it just returns state information
