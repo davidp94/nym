@@ -18,12 +18,12 @@
 package client
 
 import (
-	"bytes"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	cmn "github.com/tendermint/tendermint/libs/common"
 	tmclient "github.com/tendermint/tendermint/rpc/client"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
@@ -31,10 +31,19 @@ import (
 )
 
 type Client struct {
-	log *logging.Logger
+	log               *logging.Logger
+	possibleAddresses []string
+	tmclient          *tmclient.HTTP
+	connected         bool
+	failedToReconnect bool
 
-	tmclient *tmclient.HTTP
+	sync.Mutex
+	logLock sync.Mutex
 }
+
+var (
+	ReconnectError = errors.New("Could not reconnect to any node")
+)
 
 // temp for debug
 func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
@@ -48,50 +57,142 @@ func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 
 // temp for debug
 func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery, error) {
-	return c.tmclient.ABCIQuery(path, data)
+	c.logMsg("DEBUG", "Doing Query at path %v", path)
+	var res *ctypes.ResultABCIQuery
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.ABCIQuery(path, data)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.Lock()
+		// TODO: how to make sure some thread hasnt just reconnected?
+		if c.connected {
+			c.connected = false
+		}
+		c.Unlock()
+		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		return c.Query(path, data)
+	}
+	c.logMsg("DEBUG", "Query call done")
+	return res, err
 }
 
-// deprecated -> no need for that function anymore
-// LookUpZeta checks if given Zeta was already spent (TODO: epochs?)
-// transaction is used rather than a simple query in order to ensure there would be no stale results. For example
-// there might be an accepted, but not yet commited transaction to spend given credential. Query would return false,
-// while lookup as seperate transaction would be properly ordered and return true.
-func (c *Client) LookUpZeta(zeta *Curve.ECP) bool {
-	c.log.Debugf("Looking up: %v", utils.ToCoconutString(zeta))
-	tx := transaction.NewLookUpZetaTx(zeta)
-	res, err := c.tmclient.BroadcastTxCommit(tx)
+func (c *Client) reconnect(forceTry bool) error {
+	c.Lock()
+	defer c.Unlock()
+	c.logMsg("NOTICE", "Trying to reconnect to any working blockchain node")
 
-	if err != nil {
-		c.log.Errorf("Error response: %v", err)
+	if c.connected {
+		// somebody else already caused reconnection
+		c.logMsg("DEBUG", "Another instance already reconnected")
+		return nil
 	}
 
-	if bytes.Equal(res.DeliverTx.Data, transaction.TruthBytes) {
-		return true
+	// so that we would not try connecting with all addresses as somebody else already tried and failed
+	if !forceTry && c.failedToReconnect {
+		return ReconnectError
 	}
 
-	if bytes.Equal(res.DeliverTx.Data, transaction.FalseBytes) {
-		return false
+	// we could try to reconnect to existing one, hoping itd come back, but might as well connect to another node
+	if c.tmclient != nil {
+		c.tmclient.Stop()
+		c.tmclient = nil
 	}
 
-	c.log.Warningf("UNKNOWN RESPONSE: %v", res.DeliverTx.Data)
-	return false
+	for _, address := range c.possibleAddresses {
+		c.logMsg("DEBUG", "Trying to connect to: %v", address)
+		httpClient := tmclient.NewHTTP(address, "/websocket")
+		err := httpClient.Start()
+		if err != nil {
+			// can't connect to that node
+			c.logMsg("ERROR", "Could not connect to: %v (%v)", address, err)
+			continue
+		}
+		c.logMsg("NOTICE", "Connected to %v", address)
+		c.tmclient = httpClient
+		break
+	}
 
+	if c.tmclient == nil {
+		c.failedToReconnect = true
+		return ReconnectError
+	}
+
+	c.connected = true
+
+	return nil
 }
 
 func (c *Client) Stop() {
+	// use sync.once here
+
 	c.tmclient.Stop()
 }
 
-// TODO: replace nodeaddress with cfg?
-func New(nodeAddress string, log *logger.Logger) (*Client, error) {
-	tmclient := tmclient.NewHTTP(nodeAddress, "/websocket")
-	err := tmclient.Start()
-	if err != nil {
-		return nil, err
+// a thread-safe logging
+func (c *Client) logMsg(level string, msgfmt string, a ...interface{}) {
+	c.logLock.Lock()
+	defer c.logLock.Unlock()
+
+	msg := msgfmt
+	if a != nil {
+		msg = fmt.Sprintf(msgfmt, a...)
 	}
 
-	return &Client{
-		tmclient: tmclient,
-		log:      log.GetLogger("Tendermint-Client"),
-	}, nil
+	level = strings.ToUpper(level)
+	switch level {
+	case "DEBUG":
+		c.log.Debug(msg)
+	case "INFO":
+		c.log.Info(msg)
+	case "NOTICE":
+		c.log.Notice(msg)
+	case "WARNING":
+		c.log.Warning(msg)
+	case "ERROR":
+		c.log.Error(msg)
+	case "CRITICAL":
+		c.log.Critical(msg)
+	}
+}
+
+// New returns new instance of the client
+func New(nodeAddresses []string, logger *logger.Logger) (*Client, error) {
+	c := &Client{
+		log:               logger.GetLogger("Tendermint-Client"),
+		possibleAddresses: nodeAddresses,
+		failedToReconnect: false,
+		tmclient:          nil, // will be set by the reconnect call
+		connected:         false,
+	}
+
+	err := c.reconnect(true)
+	if err != nil {
+		return nil, errors.New("Could not connect to any defined blockchain node")
+	}
+
+	return c, nil
+
+	// tmclient := tmclient.NewHTTP(nodeAddress, "/websocket")
+	// err := tmclient.Start()
+
+	// // IsRunning
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// return &Client{
+	// 	tmclient: tmclient,
+	// 	log:      log.GetLogger("Tendermint-Client"),
+	// }, nil
 }

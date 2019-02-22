@@ -35,6 +35,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -216,8 +217,8 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
-	blockchainNodeAddresses := []string{}
 	acc := account.Account{}
+	var nymClient *nymclient.Client
 	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
 		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
 			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
@@ -225,8 +226,13 @@ func New(cfg *config.Config) (*Server, error) {
 			return nil, errors.New(errStr)
 		}
 		serverLog.Notice("Loaded Nym Blochain keys from the file.")
-		blockchainNodeAddresses = cfg.Issuer.BlockchainNodeAddresses
 
+		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
 	} else {
 		serverLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
@@ -240,12 +246,12 @@ func New(cfg *config.Config) (*Server, error) {
 			IncomingCh: cmdCh.Out(),
 			ID:         uint64(i + 1),
 			Log:        log,
-			BlockchainNodeAddresses: blockchainNodeAddresses,
-			Params:                  params,
-			Sk:                      sk,
-			Vk:                      vk,
-			Avk:                     avk,
-			NymAccount:              acc,
+			Params:     params,
+			Sk:         sk,
+			Vk:         vk,
+			Avk:        avk,
+			NymAccount: acc,
+			NymClient:  nymClient,
 		}
 		serverWorker, err := serverworker.New(serverWorkerCfg)
 

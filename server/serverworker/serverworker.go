@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 
@@ -54,6 +55,9 @@ type ServerWorker struct {
 	incomingCh <-chan *commands.CommandRequest
 	log        *logging.Logger
 
+	nymClient               *nymclient.Client
+	blockchainNodeAddresses []string // we keep them for the future so that if the node we are connected to fails,
+	// we could try to reconnect to a different one
 	iaid       uint32
 	sk         *coconut.SecretKey // ensure they can be safely shared between multiple workers
 	vk         *coconut.VerificationKey
@@ -311,7 +315,7 @@ type Config struct {
 
 	Log *logger.Logger
 
-	BlockchainNodeAddresses []string
+	NymClient *nymclient.Client
 
 	Params     *coconut.Params
 	IAID       uint32
@@ -331,11 +335,10 @@ func New(cfg *Config) (*ServerWorker, error) {
 		sk:            cfg.Sk,
 		vk:            cfg.Vk,
 		avk:           cfg.Avk,
+		nymClient:     cfg.NymClient,
 		nymAccount:    cfg.NymAccount,
 		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
-
-	// TODO: create client to BlockchainNodeAddresses[...] (can return error!)
 
 	sw.Go(sw.worker)
 	return sw, nil
