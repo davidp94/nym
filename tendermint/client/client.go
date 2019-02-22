@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	cmn "github.com/tendermint/tendermint/libs/common"
@@ -30,12 +31,32 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+const (
+	connectionConnected    connectionStatus = 0
+	connectionDisconnected connectionStatus = 1
+	connectionConnecting   connectionStatus = 2
+
+	reconnectionValidityPeriod = time.Second * 10
+)
+
+type connectionStatus byte
+
+func (cs *connectionStatus) disconnect() {
+	if *cs == connectionConnected {
+
+	}
+}
+
+// if error -> try to switch from connected to disconnected
+
 type Client struct {
 	log               *logging.Logger
 	possibleAddresses []string
 	tmclient          *tmclient.HTTP
-	connected         bool
+	connectionStatus  *connectionStatus
 	failedToReconnect bool
+
+	lastReconnection time.Time
 
 	sync.Mutex
 	logLock sync.Mutex
@@ -67,12 +88,6 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 	}
 	// network error
 	if err != nil {
-		c.Lock()
-		// TODO: how to make sure some thread hasnt just reconnected?
-		if c.connected {
-			c.connected = false
-		}
-		c.Unlock()
 		c.logMsg("DEBUG", "Network error while quering the ABCI")
 		err := c.reconnect(false)
 		if err != nil {
@@ -91,7 +106,7 @@ func (c *Client) reconnect(forceTry bool) error {
 	defer c.Unlock()
 	c.logMsg("NOTICE", "Trying to reconnect to any working blockchain node")
 
-	if c.connected {
+	if c.lastReconnection.Add(reconnectionValidityPeriod).UnixNano() > time.Now().UnixNano() {
 		// somebody else already caused reconnection
 		c.logMsg("DEBUG", "Another instance already reconnected")
 		return nil
@@ -127,7 +142,7 @@ func (c *Client) reconnect(forceTry bool) error {
 		return ReconnectError
 	}
 
-	c.connected = true
+	c.lastReconnection = time.Now()
 
 	return nil
 }
@@ -172,7 +187,6 @@ func New(nodeAddresses []string, logger *logger.Logger) (*Client, error) {
 		possibleAddresses: nodeAddresses,
 		failedToReconnect: false,
 		tmclient:          nil, // will be set by the reconnect call
-		connected:         false,
 	}
 
 	err := c.reconnect(true)

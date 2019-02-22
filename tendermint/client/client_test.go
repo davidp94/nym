@@ -50,7 +50,7 @@ func TestBasic(t *testing.T) {
 	assert.Nil(t, err)
 
 	// time for me to kill the node and cause reconnect
-	time.Sleep(time.Second * 5)
+	time.Sleep(time.Second * 15)
 
 	var wg sync.WaitGroup
 
