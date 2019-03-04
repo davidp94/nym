@@ -252,8 +252,8 @@ func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 		return response
 	}
 
-	sw.log.Notice("Received response from the blockchain. Return code: %v",
-		code.ToString(blockchainResponse.DeliverTx.Code))
+	sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
+		code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
 
 	if blockchainResponse.DeliverTx.Code != code.OK {
 		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",

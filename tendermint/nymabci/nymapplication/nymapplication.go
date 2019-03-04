@@ -55,6 +55,7 @@ var (
 	aggregateVkKey        = []byte("avk")
 	coconutHs             = []byte("coconutHs")
 	iaKeyPrefix           = []byte("IssuingAuthority")
+	commitmentsPrefix     = []byte("commitment")
 
 	// TODO: will need to store all vks
 
@@ -224,7 +225,7 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
 	case transaction.TxTransferToHolding:
-		app.log.Debug("ChecTx for TxTransferToHolding")
+		app.log.Debug("CheckTx for TxTransferToHolding")
 	default:
 		app.log.Error("Default CheckTX")
 

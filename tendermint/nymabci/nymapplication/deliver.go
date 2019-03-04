@@ -223,20 +223,6 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("CLIENT")}
 	}
 
-	// check if client exists and has sufficient balance to actually transfer
-	clientBalanceB, retCode := app.queryBalance(clientPub)
-	if retCode != code.OK {
-		return types.ResponseDeliverTx{Code: code.ACCOUNT_DOES_NOT_EXIST}
-	}
-
-	// balance is actually also checked when transferring funds, but since we have to query db to check if
-	// the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
-	// so that we would not have to verify the below signatures
-	clientBalance := binary.BigEndian.Uint64(clientBalanceB)
-	if clientBalance < uint64(protoRequest.Amount) {
-		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
-	}
-
 	// Verify both sigs
 	clientMsg := make([]byte, len(protoRequest.ClientPublicKey)+4+len(protoRequest.Commitment))
 	copy(clientMsg, protoRequest.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
@@ -256,8 +242,44 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("ISSUING AUTHORITY")}
 	}
 
+	// if cm wasn't seen before check balance and do the transfer
+	// else return the same error code as before  - to prevent inconsistency, ex:
+	// block N - IA1 sends the request - it fails due to insufficient funds
+	// block N+1 - client's funds are increased somehow or his account is now created, etc
+	// block N+2 - another IA sends the request
+
+	dbKey := prefixKey(commitmentsPrefix, protoRequest.Commitment)
+	_, previousCode := app.state.db.Get(dbKey)
+	if previousCode != nil {
+		// another IA already sent the request before - we return the same result
+		app.log.Info("This request was already completed")
+		return types.ResponseDeliverTx{Code: binary.BigEndian.Uint32(previousCode), Data: []byte("DUPLICATE")}
+	}
+
+	retCodeB := make([]byte, 4)
+
+	// check if client exists and has sufficient balance to actually transfer
+	clientBalanceB, retCode := app.queryBalance(clientPub)
+	if retCode != code.OK {
+		binary.BigEndian.PutUint32(retCodeB, retCode)
+		app.state.db.Set(dbKey, retCodeB)
+		return types.ResponseDeliverTx{Code: code.ACCOUNT_DOES_NOT_EXIST}
+	}
+
+	// balance is actually also checked when transferring funds, but since we have to query db to check if
+	// the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
+	// so that we would not have to verify the below signatures
+	clientBalance := binary.BigEndian.Uint64(clientBalanceB)
+	if clientBalance < uint64(protoRequest.Amount) {
+		binary.BigEndian.PutUint32(retCodeB, code.INSUFFICIENT_BALANCE)
+		app.state.db.Set(dbKey, retCodeB)
+		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
+	}
+
 	// the request is valid, so transfer the amount
 	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, uint64(protoRequest.Amount))
+	binary.BigEndian.PutUint32(retCodeB, transferRetCode)
+	app.state.db.Set(dbKey, retCodeB)
 
 	return types.ResponseDeliverTx{Code: transferRetCode, Data: data}
 }
