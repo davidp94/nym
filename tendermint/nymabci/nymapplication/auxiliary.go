@@ -97,8 +97,8 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 	dbEntry := prefixKey(accountsPrefix, publicKey)
 	app.state.db.Set(dbEntry, value)
 
-	hexname := base64.StdEncoding.EncodeToString(publicKey)
-	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", hexname, startingBalance))
+	b64name := base64.StdEncoding.EncodeToString(publicKey)
+	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, startingBalance))
 	return true
 }
 

@@ -35,6 +35,8 @@ const (
 	reconnectionValidityPeriod = time.Second * 10
 )
 
+// Client encapsulates all necessary data for communicating with the blockchain application by possibly multiple
+// clients simultaneously.
 type Client struct {
 	log               *logging.Logger
 	possibleAddresses []string
@@ -74,12 +76,12 @@ func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 		// try to send the tx again
 		return c.Broadcast(tx)
 	}
-	c.logMsg("DEBUG", "Query call done")
+	c.logMsg("DEBUG", "Broadcast call done")
 	return res, err
 }
 
 // SendSync sends an sync transaction to specified blockchain node. Note that there is no guarantee the transaction
-// suceeded, but it definitely passed CheckTx and was included in the mempool. However, it still
+// succeeded, but it definitely passed CheckTx and was included in the mempool. However, it still
 // might return an error at DeliverTx.
 func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	c.logMsg("DEBUG", "Sending a Sync TX")
@@ -101,7 +103,7 @@ func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 		// try to send the tx again
 		return c.SendSync(tx)
 	}
-	c.logMsg("DEBUG", "Query call done")
+	c.logMsg("DEBUG", "SendSync call done")
 	return res, err
 }
 
@@ -127,7 +129,7 @@ func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 		// try to send the tx again
 		return c.SendAsync(tx)
 	}
-	c.logMsg("DEBUG", "Query call done")
+	c.logMsg("DEBUG", "SendAsync call done")
 	return res, err
 }
 
@@ -175,6 +177,8 @@ func (c *Client) reconnect(forceTry bool) error {
 
 	// we could try to reconnect to existing one, hoping itd come back, but might as well connect to another node
 	if c.tmclient != nil {
+		// err is only returned of client is already stopped, so we can safely ignore it
+		// nolint: gosec
 		c.tmclient.Stop()
 		c.tmclient = nil
 	}
@@ -206,6 +210,8 @@ func (c *Client) reconnect(forceTry bool) error {
 func (c *Client) Stop() {
 	c.stopOnce.Do(func() {
 		if c.tmclient != nil {
+			// err is only returned of client is already stopped, so we can safely ignore it
+			// nolint: gosec
 			c.tmclient.Stop()
 		}
 	})

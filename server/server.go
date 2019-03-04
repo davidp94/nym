@@ -247,6 +247,7 @@ func New(cfg *config.Config) (*Server, error) {
 			ID:         uint64(i + 1),
 			Log:        log,
 			Params:     params,
+			IAID:       cfg.Issuer.ID,
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,

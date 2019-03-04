@@ -19,22 +19,22 @@
 package serverworker
 
 import (
+	"encoding/base64"
 	"fmt"
-	"time"
-
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/utils"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
-	ctypes "github.com/tendermint/tendermint/rpc/core/types"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -222,22 +222,38 @@ func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
 	}
 
-	_ = blockchainRequest
-	sw.log.Info("A call to the blockchain is happening here")
-	// TODO:
-	// TODO:
-	// TODO:
+	b64name := base64.StdEncoding.EncodeToString(req.PublicKey)
+	if len(req.PublicKey) != constants.ECPLen {
+		tmp, err := utils.CompressECPBytes(req.PublicKey)
+		if err != nil {
+			// should we continue or return error without trying to call blockchain?
+			// if compression failed it means the address is invalid so blockchain operation WILL FAIL because
+			// it can't possibly transfer any funds from an invalid account...
+			sw.log.Errorf("Failed to compress %v; address is invalid", b64name)
+		}
+		b64name = base64.StdEncoding.EncodeToString(tmp)
+	}
 
-	time.Sleep(time.Second * 1)
+	sw.log.Notice("Sending request to transfer %v funds from %v to the holding account", req.Value, b64name)
 
-	// FIXME: should we wait until tx is actually included in the block or just to hear it was valid? i.e.
-	// to wait for deliver_tx to happen or check_tx
-	blockchainResponse := &ctypes.ResultBroadcastTxCommit{}
+	// TODO: should we wait until tx is actually included in the block or just to hear it was valid? i.e.
+	// to wait for deliver_tx to happen or just check_tx
+	blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
+	if err != nil {
+		// should we terminate? If we can't communicate with the blockchain we can't issue any credentials
+		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
+		sw.log.Critical(errMsg)
+		response.Data = nil
+		response.ErrorMessage = errMsg
+		response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+		return response
+	}
 
-	// this will be set in actual response...
-	blockchainResponse.DeliverTx.Code = code.OK
+	sw.log.Notice("Received response from the blockchain. Return code: %v",
+		code.ToString(blockchainResponse.DeliverTx.Code))
 
 	if blockchainResponse.DeliverTx.Code != code.OK {
 		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
