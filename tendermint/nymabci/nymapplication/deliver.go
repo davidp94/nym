@@ -32,6 +32,10 @@ const (
 	startingBalance uint64 = 0 // this is for purely debug purposes. It will always be 0
 )
 
+var (
+	spentZetaEntry = []byte("SPENT")
+)
+
 // implementation will be IP-specific
 func (app *NymApplication) verifyCredential(cred []byte) bool {
 	return true
@@ -145,6 +149,14 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
+	// start with checking for double spending -
+	// if credential was already spent, there is no point in any further checks
+	dbZetaEntry := prefixKey(sequenceNumPrefix, protoRequest.Theta.Zeta)
+	_, zetaStatus := app.state.db.Get(dbZetaEntry)
+	if zetaStatus != nil {
+		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
+	}
+
 	cred := &coconut.Signature{}
 	if err := cred.FromProto(protoRequest.Sig); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
@@ -191,6 +203,8 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 
 	if isValid {
 		retCode, data := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
+		// store the used credential
+		app.state.db.Set(dbZetaEntry, spentZetaEntry)
 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 	}
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}

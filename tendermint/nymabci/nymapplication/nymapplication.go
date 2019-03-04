@@ -42,14 +42,13 @@ import (
 // TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
 // TODO:
 const (
-	DBNAME = "nymDB"
-	// zl                                  = constants.ECPLen
+	DBNAME                              = "nymDB"
 	createAccountOnDepositIfDoesntExist = true
 	holdingStartingBalance              = 100000 // entirely for debug purposes
 )
 
 var (
-	// zetaPrefix            = []byte("zeta")
+	sequenceNumPrefix     = []byte("spent")
 	accountsPrefix        = []byte("account")
 	holdingAccountAddress = []byte("HOLDING ACCOUNT")
 	aggregateVkKey        = []byte("avk")

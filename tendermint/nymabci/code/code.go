@@ -48,6 +48,8 @@ const (
 	ISSUING_AUTHORITY_DOES_NOT_EXIST uint32 = 11
 	// MALFORMED_ADDRESS represents error due to address being malformed (incorrect length, incorrect prefix, etc)
 	MALFORMED_ADDRESS = 12
+	// DOUBLE_SPENDING_ATTEMPT represents error due to trying to spend credential with the same sequence number
+	DOUBLE_SPENDING_ATTEMPT = 13
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurences with more specific errors
 )
