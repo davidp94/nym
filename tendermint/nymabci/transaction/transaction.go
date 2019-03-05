@@ -39,19 +39,8 @@ const (
 	TxTransferToHolding byte = 0x04
 	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
-	// TxVerifyCredential is byte prefix for transaction to verify a cococnut credential on public attributes.
-	TxVerifyCredential byte = 0xf0 // entirely for debug purposes
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
-)
-
-var (
-	// TODO: better alternatives for below
-
-	// TruthBytes represent 'truth' for data field return type.
-	TruthBytes = []byte("TRUE")
-	// FalseBytes represent 'false' for data field return type.
-	FalseBytes = []byte("FALSE")
 )
 
 // NewLookUpZetaTx creates new request for tx to lookup provided zeta.
@@ -108,35 +97,6 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 	}
 	b := make([]byte, len(protob)+1)
 	b[0] = TxTransferBetweenAccounts
-	copy(b[1:], protob)
-	return b, nil
-}
-
-// CreateNewVerifyCoconutCredenialRequest creates new request for tx to
-// verify a coconut credential on public attributes.
-// Currently and possibly only for debug purposes.
-func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curve.BIG) ([]byte, error) {
-	protoSig, err := sig.ToProto()
-	if err != nil {
-		return nil, err
-	}
-
-	pubMb, err := coconut.BigSliceToByteSlices(pubM)
-	if err != nil {
-		return nil, err
-	}
-
-	req := &VerifyCoconutCredentialRequest{
-		Sig:  protoSig,
-		PubM: pubMb,
-	}
-
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
-	b[0] = TxVerifyCredential
 	copy(b[1:], protob)
 	return b, nil
 }

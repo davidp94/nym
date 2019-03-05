@@ -157,10 +157,10 @@ func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseS
 func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 	_, val := app.state.db.Get(zeta)
 
-	if len(val) > 0 {
-		return transaction.TruthBytes
+	if val != nil {
+		return []byte{1}
 	}
-	return transaction.FalseBytes
+	return []byte{}
 }
 
 // DeliverTx delivers a tx for full processing.
@@ -173,8 +173,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxTypeLookUpZeta:
 		app.log.Info("DeliverTx for lookup zeta")
 		app.log.Info(fmt.Sprintf("looking up %v", tx[1:]))
-		present := app.lookUpZeta(tx[1:])
-		return types.ResponseDeliverTx{Code: code.OK, Data: present}
+		return types.ResponseDeliverTx{Code: code.OK, Data: app.lookUpZeta(tx[1:])}
 
 	case transaction.TxNewAccount:
 		// creates new account
@@ -184,10 +183,6 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		// DEBUG: transfer funds from account X to account Y
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
-	case transaction.TxVerifyCredential:
-		// DEBUG: verifies coconut credential on public attributes
-		app.log.Info("Verify credential tx")
-		return app.verifyCoconutCredential(tx[1:])
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
@@ -218,8 +213,6 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		app.log.Debug("CheckTx for TxNewAccount")
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
-	case transaction.TxVerifyCredential:
-		app.log.Debug("CheckTx for TxVerifyCredential")
 	case transaction.TxDepositCoconutCredential:
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
 	case transaction.TxAdvanceBlock:
