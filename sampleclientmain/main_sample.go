@@ -30,6 +30,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -102,14 +103,14 @@ func main() {
 		panic(err)
 	}
 
-	// debugAcc := &account.Account{}
-	// debugAcc.FromJSONFile("../tendermint/debugAccount.json")
+	debugAcc := &account.Account{}
+	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
 
 	// transfer some funds to the new account
-	// transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
+	if err != nil {
+		panic(err)
+	}
 
 	// token := token.New(privM[0], privM[1], int32(10))
 	// cred, err := cc.GetCredential(token)
@@ -129,7 +130,7 @@ func main() {
 	_ = tmclient
 	_ = cc
 	_ = newAccReq
-	// _ = transferReq
+	_ = transferReq
 
 	// sendToHoldingReqParam := transaction.TransferToHoldingReqParams{
 	// 	ID:              ID,
@@ -150,27 +151,27 @@ func main() {
 	// send the requests:
 	// new acc
 
-	// malform the request to cause it to fail checktx
-	newAccReq[42] ^= byte(0x01)
-
-	res, err := tmclient.SendAsync(newAccReq)
+	res, err := tmclient.SendSync(newAccReq)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(res)
-	// fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
-	// // add some funds
-	// res, err = tmclient.SendAsync(transferReq)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("Transfered funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
+	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
+	// add some funds
+
+	// malform the request to cause it to fail checktx
+	transferReq[42] ^= byte(0x01) // TODO: move that into a test file...
+
+	res, err = tmclient.SendSync(transferReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
 	// // transfer some to holding
 	// res, err = tmclient.SendAsync(sendToHoldingReq)
 	// if err != nil {
 	// 	panic(err)
 	// }
-	// fmt.Printf("Transfered funds from new account to holding. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
+	// fmt.Printf("Transferred funds from new account to holding. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
 
 	// send the requests:
 	// new acc
@@ -184,13 +185,13 @@ func main() {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	// fmt.Printf("Transfered funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 	// // transfer some to holding
 	// res, err = tmclient.Broadcast(sendToHoldingReq)
 	// if err != nil {
 	// 	panic(err)
 	// }
-	// fmt.Printf("Transfered funds from new account to holding. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// fmt.Printf("Transferred funds from new account to holding. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 
 	// // generate token
 	// value := int32(1000)

@@ -17,11 +17,47 @@
 package nymapplication
 
 import (
+	"bytes"
+	"encoding/binary"
+
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 )
+
+func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
+	// holding account is a special case - it's not an EC point but just a string which is uncompressable
+	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
+		if err := inAddr.Compress(); err != nil {
+			// 'normal' address is invalid
+			return code.MALFORMED_ADDRESS, []byte("SOURCE")
+		}
+	}
+	sourceBalanceB, retCode := app.queryBalance(inAddr)
+	if retCode != code.OK {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
+	}
+
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+	if sourceBalance < amount { // + some gas?
+		return code.INSUFFICIENT_BALANCE, nil
+	}
+
+	// holding account is a special case - it's not an EC point but just a string which is uncompressable
+	if bytes.Compare(outAddr, holdingAccountAddress) != 0 {
+		if err := outAddr.Compress(); err != nil {
+			// 'normal' address is invalid
+			return code.MALFORMED_ADDRESS, []byte("TARGET")
+		}
+	}
+
+	if _, retCodeT := app.queryBalance(outAddr); retCodeT != code.OK {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
+	}
+
+	return code.OK, nil
+}
 
 // the tx prefix was removed
 func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
@@ -51,6 +87,38 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 	if !publicKey.VerifyBytes(msg, req.Sig) {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
+	}
+
+	return code.OK
+}
+
+func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
+	req := &transaction.AccountTransferRequest{}
+	var sourcePublicKey account.ECPublicKey
+	var targetPublicKey account.ECPublicKey
+
+	if err := proto.Unmarshal(tx, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return code.INVALID_TX_PARAMS
+	}
+
+	sourcePublicKey = req.SourcePublicKey
+	targetPublicKey = req.TargetPublicKey
+	amountB := make([]byte, 8)
+	binary.BigEndian.PutUint64(amountB, req.Amount)
+
+	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
+	copy(msg, sourcePublicKey)
+	copy(msg[len(sourcePublicKey):], targetPublicKey)
+	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
+
+	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+		app.log.Info("Failed to verify signature on request")
+		return code.INVALID_SIGNATURE
+	}
+
+	if retCode, _ := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
+		return retCode
 	}
 
 	return code.OK

@@ -111,36 +111,26 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 // also returns any additional data
 // TODO: also limit transaction value to signed int32?
 func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
-	// holding account is a special case - it's not an EC point but just a string which is uncompressable
+	if retCode, data := app.validateTransfer(inAddr, outAddr, amount); retCode != code.OK {
+		return retCode, data
+	}
+
+	// nolint: gosec
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
-		if err := inAddr.Compress(); err != nil {
-			// 'normal' address is invalid
-			return code.MALFORMED_ADDRESS, []byte("SOURCE")
-		}
-	}
-	sourceBalanceB, retCode := app.queryBalance(inAddr)
-	if retCode != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
+		inAddr.Compress()
 	}
 
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-	if sourceBalance < amount { // + some gas?
-		return code.INSUFFICIENT_BALANCE, nil
-	}
-
-	// holding account is a special case - it's not an EC point but just a string which is uncompressable
+	// nolint: gosec
 	if bytes.Compare(outAddr, holdingAccountAddress) != 0 {
-		if err := outAddr.Compress(); err != nil {
-			// 'normal' address is invalid
-			return code.MALFORMED_ADDRESS, []byte("TARGET")
-		}
+		outAddr.Compress()
 	}
 
-	targetBalanceB, retCodeT := app.queryBalance(outAddr)
-	if retCodeT != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
-	}
+	// we already know it will succeed
+	sourceBalanceB, _ := app.queryBalance(inAddr)
+	targetBalanceB, _ := app.queryBalance(outAddr)
 
+	// TODO: replace it with some fancy byte operations to get rid of two conversions
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
 
 	// finally initiate the transfer

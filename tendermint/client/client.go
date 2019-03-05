@@ -31,6 +31,8 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+// TODO: handle reconnect infinite loop
+
 const (
 	reconnectionValidityPeriod = time.Second * 10
 )
