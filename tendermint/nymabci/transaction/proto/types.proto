@@ -40,14 +40,6 @@ message DepositCoconutCredentialRequest {
     bytes MerchantAddress = 5;
 }
 
-// TODO: remove in next iteration - it was proto msg for testing purposes anyway
-// We have defined similar messages before for the grpc provider, however, we can't rely on their definitions 
-// in case something changed here (or there) 
-message VerifyCoconutCredentialRequest {
-    coconut.ProtoSignature Sig = 1;
-    repeated bytes PubM = 2;
-}
-
 message TransferToHoldingRequest {
     // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
     // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
@@ -66,3 +58,23 @@ message TransferToHoldingRequest {
     // It is done on {IAID, ClientPublicKey, Ammount, Commitment, ClientSig}
     bytes IASig = 6;
 }
+
+// message AddIssuerRequest {
+//     // ID of the new issuer
+//     uint32 IAID = 1;
+//     // Verification key of the new issuer
+//     coconut.ProtoVerificationKey Vk = 2;
+//     // Public key of the issuer, used to authorise its requests.
+//     bytes IAPublicKey = 3;
+//     // Signature by threshold number of existing issuers, obtained externally (for now)
+//     coconut.ProtoSignature Sig = 4;
+// }
+
+// message RemoveIssuerRequest {
+//     // ID of the issuer
+//     uint32 IAID = 1;
+//     // Public key of the issuer, used to authorise its requests.
+//     bytes IAPublicKey = 2;
+//     // Signature by threshold number of existing issuers, obtained externally (for now)
+//     coconut.ProtoSignature Sig = 3;
+// }

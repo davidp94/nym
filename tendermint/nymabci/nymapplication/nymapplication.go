@@ -206,11 +206,20 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 
 // CheckTx validates tx in the mempool to discard obviously invalid ones so they would not be included in the block.
 func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
+	app.log.Debug(fmt.Sprintf("CheckTx; height: %v", app.state.db.Version()))
+
 	txType := tx[0]
 
 	switch txType {
 	case transaction.TxNewAccount:
 		app.log.Debug("CheckTx for TxNewAccount")
+
+		checkCode := app.checkNewAccountTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxNewAccount failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
 	case transaction.TxDepositCoconutCredential:
@@ -224,13 +233,8 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 
 	}
 
-	checkCode := app.validateTx(tx)
-	if checkCode != code.OK {
-		app.log.Info("Tx failed CheckTx")
-	}
-
-	fmt.Println("CheckTx; height: ", app.state.db.Version())
-
+	// temp
+	checkCode := code.OK
 	return types.ResponseCheckTx{Code: checkCode}
 }
 

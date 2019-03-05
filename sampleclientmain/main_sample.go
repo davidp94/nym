@@ -26,9 +26,10 @@ import (
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -36,7 +37,13 @@ import (
 const providerAddress = "127.0.0.1:4000"
 const providerAddressGrpc = "127.0.0.1:5000"
 
-const tendermintABCIAddress = "tcp://0.0.0.0:46667"
+var tendermintABCIAddresses = []string{
+	"tcp://0.0.0.0:12345", // does not exist
+	"tcp://0.0.0.0:46657",
+	"tcp://0.0.0.0:46667",
+	"tcp://0.0.0.0:46677",
+	"tcp://0.0.0.0:46687",
+}
 
 // const tendermintABCIAddress = "tcp://0.0.0.0:26657"
 
@@ -95,22 +102,34 @@ func main() {
 		panic(err)
 	}
 
-	debugAcc := &account.Account{}
-	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
+	// debugAcc := &account.Account{}
+	// debugAcc.FromJSONFile("../tendermint/debugAccount.json")
 
 	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
+	// transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// token := token.New(privM[0], privM[1], int32(10))
+	// cred, err := cc.GetCredential(token)
+	// fmt.Println(cred)
+	// fmt.Println(err)
+
+	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("Failed to create a logger: %v", err))
 	}
 
-	token := token.New(privM[0], privM[1], int32(10))
-	cred, err := cc.GetCredential(token)
-	fmt.Println(cred)
-	fmt.Println(err)
+	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
+	}
 
+	_ = tmclient
+	_ = cc
 	_ = newAccReq
-	_ = transferReq
+	// _ = transferReq
 
 	// sendToHoldingReqParam := transaction.TransferToHoldingReqParams{
 	// 	ID:              ID,
@@ -127,22 +146,18 @@ func main() {
 	// }
 
 	// // create client to interact with the abci
-	// log, err := logger.New("", "DEBUG", false)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to create a logger: %v", err))
-	// }
-
-	// tmclient, err := tmclient.New(tendermintABCIAddress, log)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
-	// }
 
 	// send the requests:
 	// new acc
-	// res, err := tmclient.SendAsync(newAccReq)
-	// if err != nil {
-	// 	panic(err)
-	// }
+
+	// malform the request to cause it to fail checktx
+	newAccReq[42] ^= byte(0x01)
+
+	res, err := tmclient.SendAsync(newAccReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(res)
 	// fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
 	// // add some funds
 	// res, err = tmclient.SendAsync(transferReq)
