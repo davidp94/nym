@@ -143,7 +143,13 @@ func CreateNewVerifyCoconutCredenialRequest(sig *coconut.Signature, pubM []*Curv
 
 // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
 // (that is bound to particular merchant address) to be spent.
-func CreateNewDepositCoconutCredentialRequest(params *coconut.Params, avk *coconut.VerificationKey, sig *coconut.Signature, token *token.Token, address []byte) ([]byte, error) {
+func CreateNewDepositCoconutCredentialRequest(
+	params *coconut.Params,
+	avk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	token *token.Token,
+	address []byte,
+) ([]byte, error) {
 	pubM, privM := token.GetPublicAndPrivateSlices()
 
 	theta, err := coconut.ShowBlindSignatureTumbler(params, avk, sig, privM, address)
@@ -190,9 +196,9 @@ func CreateNewDepositCoconutCredentialRequest(params *coconut.Params, avk *cocon
 // order of byte slices.
 type TransferToHoldingReqParams struct {
 	ID              uint32
+	Amount          int32
 	PrivateKey      account.ECPrivateKey
 	ClientPublicKey []byte
-	Amount          int32
 	Commitment      []byte
 	ClientSig       []byte
 }

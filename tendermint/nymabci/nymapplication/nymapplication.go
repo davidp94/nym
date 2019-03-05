@@ -47,6 +47,7 @@ const (
 	holdingStartingBalance              = 100000 // entirely for debug purposes
 )
 
+// nolint: gochecknoglobals
 var (
 	sequenceNumPrefix     = []byte("spent")
 	accountsPrefix        = []byte("account")
@@ -375,7 +376,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(aggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
-	// finally save pubkeys of ias (used to verify requests for transfering to holding account)
+	// finally save pubkeys of ias (used to verify requests for transferring to holding account)
 	for _, ia := range genesisState.CoconutProperties.IssuingAuthorities {
 		idb := make([]byte, 4)
 		binary.BigEndian.PutUint32(idb, ia.ID)

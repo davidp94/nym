@@ -82,7 +82,10 @@ func NewAccount() Account {
 
 // ToJSONFile writes the key pair to a JSON file at the specified path.
 func (acc Account) ToJSONFile(f string) error {
-	acc.PublicKey.Compress()
+	err := acc.PublicKey.Compress()
+	if err != nil {
+		return err
+	}
 	b, err := json.Marshal(acc)
 	if err != nil {
 		return err

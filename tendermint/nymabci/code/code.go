@@ -17,6 +17,7 @@
 // Package code defines return codes for the Nym application
 package code
 
+// nolint: golint
 const (
 	// as per spec, codes have to be represented as uint32 and 0 is reserved for OK
 
@@ -51,7 +52,7 @@ const (
 	// DOUBLE_SPENDING_ATTEMPT represents error due to trying to spend credential with the same sequence number
 	DOUBLE_SPENDING_ATTEMPT = 13
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
-	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurences with more specific errors
+	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
 
 // ToString returns string representation of the return code. It is useful for making human-readable responses.

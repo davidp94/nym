@@ -37,6 +37,8 @@ func prefixKey(prefix []byte, key []byte) []byte {
 	return b
 }
 
+// randomInt returns a random int, s.t.  s.t. 0 < n < max and was not generated before. It uses the provided rng
+// to eliminate sources of non-determinism
 func randomInt(seen map[int]struct{}, max int, rand *rand.Rand) int {
 	candidate := 1 + rand.Intn(max-1)
 	if _, ok := seen[candidate]; ok {
@@ -74,6 +76,8 @@ func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	return false
 }
 
+// getSimpleCoconutParams returns params required to perform coconut operations, however, they do not include
+// the bpgroup that is required for generating random numbers. However, this is not required by the abci.
 func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	p := Curve.NewBIGints(Curve.CURVE_Order)
 	g1 := Curve.ECP_generator()

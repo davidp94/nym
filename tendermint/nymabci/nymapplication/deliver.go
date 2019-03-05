@@ -32,6 +32,7 @@ const (
 	startingBalance uint64 = 0 // this is for purely debug purposes. It will always be 0
 )
 
+// nolint: gochecknoglobals
 var (
 	spentZetaEntry = []byte("SPENT")
 )
@@ -210,6 +211,8 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 }
 
+// transfers funds from the given user's account to the holding account. It makes sure it's only done once per
+// particular credential request.
 func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
 	var IAPub account.ECPublicKey
 	var clientPub account.ECPublicKey

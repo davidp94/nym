@@ -17,19 +17,8 @@
 // Package query defines query logic for the Nym application.
 package query
 
-// todo: restructure somehow to not have 2 query.go files
-
-import (
-	"0xacab.org/jstuczyn/CoconutGo/constants"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
-)
-
+// nolint: golint
 const (
 	QueryCheckBalancePath string = "/balance"
 	DEBUG_printVk                = "/DEBUG_PRINTVK"
-)
-
-var (
-	_ = constants.ECP2Len
-	_ = Curve.MODBITS
 )
