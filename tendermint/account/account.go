@@ -112,13 +112,14 @@ func (acc *Account) FromJSONFile(f string) error {
 
 // ValidateAddress checks for the correct formation of account address.
 // Theoretically it can be an arbitrary byte array, but in current iteration, the public key,
-// which right now is just an EC point is used directly.
+// which right now is just a COMPRESSED EC point used directly.
 func ValidateAddress(address []byte) bool {
 	if len(address) == PublicKeySize && (address[0] == 0x02 || address[0] == 0x03) {
 		return true
 	}
 	if len(address) == PublicKeyUCSize && address[0] == 0x04 {
-		return true
+		// todo: possibly another return code?
+		return false
 	}
 	return false
 }
@@ -128,6 +129,17 @@ type ECPrivateKey []byte
 
 // ECPublicKey represents public key used for verifying signed messages.
 type ECPublicKey []byte
+
+// Validate does basic checks on the key
+func (pub ECPublicKey) Validate() bool {
+	if len(pub) == PublicKeySize && (pub[0] == 0x02 || pub[0] == 0x03) {
+		return true
+	}
+	if len(pub) == PublicKeyUCSize && pub[0] == 0x04 {
+		return true
+	}
+	return false
+}
 
 // Keygen calculates a public/private EC GF(p) key pair S,W where W=S.G mod EC(p),
 // where S is the secret key and W is the public key and G is fixed generator.
@@ -166,7 +178,7 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 
 // Compress compresses the byte array representing the public key.
 func (pub *ECPublicKey) Compress() error {
-	if pub == nil || !ValidateAddress(*pub) {
+	if pub == nil || !pub.Validate() {
 		return errors.New("The provided key is malformed")
 	}
 	if len(*pub) == PublicKeySize {

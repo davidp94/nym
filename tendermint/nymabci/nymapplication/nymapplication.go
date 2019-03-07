@@ -336,7 +336,12 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// choose pseudorandomly set of keys to use. Each node will produce same result due to constant seed
 	// Note: the Time used is that of creation of genesis block, NOT CURRENT TIME AT THE TIME OF CALLING THIS FUNCTION
 	randSource := rand.NewSource(req.Time.UnixNano())
-	indices := randomInts(threshold, numIAs, randSource)
+	indices, err := randomInts(threshold, numIAs, randSource)
+	if err != nil {
+		app.log.Error("Not enough IAs provided")
+		// TODO: should we allow startup without sufficient number of them?
+		return types.ResponseInitChain{}
+	}
 
 	vks := make([]*coconut.VerificationKey, 0, threshold)
 	xs := make([]*Curve.BIG, 0, threshold)

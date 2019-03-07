@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math/rand"
 
@@ -40,6 +41,9 @@ func prefixKey(prefix []byte, key []byte) []byte {
 // randomInt returns a random int, s.t.  s.t. 0 < n < max and was not generated before. It uses the provided rng
 // to eliminate sources of non-determinism
 func randomInt(seen map[int]struct{}, max int, rand *rand.Rand) int {
+	if len(seen) >= max-1 {
+		return -1
+	}
 	candidate := 1 + rand.Intn(max-1)
 	if _, ok := seen[candidate]; ok {
 		return randomInt(seen, max, rand)
@@ -49,20 +53,31 @@ func randomInt(seen map[int]struct{}, max int, rand *rand.Rand) int {
 
 // randomInts returns random (non-repetitive) q ints, s.t. 0 < n < max
 // It initialises everything with the provided source to remove all possible sources of non-determinism
-func randomInts(q int, max int, source rand.Source) []int {
+func randomInts(q int, max int, source rand.Source) ([]int, error) {
+	if q >= max || q <= 0 {
+		return nil, errors.New("Can't generate enough random numbers")
+	}
+	if source == nil {
+		return nil, errors.New("Nil rng source provided")
+	}
 	rand := rand.New(source)
 
 	ints := make([]int, q)
 	seen := make(map[int]struct{})
 	for i := range ints {
 		r := randomInt(seen, max, rand)
+		// theoretically should never be thrown due to initial check
+		if r == -1 {
+			return nil, errors.New("Could not generate enough random numbers")
+		}
 		ints[i] = r
 		seen[r] = struct{}{}
 	}
-	return ints
+	return ints, nil
 }
 
 // checks if account with given address exists in the database
+// it WILL NOT try to compress address (even if possible) in case there was ever need to store uncompressed addresses
 func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	if !account.ValidateAddress(address) {
 		return false
@@ -90,8 +105,8 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 
 // returns bool to indicate if the operation was successful
 func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
+	// Compress also performs basic validation
 	if err := publicKey.Compress(); err != nil {
-		app.log.Error("All checks were successful, but failed to compress the key. UNDEFINED BEHAVIOUR")
 		return false
 	}
 

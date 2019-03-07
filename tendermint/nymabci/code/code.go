@@ -51,6 +51,8 @@ const (
 	MALFORMED_ADDRESS = 12
 	// DOUBLE_SPENDING_ATTEMPT represents error due to trying to spend credential with the same sequence number
 	DOUBLE_SPENDING_ATTEMPT = 13
+	// SELF_TRANSFER represents error when trying to send funds from account X back to account X
+	SELF_TRANSFER = 14
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
@@ -82,12 +84,12 @@ func ToString(code uint32) string {
 		return "Merchant Does Not Exist"
 	case ISSUING_AUTHORITY_DOES_NOT_EXIST:
 		return "Issuing Authority Does Not Exist"
-
 	case MALFORMED_ADDRESS:
 		return "Malformed Address"
 	case DOUBLE_SPENDING_ATTEMPT:
 		return "Double Spending Attempt"
-
+	case SELF_TRANSFER:
+		return "Self Transfer"
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
 	default:

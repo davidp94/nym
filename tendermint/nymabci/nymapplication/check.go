@@ -27,6 +27,11 @@ import (
 )
 
 func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
+	// don't allow transfer when addresses are identical because nothing would happen anyway...
+	if bytes.Compare(inAddr, outAddr) == 0 {
+		return code.SELF_TRANSFER, nil
+	}
+
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
 	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
 		if err := inAddr.Compress(); err != nil {
