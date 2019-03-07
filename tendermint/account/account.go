@@ -20,6 +20,7 @@ package account
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,11 +32,11 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
-// ECDSA_SHA defines sha algorithm used for signing messages.
+// ECDSA_SHA defines sha algorithm used during message signing.
 const ECDSA_SHA = amcl.SHA256
 
 // rng is used at both Keygen and Sign, however it is not appropriate to make it part of private key,
-// making it global variable is also not the best solution but will remain so until better solution is found.
+// making it global variable is also not the best solution but will remain so until better alternative is found.
 var rng *amcl.RAND
 
 func init() {
@@ -66,6 +67,7 @@ type GenesisAccount struct {
 }
 
 // Account encapsulates public and private key.
+// The attributes need to be public to allow for json marshalling.
 type Account struct {
 	PublicKey  ECPublicKey  `json:"public_key"`
 	PrivateKey ECPrivateKey `json:"private_key"`
@@ -109,10 +111,16 @@ func (acc *Account) FromJSONFile(f string) error {
 }
 
 // ValidateAddress checks for the correct formation of account address.
-// Theoretically it can be an arbitrary byte array, but in current iteration, the public key
-// is used directly
+// Theoretically it can be an arbitrary byte array, but in current iteration, the public key,
+// which right now is just an EC point is used directly.
 func ValidateAddress(address []byte) bool {
-	return true
+	if len(address) == PublicKeySize && (address[0] == 0x02 || address[0] == 0x03) {
+		return true
+	}
+	if len(address) == PublicKeyUCSize && address[0] == 0x04 {
+		return true
+	}
+	return false
 }
 
 // ECPrivateKey represents private key used for signing messages for authentication.
@@ -153,12 +161,14 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 	copy(C[:], sig[:constants.BIGLen])
 	copy(D[:], sig[constants.BIGLen:])
 
-	res := Curve.ECDH_ECPVP_DSA(ECDSA_SHA, pub, msg, C, D)
-	return res == 0
+	return Curve.ECDH_ECPVP_DSA(ECDSA_SHA, pub, msg, C, D) == 0
 }
 
 // Compress compresses the byte array representing the public key.
 func (pub *ECPublicKey) Compress() error {
+	if pub == nil || !ValidateAddress(*pub) {
+		return errors.New("The provided key is malformed")
+	}
 	if len(*pub) == PublicKeySize {
 		return nil // key is already compressed
 	}

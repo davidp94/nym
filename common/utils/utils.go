@@ -43,7 +43,7 @@ func CompressECPBytes(b []byte) ([]byte, error) {
 			fmt.Errorf("The uncompressed point has an invalid length of %v (expected %v)", len(b), constants.ECPLenUC)
 	}
 	if b[0] != 0x04 {
-		return nil, fmt.Errorf("Unknown curve type prefix %v (expected 0x04)", b[0])
+		return nil, fmt.Errorf("Unknown curve type prefix %x (expected 0x04)", b[0])
 	}
 
 	comp := make([]byte, constants.ECPLen)

@@ -56,15 +56,25 @@ func TestCompressPublicKey(t *testing.T) {
 	lenAfter := len(W)
 	assert.True(t, lenAfter < lenBefore)
 
+	// ensure compressed key still correctly verifies messages
 	msg, err := utils.GenerateRandomBytes(128)
 	assert.Nil(t, err)
-
 	sig := S.SignBytes(msg)
-
 	assert.True(t, W.VerifyBytes(msg, sig))
 
-	// Mutate single bit of the signature
-	sig[42] ^= byte(0x01)
+	assert.Error(t, (*account.ECPublicKey)(nil).Compress())
+	_, g := account.Keygen()
+	originalPrefix := g[0]
 
-	assert.False(t, W.VerifyBytes(msg, sig))
+	g[0] = 0x01
+	assert.Error(t, g.Compress())
+	g[0] = originalPrefix
+
+	g.Compress()
+	// should just get ignored
+	assert.Nil(t, g.Compress())
+
+	// g is already compressed, but if it's malformed it should still throw an error
+	g[0] = 0x01
+	assert.Error(t, g.Compress())
 }

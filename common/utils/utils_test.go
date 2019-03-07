@@ -46,6 +46,35 @@ func TestCompressECPBytes(t *testing.T) {
 
 		assert.True(t, bytes.Equal(target, compressed))
 	}
+
+	compRes, err := utils.CompressECPBytes(([]byte)(nil))
+	assert.Nil(t, compRes)
+	assert.Error(t, err)
+
+	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+	g := Curve.G1mul(bpgroup.Gen1(), x)
+
+	uncompressed := make([]byte, constants.ECPLenUC)
+	compressed := make([]byte, constants.ECPLen)
+
+	g.ToBytes(uncompressed, false)
+	g.ToBytes(compressed, true)
+
+	compRes, err = utils.CompressECPBytes(compressed)
+	assert.Nil(t, compRes)
+	assert.Error(t, err)
+
+	uncompressed[0] = 0x01
+	compRes, err = utils.CompressECPBytes(uncompressed)
+	assert.Nil(t, compRes)
+	assert.Error(t, err)
+
+	// restore original prefix
+	uncompressed[0] = 0x04
+	uncompressed = uncompressed[:len(uncompressed)-1]
+	compRes, err = utils.CompressECPBytes(uncompressed)
+	assert.Nil(t, compRes)
+	assert.Error(t, err)
 }
 
 // NOTE THAT BELOW BENCHMARKS ARE ONLY USED FOR COMPARISON WITH EACH OTHER
