@@ -82,6 +82,12 @@ func ToString(code uint32) string {
 		return "Merchant Does Not Exist"
 	case ISSUING_AUTHORITY_DOES_NOT_EXIST:
 		return "Issuing Authority Does Not Exist"
+
+	case MALFORMED_ADDRESS:
+		return "Malformed Address"
+	case DOUBLE_SPENDING_ATTEMPT:
+		return "Double Spending Attempt"
+
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
 	default:
