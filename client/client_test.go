@@ -152,6 +152,7 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 		string(`
 		[Issuer]
 		`),
+		fmt.Sprintf("ID = %v\n", n+1),
 		fmt.Sprintf("VerificationKeyFile = \"%v/verification%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
 		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
 		string(`

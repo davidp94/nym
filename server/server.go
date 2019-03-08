@@ -168,9 +168,11 @@ func New(cfg *config.Config) (*Server, error) {
 	var params *coconut.Params
 	sk := &coconut.SecretKey{}
 	vk := &coconut.VerificationKey{}
+	var IAID uint32
 
 	// if it's not an issuer, we don't care about own keys, because they are not going to be used anyway (for now).
 	if cfg.Server.IsIssuer {
+		IAID = cfg.Issuer.ID
 		if cfg.Debug.RegenerateKeys {
 			serverLog.Notice("Generating new sk/vk coconut keypair")
 			params, err = coconut.Setup(cfg.Server.MaximumAttributes)
@@ -211,6 +213,7 @@ func New(cfg *config.Config) (*Server, error) {
 			}
 		}
 	} else {
+		IAID = 0
 		params, err = coconut.Setup(cfg.Server.MaximumAttributes)
 		if err != nil {
 			return nil, err
@@ -247,7 +250,7 @@ func New(cfg *config.Config) (*Server, error) {
 			ID:         uint64(i + 1),
 			Log:        log,
 			Params:     params,
-			IAID:       cfg.Issuer.ID,
+			IAID:       IAID,
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
