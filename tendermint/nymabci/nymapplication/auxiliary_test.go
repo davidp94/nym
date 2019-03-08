@@ -19,10 +19,7 @@ package nymapplication
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
-	"io/ioutil"
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -32,10 +29,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/tendermint/libs/log"
 )
-
-var app *NymApplication
 
 func TestPrefixKey(t *testing.T) {
 	tests := [][]byte{
@@ -236,20 +230,4 @@ func TestTransferFundsOp(t *testing.T) {
 	acc2Balance := binary.BigEndian.Uint64(acc2B)
 	assert.Equal(t, uint64(1000-42), acc1Balance)
 	assert.Equal(t, uint64(42), acc2Balance)
-}
-
-func TestMain(m *testing.M) {
-	tmpDbDir, err := ioutil.TempDir("", "auxiliaryTestDir")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("tmpdir:", tmpDbDir)
-
-	logger := log.NewTMLogger(log.NewSyncWriter(ioutil.Discard)).With("module", "test")
-
-	app = NewNymApplication("leveldb", tmpDbDir, logger)
-	runTests := m.Run()
-
-	os.RemoveAll(tmpDbDir)
-	os.Exit(runTests)
 }

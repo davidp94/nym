@@ -37,11 +37,6 @@ var (
 	spentZetaEntry = []byte("SPENT")
 )
 
-// implementation will be IP-specific
-func (app *NymApplication) verifyCredential(cred []byte) bool {
-	return true
-}
-
 // tx prefix was already removed
 func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.NewAccountRequest{}

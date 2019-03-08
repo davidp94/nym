@@ -26,6 +26,11 @@ import (
 	proto "github.com/golang/protobuf/proto"
 )
 
+// implementation will be IP-specific
+func (app *NymApplication) verifyCredential(cred []byte) bool {
+	return true
+}
+
 func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
 	// don't allow transfer when addresses are identical because nothing would happen anyway...
 	if bytes.Compare(inAddr, outAddr) == 0 {
@@ -74,7 +79,8 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 		return code.INVALID_TX_PARAMS
 	}
 
-	if len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize {
+	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
+		len(req.Sig) != account.SignatureSize {
 		return code.INVALID_TX_PARAMS
 	}
 
