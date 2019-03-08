@@ -105,16 +105,19 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 
 func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 	req := &transaction.AccountTransferRequest{}
-	var sourcePublicKey account.ECPublicKey
-	var targetPublicKey account.ECPublicKey
 
 	if err := proto.Unmarshal(tx, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
 		return code.INVALID_TX_PARAMS
 	}
 
-	sourcePublicKey = req.SourcePublicKey
-	targetPublicKey = req.TargetPublicKey
+	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+
+	if retCode, _ := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
+		return retCode
+	}
+
 	amountB := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountB, req.Amount)
 
@@ -123,13 +126,9 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 	copy(msg[len(sourcePublicKey):], targetPublicKey)
 	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
 
-	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
-	}
-
-	if retCode, _ := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
-		return retCode
 	}
 
 	return code.OK
