@@ -219,6 +219,9 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 	copy(invalidTarget, target)
 	invalidTarget[42] ^= 1
 
+	existingTarget := account.NewAccount().PublicKey
+	app.createNewAccountOp(existingTarget)
+
 	invalidPubReq, err := proto.Marshal(&transaction.AccountTransferRequest{
 		SourcePublicKey: invalidPub,
 		Sig:             sig,
@@ -239,7 +242,7 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 		SourcePublicKey: acc.PublicKey,
 		Sig:             invalidSig,
 		Amount:          42,
-		TargetPublicKey: target,
+		TargetPublicKey: existingTarget,
 	})
 	assert.Nil(t, err)
 

@@ -17,6 +17,7 @@
 package nymapplication
 
 import (
+	"encoding/binary"
 	"testing"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
@@ -114,5 +115,129 @@ func TestCreateNewAccount(t *testing.T) {
 
 	for _, validReq := range [][]byte{validReq, validReq2} {
 		assert.Equal(t, code.OK, app.createNewAccount(validReq).Code)
+	}
+}
+
+func TestTransferFunds(t *testing.T) {
+	// no need for checking if transaction amount is valid or accounts exist -> that's done by test for validateTransfer
+	emptyReq, err := proto.Marshal(&transaction.AccountTransferRequest{})
+	assert.Nil(t, err)
+
+	acc := account.NewAccount()
+	target := account.NewAccount().PublicKey
+
+	msg := make([]byte, len(acc.PublicKey)+len(target)+8)
+	copy(msg, acc.PublicKey)
+	copy(msg[len(acc.PublicKey):], target)
+	binary.BigEndian.PutUint64(msg[len(acc.PublicKey)+len(target):], 42)
+
+	sig := acc.PrivateKey.SignBytes(msg)
+
+	invalidSig := make([]byte, len(sig))
+	copy(invalidSig, sig)
+	invalidSig[42] ^= byte(0x01)
+
+	invalidPub := make([]byte, len(acc.PublicKey))
+
+	var compressedKey account.ECPublicKey = make([]byte, len(acc.PublicKey))
+	copy(compressedKey, acc.PublicKey)
+	compressedKey.Compress()
+
+	invalidTarget := make([]byte, len(target))
+	copy(invalidTarget, target)
+	invalidTarget[42] ^= 1
+
+	existingTarget := account.NewAccount().PublicKey
+	app.createNewAccountOp(existingTarget)
+
+	invalidPubReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: invalidPub,
+		Sig:             sig,
+		Amount:          42,
+		TargetPublicKey: target,
+	})
+	assert.Nil(t, err)
+
+	compressedPubReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: compressedKey,
+		Sig:             sig,
+		Amount:          42,
+		TargetPublicKey: target,
+	})
+	assert.Nil(t, err)
+
+	invalidSigReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: acc.PublicKey,
+		Sig:             invalidSig,
+		Amount:          42,
+		TargetPublicKey: existingTarget,
+	})
+	assert.Nil(t, err)
+
+	invalidTargetReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: acc.PublicKey,
+		Sig:             sig,
+		Amount:          42,
+		TargetPublicKey: invalidTarget,
+	})
+	assert.Nil(t, err)
+
+	noPubReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: nil,
+		Sig:             sig,
+		Amount:          42,
+		TargetPublicKey: target,
+	})
+	assert.Nil(t, err)
+
+	noSigReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: acc.PublicKey,
+		Sig:             nil,
+		Amount:          42,
+		TargetPublicKey: target,
+	})
+	assert.Nil(t, err)
+
+	noTargetReq, err := proto.Marshal(&transaction.AccountTransferRequest{
+		SourcePublicKey: acc.PublicKey,
+		Sig:             sig,
+		Amount:          42,
+		TargetPublicKey: nil,
+	})
+	assert.Nil(t, err)
+
+	invalidReqs := [][]byte{
+		nil,
+		[]byte{},
+		[]byte("foo"),
+		emptyReq,
+		invalidPubReq,
+		compressedPubReq,
+		invalidSigReq,
+		invalidTargetReq,
+		noPubReq,
+		noSigReq,
+		noTargetReq,
+	}
+
+	validReqTx, err := transaction.CreateNewTransferRequest(acc, target, 42)
+	assert.Nil(t, err)
+	validReq := validReqTx[1:] // first byte is the prefix indicating type of tx
+
+	balance := make([]byte, 8)
+	binary.BigEndian.PutUint64(balance, 1000)
+	acc.PublicKey.Compress()
+	app.state.db.Set(prefixKey(accountsPrefix, acc.PublicKey), balance)
+
+	for _, invalidReq := range append(invalidReqs, validReq) {
+		assert.NotEqual(t, code.OK, app.transferFunds(invalidReq).Code)
+	}
+
+	// not 'validReq' should actually be valid
+	app.createNewAccountOp(target)
+
+	for _, validReq := range [][]byte{validReq} {
+		_ = validReq
+		assert.Equal(t, code.OK, app.transferFunds(validReq).Code)
 	}
 }

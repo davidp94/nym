@@ -79,16 +79,19 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 // to freely transfer tokens between accounts to setup different scenarios.
 func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.AccountTransferRequest{}
-	var sourcePublicKey account.ECPublicKey
-	var targetPublicKey account.ECPublicKey
 
 	if err := proto.Unmarshal(reqb, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	sourcePublicKey = req.SourcePublicKey
-	targetPublicKey = req.TargetPublicKey
+	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+
+	if retCode, data := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
+		return types.ResponseDeliverTx{Code: retCode, Data: data}
+	}
+
 	amountB := make([]byte, 8)
 	binary.BigEndian.PutUint64(amountB, req.Amount)
 
