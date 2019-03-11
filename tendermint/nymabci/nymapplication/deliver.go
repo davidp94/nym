@@ -40,12 +40,13 @@ var (
 // tx prefix was already removed
 func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.NewAccountRequest{}
-	var publicKey account.ECPublicKey
 
 	if err := proto.Unmarshal(reqb, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
+
+	var publicKey account.ECPublicKey = req.PublicKey
 
 	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
 		len(req.Sig) != account.SignatureSize {
@@ -56,8 +57,6 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 		app.log.Info("Failed to verify IP credential")
 		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 	}
-
-	publicKey = req.PublicKey
 
 	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
 	copy(msg, req.PublicKey)
@@ -111,33 +110,32 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 }
 
 func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
-	var merchantAddress account.ECPublicKey
-
-	protoRequest := &transaction.DepositCoconutCredentialRequest{}
-	if err := proto.Unmarshal(reqb, protoRequest); err != nil {
+	req := &transaction.DepositCoconutCredentialRequest{}
+	if err := proto.Unmarshal(reqb, req); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
+	var merchantAddress account.ECPublicKey = req.MerchantAddress
+
 	// start with checking for double spending -
 	// if credential was already spent, there is no point in any further checks
-	dbZetaEntry := prefixKey(sequenceNumPrefix, protoRequest.Theta.Zeta)
+	dbZetaEntry := prefixKey(sequenceNumPrefix, req.Theta.Zeta)
 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
 	if zetaStatus != nil {
 		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
 	}
 
 	cred := &coconut.Signature{}
-	if err := cred.FromProto(protoRequest.Sig); err != nil {
+	if err := cred.FromProto(req.Sig); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
 	theta := &coconut.ThetaTumbler{}
-	if err := theta.FromProto(protoRequest.Theta); err != nil {
+	if err := theta.FromProto(req.Theta); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	pubM := coconut.BigSliceFromByteSlices(protoRequest.PubM)
-	merchantAddress = protoRequest.MerchantAddress
+	pubM := coconut.BigSliceFromByteSlices(req.PubM)
 
 	// firstly check if the merchant address is correctly formed
 	if err := merchantAddress.Compress(); err != nil {
@@ -171,7 +169,7 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
 	if isValid {
-		retCode, data := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(protoRequest.Value))
+		retCode, data := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(req.Value))
 		// store the used credential
 		app.state.db.Set(dbZetaEntry, spentZetaEntry)
 		return types.ResponseDeliverTx{Code: retCode, Data: data}
@@ -185,13 +183,13 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	var IAPub account.ECPublicKey
 	var clientPub account.ECPublicKey
 
-	protoRequest := &transaction.TransferToHoldingRequest{}
-	if err := proto.Unmarshal(reqb, protoRequest); err != nil {
+	req := &transaction.TransferToHoldingRequest{}
+	if err := proto.Unmarshal(reqb, req); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
 	idb := make([]byte, 4)
-	binary.BigEndian.PutUint32(idb, protoRequest.IAID)
+	binary.BigEndian.PutUint32(idb, req.IAID)
 	dbEntry := prefixKey(iaKeyPrefix, idb)
 	_, IAPubb := app.state.db.Get(dbEntry)
 
@@ -201,7 +199,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 
 	IAPub = IAPubb
-	clientPub = protoRequest.ClientPublicKey
+	clientPub = req.ClientPublicKey
 
 	// error would be returned if address is malformed
 	if err := clientPub.Compress(); err != nil {
@@ -209,21 +207,21 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 
 	// Verify both sigs
-	clientMsg := make([]byte, len(protoRequest.ClientPublicKey)+4+len(protoRequest.Commitment))
-	copy(clientMsg, protoRequest.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
-	binary.BigEndian.PutUint32(clientMsg[len(protoRequest.ClientPublicKey):], uint32(protoRequest.Amount))
-	copy(clientMsg[len(protoRequest.ClientPublicKey)+4:], protoRequest.Commitment)
+	clientMsg := make([]byte, len(req.ClientPublicKey)+4+len(req.Commitment))
+	copy(clientMsg, req.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
+	binary.BigEndian.PutUint32(clientMsg[len(req.ClientPublicKey):], uint32(req.Amount))
+	copy(clientMsg[len(req.ClientPublicKey)+4:], req.Commitment)
 
-	if !clientPub.VerifyBytes(clientMsg, protoRequest.ClientSig) {
+	if !clientPub.VerifyBytes(clientMsg, req.ClientSig) {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("CLIENT")}
 	}
 
-	msg := make([]byte, 4+len(clientMsg)+len(protoRequest.ClientSig))
+	msg := make([]byte, 4+len(clientMsg)+len(req.ClientSig))
 	copy(msg, idb)
 	copy(msg[4:], clientMsg)
-	copy(msg[4+len(clientMsg):], protoRequest.ClientSig)
+	copy(msg[4+len(clientMsg):], req.ClientSig)
 
-	if !IAPub.VerifyBytes(msg, protoRequest.IASig) {
+	if !IAPub.VerifyBytes(msg, req.IASig) {
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("ISSUING AUTHORITY")}
 	}
 
@@ -233,7 +231,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	// block N+1 - client's funds are increased somehow or his account is now created, etc
 	// block N+2 - another IA sends the request
 
-	dbKey := prefixKey(commitmentsPrefix, protoRequest.Commitment)
+	dbKey := prefixKey(commitmentsPrefix, req.Commitment)
 	_, previousCode := app.state.db.Get(dbKey)
 	if previousCode != nil {
 		// another IA already sent the request before - we return the same result
@@ -255,14 +253,14 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	// the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
 	// so that we would not have to verify the below signatures
 	clientBalance := binary.BigEndian.Uint64(clientBalanceB)
-	if clientBalance < uint64(protoRequest.Amount) {
+	if clientBalance < uint64(req.Amount) {
 		binary.BigEndian.PutUint32(retCodeB, code.INSUFFICIENT_BALANCE)
 		app.state.db.Set(dbKey, retCodeB)
 		return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
 	}
 
 	// the request is valid, so transfer the amount
-	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, uint64(protoRequest.Amount))
+	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, uint64(req.Amount))
 	binary.BigEndian.PutUint32(retCodeB, transferRetCode)
 	app.state.db.Set(dbKey, retCodeB)
 

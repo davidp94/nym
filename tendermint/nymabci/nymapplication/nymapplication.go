@@ -229,9 +229,15 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 				checkCode, code.ToString(checkCode)))
 		}
 		return types.ResponseCheckTx{Code: checkCode}
-
 	case transaction.TxDepositCoconutCredential:
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
+
+		checkCode := app.checkDepositCoconutCredentialTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
 	case transaction.TxTransferToHolding:

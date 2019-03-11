@@ -20,6 +20,8 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
@@ -72,12 +74,13 @@ func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey,
 // the tx prefix was removed
 func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 	req := &transaction.NewAccountRequest{}
-	var publicKey account.ECPublicKey
 
 	if err := proto.Unmarshal(tx, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
 		return code.INVALID_TX_PARAMS
 	}
+
+	var publicKey account.ECPublicKey = req.PublicKey
 
 	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
 		len(req.Sig) != account.SignatureSize {
@@ -130,6 +133,57 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
 	}
+
+	return code.OK
+}
+
+func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
+	req := &transaction.DepositCoconutCredentialRequest{}
+
+	if err := proto.Unmarshal(tx, req); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	var merchantAddress account.ECPublicKey = req.MerchantAddress
+
+	// start with checking for double spending -
+	// if credential was already spent, there is no point in any further checks
+	dbZetaEntry := prefixKey(sequenceNumPrefix, req.Theta.Zeta)
+	_, zetaStatus := app.state.db.Get(dbZetaEntry)
+	if zetaStatus != nil {
+		return code.DOUBLE_SPENDING_ATTEMPT
+	}
+
+	cred := &coconut.Signature{}
+	if err := cred.FromProto(req.Sig); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	theta := &coconut.ThetaTumbler{}
+	if err := theta.FromProto(req.Theta); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	pubM := coconut.BigSliceFromByteSlices(req.PubM)
+	if !coconut.ValidateBigSlice(pubM) {
+		return code.INVALID_TX_PARAMS
+	}
+
+	// check if the merchant address is correctly formed
+	if err := merchantAddress.Compress(); err != nil {
+		return code.INVALID_MERCHANT_ADDRESS
+	}
+
+	if !app.checkIfAccountExists(merchantAddress) {
+		if !createAccountOnDepositIfDoesntExist {
+			app.log.Error("Merchant's account doesnt exist")
+			return code.MERCHANT_DOES_NOT_EXIST
+		}
+
+		// checkTx will not try creating the account for obvious reasons
+	}
+
+	// don't verify the credential itself as it's rather expensive operation; it will only be done during deliverTx
 
 	return code.OK
 }
