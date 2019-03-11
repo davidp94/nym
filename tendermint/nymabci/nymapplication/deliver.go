@@ -47,6 +47,11 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
+	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
+		len(req.Sig) != account.SignatureSize {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
 	if !app.verifyCredential(req.Credential) {
 		app.log.Info("Failed to verify IP credential")
 		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
