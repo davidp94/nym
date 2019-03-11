@@ -5,11 +5,11 @@
 IP=0.0.0.0
 AA=tcp://$IP
 # "0.0.0.0:46656,0.0.0.0:46666,0.0.0.0:46676,0.0.0.0:46686"
-TESTNET_ROOT_DIR="/home/jedrzej/tendermint"
+TESTNET_ROOT_DIR="$HOME/tendermint"
 TESTNET_FOLDER="mytestnet"
 
 # temp until properly built
-NYM_APP="/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/main.go"
+NYM_APP="$HOME/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/main.go"
 
 NODE_0_NAME="node0"
 NODE_1_NAME="node1"
@@ -142,7 +142,7 @@ tmux send-keys C-m
 tmux splitw -h
 
 tmux selectp -t 1
-tmux send-keys "cd /home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint"
+tmux send-keys "cd $HOME/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint"
 tmux send-keys C-m
 
 
