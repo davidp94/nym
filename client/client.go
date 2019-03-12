@@ -22,10 +22,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"reflect"
 	"sort"
 	"time"
+
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
@@ -33,9 +34,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"github.com/golang/protobuf/proto"
@@ -49,9 +48,8 @@ type Client struct {
 	cfg *config.Config
 	log *logging.Logger
 
-	elGamalPrivateKey *elgamal.PrivateKey
-	elGamalPublicKey  *elgamal.PublicKey
-
+	// elGamalPrivateKey *elgamal.PrivateKey
+	// elGamalPublicKey  *elgamal.PublicKey
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
 
@@ -105,7 +103,8 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 	return sig, nil
 }
 
-func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse) (*coconut.Signature, error) {
+// nolint: lll
+func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse, elGamalPrivateKey *elgamal.PrivateKey) (*coconut.Signature, error) {
 	if err := c.checkResponseStatus(resp); err != nil {
 		return nil, err
 	}
@@ -113,7 +112,7 @@ func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse) (*coconut
 	if err := blindSig.FromProto(resp.GetSig()); err != nil {
 		return nil, c.logAndReturnError("parseBlindSignResponse: Failed to unmarshal received signature")
 	}
-	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey), nil
+	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, elGamalPrivateKey), nil
 }
 
 func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.Message) []*comm.ServerResponseGrpc {
@@ -227,9 +226,15 @@ func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc, dialOptions [
 	return reqCh, cancelFuncs
 }
 
-// nolint: lll
-// currently it tries to parse everything and just ignores an invalid request, should it fail on any single invalid request?
-func (c *Client) parseSignatureServerResponses(responses []*comm.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+// currently it tries to parse everything and just ignores an invalid request,
+// should it fail on any single invalid request?
+func (c *Client) parseSignatureServerResponses(
+	responses []*comm.ServerResponse,
+	isThreshold bool,
+	isBlind bool,
+	elGamalPrivateKey *elgamal.PrivateKey,
+) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+
 	if responses == nil {
 		return nil, nil
 	}
@@ -261,7 +266,7 @@ func (c *Client) parseSignatureServerResponses(responses []*comm.ServerResponse,
 			var sig *coconut.Signature
 			var err error
 			if isBlind {
-				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse))
+				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse), elGamalPrivateKey)
 				if err != nil {
 					continue
 				}
@@ -438,7 +443,7 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 		},
 		c.log,
 	)
-	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
+	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false, nil))
 }
 
 // nolint: lll, gocyclo
@@ -586,16 +591,18 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	if !coconut.ValidateBigSlice(pubM) || !coconut.ValidateBigSlice(privM) {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: invalid slice of attributes provided")
 	}
 
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(elGamalPublicKey, pubM, privM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Could not create lambda: %v", err)
 	}
 
-	blindSignRequest, err := commands.NewBlindSignRequest(lambda, c.elGamalPublicKey, pubM)
+	blindSignRequest, err := commands.NewBlindSignRequest(lambda, elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Failed to create BlindSign request: %v", err)
 	}
@@ -611,7 +618,7 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 			c.log.Error("nil response received")
 			continue
 		}
-		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse))
+		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse), elGamalPrivateKey)
 		if err != nil {
 			continue
 		}
@@ -637,16 +644,18 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError(gRPCClientErr)
 	}
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	if !coconut.ValidateBigSlice(pubM) || !coconut.ValidateBigSlice(privM) {
 		return nil, c.logAndReturnError("BlindSignAttributes: invalid slice of attributes provided")
 	}
 
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(elGamalPublicKey, pubM, privM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributes: Could not create lambda: %v", err)
 	}
 
-	cmd, err := commands.NewBlindSignRequest(lambda, c.elGamalPublicKey, pubM)
+	cmd, err := commands.NewBlindSignRequest(lambda, elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributes: Failed to create BlindSign request: %v", err)
 	}
@@ -669,7 +678,7 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		},
 		c.log,
 	)
-	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
+	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
@@ -910,63 +919,6 @@ func New(cfg *config.Config) (*Client, error) {
 	clientLog := log.GetLogger("Client")
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
-	G := bpgroup.New()
-	elGamalPrivateKey := &elgamal.PrivateKey{}
-	elGamalPublicKey := &elgamal.PublicKey{}
-
-	if cfg.Debug.RegenerateKeys || !cfg.Client.PersistentKeys {
-		clientLog.Notice("Generating new coconut-specific ElGamal keypair")
-		elGamalPrivateKey, elGamalPublicKey = elgamal.Keygen(G)
-		clientLog.Debug("Generated new keys")
-
-		if cfg.Client.PersistentKeys {
-			if err := elGamalPrivateKey.ToPEMFile(cfg.Client.PrivateKeyFile); err != nil {
-				errstr := fmt.Sprintf("Couldn't write new keys (private key) to the files: %v", err)
-				clientLog.Error(errstr)
-				return nil, errors.New(errstr)
-			}
-			if cfg.Client.PublicKeyFile != "" {
-				if err := elGamalPublicKey.ToPEMFile(cfg.Client.PublicKeyFile); err != nil {
-					errstr := fmt.Sprintf("Couldn't write new keys (public key) to the files: %v", err)
-					clientLog.Error(errstr)
-					return nil, errors.New(errstr)
-				}
-			}
-			clientLog.Notice("Written new keys to the files")
-		}
-	} else {
-		// we must have a private key
-		if _, err := os.Stat(cfg.Client.PrivateKeyFile); os.IsNotExist(err) {
-			errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the private key does not exist: %v", err)
-			clientLog.Error(errstr)
-			return nil, errors.New(errstr)
-		}
-
-		if err := elGamalPrivateKey.FromPEMFile(cfg.Client.PrivateKeyFile); err != nil {
-			return nil, err
-		}
-
-		if cfg.Client.PublicKeyFile != "" {
-			if _, err := os.Stat(cfg.Client.PublicKeyFile); os.IsNotExist(err) {
-				errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the public key does not exist: %v", err)
-				clientLog.Error(errstr)
-				return nil, errors.New(errstr)
-			}
-			if err := elGamalPublicKey.FromPEMFile(cfg.Client.PublicKeyFile); err != nil {
-				return nil, err
-			}
-			// but it is possible to derive the public key if we recovered the private component
-		} else {
-			elGamalPublicKey = elgamal.PublicKeyFromPrivate(elGamalPrivateKey)
-		}
-
-		if !elgamal.ValidateKeyPair(elGamalPrivateKey, elGamalPublicKey) {
-			clientLog.Error("Couldn't Load the keys")
-			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
-		}
-		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
-	}
-
 	acc := account.Account{}
 	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
 		if err := acc.FromJSONFile(cfg.Nym.AccountKeysFile); err != nil {
@@ -990,9 +942,6 @@ func New(cfg *config.Config) (*Client, error) {
 	c := &Client{
 		cfg: cfg,
 		log: clientLog,
-
-		elGamalPrivateKey: elGamalPrivateKey,
-		elGamalPublicKey:  elGamalPublicKey,
 
 		cryptoworker: cryptoworker,
 

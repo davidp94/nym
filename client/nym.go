@@ -24,6 +24,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -31,7 +32,7 @@ import (
 
 // Theoretically could be combined with client.parseSignatureServerResponses, but this is credential-specific
 // implementation that might change in the future. This way it will be easier to uppdate it.
-func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse, elGamalPrivateKey *elgamal.PrivateKey) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	if responses == nil {
 		return nil, nil
 	}
@@ -53,7 +54,7 @@ func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse
 
 			var sig *coconut.Signature
 			var err error
-			sig, err = c.parseBlindSignResponse(resp)
+			sig, err = c.parseBlindSignResponse(resp, elGamalPrivateKey)
 			if err != nil {
 				continue
 			}
@@ -82,19 +83,21 @@ func (c *Client) GetCredential(token *token.Token) (token.Credential, error) {
 		return nil, c.logAndReturnError(gRPCClientErr)
 	}
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	// first check if we have loaded the account information
 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
 		return nil, c.logAndReturnError("GetCredential: Tried to obtain credential on undefined account")
 	}
 
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(c.elGamalPublicKey, token)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
 	}
 
 	sig := c.createCredentialRequestSig(lambda.Cm(), token)
 
-	cmd, err := commands.NewGetCredentialRequest(lambda, c.elGamalPublicKey, token, c.nymAccount.PublicKey, sig)
+	cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, sig)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
 	}
@@ -117,7 +120,7 @@ func (c *Client) GetCredential(token *token.Token) (token.Credential, error) {
 	)
 
 	// what we receive are basically coconut signatures so we can use old logic to parse them.
-	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
+	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
@@ -129,6 +132,8 @@ func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error)
 		return nil, c.logAndReturnError(nonGRPCClientErr)
 	}
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
@@ -137,14 +142,14 @@ func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error)
 		return nil, c.logAndReturnError("GetCredentialGrpc: Tried to obtain credential on undefined account")
 	}
 
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(c.elGamalPublicKey, token)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
 	}
 
 	reqSig := c.createCredentialRequestSig(lambda.Cm(), token)
 
-	getCredentialRequest, err := commands.NewGetCredentialRequest(lambda, c.elGamalPublicKey, token, c.nymAccount.PublicKey, reqSig)
+	getCredentialRequest, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, reqSig)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
 	}
@@ -161,7 +166,7 @@ func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error)
 			continue
 		}
 		// needs updating
-		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.GetCredentialResponse))
+		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.GetCredentialResponse), elGamalPrivateKey)
 		if err != nil {
 			continue
 		}
