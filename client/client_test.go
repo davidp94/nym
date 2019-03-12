@@ -27,7 +27,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 
 	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
@@ -183,31 +182,19 @@ func init() {
 		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(2)
+	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+	thresholdProvider = &providerServer{
+		server:      thresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[0],
+		tcpaddress:  providerTCPAddresses[0],
+	}
 
-	// since they need to get their aggregate key, it takes a while to start them up
-	// and we can start those together
-	go func() {
-		thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
-		thresholdProvider = &providerServer{
-			server:      thresholdProviderServer,
-			grpcaddress: providerGRPCAddresses[0],
-			tcpaddress:  providerTCPAddresses[0],
-		}
-		wg.Done()
-	}()
-	go func() {
-		nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
-		nonThresholdProvider = &providerServer{
-			server:      nonThresholdProviderServer,
-			grpcaddress: providerGRPCAddresses[1],
-			tcpaddress:  providerTCPAddresses[1],
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
+	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+	nonThresholdProvider = &providerServer{
+		server:      nonThresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[1],
+		tcpaddress:  providerTCPAddresses[1],
+	}
 
 	// time.Sleep(5 * time.Second)
 	// for _, srv := range issuers {
