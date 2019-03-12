@@ -169,42 +169,6 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 	return srv
 }
 
-func init() {
-	// todo: does it get wd relative to this file or where test command was run?
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	issuersKeysFolder = path.Join(dir, issuersKeysFolderRelative)
-	issuers = make([]*server.Server, 0, 5)
-
-	for i := range issuerTCPAddresses {
-		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
-	}
-
-	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
-	thresholdProvider = &providerServer{
-		server:      thresholdProviderServer,
-		grpcaddress: providerGRPCAddresses[0],
-		tcpaddress:  providerTCPAddresses[0],
-	}
-
-	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
-	nonThresholdProvider = &providerServer{
-		server:      nonThresholdProviderServer,
-		grpcaddress: providerGRPCAddresses[1],
-		tcpaddress:  providerTCPAddresses[1],
-	}
-
-	// time.Sleep(5 * time.Second)
-	// for _, srv := range issuers {
-	// 	srv.Shutdown()
-	// }
-
-	// thresholdProvider.Shutdown()
-	// nonThresholdProvider.Shutdown()
-}
-
 // if len(gRCPAddr) > 0 it means the client will use gRPC for comm
 func createBasicClientCfgStr(tcpAddrs []string, gRCPAddr []string) string {
 	cfgStr := "[Client]\n"
@@ -2312,4 +2276,44 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
+}
+
+func TestMain(m *testing.M) {
+	// todo: does it get wd relative to this file or where test command was run?
+	dir, err := os.Getwd()
+	if err != nil {
+		log.Fatal(err)
+	}
+	issuersKeysFolder = path.Join(dir, issuersKeysFolderRelative)
+	issuers = make([]*server.Server, 0, 5)
+
+	for i := range issuerTCPAddresses {
+		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
+	}
+
+	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+	thresholdProvider = &providerServer{
+		server:      thresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[0],
+		tcpaddress:  providerTCPAddresses[0],
+	}
+
+	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+	nonThresholdProvider = &providerServer{
+		server:      nonThresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[1],
+		tcpaddress:  providerTCPAddresses[1],
+	}
+
+	runTests := m.Run()
+
+	// cleanly shutdown the servers
+	for _, srv := range issuers {
+		srv.Shutdown()
+	}
+
+	thresholdProvider.server.Shutdown()
+	nonThresholdProvider.server.Shutdown()
+
+	os.Exit(runTests)
 }

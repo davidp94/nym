@@ -265,7 +265,7 @@ func (c *Client) parseSignatureServerResponses(
 
 			var sig *coconut.Signature
 			var err error
-			if isBlind {
+			if isBlind && elGamalPrivateKey != nil {
 				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse), elGamalPrivateKey)
 				if err != nil {
 					continue

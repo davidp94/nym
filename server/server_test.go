@@ -24,7 +24,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -50,28 +49,28 @@ var providerStartupTimeout = 5 * 1000 // lower it for the test
 var connectionTimeout = 1 * 1000      // to more quickly figure out issuer is down
 
 var issuerTCPAddresses = []string{
-	"127.0.0.1:4100",
-	"127.0.0.1:4101",
-	"127.0.0.1:4102",
-	"127.0.0.1:4103",
-	"127.0.0.1:4104",
+	"127.0.0.1:6100",
+	"127.0.0.1:6101",
+	"127.0.0.1:6102",
+	"127.0.0.1:6103",
+	"127.0.0.1:6104",
 }
 
 var issuerGRPCAddresses = []string{
-	"127.0.0.1:4200",
-	"127.0.0.1:4201",
-	"127.0.0.1:4202",
-	"127.0.0.1:4203",
-	"127.0.0.1:4204",
+	"127.0.0.1:6200",
+	"127.0.0.1:6201",
+	"127.0.0.1:6202",
+	"127.0.0.1:6203",
+	"127.0.0.1:6204",
 }
 
 var providerTCPAddresses = []string{
-	"127.0.0.1:5100",
-	"127.0.0.1:5101",
+	"127.0.0.1:7100",
+	"127.0.0.1:7101",
 }
 var providerGRPCAddresses = []string{
-	"127.0.0.1:5200", // threshold
-	"127.0.0.1:5201", // nonthreshold
+	"127.0.0.1:7200", // threshold
+	"127.0.0.1:7201", // nonthreshold
 }
 
 func makeStringOfAddresses(name string, addrs []string) string {
@@ -204,36 +203,6 @@ func startAllIssuers() {
 	}
 }
 
-func init() {
-	startAllIssuers()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	// since they need to get their aggregate key (+ need to fix initial wait time), it takes a while to start them up
-	// and we can start those together
-	go func() {
-		thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
-		thresholdProvider = &providerServer{
-			server:      thresholdProviderServer,
-			grpcaddress: providerGRPCAddresses[0],
-			tcpaddress:  providerTCPAddresses[0],
-		}
-		wg.Done()
-	}()
-	go func() {
-		nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
-		nonThresholdProvider = &providerServer{
-			server:      nonThresholdProviderServer,
-			grpcaddress: providerGRPCAddresses[1],
-			tcpaddress:  providerTCPAddresses[1],
-		}
-		wg.Done()
-	}()
-
-	wg.Wait()
-}
-
 // required by some tests
 func stopAllIssuers() {
 	for _, srv := range issuers {
@@ -358,4 +327,34 @@ func TestIssuer(t *testing.T) {
 		_, err = net.DialTimeout("tcp", testAddressGRPC, time.Millisecond*500)
 		assert.Nil(t, err)
 	}
+}
+
+func TestMain(m *testing.M) {
+	startAllIssuers()
+
+	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+	thresholdProvider = &providerServer{
+		server:      thresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[0],
+		tcpaddress:  providerTCPAddresses[0],
+	}
+
+	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+	nonThresholdProvider = &providerServer{
+		server:      nonThresholdProviderServer,
+		grpcaddress: providerGRPCAddresses[1],
+		tcpaddress:  providerTCPAddresses[1],
+	}
+
+	runTests := m.Run()
+
+	// cleanly shutdown the servers
+	for _, srv := range issuers {
+		srv.Shutdown()
+	}
+
+	thresholdProvider.server.Shutdown()
+	nonThresholdProvider.server.Shutdown()
+
+	os.Exit(runTests)
 }
