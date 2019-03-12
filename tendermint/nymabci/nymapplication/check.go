@@ -21,9 +21,9 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 )
@@ -40,7 +40,7 @@ func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey,
 	}
 
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
+	if bytes.Compare(inAddr, tmconst.HoldingAccountAddress) != 0 {
 		if err := inAddr.Compress(); err != nil {
 			// 'normal' address is invalid
 			return code.MALFORMED_ADDRESS, []byte("SOURCE")
@@ -57,7 +57,7 @@ func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey,
 	}
 
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(outAddr, holdingAccountAddress) != 0 {
+	if bytes.Compare(outAddr, tmconst.HoldingAccountAddress) != 0 {
 		if err := outAddr.Compress(); err != nil {
 			// 'normal' address is invalid
 			return code.MALFORMED_ADDRESS, []byte("TARGET")
@@ -148,7 +148,7 @@ func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
 
 	// start with checking for double spending -
 	// if credential was already spent, there is no point in any further checks
-	dbZetaEntry := prefixKey(sequenceNumPrefix, req.Theta.Zeta)
+	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
 	if zetaStatus != nil {
 		return code.DOUBLE_SPENDING_ATTEMPT

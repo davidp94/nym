@@ -20,9 +20,9 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 	"github.com/tendermint/tendermint/abci/types"
@@ -30,11 +30,6 @@ import (
 
 const (
 	startingBalance uint64 = 0 // this is for purely debug purposes. It will always be 0
-)
-
-// nolint: gochecknoglobals
-var (
-	spentZetaEntry = []byte("SPENT")
 )
 
 // tx prefix was already removed
@@ -111,6 +106,7 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 
 func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.DepositCoconutCredentialRequest{}
+
 	if err := proto.Unmarshal(reqb, req); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
@@ -119,7 +115,7 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 
 	// start with checking for double spending -
 	// if credential was already spent, there is no point in any further checks
-	dbZetaEntry := prefixKey(sequenceNumPrefix, req.Theta.Zeta)
+	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
 	if zetaStatus != nil {
 		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
@@ -136,27 +132,29 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	}
 
 	pubM := coconut.BigSliceFromByteSlices(req.PubM)
+	if !coconut.ValidateBigSlice(pubM) {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
-	// firstly check if the merchant address is correctly formed
+	// check if the merchant address is correctly formed
 	if err := merchantAddress.Compress(); err != nil {
-		app.log.Error("Merchant's Address is malformed")
 		return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
 	}
 
 	if !app.checkIfAccountExists(merchantAddress) {
-		if createAccountOnDepositIfDoesntExist {
-			didSucceed := app.createNewAccountOp(merchantAddress)
-			if !didSucceed {
-				app.log.Error("Could not create account for the merchant")
-				return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
-			}
-		} else {
+		if !createAccountOnDepositIfDoesntExist {
 			app.log.Error("Merchant's account doesnt exist")
 			return types.ResponseDeliverTx{Code: code.MERCHANT_DOES_NOT_EXIST}
 		}
+
+		didSucceed := app.createNewAccountOp(merchantAddress)
+		if !didSucceed {
+			app.log.Error("Could not create account for the merchant")
+			return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
+		}
 	}
 
-	_, avkb := app.state.db.Get(aggregateVkKey)
+	_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
 	avk := &coconut.VerificationKey{}
 	if err := avk.UnmarshalBinary(avkb); err != nil {
 		app.log.Error("Failed to unarsmahl vk...")
@@ -169,9 +167,9 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
 	if isValid {
-		retCode, data := app.transferFundsOp(holdingAccountAddress, merchantAddress, uint64(req.Value))
+		retCode, data := app.transferFundsOp(tmconst.HoldingAccountAddress, merchantAddress, uint64(req.Value))
 		// store the used credential
-		app.state.db.Set(dbZetaEntry, spentZetaEntry)
+		app.state.db.Set(dbZetaEntry, tmconst.SpentZetaPrefix)
 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 	}
 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
@@ -190,7 +188,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 
 	idb := make([]byte, 4)
 	binary.BigEndian.PutUint32(idb, req.IAID)
-	dbEntry := prefixKey(iaKeyPrefix, idb)
+	dbEntry := prefixKey(tmconst.IaKeyPrefix, idb)
 	_, IAPubb := app.state.db.Get(dbEntry)
 
 	// check if IA exists
@@ -231,7 +229,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	// block N+1 - client's funds are increased somehow or his account is now created, etc
 	// block N+2 - another IA sends the request
 
-	dbKey := prefixKey(commitmentsPrefix, req.Commitment)
+	dbKey := prefixKey(tmconst.CommitmentsPrefix, req.Commitment)
 	_, previousCode := app.state.db.Get(dbKey)
 	if previousCode != nil {
 		// another IA already sent the request before - we return the same result
@@ -260,7 +258,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 
 	// the request is valid, so transfer the amount
-	transferRetCode, data := app.transferFundsOp(clientPub, holdingAccountAddress, uint64(req.Amount))
+	transferRetCode, data := app.transferFundsOp(clientPub, tmconst.HoldingAccountAddress, uint64(req.Amount))
 	binary.BigEndian.PutUint32(retCodeB, transferRetCode)
 	app.state.db.Set(dbKey, retCodeB)
 

@@ -27,6 +27,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
@@ -173,7 +174,7 @@ func TestTransferFundsOp(t *testing.T) {
 	// need to 'workaround' to set initial balance
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
-	app.state.db.Set(prefixKey(accountsPrefix, acc1), balance)
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc1), balance)
 
 	// create some destination account
 	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())

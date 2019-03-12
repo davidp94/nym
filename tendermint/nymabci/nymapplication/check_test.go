@@ -24,6 +24,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -41,7 +42,7 @@ func TestValidateTransfer(t *testing.T) {
 	// need to 'workaround' to set initial balance
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
-	app.state.db.Set(prefixKey(accountsPrefix, acc1), balance)
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc1), balance)
 
 	// create some destination account
 	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
@@ -299,7 +300,7 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
 	acc.PublicKey.Compress()
-	app.state.db.Set(prefixKey(accountsPrefix, acc.PublicKey), balance)
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc.PublicKey), balance)
 
 	for _, invalidReq := range append(invalidReqs, validReq) {
 		assert.NotEqual(t, code.OK, app.checkTransferBetweenAccountsTx(invalidReq))
@@ -311,6 +312,14 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 	for _, validReq := range [][]byte{validReq} {
 		assert.Equal(t, code.OK, app.checkTransferBetweenAccountsTx(validReq))
 	}
+}
+
+func TestCheckDepositCoconutCredentialTx(t *testing.T) {
+	emptyReq, err := proto.Marshal(&transaction.DepositCoconutCredentialRequest{})
+	assert.Nil(t, err)
+
+	_ = emptyReq
+
 }
 
 // TODO: more tests are more checks are written

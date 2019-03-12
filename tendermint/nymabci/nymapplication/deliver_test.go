@@ -22,6 +22,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/assert"
@@ -227,7 +228,7 @@ func TestTransferFunds(t *testing.T) {
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
 	acc.PublicKey.Compress()
-	app.state.db.Set(prefixKey(accountsPrefix, acc.PublicKey), balance)
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc.PublicKey), balance)
 
 	for _, invalidReq := range append(invalidReqs, validReq) {
 		assert.NotEqual(t, code.OK, app.transferFunds(invalidReq).Code)

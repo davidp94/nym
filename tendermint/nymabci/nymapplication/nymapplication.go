@@ -29,6 +29,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -45,22 +46,16 @@ const (
 	DBNAME                              = "nymDB"
 	createAccountOnDepositIfDoesntExist = true
 	holdingStartingBalance              = 100000 // entirely for debug purposes
+
+	ProtocolVersion version.Protocol = 0x1
 )
 
 // nolint: gochecknoglobals
 var (
-	sequenceNumPrefix     = []byte("spent")
-	accountsPrefix        = []byte("account")
-	holdingAccountAddress = []byte("HOLDING ACCOUNT")
-	aggregateVkKey        = []byte("avk")
-	coconutHs             = []byte("coconutHs")
-	iaKeyPrefix           = []byte("IssuingAuthority")
-	commitmentsPrefix     = []byte("commitment")
 
-	// TODO: will need to store all vks
+// TODO: will need to store all vks
 
-	// ProtocolVersion defines version of the protocol used.
-	ProtocolVersion version.Protocol = 0x1
+// ProtocolVersion defines version of the protocol used.
 )
 
 // todo: validator updates etc
@@ -272,7 +267,7 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 		// TODO: include index (as found in the db)?
 		return types.ResponseQuery{Code: code, Key: req.Data, Value: val}
 	case query.DEBUG_printVk:
-		_, avkb := app.state.db.Get(aggregateVkKey)
+		_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
 		avk := &coconut.VerificationKey{}
 		err := avk.UnmarshalBinary(avkb)
 		if err != nil {
@@ -313,7 +308,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		balance := make([]byte, 8)
 		binary.BigEndian.PutUint64(balance, acc.Balance)
 
-		dbEntry := prefixKey(accountsPrefix, acc.PublicKey)
+		dbEntry := prefixKey(tmconst.AccountsPrefix, acc.PublicKey)
 		app.state.db.Set(dbEntry, balance)
 
 		b64name := base64.StdEncoding.EncodeToString(acc.PublicKey)
@@ -323,10 +318,10 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// create holdingAccount
 	holdingBalance := make([]byte, 8)
 	binary.BigEndian.PutUint64(holdingBalance, holdingStartingBalance)
-	dbEntry := prefixKey(accountsPrefix, holdingAccountAddress)
+	dbEntry := prefixKey(tmconst.AccountsPrefix, tmconst.HoldingAccountAddress)
 	app.state.db.Set(dbEntry, holdingBalance)
 
-	b64name := base64.StdEncoding.EncodeToString(holdingAccountAddress)
+	b64name := base64.StdEncoding.EncodeToString(tmconst.HoldingAccountAddress)
 	app.log.Info(fmt.Sprintf("Created holdingAccount: %v with starting balance: %v", b64name, holdingStartingBalance))
 
 	// import vk of IAs
@@ -377,7 +372,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// while we can get g1 and g2 from curve params, hs depends on number of attributes
 	// so store them; the point are always compressed
 	hsb := coconut.ECPSliceToCompressedBytes(params.Hs())
-	app.state.db.Set(coconutHs, hsb)
+	app.state.db.Set(tmconst.CoconutHsKey, hsb)
 	app.log.Info(fmt.Sprintf("Stored hs in DB"))
 
 	// aggregate the verification keys
@@ -389,7 +384,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		panic(err)
 	}
 
-	app.state.db.Set(aggregateVkKey, avkb)
+	app.state.db.Set(tmconst.AggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
 	// finally save pubkeys of ias (used to verify requests for transferring to holding account)
@@ -397,7 +392,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		idb := make([]byte, 4)
 		binary.BigEndian.PutUint32(idb, ia.ID)
 
-		dbEntry := prefixKey(iaKeyPrefix, idb)
+		dbEntry := prefixKey(tmconst.IaKeyPrefix, idb)
 		app.state.db.Set(dbEntry, ia.PublicKey)
 	}
 	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))

@@ -27,6 +27,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -82,7 +83,7 @@ func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	if !account.ValidateAddress(address) {
 		return false
 	}
-	key := prefixKey(accountsPrefix, address)
+	key := prefixKey(tmconst.AccountsPrefix, address)
 
 	_, val := app.state.db.Get(key)
 	if val != nil {
@@ -97,7 +98,7 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	p := Curve.NewBIGints(Curve.CURVE_Order)
 	g1 := Curve.ECP_generator()
 	g2 := Curve.ECP2_generator()
-	_, hsb := app.state.db.Get(coconutHs)
+	_, hsb := app.state.db.Get(tmconst.CoconutHsKey)
 	hs := coconut.CompressedBytesToECPSlice(hsb)
 
 	return coconut.NewParams(nil, p, g1, g2, hs)
@@ -113,7 +114,7 @@ func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) boo
 	value := make([]byte, 8)
 	binary.BigEndian.PutUint64(value, startingBalance)
 
-	dbEntry := prefixKey(accountsPrefix, publicKey)
+	dbEntry := prefixKey(tmconst.AccountsPrefix, publicKey)
 	app.state.db.Set(dbEntry, value)
 
 	b64name := base64.StdEncoding.EncodeToString(publicKey)
@@ -131,12 +132,12 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	}
 
 	// nolint: gosec
-	if bytes.Compare(inAddr, holdingAccountAddress) != 0 {
+	if bytes.Compare(inAddr, tmconst.HoldingAccountAddress) != 0 {
 		inAddr.Compress()
 	}
 
 	// nolint: gosec
-	if bytes.Compare(outAddr, holdingAccountAddress) != 0 {
+	if bytes.Compare(outAddr, tmconst.HoldingAccountAddress) != 0 {
 		outAddr.Compress()
 	}
 
@@ -158,10 +159,10 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
 	binary.BigEndian.PutUint64(targetResultB, targetResult)
 
-	sourceDbEntry := prefixKey(accountsPrefix, inAddr)
+	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
 	app.state.db.Set(sourceDbEntry, sourceResultB)
 
-	targetDbEntry := prefixKey(accountsPrefix, outAddr)
+	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
 	app.state.db.Set(targetDbEntry, targetResultB)
 
 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
