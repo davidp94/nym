@@ -21,12 +21,10 @@ package client
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
 	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -655,13 +653,15 @@ Level = "DEBUG"
 	for _, numAttr := range numAttrs {
 		pubM := getRandomAttributes(params.G, numAttr.pub)
 		privM := getRandomAttributes(params.G, numAttr.priv)
-		blindSignMats, err := coconut.PrepareBlindSign(params, client.elGamalPublicKey, pubM, privM)
+		elGamalPrivateKey, elGamalPublicKey := client.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
+		blindSignMats, err := coconut.PrepareBlindSign(params, elGamalPublicKey, pubM, privM)
 		assert.Nil(t, err)
 
-		validBlindSig, err := coconut.BlindSign(params, sk, blindSignMats, client.elGamalPublicKey, pubM)
+		validBlindSig, err := coconut.BlindSign(params, sk, blindSignMats, elGamalPublicKey, pubM)
 		assert.Nil(t, err)
 
-		unblindedValidBlindSig := coconut.Unblind(params, validBlindSig, client.elGamalPrivateKey)
+		unblindedValidBlindSig := coconut.Unblind(params, validBlindSig, elGamalPrivateKey)
 
 		validProtoBlindSig, err := validBlindSig.ToProto()
 		assert.Nil(t, err)
@@ -671,7 +671,7 @@ Level = "DEBUG"
 			Status: validStatus,
 		}
 
-		sig, err := client.parseBlindSignResponse(response)
+		sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 		assert.NotNil(t, sig)
 		assert.Nil(t, err)
 
@@ -700,7 +700,7 @@ Level = "DEBUG"
 				Status: invalidStatus,
 			}
 
-			sig, err := client.parseBlindSignResponse(response)
+			sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 			assert.Nil(t, sig)
 			assert.Error(t, err)
 		}
@@ -763,7 +763,7 @@ Level = "DEBUG"
 					Status: validStatus,
 				}
 
-				sig, err := client.parseBlindSignResponse(response)
+				sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 				assert.Nil(t, sig)
 				assert.Error(t, err)
 			}
@@ -784,13 +784,13 @@ Level = "DEBUG"
 				Status: validStatus,
 			}
 
-			sig, err := client.parseBlindSignResponse(response)
+			sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 			assert.Nil(t, sig)
 			assert.Error(t, err)
 		}
 
 		// nil proto, nil status
-		sig, err = client.parseBlindSignResponse(nil)
+		sig, err = client.parseBlindSignResponse(nil, elGamalPrivateKey)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
 
@@ -798,7 +798,7 @@ Level = "DEBUG"
 			Sig:    nil,
 			Status: validStatus,
 		}
-		sig, err = client.parseBlindSignResponse(response)
+		sig, err = client.parseBlindSignResponse(response, elGamalPrivateKey)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
 
@@ -806,7 +806,7 @@ Level = "DEBUG"
 			Sig:    validProtoBlindSig,
 			Status: nil,
 		}
-		sig, err = client.parseBlindSignResponse(response)
+		sig, err = client.parseBlindSignResponse(response, elGamalPrivateKey)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
 	}
@@ -988,16 +988,18 @@ Level = "DEBUG"
 		// + malformed marshaleddata in different ways
 	)
 
+	elGamalPrivateKey, elGamalPublicKey := client.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	for _, test := range tests {
 		responsesMock := make([]*comm.ServerResponse, 0, test.invalidResponses+test.validResponses)
 		// nil responses
-		sigs, pp := client.parseSignatureServerResponses(nil, test.isThreshold, test.isBlind)
+		sigs, pp := client.parseSignatureServerResponses(nil, test.isThreshold, test.isBlind, elGamalPrivateKey)
 		assert.Nil(t, sigs)
 		assert.Nil(t, pp)
 
 		for i := 0; i < test.validResponses; i++ {
 			if test.isBlind {
-				responsesMock = append(responsesMock, makeValidBlindSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, privM, client.elGamalPublicKey, false))
+				responsesMock = append(responsesMock, makeValidBlindSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, privM, elGamalPublicKey, false))
 			} else {
 				responsesMock = append(responsesMock, makeValidSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, false))
 			}
@@ -1007,7 +1009,7 @@ Level = "DEBUG"
 		// todo: more cases?
 		invalidResponsesIn := invalidResponses
 		if test.isBlind {
-			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false)
+			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, elGamalPublicKey, false)
 			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
 			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
 			invalidResponsesIn = append(invalidResponsesIn, makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
@@ -1015,7 +1017,7 @@ Level = "DEBUG"
 			sampleValid := makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false)
 			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
 			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
-			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, client.elGamalPublicKey, false))
+			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, elGamalPublicKey, false))
 		}
 
 		for _, invResp := range invalidResponsesIn {
@@ -1024,7 +1026,7 @@ Level = "DEBUG"
 				responsesMockIn = append(responsesMockIn, invResp)
 			}
 
-			sigs, pp := client.parseSignatureServerResponses(responsesMockIn, test.isThreshold, test.isBlind)
+			sigs, pp := client.parseSignatureServerResponses(responsesMockIn, test.isThreshold, test.isBlind, elGamalPrivateKey)
 
 			if test.isThreshold {
 				assert.True(t, len(sigs) == len(pp.Xs()))
@@ -2322,126 +2324,5 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, invalidVk)
 		assert.False(t, isValid)
 		assert.Error(t, err)
-	}
-}
-
-func TestNew(t *testing.T) {
-	client, err := New(nil)
-
-	assert.Nil(t, client)
-	assert.Error(t, err)
-
-	// todo: does it get wd relative to this file or where test command was run?
-	dir, err := os.Getwd()
-	if err != nil {
-		log.Fatal(err)
-	}
-	validPubF := path.Join(dir, clientKeysFolderRelative, "pub.pem")
-	validPrivF := path.Join(dir, clientKeysFolderRelative, "priv.pem")
-	// this bit does not matter since no servers will be called, but cannot be empty
-	basecfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
-	logStr := string(`
-	[Logging]
-	Disable = true
-	Level = "DEBUG"`)
-
-	regenKeysStr := "\n[Debug]\nRegenerateKeys = true\n"
-
-	tmpdir, err := ioutil.TempDir("", "testkeys")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer os.RemoveAll(tmpdir) // clean up
-
-	tmpprivf := filepath.Join(tmpdir, "priv.pem")
-	tmppubf := filepath.Join(tmpdir, "pub.pem")
-
-	// ASSUMES THAT THOSE TWO FILES EXIST AND ARE CORRECTLY FORMED:
-	// 0xacab.org/jstuczyn/CoconutGo/testdata/clientkeys/priv.pem
-	// 0xacab.org/jstuczyn/CoconutGo/testdata/clientkeys/priv.pub
-	invalidKeysConfig := []string{
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"/foo/bar.pem\""),
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"/foo/bar.pem\"") + regenKeysStr,
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", tmpprivf),
-		// other invalid combinations are caught at config_test
-	}
-
-	for _, invalidKeyCfg := range invalidKeysConfig {
-		cfgstr := basecfgstr + invalidKeyCfg + logStr
-
-		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
-		assert.Nil(t, err)
-
-		client, err := New(cfg)
-		assert.Nil(t, client)
-		assert.Error(t, err)
-	}
-
-	validKeysConfig := []string{
-		// if keys aren't persistent, filepaths are ignored as nothing is written/read from them
-		fmt.Sprintf("PersistentKeys = false"),
-		fmt.Sprintf("PersistentKeys = false\nPublicKeyFile=\"%v\"", validPubF),
-		fmt.Sprintf("PersistentKeys = false\nPrivateKeyFile=\"/foo/bar.pem\""),
-		regenKeysStr,
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", validPrivF), // public key is created from private
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"\nPublicKeyFile=\"%v\"", validPrivF, validPubF),
-	}
-
-	for _, validKeyCfg := range validKeysConfig {
-		cfgstr := basecfgstr + validKeyCfg + logStr
-
-		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
-		assert.Nil(t, err)
-
-		client, err := New(cfg)
-		assert.NotNil(t, client)
-		assert.Nil(t, err)
-
-		// ensure we recovered what is actually stored
-		if cfg.Client.PersistentKeys {
-			elGamalPrivateKeySt := &elgamal.PrivateKey{}
-			elGamalPublicKeySt := &elgamal.PublicKey{}
-
-			assert.Nil(t, elGamalPrivateKeySt.FromPEMFile(validPrivF))
-			assert.Nil(t, elGamalPublicKeySt.FromPEMFile(validPubF))
-
-			assert.Zero(t, Curve.Comp(elGamalPrivateKeySt.D(), client.elGamalPrivateKey.D()))
-			assert.True(t, elGamalPublicKeySt.G().Equals(client.elGamalPublicKey.G()))
-			assert.True(t, elGamalPublicKeySt.Gamma().Equals(client.elGamalPublicKey.Gamma()))
-			assert.Zero(t, Curve.Comp(elGamalPublicKeySt.P(), client.elGamalPublicKey.P()))
-		}
-
-	}
-
-	validKeysConfigWrite := []string{
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"", tmpprivf) + regenKeysStr,
-		fmt.Sprintf("PersistentKeys = true\nPrivateKeyFile=\"%v\"\nPublicKeyFile=\"%v\"", tmpprivf, tmppubf) + regenKeysStr,
-	}
-
-	for _, validKeyCfg := range validKeysConfigWrite {
-		cfgstr := basecfgstr + validKeyCfg + logStr
-
-		cfg, err := cconfig.LoadBinary([]byte(cfgstr))
-		assert.Nil(t, err)
-
-		client, err := New(cfg)
-		assert.NotNil(t, client)
-		assert.Nil(t, err)
-
-		// ensure we wrote what we actually generated
-		elGamalPrivateKeyWr := &elgamal.PrivateKey{}
-		assert.Nil(t, elGamalPrivateKeyWr.FromPEMFile(tmpprivf))
-		assert.Zero(t, Curve.Comp(elGamalPrivateKeyWr.D(), client.elGamalPrivateKey.D()))
-
-		if cfg.Client.PublicKeyFile != "" {
-			elGamalPublicKeyWr := &elgamal.PublicKey{}
-			assert.Nil(t, elGamalPublicKeyWr.FromPEMFile(tmppubf))
-			assert.True(t, elGamalPublicKeyWr.G().Equals(client.elGamalPublicKey.G()))
-			assert.True(t, elGamalPublicKeyWr.Gamma().Equals(client.elGamalPublicKey.Gamma()))
-			assert.Zero(t, Curve.Comp(elGamalPublicKeyWr.P(), client.elGamalPublicKey.P()))
-		}
-
-		os.Remove(tmpprivf)
-		os.Remove(tmppubf)
 	}
 }
