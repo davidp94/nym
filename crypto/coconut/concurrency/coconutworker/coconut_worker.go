@@ -92,6 +92,22 @@ func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, 
 	return cw.ShowBlindSignature(cw.muxParams, vk, sig, privM)
 }
 
+// ElGamalKeygenWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ElGamalKeygenWrapper() (*elgamal.PrivateKey, *elgamal.PublicKey) {
+	return cw.ElGamalKeygen(cw.muxParams)
+}
+
+// ElGamalEncryptWrapper wraps the provided arguments with pre-generated params.
+// nolint: lll
+func (cw *CoconutWorker) ElGamalEncryptWrapper(pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
+	return cw.ElGamalEncrypt(cw.muxParams, pub, m, h)
+}
+
+// ElGamalDecryptWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ElGamalDecryptWrapper(pk *elgamal.PrivateKey, enc *elgamal.Encryption) *Curve.ECP {
+	return cw.ElGamalDecrypt(cw.muxParams, pk, enc)
+}
+
 // PrepareBlindSignTokenWrapper wraps the provided arguments with pre-generated params
 // and unwraps attributes embedded in the token.
 // nolint: lll
