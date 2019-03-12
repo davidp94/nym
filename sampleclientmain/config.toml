@@ -21,15 +21,6 @@
   # -1 indicates no limit
   MaxRequests = -1
 
-  # PersistentKeys specifies whether to use the keys from the files or create new ones every time.
-  PersistentKeys = true
-
-  # PublicKeyFile specifies the file containing the Coconut-specific ElGamal Public Key.
-  PublicKeyFile = "pub.pem"
-
-  # PrivateKeyFile specifies the file containing the Coconut-specific ElGamal Private Key.
-  PrivateKeyFile = "priv.pem"
-
   # Threshold defines minimum number of signatures client needs to obtain. Default = len(IAAddresses).
   # TODO: should it be client or debug property?
   Threshold = 2

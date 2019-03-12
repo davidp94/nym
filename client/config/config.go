@@ -65,15 +65,6 @@ type Client struct {
 	// -1 indicates no limit
 	MaxRequests int
 
-	// PersistentKeys specifies whether to use the keys from the files or create new ones every time.
-	PersistentKeys bool
-
-	// PublicKeyFile specifies the file containing the Coconut-specific ElGamal Public Key.
-	PublicKeyFile string
-
-	// PrivateKeyFile specifies the file containing the Coconut-specific ElGamal Private Key.
-	PrivateKeyFile string
-
 	// Threshold defines minimum number of signatures client needs to obtain. Default = len(IAAddresses).
 	// 0 = no threshold
 	Threshold int
@@ -140,10 +131,6 @@ type Config struct {
 func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Client == nil {
 		return errors.New("config: No Client block was present")
-	}
-	// does not care if files are empty, if so, new keys will be generated and written there
-	if cfg.Client.PersistentKeys && cfg.Client.PrivateKeyFile == "" {
-		return errors.New("config: No key files were provided")
 	}
 
 	if cfg.Client.MaxRequests == 0 {

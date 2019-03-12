@@ -150,36 +150,3 @@ func TestTCPIDs(t *testing.T) {
 		assert.Equal(t, cfg.Client.IAIDs[i], i+1)
 	}
 }
-
-func TestKeys(t *testing.T) {
-	cfgStr := `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = false
-	`
-	_, err := config.LoadBinary([]byte(cfgStr))
-	assert.Nil(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Error(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	PublicKeyFile = "/foo/bar"
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Error(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	PrivateKeyFile = "/foo/bar"
-	PublicKeyFile = "/foo/baz"
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Nil(t, err)
-}
