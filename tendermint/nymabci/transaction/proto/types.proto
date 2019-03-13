@@ -27,6 +27,7 @@ message AccountTransferRequest {
     bytes Sig = 4; 
 }
 
+// TODO: update int32 to uint32
 message DepositCoconutCredentialRequest {
     // The actual credential
     coconut.ProtoSignature Sig = 1;
@@ -40,24 +41,41 @@ message DepositCoconutCredentialRequest {
     bytes MerchantAddress = 5;
 }
 
+// Initiated by users themselves
 message TransferToHoldingRequest {
-    // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
-    // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
-    // it obtains key in constant time and uses stored key to verify the signature
-    uint32 IAID = 1;
-    // Which user's funds should be moved
-    bytes ClientPublicKey = 2;
-    // Amount to move
-    int32 Amount = 3;
-    // Commitment to attributes the credential, ensures uniqueness of request
-    bytes Commitment = 4;
-    // To check if the user really wanted the transfer to happen
-    // It is done on {ClientPublicKey, Ammount, Commitment}
-    bytes ClientSig = 5;
-    // To authorise the transfer
-    // It is done on {IAID, ClientPublicKey, Ammount, Commitment, ClientSig}
-    bytes IASig = 6;
-}
+    // Used to validate signature + determine source address
+    bytes SourcePublicKey = 1;
+    // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
+    // in case wanted to change it
+    bytes TargetAddress = 2; 
+    // Amount to be transferred 
+    uint32 Amount = 3; 
+    // Random nonce to prevent replay attacks
+    bytes Nonce = 4;
+    // Signature on request to confirm its validitiy
+    bytes Sig = 5; 
+ }
+
+
+// Old proto definition for when IAs initiated the transfer
+// message TransferToHoldingRequest {
+//     // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
+//     // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
+//     // it obtains key in constant time and uses stored key to verify the signature
+//     uint32 IAID = 1;
+//     // Which user's funds should be moved
+//     bytes ClientPublicKey = 2;
+//     // Amount to move
+//     int32 Amount = 3;
+//     // Commitment to attributes the credential, ensures uniqueness of request
+//     bytes Commitment = 4;
+//     // To check if the user really wanted the transfer to happen
+//     // It is done on {ClientPublicKey, Ammount, Commitment}
+//     bytes ClientSig = 5;
+//     // To authorise the transfer
+//     // It is done on {IAID, ClientPublicKey, Ammount, Commitment, ClientSig}
+//     bytes IASig = 6;
+// }
 
 // message AddIssuerRequest {
 //     // ID of the new issuer

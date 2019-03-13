@@ -24,6 +24,7 @@ import (
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -151,45 +152,23 @@ func CreateNewDepositCoconutCredentialRequest(
 	return b, nil
 }
 
-// TransferToHoldingReqParams defines params required for CreateNewTransferToHoldingRequest function.
-// They could have fit in the function declaration, but it would have been too easy to accidentally confuse
-// order of byte slices.
-type TransferToHoldingReqParams struct {
-	ID              uint32
-	Amount          int32
-	PrivateKey      account.ECPrivateKey
-	ClientPublicKey []byte
-	Commitment      []byte
-	ClientSig       []byte
-}
-
-// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from client's account
+// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
 // to the holding account.
-// It is designed to be executed by an issuing authority.
-func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byte, error) {
-	id := params.ID
-	priv := params.PrivateKey
-	clientPublicKey := params.ClientPublicKey
-	amount := params.Amount
-	commitment := params.Commitment
-	clientSig := params.ClientSig
-
-	msg := make([]byte, 4+len(clientPublicKey)+4+len(commitment)+len(clientSig))
-	binary.BigEndian.PutUint32(msg, id)
-	copy(msg[4:], clientPublicKey)
-	binary.BigEndian.PutUint32(msg[4+len(clientPublicKey):], uint32(amount))
-	copy(msg[4+len(clientPublicKey)+4:], commitment)
-	copy(msg[4+len(clientPublicKey)+4+len(commitment):], clientSig)
-
-	sig := priv.SignBytes(msg)
+// It is designed to be executed by the user itself.
+func CreateNewTransferToHoldingRequest(acc account.Account, amount uint32, nonce []byte) ([]byte, error) {
+	msg := make([]byte, len(acc.PublicKey)+len(tmconst.HoldingAccountAddress)+4+len(nonce))
+	copy(msg, acc.PublicKey)
+	copy(msg[len(acc.PublicKey):], tmconst.HoldingAccountAddress)
+	binary.BigEndian.PutUint32(msg[len(acc.PublicKey)+len(tmconst.HoldingAccountAddress):], amount)
+	copy(msg[len(acc.PublicKey)+len(tmconst.HoldingAccountAddress)+4:], nonce)
+	sig := acc.PrivateKey.SignBytes(msg)
 
 	req := &TransferToHoldingRequest{
-		IAID:            id,
-		ClientPublicKey: clientPublicKey,
+		SourcePublicKey: acc.PublicKey,
+		TargetAddress:   tmconst.HoldingAccountAddress,
 		Amount:          amount,
-		Commitment:      commitment,
-		ClientSig:       clientSig,
-		IASig:           sig,
+		Nonce:           nonce,
+		Sig:             sig,
 	}
 
 	protob, err := proto.Marshal(req)
@@ -202,3 +181,44 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byt
 	copy(b[1:], protob)
 	return b, nil
 }
+
+// DEPRECATED; but left temporarly for reference sake
+// // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from client's account
+// // to the holding account.
+// // It is designed to be executed by an issuing authority.
+// func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byte, error) {
+// 	id := params.ID
+// 	priv := params.PrivateKey
+// 	clientPublicKey := params.ClientPublicKey
+// 	amount := params.Amount
+// 	commitment := params.Commitment
+// 	clientSig := params.ClientSig
+
+// 	msg := make([]byte, 4+len(clientPublicKey)+4+len(commitment)+len(clientSig))
+// 	binary.BigEndian.PutUint32(msg, id)
+// 	copy(msg[4:], clientPublicKey)
+// 	binary.BigEndian.PutUint32(msg[4+len(clientPublicKey):], uint32(amount))
+// 	copy(msg[4+len(clientPublicKey)+4:], commitment)
+// 	copy(msg[4+len(clientPublicKey)+4+len(commitment):], clientSig)
+
+// 	sig := priv.SignBytes(msg)
+
+// 	req := &TransferToHoldingRequest{
+// 		IAID:            id,
+// 		ClientPublicKey: clientPublicKey,
+// 		Amount:          amount,
+// 		Commitment:      commitment,
+// 		ClientSig:       clientSig,
+// 		IASig:           sig,
+// 	}
+
+// 	protob, err := proto.Marshal(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	b := make([]byte, len(protob)+1)
+
+// 	b[0] = TxTransferToHolding
+// 	copy(b[1:], protob)
+// 	return b, nil
+// }
