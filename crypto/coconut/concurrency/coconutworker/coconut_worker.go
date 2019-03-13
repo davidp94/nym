@@ -116,6 +116,13 @@ func (cw *CoconutWorker) PrepareBlindSignTokenWrapper(egPub *elgamal.PublicKey, 
 	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
 }
 
+// RandomBIG generates a pseudorandom BIG number.
+func (cw *CoconutWorker) RandomBIG() *Curve.BIG {
+	cw.muxParams.Lock()
+	defer cw.muxParams.Unlock()
+	return Curve.Randomnum(cw.muxParams.P(), cw.muxParams.G.Rng())
+}
+
 // New creates new instance of a coconutWorker.
 func New(jobQueue chan<- *jobpacket.JobPacket, params *coconut.Params) *CoconutWorker {
 	muxParams := &MuxParams{params, sync.Mutex{}}
