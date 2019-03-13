@@ -26,8 +26,6 @@ import (
 	"sort"
 	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
@@ -35,8 +33,10 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -54,6 +54,7 @@ type Client struct {
 	defaultDialOptions []grpc.DialOption
 
 	nymAccount account.Account
+	nymClient  *nymclient.Client
 }
 
 // used to share code for parsing BlindSign and GetCredential responses. They return same data but under different name
@@ -920,6 +921,8 @@ func New(cfg *config.Config) (*Client, error) {
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
 	acc := account.Account{}
+	var nymClient *nymclient.Client
+
 	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
 		if err := acc.FromJSONFile(cfg.Nym.AccountKeysFile); err != nil {
 			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
@@ -927,6 +930,14 @@ func New(cfg *config.Config) (*Client, error) {
 			return nil, errors.New(errStr)
 		}
 		clientLog.Notice("Loaded Nym Blochain keys from the file.")
+
+		nymClient, err = nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			clientLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+
 	} else {
 		clientLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
@@ -950,6 +961,7 @@ func New(cfg *config.Config) (*Client, error) {
 		},
 
 		nymAccount: acc,
+		nymClient:  nymClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)
