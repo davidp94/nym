@@ -77,6 +77,12 @@ type Client struct {
 type Nym struct {
 	// AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
 	AccountKeysFile string
+
+	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	// to which the client should send all relevant requests.
+	// Note that only a single request will ever be sent, but multiple addresses are provided in case
+	// the particular node was unavailable.
+	BlockchainNodeAddresses []string
 }
 
 // Debug is the Coconut Client debug configuration.
@@ -182,6 +188,16 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if cfg.Logging == nil {
 		cfg.Logging = &defaultLogging
+	}
+
+	if cfg.Nym == nil {
+		return errors.New("config: No Nym block was present")
+	}
+	if len(cfg.Nym.AccountKeysFile) <= 0 {
+		return errors.New("config: No key file provided")
+	}
+	if len(cfg.Nym.BlockchainNodeAddresses) <= 0 {
+		return errors.New("config: No node addresses provided")
 	}
 
 	return nil

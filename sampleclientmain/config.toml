@@ -33,6 +33,12 @@
   # AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
   AccountKeysFile = "account.json"
 
+  # BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	# to which the client should send all relevant requests.
+	# Note that only a single request will ever be sent, but multiple addresses are provided in case
+	# the particular node was unavailable.
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
+
 [Logging]
 
   # Disable disables logging entirely.
