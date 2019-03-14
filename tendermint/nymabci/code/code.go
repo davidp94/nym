@@ -93,6 +93,8 @@ func ToString(code uint32) string {
 		return "Double Spending Attempt"
 	case SELF_TRANSFER:
 		return "Self Transfer"
+	case REPLAY_ATTACK_ATTEMPT:
+		return "Replay Attack Attempt"
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
 	default:
