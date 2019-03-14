@@ -27,6 +27,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
 	"github.com/tendermint/tendermint/abci/types"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -178,6 +179,7 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 
 // transfers funds from the given user's account to the holding account. It makes sure it's only done once per
 // particular credential request.
+// TODO: wait on deicison on implementation
 func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.TransferToHoldingRequest{}
 
@@ -192,7 +194,6 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 	// regardless of whether request is valid or not, mark the nonce as 'used'
 	app.state.db.Set(dbNonce, []byte{})
-	// TODO: test if that's enough or  will it be considered 'nil'
 
 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
 	recoveredHoldingAddress := req.TargetAddress
@@ -215,6 +216,17 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	}
 
 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
+	if retCode == code.OK {
+		// it can't fail as transferFunds already performed it
+		sourcePublicKey.Compress()
+		amountB := make([]byte, 4)
+		binary.BigEndian.PutUint32(amountB, req.Amount)
+		// only include tags if tx was successful
+		key := make([]byte, len(sourcePublicKey)+len(req.Nonce))
+		copy(key, sourcePublicKey)
+		copy(key[len(sourcePublicKey):], req.Nonce)
+		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: amountB}}}
+	}
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
 
