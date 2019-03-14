@@ -187,3 +187,14 @@ func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
 
 	return code.OK
 }
+
+func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
+	// TODO: wait for more details on how to implement
+	req := &transaction.TransferToHoldingRequest{}
+
+	if err := proto.Unmarshal(tx, req); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	return code.OK
+}

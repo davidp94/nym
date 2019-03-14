@@ -237,8 +237,16 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		app.log.Debug("CheckTx for TxAdvanceBlock")
 	case transaction.TxTransferToHolding:
 		app.log.Debug("CheckTx for TxTransferToHolding")
+
+		checkCode := app.checkTxTransferToHolding(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 	default:
-		app.log.Error("Default CheckTX")
+		app.log.Error("Unknown Tx")
+		return types.ResponseCheckTx{Code: code.INVALID_TX_PARAMS}
 
 	}
 

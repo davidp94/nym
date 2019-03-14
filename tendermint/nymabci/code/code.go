@@ -53,9 +53,11 @@ const (
 	DOUBLE_SPENDING_ATTEMPT = 13
 	// SELF_TRANSFER represents error when trying to send funds from account X back to account X
 	SELF_TRANSFER = 14
-	// REPLAY_ATTACK_ATTEMPT rerepsents error due to trying to transfer tokens
+	// REPLAY_ATTACK_ATTEMPT represents error due to trying to transfer tokens
 	// to the holding account with repeating same nonce.
 	REPLAY_ATTACK_ATTEMPT = 15
+	// UNDEFINED_TX represents error due to using tx prefix for an undefined tx.
+	UNDEFINED_TX = 16
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
@@ -95,6 +97,8 @@ func ToString(code uint32) string {
 		return "Self Transfer"
 	case REPLAY_ATTACK_ATTEMPT:
 		return "Replay Attack Attempt"
+	case UNDEFINED_TX:
+		return "Undefined Tx"
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
 	default:
