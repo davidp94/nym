@@ -44,4 +44,7 @@ var (
 	// CoconutHsKey represents the database entry for the EC points of G1 as defined by
 	// the public, system-wide coconut parameters.
 	CoconutHsKey = []byte("coconutHs")
+
+	// SeenNoncePrefix represents prefix for each seen nonce in the database.
+	SeenNoncePrefix = []byte("NONCE")
 )

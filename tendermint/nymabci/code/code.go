@@ -53,6 +53,9 @@ const (
 	DOUBLE_SPENDING_ATTEMPT = 13
 	// SELF_TRANSFER represents error when trying to send funds from account X back to account X
 	SELF_TRANSFER = 14
+	// REPLAY_ATTACK_ATTEMPT rerepsents error due to trying to transfer tokens
+	// to the holding account with repeating same nonce.
+	REPLAY_ATTACK_ATTEMPT = 15
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
