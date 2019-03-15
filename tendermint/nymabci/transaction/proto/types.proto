@@ -27,7 +27,6 @@ message AccountTransferRequest {
     bytes Sig = 4; 
 }
 
-// TODO: update int32 to uint32
 message DepositCoconutCredentialRequest {
     // The actual credential
     coconut.ProtoSignature Sig = 1;

@@ -148,7 +148,6 @@ func (m *AccountTransferRequest) GetSig() []byte {
 	return nil
 }
 
-// TODO: update int32 to uint32
 type DepositCoconutCredentialRequest struct {
 	// The actual credential
 	Sig *scheme.ProtoSignature `protobuf:"bytes,1,opt,name=Sig,proto3" json:"Sig,omitempty"`

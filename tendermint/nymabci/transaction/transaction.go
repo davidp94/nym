@@ -105,18 +105,12 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
 // (that is bound to particular merchant address) to be spent.
 func CreateNewDepositCoconutCredentialRequest(
-	params *coconut.Params,
-	avk *coconut.VerificationKey,
+	theta *coconut.ThetaTumbler,
 	sig *coconut.Signature,
 	token *token.Token,
 	address []byte,
 ) ([]byte, error) {
-	pubM, privM := token.GetPublicAndPrivateSlices()
-
-	theta, err := coconut.ShowBlindSignatureTumbler(params, avk, sig, privM, address)
-	if err != nil {
-		return nil, err
-	}
+	pubM, _ := token.GetPublicAndPrivateSlices()
 
 	protoSig, err := sig.ToProto()
 	if err != nil {
