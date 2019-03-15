@@ -16,6 +16,7 @@ enum StatusCode {
     REQUEST_TIMEOUT = 6;
     UNAVAILABLE = 7;
     INVALID_TRANSACTION = 8;
+    INVALID_BINDING = 9;
 }
 
 message Status {

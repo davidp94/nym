@@ -317,22 +317,24 @@ func TestNewSpendCredentialRequest(t *testing.T) {
 		coconut.NewSignature(nil, validSig.Sig2()),
 	}
 
+	address := []byte("foo")
+
 	for _, validPubM := range validPubMs {
-		theta, err := coconut.ShowBlindSignatureTumbler(params, vk, validSig, privM, []byte("foo"))
+		theta, err := coconut.ShowBlindSignatureTumbler(params, vk, validSig, privM, address)
 		assert.Nil(t, err)
 
 		validPubMInput := append([]*Curve.BIG{Curve.NewBIGint(-1)}, validPubM...)
-		scr, err := commands.NewSpendCredentialRequest(validSig, validPubMInput, theta, -1)
+		scr, err := commands.NewSpendCredentialRequest(validSig, validPubMInput, theta, -1, address)
 		assert.Nil(t, scr)
 		assert.Error(t, err)
 
 		validPubMInput = append([]*Curve.BIG{Curve.NewBIGint(42)}, validPubM...)
-		scr, err = commands.NewSpendCredentialRequest(validSig, validPubMInput, theta, 42)
+		scr, err = commands.NewSpendCredentialRequest(validSig, validPubMInput, theta, 42, address)
 		assert.NotNil(t, scr)
 		assert.Nil(t, err)
 
 		for _, invalidSig := range invalidSigs {
-			scr, err := commands.NewSpendCredentialRequest(invalidSig, validPubMInput, theta, 42)
+			scr, err := commands.NewSpendCredentialRequest(invalidSig, validPubMInput, theta, 42, address)
 			assert.Nil(t, scr)
 			assert.Error(t, err)
 		}
@@ -342,12 +344,12 @@ func TestNewSpendCredentialRequest(t *testing.T) {
 		theta, err := coconut.ShowBlindSignatureTumbler(params, vk, validSig, privM, []byte("foo"))
 		assert.Nil(t, err)
 
-		scr, err := commands.NewSpendCredentialRequest(validSig, invalidPubM, theta, -1)
+		scr, err := commands.NewSpendCredentialRequest(validSig, invalidPubM, theta, -1, address)
 		assert.Nil(t, scr)
 		assert.Error(t, err)
 
 		for _, invalidSig := range invalidSigs {
-			scr, err := commands.NewSpendCredentialRequest(invalidSig, invalidPubM, theta, 42)
+			scr, err := commands.NewSpendCredentialRequest(invalidSig, invalidPubM, theta, 42, address)
 			assert.Nil(t, scr)
 			assert.Error(t, err)
 		}
@@ -361,15 +363,15 @@ func TestNewSpendCredentialRequest(t *testing.T) {
 	validPubMs[1] = append([]*Curve.BIG{Curve.NewBIGint(0)}, validPubMs[1]...)
 	validPubMs[2] = append([]*Curve.BIG{Curve.NewBIGint(math.MaxInt32)}, validPubMs[2]...)
 
-	scr, err := commands.NewSpendCredentialRequest(validSig, validPubMs[0], theta, math.MinInt32)
+	scr, err := commands.NewSpendCredentialRequest(validSig, validPubMs[0], theta, math.MinInt32, address)
 	assert.Nil(t, scr)
 	assert.Error(t, err)
 
-	scr, err = commands.NewSpendCredentialRequest(validSig, validPubMs[1], theta, 0)
+	scr, err = commands.NewSpendCredentialRequest(validSig, validPubMs[1], theta, 0, address)
 	assert.Nil(t, scr)
 	assert.Error(t, err)
 
-	scr, err = commands.NewSpendCredentialRequest(validSig, validPubMs[2], theta, math.MaxInt32)
+	scr, err = commands.NewSpendCredentialRequest(validSig, validPubMs[2], theta, math.MaxInt32, address)
 	assert.NotNil(t, scr)
 	assert.Nil(t, err)
 }

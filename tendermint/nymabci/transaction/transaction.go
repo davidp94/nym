@@ -22,7 +22,6 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	proto "github.com/golang/protobuf/proto"
@@ -105,33 +104,18 @@ func CreateNewTransferRequest(account account.Account, target account.ECPublicKe
 // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
 // (that is bound to particular merchant address) to be spent.
 func CreateNewDepositCoconutCredentialRequest(
-	theta *coconut.ThetaTumbler,
-	sig *coconut.Signature,
-	token *token.Token,
+	protoSig *coconut.ProtoSignature,
+	pubMb [][]byte,
+	protoThetaTumbler *coconut.ProtoThetaTumbler,
+	value int32,
 	address []byte,
 ) ([]byte, error) {
-	pubM, _ := token.GetPublicAndPrivateSlices()
-
-	protoSig, err := sig.ToProto()
-	if err != nil {
-		return nil, err
-	}
-
-	pubMb, err := coconut.BigSliceToByteSlices(pubM)
-	if err != nil {
-		return nil, err
-	}
-
-	protoThetaTumbler, err := theta.ToProto()
-	if err != nil {
-		return nil, err
-	}
 
 	req := &DepositCoconutCredentialRequest{
 		Sig:             protoSig,
 		PubM:            pubMb,
 		Theta:           protoThetaTumbler,
-		Value:           token.Value(),
+		Value:           value,
 		MerchantAddress: address,
 	}
 

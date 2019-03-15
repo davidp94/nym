@@ -313,7 +313,7 @@ func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, t
 // NewSpendCredentialRequest returns new instance of a SpendCredentialRequest
 // given credential and the required cryptographic materials.
 // nolint: lll
-func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta *coconut.ThetaTumbler, val int32) (*SpendCredentialRequest, error) {
+func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta *coconut.ThetaTumbler, val int32, address []byte) (*SpendCredentialRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
 		return nil, err
@@ -333,10 +333,14 @@ func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta 
 		return nil, err
 	}
 
+	// it is not checked whether the proof is actually bound to the provided address,
+	// if it's not, it will just fail verification.
+	// Also some providers might not require it, so nil is also a valid value.
 	return &SpendCredentialRequest{
-		Sig:   protoSig,
-		PubM:  pubMb,
-		Theta: protoThetaTumbler,
-		Value: val,
+		Sig:             protoSig,
+		PubM:            pubMb,
+		Theta:           protoThetaTumbler,
+		Value:           val,
+		MerchantAddress: address,
 	}, nil
 }

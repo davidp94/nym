@@ -19,12 +19,10 @@
 package serverworker
 
 import (
-	"encoding/base64"
+	"bytes"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
-	"0xacab.org/jstuczyn/CoconutGo/common/utils"
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -184,10 +182,70 @@ func (sw *ServerWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 	return response
 }
 
+func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredentialRequest) *commands.Response {
+	response := getDefaultResponse()
+
+	// theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
+	// but we check if the user says it bound it to our address
+	address := req.MerchantAddress
+
+	if bytes.Compare(address, sw.nymAccount.PublicKey) != 0 {
+		// check if perhaps our address is in uncompressed form but client bound it to the compressed version
+		var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
+		copy(accountCompressed, sw.nymAccount.PublicKey)
+		accountCompressed.Compress()
+
+		if bytes.Compare(address, accountCompressed) != 0 {
+			errMsg := "Request is bound to an invalid address"
+			sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_BINDING)
+			return response
+		}
+	}
+
+	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(req.Sig, req.PubM, req.Theta, req.Value, req.MerchantAddress)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+
+	blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
+		sw.log.Critical(errMsg)
+		response.Data = nil
+		response.ErrorMessage = errMsg
+		response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+		return response
+	}
+
+	sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
+		code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
+
+	if blockchainResponse.DeliverTx.Code != code.OK {
+		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
+			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+		return response
+	}
+
+	// the response data in future might be provider dependent, to include say some authorization token
+	response.ErrorStatus = commands.StatusCode_OK
+	return response
+}
+
 func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
+	// IMPLEMENTATION CHANGED: user is responsible for triggering transfer
+	// TODO: wait for implementation updates
+	sw.log.Critical("NOT IMPLEMENTED")
+	response := getDefaultResponse()
+	response.Data = nil
+	response.ErrorMessage = "NOT IMPLEMENTED"
+	response.ErrorStatus = commands.StatusCode_NOT_IMPLEMENTED
+	return response
+
 	// any prior checks on the actual request would go here:
 
-	response := getDefaultResponse()
 	lambda := &coconut.Lambda{}
 	if err := lambda.FromProto(req.Lambda); err != nil {
 		errMsg := "Could not recover received lambda."
@@ -207,60 +265,60 @@ func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 		return response
 	}
 
-	// before we can issue credential we need to check if the request is valid on the blockchain side and if so,
-	// transfer the specified amount of user's tokens to the holding account
-	reqParams := transaction.TransferToHoldingReqParams{
-		ID:              sw.iaid,
-		PrivateKey:      sw.nymAccount.PrivateKey,
-		ClientPublicKey: req.PublicKey,
-		Amount:          req.Value,
-		Commitment:      req.Lambda.Cm,
-		ClientSig:       req.Sig,
-	}
+	// // before we can issue credential we need to check if the request is valid on the blockchain side and if so,
+	// // transfer the specified amount of user's tokens to the holding account
+	// reqParams := transaction.TransferToHoldingReqParams{
+	// 	ID:              sw.iaid,
+	// 	PrivateKey:      sw.nymAccount.PrivateKey,
+	// 	ClientPublicKey: req.PublicKey,
+	// 	Amount:          req.Value,
+	// 	Commitment:      req.Lambda.Cm,
+	// 	ClientSig:       req.Sig,
+	// }
 
-	blockchainRequest, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
+	// blockchainRequest, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
+	// if err != nil {
+	// 	errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	// 	return response
+	// }
 
-	b64name := base64.StdEncoding.EncodeToString(req.PublicKey)
-	if len(req.PublicKey) != constants.ECPLen {
-		tmp, err := utils.CompressECPBytes(req.PublicKey)
-		if err != nil {
-			// should we continue or return error without trying to call blockchain?
-			// if compression failed it means the address is invalid so blockchain operation WILL FAIL because
-			// it can't possibly transfer any funds from an invalid account...
-			sw.log.Errorf("Failed to compress %v; address is invalid", b64name)
-		}
-		b64name = base64.StdEncoding.EncodeToString(tmp)
-	}
+	// b64name := base64.StdEncoding.EncodeToString(req.PublicKey)
+	// if len(req.PublicKey) != constants.ECPLen {
+	// 	tmp, err := utils.CompressECPBytes(req.PublicKey)
+	// 	if err != nil {
+	// 		// should we continue or return error without trying to call blockchain?
+	// 		// if compression failed it means the address is invalid so blockchain operation WILL FAIL because
+	// 		// it can't possibly transfer any funds from an invalid account...
+	// 		sw.log.Errorf("Failed to compress %v; address is invalid", b64name)
+	// 	}
+	// 	b64name = base64.StdEncoding.EncodeToString(tmp)
+	// }
 
-	sw.log.Notice("Sending request to transfer %v funds from %v to the holding account", req.Value, b64name)
+	// sw.log.Notice("Sending request to transfer %v funds from %v to the holding account", req.Value, b64name)
 
-	// TODO: should we wait until tx is actually included in the block or just to hear it was valid? i.e.
-	// to wait for deliver_tx to happen or just check_tx
-	blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
-	if err != nil {
-		// should we terminate? If we can't communicate with the blockchain we can't issue any credentials
-		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
-		sw.log.Critical(errMsg)
-		response.Data = nil
-		response.ErrorMessage = errMsg
-		response.ErrorStatus = commands.StatusCode_UNAVAILABLE
-		return response
-	}
+	// // TODO: should we wait until tx is actually included in the block or just to hear it was valid? i.e.
+	// // to wait for deliver_tx to happen or just check_tx
+	// blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
+	// if err != nil {
+	// 	// should we terminate? If we can't communicate with the blockchain we can't issue any credentials
+	// 	errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
+	// 	sw.log.Critical(errMsg)
+	// 	response.Data = nil
+	// 	response.ErrorMessage = errMsg
+	// 	response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+	// 	return response
+	// }
 
-	sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
-		code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
+	// sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
+	// 	code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
 
-	if blockchainResponse.DeliverTx.Code != code.OK {
-		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
-			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
-		return response
-	}
+	// if blockchainResponse.DeliverTx.Code != code.OK {
+	// 	errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
+	// 		blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+	// 	return response
+	// }
 
 	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
 	if err != nil {
@@ -310,6 +368,10 @@ func (sw *ServerWorker) worker() {
 			case *commands.GetCredentialRequest:
 				sw.log.Notice("Received Get Credential Command")
 				response = sw.handleGetCredentialRequest(req)
+
+			case *commands.SpendCredentialRequest:
+				sw.log.Notice("Received Spend Credential Command")
+				response = sw.handleSpendCredentialRequest(req)
 
 			default:
 				errMsg := "Received Invalid Command"
