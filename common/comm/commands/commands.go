@@ -284,6 +284,7 @@ func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []
 // NewGetCredentialRequest returns new instance of a GetCredentialRequest
 // given set of public attributes, theta and a coconut signature on them.
 // nolint: lll
+// TODO:  MIGHT CHANGE
 func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, token *token.Token, pub, sig []byte) (*GetCredentialRequest, error) {
 	protoLambda, err := lambda.ToProto()
 	if err != nil {
@@ -321,6 +322,10 @@ func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta 
 	pubMb, err := coconut.BigSliceToByteSlices(pubM)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(pubM) <= 0 || Curve.Comp(pubM[0], Curve.NewBIGint(int(val))) != 0 || val <= 0 {
+		return nil, errors.New("Invalid credential value")
 	}
 
 	protoThetaTumbler, err := theta.ToProto()
