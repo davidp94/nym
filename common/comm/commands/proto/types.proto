@@ -1,6 +1,7 @@
 syntax = "proto3";
 import "crypto/coconut/scheme/proto/types.proto";
 import "crypto/elgamal/proto/types.proto";
+import "crypto/coconut/scheme/proto/tumblertypes.proto";
 
 package commands;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/common/comm/commands";
@@ -91,5 +92,22 @@ message GetCredentialRequest {
 
 message GetCredentialResponse {
     coconut.ProtoBlindedSignature sig = 1;
+    Status status = 2;
+}
+
+// Sent by user to some service provider
+message SpendCredentialRequest {
+    // The actual credential
+    coconut.ProtoSignature Sig = 1;
+    // The public attributes in credential. Note that pubM[0] = BIG(value)
+    repeated bytes PubM = 2;
+    // Crypto materials to verify the credential + required NIZK; also contains g^s
+    coconut.ProtoThetaTumbler Theta = 3;
+    // Value of the credential
+    int32 Value = 4;
+}
+
+message SpendCredentialResponse {
+    reserved 1; // surely we will need to pass something alongside
     Status status = 2;
 }
