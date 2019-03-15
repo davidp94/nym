@@ -46,6 +46,9 @@ const (
 
 	// GetCredentialID is commandID for obtaining credential on provided Nym tokens.
 	GetCredentialID CommandID = 128
+
+	// SpendCredentialID is commandID for spending given credential at particular provider.
+	SpendCredentialID CommandID = 129
 )
 
 // Command defines interface that is implemented by all commands defined in the package.
@@ -68,8 +71,6 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 	}
 	var cmdID CommandID
 	switch cmd.(type) {
-	case *VerificationKeyRequest:
-		cmdID = GetVerificationKeyID
 	case *SignRequest:
 		cmdID = SignID
 	case *VerifyRequest:
@@ -80,6 +81,10 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 		cmdID = BlindVerifyID
 	case *GetCredentialRequest:
 		cmdID = GetCredentialID
+	case *SpendCredentialRequest:
+		cmdID = SpendCredentialID
+	case *VerificationKeyRequest:
+		cmdID = GetVerificationKeyID
 	default:
 		return nil, errors.New("Unknown Command")
 	}
@@ -113,6 +118,8 @@ func FromBytes(b []byte) (Command, error) {
 		cmd = &BlindVerifyRequest{}
 	case GetCredentialID:
 		cmd = &GetCredentialRequest{}
+	case SpendCredentialID:
+		cmd = &SpendCredentialRequest{}
 	default:
 		return nil, errors.New("Unknown CommandID")
 	}
@@ -299,5 +306,32 @@ func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, t
 		Value:     token.Value(),
 		PubM:      pubMb,
 		Sig:       sig,
+	}, nil
+}
+
+// NewSpendCredentialRequest returns new instance of a SpendCredentialRequest
+// given credential and the required cryptographic materials.
+// nolint: lll
+func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta *coconut.ThetaTumbler, val int32) (*SpendCredentialRequest, error) {
+	protoSig, err := sig.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := coconut.BigSliceToByteSlices(pubM)
+	if err != nil {
+		return nil, err
+	}
+
+	protoThetaTumbler, err := theta.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	return &SpendCredentialRequest{
+		Sig:   protoSig,
+		PubM:  pubMb,
+		Theta: protoThetaTumbler,
+		Value: val,
 	}, nil
 }
