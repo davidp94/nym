@@ -105,6 +105,8 @@ message SpendCredentialRequest {
     coconut.ProtoThetaTumbler Theta = 3;
     // Value of the credential
     int32 Value = 4;
+    // Address of the merchant to which the proof is bound. Included so that the provider could verify it
+    bytes MerchantAddress = 5;
 }
 
 message SpendCredentialResponse {
