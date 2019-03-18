@@ -32,13 +32,21 @@ import (
 // Note that the first privM parameter HAS TO be coin's sequence number since the zeta is later revealed.
 // loosely based on: https://github.com/asonnino/coconut-chainspace/blob/master/contracts/tumbler_proofs.py
 // TODO: NEED SOMEBODY TO VERIFY CORECTNESS OF IMPLEMENTATION
-// nolint: lll
-func (cw *CoconutWorker) ConstructTumblerProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*coconut.TumblerProof, error) {
+func (cw *CoconutWorker) ConstructTumblerProof(
+	params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	privM []*Curve.BIG,
+	t *Curve.BIG,
+	address []byte,
+) (*coconut.TumblerProof, error) {
 	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
 
 	// witnesses creation
+	params.Lock()
 	wm := coconut.GetRandomNums(params.Params, len(privM))
 	wt := coconut.GetRandomNums(params.Params, 1)[0]
+	params.Unlock()
 
 	// we put Cw in the jobqueue before Aw/Bw so that it could be worked on concurrently
 	CwCh := make(chan interface{}, 1)
@@ -73,7 +81,13 @@ func (cw *CoconutWorker) ConstructTumblerProof(params *MuxParams, vk *coconut.Ve
 }
 
 // VerifyTumblerProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa, nu and zeta.
-func (cw *CoconutWorker) VerifyTumblerProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.ThetaTumbler, address []byte) bool {
+func (cw *CoconutWorker) VerifyTumblerProof(
+	params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.ThetaTumbler,
+	address []byte,
+) bool {
 	g1, g2, hs := params.G1(), params.G2(), params.Hs()
 
 	CwCh := make(chan interface{}, 2)
