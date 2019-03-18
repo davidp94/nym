@@ -152,3 +152,57 @@ func (cw *CoconutWorker) ShowBlindSignatureTumbler(
 		tumblerProof.Zeta(),
 	), nil
 }
+
+// BlindVerifyTumbler verifies the Coconut credential on the private and optional public attributes.
+// It also checks the attached proof. It is designed to work for the tumbler system.
+func (cw *CoconutWorker) BlindVerifyTumbler(
+	params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.ThetaTumbler,
+	pubM []*Curve.BIG,
+	address []byte,
+) bool {
+	privateLen := len(theta.Proof().Rm())
+	if len(pubM)+privateLen > len(vk.Beta()) || !cw.VerifyTumblerProof(params, vk, sig, theta, address) {
+		return false
+	}
+
+	if !sig.Validate() {
+		return false
+	}
+
+	// we put it here so that we could put one of the pairings to the queue already;
+	// the other one depends on resolution of aggr
+	t1 := Curve.NewECP()
+	t1.Copy(sig.Sig2())
+	t1.Add(theta.Nu())
+
+	outChPair := make(chan interface{}, 2)
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, t1, vk.G2())
+
+	aggr := Curve.NewECP2() // new point is at infinity
+	if len(pubM) > 0 {
+		aggrCh := make(chan interface{}, len(pubM))
+		for i := 0; i < len(pubM); i++ {
+			cw.jobQueue <- jobpacket.MakeG2MulPacket(aggrCh, vk.Beta()[i+privateLen], pubM[i])
+		}
+		for i := 0; i < len(pubM); i++ {
+			aggrRes := <-aggrCh
+			aggr.Add(aggrRes.(*Curve.ECP2))
+		}
+	}
+
+	t2 := Curve.NewECP2()
+	t2.Copy(theta.Kappa())
+	t2.Add(aggr)
+
+	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), t2)
+
+	res1 := <-outChPair
+	res2 := <-outChPair
+	gt1 := res1.(*Curve.FP12)
+	gt2 := res2.(*Curve.FP12)
+
+	return !sig.Sig1().Is_infinity() && gt1.Equals(gt2)
+}
