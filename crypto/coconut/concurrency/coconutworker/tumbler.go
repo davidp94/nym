@@ -116,3 +116,39 @@ func (cw *CoconutWorker) VerifyTumblerProof(
 
 	return Curve.Comp(theta.Proof().C(), c) == 0
 }
+
+// ShowBlindSignatureTumbler builds cryptographic material required for blind verification for the tumbler.
+// It returns kappa, nu and zeta - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+// The proof is bound to the provided address.
+func (cw *CoconutWorker) ShowBlindSignatureTumbler(
+	params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	privM []*Curve.BIG,
+	address []byte,
+) (*coconut.ThetaTumbler, error) {
+
+	params.Lock()
+	t := coconut.GetRandomNums(params.Params, 1)[0]
+	params.Unlock()
+
+	kappa, nu, err := cw.ConstructKappaNu(vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
+
+	tumblerProof, err := cw.ConstructTumblerProof(params, vk, sig, privM, t, address)
+	if err != nil {
+		return nil, err
+	}
+
+	return coconut.NewThetaTumbler(
+		coconut.NewTheta(
+			kappa,
+			nu,
+			tumblerProof.BaseProof(),
+		),
+		tumblerProof.Zeta(),
+	), nil
+}
