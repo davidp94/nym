@@ -139,6 +139,10 @@ func TestCCWTumblerProof(t *testing.T) {
 	TestTumblerProof(t, ccw)
 }
 
+func TestSchemeBlindVerifyTumbler(t *testing.T) {
+	TestBlindVerifyTumbler(t, ccw)
+}
+
 // func BenchmarkCCWVerify(b *testing.B) {
 // 	numWorkers := 1
 // 	attrs := []string{

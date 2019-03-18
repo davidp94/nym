@@ -52,8 +52,7 @@ func showBlindSignatureTumblerWrapper(cw *coconutworker.CoconutWorker, params co
 	if cw == nil {
 		return coconut.ShowBlindSignatureTumbler(params.(*coconut.Params), vk, sig, privM, address)
 	}
-	panic("NOT IMPLEMENTED")
-	// return cw.ShowBlindSignatureTumbler(params.(*coconutworker.MuxParams), vk, sig, privM, address)
+	return cw.ShowBlindSignatureTumbler(params.(*coconutworker.MuxParams), vk, sig, privM, address)
 }
 
 // nolint: lll
@@ -61,9 +60,7 @@ func blindVerifyTumblerWrapper(cw *coconutworker.CoconutWorker, params coconut.S
 	if cw == nil {
 		return coconut.BlindVerifyTumbler(params.(*coconut.Params), vk, sig, theta, pubM, address)
 	}
-	panic("NOT IMPLEMENTED")
-	// return cw.BlindVerifyTumbler(params.(*coconutworker.MuxParams), vk, sig, theta, pubM, address)
-
+	return cw.BlindVerifyTumbler(params.(*coconutworker.MuxParams), vk, sig, theta, pubM, address)
 }
 
 // TestTumblerProof tests properties of the appropriate NIZK
@@ -121,6 +118,7 @@ func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		p, rng := params.P(), G.Rng()
 		tr := Curve.Randomnum(p, rng)
 		kappa, nu, err := coconut.ConstructKappaNu(vk, sig, privBig, tr)
+		assert.Nil(t, err)
 
 		r1 := Curve.Randomnum(p, rng)
 		r2 := Curve.Randomnum(p, rng)
@@ -156,13 +154,13 @@ func TestTumblerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 	}
 }
 
+// TestBlindVerifyTumbler tests the blind verification of credentials used in a tumbler system
 func TestBlindVerifyTumbler(t *testing.T, cw *coconutworker.CoconutWorker) {
 	tests := []struct {
 		q    int
 		pub  []string
 		priv []string
 		err  error
-		msg  string
 	}{
 		{q: 2, pub: []string{"Foo", "Bar"}, priv: []string{}, err: coconut.ErrPrepareBlindSignPrivate},
 		{q: 1, pub: []string{}, priv: []string{"Foo", "Bar"}, err: coconut.ErrPrepareBlindSignParams},

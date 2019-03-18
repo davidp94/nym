@@ -171,7 +171,11 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 
 // if len(gRCPAddr) > 0 it means the client will use gRPC for comm
 func createBasicClientCfgStr(tcpAddrs []string, gRCPAddr []string) string {
-	cfgStr := "[Client]\n"
+	cfgStr := `[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
+	[Client]
+	`
 	if len(gRCPAddr) > 0 {
 		cfgStr += "UseGRPC = true\n"
 		cfgStr += makeStringOfAddresses("IAgRPCAddresses", gRCPAddr)
