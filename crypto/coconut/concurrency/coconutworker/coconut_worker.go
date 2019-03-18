@@ -116,6 +116,27 @@ func (cw *CoconutWorker) PrepareBlindSignTokenWrapper(egPub *elgamal.PublicKey, 
 	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
 }
 
+// ShowBlindSignatureTumblerWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ShowBlindSignatureTumblerWrapper(
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	privM []*Curve.BIG,
+	address []byte,
+) (*coconut.ThetaTumbler, error) {
+	return cw.ShowBlindSignatureTumbler(cw.muxParams, vk, sig, privM, address)
+}
+
+// BlindVerifyTumblerTumbler wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) BlindVerifyTumblerTumbler(
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.ThetaTumbler,
+	pubM []*Curve.BIG,
+	address []byte,
+) bool {
+	return cw.BlindVerifyTumbler(cw.muxParams, vk, sig, theta, pubM, address)
+}
+
 // RandomBIG generates a pseudorandom BIG number.
 func (cw *CoconutWorker) RandomBIG() *Curve.BIG {
 	cw.muxParams.Lock()
