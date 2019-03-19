@@ -1,8 +1,19 @@
 # CoconutGo Changelog
 
+## v0.2.0
+
+* Tumbler-related Coconut logic for sequential and concurrent computation
+* Tendermint ABCI used to keep track of clients' tokens and preventing double spending of credentials
+* IAs having extra set of keys used to authorise requests on the blockchain
+* Provider accepting 'spend credential' request; Interaction with the blockchain is not implemented
+* Ability of a client to request transfer of some of its tokens to "Holding Account"
+* Work on clients' ability to spend credentials
+* Bug fixes and refactor work
+* Additional tests and updates to docstrings
+
 ## v0.1.5
 
-* More shared code between cliente and server
+* More shared code between client and server
 * Fixed a bug where provider server would fail to aggregate received verification keys of IAs if it received more than threshold of them (even if they all were valid)
 
 ## v0.1.4
