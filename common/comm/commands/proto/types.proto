@@ -111,6 +111,6 @@ message SpendCredentialRequest {
 }
 
 message SpendCredentialResponse {
-    reserved 1; // surely we will need to pass something alongside
+    bool wasSuccessful = 1;
     Status status = 2;
 }
