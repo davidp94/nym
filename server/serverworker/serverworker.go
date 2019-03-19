@@ -184,6 +184,7 @@ func (sw *ServerWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 
 func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredentialRequest) *commands.Response {
 	response := getDefaultResponse()
+	response.Data = false
 
 	// theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
 	// but we check if the user says it bound it to our address
@@ -193,6 +194,7 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 		// check if perhaps our address is in uncompressed form but client bound it to the compressed version
 		var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
 		copy(accountCompressed, sw.nymAccount.PublicKey)
+		// nolint: gosec
 		accountCompressed.Compress()
 
 		if bytes.Compare(address, accountCompressed) != 0 {
@@ -202,7 +204,13 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 		}
 	}
 
-	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(req.Sig, req.PubM, req.Theta, req.Value, req.MerchantAddress)
+	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
+		req.Sig,
+		req.PubM,
+		req.Theta,
+		req.Value,
+		req.MerchantAddress,
+	)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
@@ -231,6 +239,7 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 
 	// the response data in future might be provider dependent, to include say some authorization token
 	response.ErrorStatus = commands.StatusCode_OK
+	response.Data = true
 	return response
 }
 
