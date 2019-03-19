@@ -26,6 +26,7 @@ import (
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -179,4 +180,33 @@ func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error)
 		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
 	}
 	return c.handleReceivedSignatures(sigs, nil)
+}
+
+func (c *Client) transferTokensToHolding(amount uint32) error {
+	// first check if we have loaded the account information
+	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
+		return c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
+	}
+
+	nonce := c.cryptoworker.CoconutWorker().RandomBIG()
+	nonceB := make([]byte, constants.BIGLen)
+	nonce.ToBytes(nonceB)
+
+	req, err := transaction.CreateNewTransferToHoldingRequest(c.nymAccount, amount, nonceB)
+	if err != nil {
+		return c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
+	}
+
+	_ = req
+	return nil
+
+	// cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, sig)
+	// if err != nil {
+	// 	return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
+	// }
+
+	// packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	// if err != nil {
+	// 	return nil, c.logAndReturnError("GetCredential: Could not create data packet for GetCredential command: %v", err)
+	// }
 }

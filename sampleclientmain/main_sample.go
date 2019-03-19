@@ -25,7 +25,6 @@ import (
 
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
@@ -158,10 +157,21 @@ func blockchainInteractions(cc *cclient.Client) {
 		panic(err)
 	}
 
-	// token := token.New(privM[0], privM[1], int32(10))
+	params, _ := coconut.Setup(5)
+	G := params.G
+
+	privM := getRandomAttributes(G, 2) // sequence and the key
+
+	token := token.New(privM[0], privM[1], int32(10))
+
+	// sign it as 'normal' set of public/private attributes for now, treat it as the credential
 	// cred, err := cc.GetCredential(token)
 	// fmt.Println(cred)
 	// fmt.Println(err)
+	sig, err := cc.BlindSignAttributes(token.GetPublicAndPrivateSlices())
+	if err != nil {
+		panic(err)
+	}
 
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
@@ -187,6 +197,38 @@ func blockchainInteractions(cc *cclient.Client) {
 			panic(err)
 		}
 		fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+
+		_ = sig
+		// err = cc.SpendCredential(token, sig, []byte("foo"))
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// nonce := []byte("foobara")
+		// holdingReq1, err := transaction.CreateNewTransferToHoldingRequest(acc, 42, nonce)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// res, err = tmclient.Broadcast(holdingReq1)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// fmt.Println(res)
+		// fmt.Printf("Transfered to holding. Code: %v, data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+		// holdingReq2, err := transaction.CreateNewTransferToHoldingRequest(acc, 10, nonce)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// res, err = tmclient.Broadcast(holdingReq2)
+		// if err != nil {
+		// 	panic(err)
+		// }
+		// fmt.Printf("Transfered to holding. Code: %v, data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+		// fmt.Println(res)
+
+		// should succeed
+
+		// should fail (repeated nonce)
+
 	} else {
 		// send the requests:
 		// new acc
@@ -204,44 +246,44 @@ func blockchainInteractions(cc *cclient.Client) {
 		fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
 	}
 
-	params, _ := coconut.Setup(5)
+	// params, _ := coconut.Setup(5)
 
-	// generate token
-	value := int32(1000)
-	seq := Curve.Randomnum(params.P(), params.G.Rng())
-	privateKey := Curve.Randomnum(params.P(), params.G.Rng())
+	// // generate token
+	// value := int32(1000)
+	// seq := Curve.Randomnum(params.P(), params.G.Rng())
+	// privateKey := Curve.Randomnum(params.P(), params.G.Rng())
 
-	token := token.New(seq, privateKey, value)
-	pubM, privM := token.GetPublicAndPrivateSlices()
+	// token := token.New(seq, privateKey, value)
+	// pubM, privM := token.GetPublicAndPrivateSlices()
 
-	// get credential
-	sig, _ := cc.BlindSignAttributes(pubM, privM)
+	// // get credential
+	// sig, _ := cc.BlindSignAttributes(pubM, privM)
 
-	// get aggregate vk needed for show protocol
-	avk, _ := cc.GetAggregateVerificationKey()
+	// // get aggregate vk needed for show protocol
+	// avk, _ := cc.GetAggregateVerificationKey()
 
-	// generate random merchant (abci is set to create new accounts for new merchants)
-	merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
-	merchantAddr := make([]byte, constants.ECPLen)
-	merchantAddrEC.ToBytes(merchantAddr, true)
+	// // generate random merchant (abci is set to create new accounts for new merchants)
+	// merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
+	// merchantAddr := make([]byte, constants.ECPLen)
+	// merchantAddrEC.ToBytes(merchantAddr, true)
 
-	reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
-	if err != nil {
-		panic(err)
-	}
+	// reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	if waitForCommit {
-		res, err := tmclient.Broadcast(reqT)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), res.DeliverTx.Data)
-	} else {
-		res, err := tmclient.SendSync(reqT)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.Code), res.Data)
-	}
+	// if waitForCommit {
+	// 	res, err := tmclient.Broadcast(reqT)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), res.DeliverTx.Data)
+	// } else {
+	// 	res, err := tmclient.SendSync(reqT)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.Code), res.Data)
+	// }
 
 }
