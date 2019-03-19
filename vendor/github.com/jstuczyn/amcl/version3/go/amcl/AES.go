@@ -21,6 +21,8 @@ under the License.
 
 package amcl
 
+//import "fmt"
+
 const AES_ECB int = 0
 const AES_CBC int = 1
 const AES_CFB1 int = 2

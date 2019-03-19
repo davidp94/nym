@@ -1,0 +1,97 @@
+syntax = "proto3";
+import "crypto/coconut/scheme/proto/types.proto";
+import "crypto/coconut/scheme/proto/tumblertypes.proto";
+
+package transaction;
+option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
+
+message NewAccountRequest {
+    // Public Key of the user used to derive account address and validate signature
+    bytes PublicKey = 1; 
+    // represents some optional credential from an IP if required
+    bytes Credential = 2; 
+    // Signature on request to confirm its validity + asserts knowledge of private key
+    bytes Sig = 3; 
+}
+
+message AccountTransferRequest {
+    // Used to validate signature + determine source address
+    bytes SourcePublicKey = 1;
+    // Used to determine target address
+    bytes TargetPublicKey = 2; 
+    // Amount to be transferred 
+    uint64 Amount = 3; 
+    // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
+    // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
+    // Signature on request to confirm its validitiy
+    bytes Sig = 4; 
+}
+
+message DepositCoconutCredentialRequest {
+    // The actual credential
+    coconut.ProtoSignature Sig = 1;
+    // The public attributes in credential. Note that pubM[0] = BIG(value)
+    repeated bytes PubM = 2;
+    // Crypto materials to verify the credential + required NIZK
+    coconut.ProtoThetaTumbler Theta = 3;
+    // Value of the credential
+    int32 Value = 4;
+    // Address of the merchant to which the proof is bound
+    bytes MerchantAddress = 5;
+}
+
+// Initiated by users themselves
+message TransferToHoldingRequest {
+    // Used to validate signature + determine source address
+    bytes SourcePublicKey = 1;
+    // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
+    // in case wanted to change it
+    bytes TargetAddress = 2; 
+    // Amount to be transferred 
+    uint32 Amount = 3; 
+    // Random nonce to prevent replay attacks
+    bytes Nonce = 4;
+    // Signature on request to confirm its validitiy
+    bytes Sig = 5; 
+ }
+
+
+// Old proto definition for when IAs initiated the transfer
+// message TransferToHoldingRequest {
+//     // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
+//     // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
+//     // it obtains key in constant time and uses stored key to verify the signature
+//     uint32 IAID = 1;
+//     // Which user's funds should be moved
+//     bytes ClientPublicKey = 2;
+//     // Amount to move
+//     int32 Amount = 3;
+//     // Commitment to attributes the credential, ensures uniqueness of request
+//     bytes Commitment = 4;
+//     // To check if the user really wanted the transfer to happen
+//     // It is done on {ClientPublicKey, Ammount, Commitment}
+//     bytes ClientSig = 5;
+//     // To authorise the transfer
+//     // It is done on {IAID, ClientPublicKey, Ammount, Commitment, ClientSig}
+//     bytes IASig = 6;
+// }
+
+// message AddIssuerRequest {
+//     // ID of the new issuer
+//     uint32 IAID = 1;
+//     // Verification key of the new issuer
+//     coconut.ProtoVerificationKey Vk = 2;
+//     // Public key of the issuer, used to authorise its requests.
+//     bytes IAPublicKey = 3;
+//     // Signature by threshold number of existing issuers, obtained externally (for now)
+//     coconut.ProtoSignature Sig = 4;
+// }
+
+// message RemoveIssuerRequest {
+//     // ID of the issuer
+//     uint32 IAID = 1;
+//     // Public key of the issuer, used to authorise its requests.
+//     bytes IAPublicKey = 2;
+//     // Signature by threshold number of existing issuers, obtained externally (for now)
+//     coconut.ProtoSignature Sig = 3;
+// }

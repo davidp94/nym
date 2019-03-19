@@ -18,8 +18,8 @@
 package bpgroup
 
 import (
-	"crypto/rand"
-
+	"0xacab.org/jstuczyn/CoconutGo/common/utils"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -60,12 +60,11 @@ func (b *BpGroup) Pair(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
 // New returns a new instance of a BpGroup
 func New() *BpGroup {
 	rng := amcl.NewRAND()
-	n := 256
-	raw, err := generateRandomBytes(n)
+	raw, err := utils.GenerateRandomBytes(constants.NumberOfEntropyBytes)
 	if err != nil {
 		panic(err)
 	}
-	rng.Seed(n, raw)
+	rng.Seed(constants.NumberOfEntropyBytes, raw)
 
 	b := BpGroup{
 		gen1: Curve.ECP_generator(),
@@ -74,15 +73,4 @@ func New() *BpGroup {
 		rng:  rng,
 	}
 	return &b
-}
-
-// Returns slice of bytes of specified size of cryptographically secure random numbers.
-// Refer to https://golang.org/pkg/crypto/rand/ for details regarding sources of entropy
-func generateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
 }

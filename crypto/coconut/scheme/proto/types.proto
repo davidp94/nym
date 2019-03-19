@@ -37,7 +37,7 @@ message ProtoSignerProof {
     repeated bytes rm = 4;
 }
 
-message ProtoBlindSignMats {
+message ProtoLambda {
     bytes cm = 1;
     repeated elgamal.ProtoEncryption enc = 2;
     ProtoSignerProof proof = 3;
@@ -49,8 +49,16 @@ message ProtoVerifierProof {
     bytes rt = 3;
 }
 
-message ProtoBlindShowMats {
+message ProtoTheta {
     bytes kappa = 1;
     bytes nu = 2;
     ProtoVerifierProof proof = 3;
+}
+
+message ProtoParams {
+    reserved 1; // In case we figure out a way to nicely send bpgroup or at least rng seed
+    bytes p = 2;
+    bytes g1 = 3;
+    bytes g2 = 4;
+    repeated bytes hs = 5;
 }

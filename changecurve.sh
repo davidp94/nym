@@ -20,10 +20,15 @@ else
 fi
 
 find ./client/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./common/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./constants/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./crypto/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./daemon/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./logger/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./nym/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./sampleclientmain/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./server/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./tendermint/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
+find ./testdata/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./ttp/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 
 find ./worker/ -type f -exec sed -i -e "s/$sc/$tc/g" {} \; 

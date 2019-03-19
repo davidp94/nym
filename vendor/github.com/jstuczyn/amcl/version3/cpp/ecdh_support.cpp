@@ -31,7 +31,7 @@ using namespace amcl;
 #define ROUNDUP(a,b) ((a)-1)/(b)+1
 
 /* general purpose hash function w=hash(p|n|x|y) */
-/* pad or truncate ouput to length pad if pad!=0 */
+/* pad or truncate output to length pad if pad!=0 */
 void amcl::ehashit(int sha,octet *p,int n,octet *x,octet *w,int pad)
 {
     int i,c[4],hlen;
@@ -178,29 +178,6 @@ int amcl::HMAC(int sha,octet *m,octet *k,int olen,octet *tag)
     return 1;
 }
 
-/* Key Derivation Functions */
-/* Input octet z */
-/* Output key of length olen */
-/*
-void KDF1(octet *z,int olen,octet *key)
-{
-    char h[32];
-	octet H={0,sizeof(h),h};
-    int counter,cthreshold;
-    int hlen=32;
-
-    OCT_empty(key);
-
-    cthreshold=ROUNDUP(olen,hlen);
-
-    for (counter=0;counter<cthreshold;counter++)
-    {
-        ehashit(z,counter,NULL,NULL,&H);
-        if (key->len+hlen>olen) OCT_jbytes(key,H.val,olen%hlen);
-        else                    OCT_joctet(key,&H);
-    }
-}
-*/
 void amcl::KDF2(int sha,octet *z,octet *p,int olen,octet *key)
 {
     /* NOTE: the parameter olen is the length of the output k in bytes */

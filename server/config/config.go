@@ -29,7 +29,7 @@ import (
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultNumCryptoWorkers = 1
+	defaultNumServerWorkers = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
 	defaultRequestTimeout               = 5 * 1000  // 5 sec.
@@ -76,11 +76,23 @@ type Server struct {
 // It is responsible for signing attributes it receives
 // and providing its public verification key upon request.
 type Issuer struct {
+	// ID represents the ID of the server used during generation of threshold keys.
+	ID uint32
+
 	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
 	VerificationKeyFile string
 
 	// SecretKeyFile specifies the file containing the Coconut Secret Key.
 	SecretKeyFile string
+
+	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	// to which the issuer should send all relevant requests.
+	// Note that only a single request will ever be sent, but multiple addresses are provided in case
+	// the particular node was unavailable.
+	BlockchainNodeAddresses []string
+
+	// BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+	BlockchainKeysFile string
 }
 
 // Provider is the Coconut provider server configuration.
@@ -105,8 +117,8 @@ type Debug struct {
 	// NumJobWorkers specifies the number of worker instances to use for jobpacket processing.
 	NumJobWorkers int
 
-	// NumCryptoWorkers specifies the number of worker instances to use for client job requests.
-	NumCryptoWorkers int
+	// NumServerWorkers specifies the number of worker instances to use for client job requests.
+	NumServerWorkers int
 
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
@@ -135,8 +147,8 @@ func (dCfg *Debug) applyDefaults() {
 	if dCfg.NumJobWorkers <= 0 {
 		dCfg.NumJobWorkers = runtime.NumCPU()
 	}
-	if dCfg.NumCryptoWorkers <= 0 {
-		dCfg.NumCryptoWorkers = defaultNumCryptoWorkers
+	if dCfg.NumServerWorkers <= 0 {
+		dCfg.NumServerWorkers = defaultNumServerWorkers
 	}
 	if dCfg.ConnectTimeout <= 0 {
 		dCfg.ConnectTimeout = defaultConnectTimeout

@@ -25,11 +25,9 @@ public final class ECP8 {
 	private FP8 x;
 	private FP8 y;
 	private FP8 z;
-//	private boolean INF;
 
 /* Constructor - set this=O */
 	public ECP8() {
-//		INF=true;
 		x=new FP8(0);
 		y=new FP8(1);
 		z=new FP8(0);
@@ -43,7 +41,6 @@ public final class ECP8 {
 
 /* Test this=O? */
 	public boolean is_infinity() {
-//		if (INF) return true;                    //******
 		return (x.iszilch() && z.iszilch());
 	}
 /* copy this=P */
@@ -52,11 +49,9 @@ public final class ECP8 {
 		x.copy(P.x);
 		y.copy(P.y);
 		z.copy(P.z);
-//		INF=P.INF;
 	}
 /* set this=O */
 	public void inf() {
-//		INF=true;
 		x.zero();
 		y.one();
 		z.zero();
@@ -68,11 +63,6 @@ public final class ECP8 {
 		x.cmove(Q.x,d);
 		y.cmove(Q.y,d);
 		z.cmove(Q.z,d);
-
-//		boolean bd;
-//		if (d==0) bd=false;
-//		else bd=true;
-//		INF^=(INF^Q.INF)&bd;
 	}
 
 /* return 1 if b==c, no branching */
@@ -108,9 +98,6 @@ public final class ECP8 {
 
 /* Test if P == Q */
 	public boolean equals(ECP8 Q) {
-//		if (is_infinity() && Q.is_infinity()) return true;
-//		if (is_infinity() || Q.is_infinity()) return false;
-
 
 		FP8 a=new FP8(x);                            // *****
 		FP8 b=new FP8(Q.x);
@@ -127,7 +114,6 @@ public final class ECP8 {
 
 /* set this=-this */
 	public void neg() {
-//		if (is_infinity()) return;
 		y.norm();
 		y.neg(); y.norm();
 		return;
@@ -182,10 +168,10 @@ public final class ECP8 {
 /* convert to byte array */
 	public void toBytes(byte[] b)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		ECP8 W=new ECP8(this);
 		W.affine();
-		int MB=BIG.MODBYTES;
+		int MB=CONFIG_BIG.MODBYTES;
 
 		W.x.geta().geta().getA().toBytes(t);
 		for (int i=0;i<MB;i++) { b[i]=t[i];}
@@ -229,10 +215,10 @@ public final class ECP8 {
 /* convert from byte array to point */
 	public static ECP8 fromBytes(byte[] b)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		BIG ra;
 		BIG rb;
-		int MB=BIG.MODBYTES;
+		int MB=CONFIG_BIG.MODBYTES;
 
 		for (int i=0;i<MB;i++) {t[i]=b[i];}
 		ra=BIG.fromBytes(t);
@@ -317,16 +303,15 @@ public final class ECP8 {
 
 /* Calculate RHS of twisted curve equation x^3+B/i */
 	public static FP8 RHS(FP8 x) {
-		x.norm();
 		FP8 r=new FP8(x);
 		r.sqr();
 		FP8 b=new FP8(new FP4(new FP2(new BIG(ROM.CURVE_B))));
 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
 			b.div_i();
 		}
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			b.times_i();
 		}
@@ -344,12 +329,11 @@ public final class ECP8 {
 		x=new FP8(ix);
 		y=new FP8(iy);
 		z=new FP8(1);
+		x.norm();
 		FP8 rhs=RHS(x);
 		FP8 y2=new FP8(y);
 		y2.sqr();
 		if (!y2.equals(rhs)) inf();
-		//if (y2.equals(rhs)) INF=false;
-		//else {x.zero();INF=true;}
 	}
 
 /* construct this from x - but set to O if not on curve */
@@ -357,13 +341,13 @@ public final class ECP8 {
 		x=new FP8(ix);
 		y=new FP8(1);
 		z=new FP8(1);
+		x.norm();
 		FP8 rhs=RHS(x);
 		if (rhs.sqrt()) 
 		{
 			y.copy(rhs);
-		//	INF=false;
 		}
-		else {inf();/*x.zero();INF=true;*/}
+		else {inf();}
 	}
 
 /* this+=this */
@@ -371,13 +355,13 @@ public final class ECP8 {
 //		if (INF) return -1;      
 
 		FP8 iy=new FP8(y);
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
-			iy.times_i(); //iy.norm();
+			iy.times_i(); 
 		}
 		FP8 t0=new FP8(y);                  //***** Change 
 		t0.sqr();            
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{		
 			t0.times_i();
 		}
@@ -393,10 +377,9 @@ public final class ECP8 {
 		z.norm();  
 
 		t2.imul(3*ROM.CURVE_B_I); 
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			t2.times_i();
-			//t2.norm();
 		}
 
 		FP8 x3=new FP8(t2);
@@ -420,12 +403,6 @@ public final class ECP8 {
 
 /* this+=Q - return 0 for add, 1 for double, -1 for O */
 	public int add(ECP8 Q) {
-//		if (INF)
-//		{
-//			copy(Q);
-//			return -1;
-//		}
-//		if (Q.INF) return -1;
 
 		int b=3*ROM.CURVE_B_I;
 		FP8 t0=new FP8(x);
@@ -443,9 +420,9 @@ public final class ECP8 {
 		t4.copy(t0); t4.add(t1);		//t4=X1.X2+Y1.Y2
 
 		t3.sub(t4); t3.norm(); 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{		
-			t3.times_i();  //t3.norm();         //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
+			t3.times_i();        //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
 		}
 		t4.copy(y);                    
 		t4.add(z); t4.norm();			//t4=Y1+Z1
@@ -457,9 +434,9 @@ public final class ECP8 {
 		x3.add(t2);						//X3=Y1.Y2+Z1.Z2
 	
 		t4.sub(x3); t4.norm(); 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{	
-			t4.times_i(); //t4.norm();          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
+			t4.times_i();          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
 		}
 		x3.copy(x); x3.add(z); x3.norm();	// x3=X1+Z1
 		FP8 y3=new FP8(Q.x);				
@@ -469,25 +446,24 @@ public final class ECP8 {
 		y3.add(t2);							// y3=X1.X2+Z1+Z2
 		y3.rsub(x3); y3.norm();				// y3=(X1+Z1)(X2+Z2) - (X1.X2+Z1.Z2) = X1.Z2+X2.Z1
 
-		if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 		{
-			t0.times_i(); //t0.norm(); // x.Q.x
-			t1.times_i(); //t1.norm(); // y.Q.y
+			t0.times_i();  // x.Q.x
+			t1.times_i();  // y.Q.y
 		}
 		x3.copy(t0); x3.add(t0); 
 		t0.add(x3); t0.norm();
 		t2.imul(b); 	
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			t2.times_i();
 		}
 		FP8 z3=new FP8(t1); z3.add(t2); z3.norm();
 		t1.sub(t2); t1.norm(); 
 		y3.imul(b); 
-		if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+		if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 		{
 			y3.times_i(); 
-			//y3.norm();
 		}
 		x3.copy(y3); x3.mul(t4); t2.copy(t3); t2.mul(t1); x3.rsub(t2);
 		y3.mul(t0); t1.mul(z3); y3.add(t1);
@@ -505,10 +481,6 @@ public final class ECP8 {
 		ECP8 NQ=new ECP8(Q);
 		NQ.neg();
 		int D=add(NQ);
-
-//		Q.neg();
-//		int D=add(Q);
-//		Q.neg();
 		return D;
 	}
 
@@ -526,7 +498,7 @@ public final class ECP8 {
 			F2.mul_ip(); F2.norm();
 
 			F1.copy(X);
-			if (ECP.SEXTIC_TWIST == ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE)
 			{
 				F1.mul_ip();
 				F1.inverse();
@@ -541,24 +513,23 @@ public final class ECP8 {
 /* set this*=q, where q is Modulus, using Frobenius */
 	public void frob(FP2 F[],int n)
 	{
-//		if (INF) return;
 		for (int i=0;i<n;i++) {
 			x.frob(F[2]);
 			x.qmul(F[0]);
-			if (ECP.SEXTIC_TWIST == ECP.M_TYPE) {
+			if (CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE) {
 				x.div_i2();
 			}
-			if (ECP.SEXTIC_TWIST == ECP.D_TYPE) {
+			if (CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE) {
 				x.times_i2();
 			}		
 
 			y.frob(F[2]);
 			y.qmul(F[1]);
 
-			if (ECP.SEXTIC_TWIST == ECP.M_TYPE) {
+			if (CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE) {
 				y.div_i();
 			}
-			if (ECP.SEXTIC_TWIST == ECP.D_TYPE) {
+			if (CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE) {
 				y.times_i2(); y.times_i2(); y.times_i();
 			}
 				z.frob(F[2]);
@@ -576,11 +547,9 @@ public final class ECP8 {
 		ECP8 Q=new ECP8();
 		ECP8 C=new ECP8();
 		ECP8[] W=new ECP8[8];
-		byte[] w=new byte[1+(BIG.NLEN*BIG.BASEBITS+3)/4];
+		byte[] w=new byte[1+(BIG.NLEN*CONFIG_BIG.BASEBITS+3)/4];
 
 		if (is_infinity()) return new ECP8();
-
-		//affine();
 
 /* precompute table */
 		Q.copy(this);
@@ -646,14 +615,14 @@ public final class ECP8 {
 		BIG mt=new BIG();
 		BIG[] t=new BIG[16];
 
-		byte[] w1=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] s1=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] w2=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] s2=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] w3=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] s3=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] w4=new byte[BIG.NLEN*BIG.BASEBITS+1];
-		byte[] s4=new byte[BIG.NLEN*BIG.BASEBITS+1];
+		byte[] w1=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] s1=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] w2=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] s2=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] w3=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] s3=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] w4=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
+		byte[] s4=new byte[BIG.NLEN*CONFIG_BIG.BASEBITS+1];
 
 		for (i=0;i<16;i++)
 		{
@@ -850,7 +819,7 @@ public final class ECP8 {
 		ECP8 x7Q=x6Q.mul(x);
 		ECP8 x8Q=x7Q.mul(x);
 
-		if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+		if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 		{
 			xQ.neg();
 			x3Q.neg();

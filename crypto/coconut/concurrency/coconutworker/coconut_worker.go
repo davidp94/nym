@@ -24,6 +24,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -41,8 +42,8 @@ func (cw *CoconutWorker) SignWrapper(sk *coconut.SecretKey, pubM []*Curve.BIG) (
 
 // BlindSignWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) BlindSignWrapper(sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
-	return cw.BlindSign(cw.muxParams, sk, blindSignMats, egPub, pubM)
+func (cw *CoconutWorker) BlindSignWrapper(sk *coconut.SecretKey, l *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+	return cw.BlindSign(cw.muxParams, sk, l, egPub, pubM)
 }
 
 // VerifyWrapper wraps the provided arguments with pre-generated params.
@@ -52,8 +53,8 @@ func (cw *CoconutWorker) VerifyWrapper(vk *coconut.VerificationKey, pubM []*Curv
 
 // BlindVerifyWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) BlindVerifyWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
-	return cw.BlindVerify(cw.muxParams, vk, sig, blindShowMats, pubM)
+func (cw *CoconutWorker) BlindVerifyWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, t *coconut.Theta, pubM []*Curve.BIG) bool {
+	return cw.BlindVerify(cw.muxParams, vk, sig, t, pubM)
 }
 
 // AggregateVerificationKeysWrapper wraps the provided arguments with pre-generated params.
@@ -81,14 +82,66 @@ func (cw *CoconutWorker) RandomizeWrapper(sig *coconut.Signature) *coconut.Signa
 
 // PrepareBlindSignWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (cw *CoconutWorker) PrepareBlindSignWrapper(egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Lambda, error) {
 	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
 }
 
 // ShowBlindSignatureWrapper wraps the provided arguments with pre-generated params.
 // nolint: lll
-func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
+func (cw *CoconutWorker) ShowBlindSignatureWrapper(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
 	return cw.ShowBlindSignature(cw.muxParams, vk, sig, privM)
+}
+
+// ElGamalKeygenWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ElGamalKeygenWrapper() (*elgamal.PrivateKey, *elgamal.PublicKey) {
+	return cw.ElGamalKeygen(cw.muxParams)
+}
+
+// ElGamalEncryptWrapper wraps the provided arguments with pre-generated params.
+// nolint: lll
+func (cw *CoconutWorker) ElGamalEncryptWrapper(pub *elgamal.PublicKey, m *Curve.BIG, h *Curve.ECP) *elgamal.EncryptionResult {
+	return cw.ElGamalEncrypt(cw.muxParams, pub, m, h)
+}
+
+// ElGamalDecryptWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ElGamalDecryptWrapper(pk *elgamal.PrivateKey, enc *elgamal.Encryption) *Curve.ECP {
+	return cw.ElGamalDecrypt(cw.muxParams, pk, enc)
+}
+
+// PrepareBlindSignTokenWrapper wraps the provided arguments with pre-generated params
+// and unwraps attributes embedded in the token.
+// nolint: lll
+func (cw *CoconutWorker) PrepareBlindSignTokenWrapper(egPub *elgamal.PublicKey, token *token.Token) (*coconut.Lambda, error) {
+	pubM, privM := token.GetPublicAndPrivateSlices()
+	return cw.PrepareBlindSign(cw.muxParams, egPub, pubM, privM)
+}
+
+// ShowBlindSignatureTumblerWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) ShowBlindSignatureTumblerWrapper(
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	privM []*Curve.BIG,
+	address []byte,
+) (*coconut.ThetaTumbler, error) {
+	return cw.ShowBlindSignatureTumbler(cw.muxParams, vk, sig, privM, address)
+}
+
+// BlindVerifyTumblerTumbler wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) BlindVerifyTumblerTumbler(
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.ThetaTumbler,
+	pubM []*Curve.BIG,
+	address []byte,
+) bool {
+	return cw.BlindVerifyTumbler(cw.muxParams, vk, sig, theta, pubM, address)
+}
+
+// RandomBIG generates a pseudorandom BIG number.
+func (cw *CoconutWorker) RandomBIG() *Curve.BIG {
+	cw.muxParams.Lock()
+	defer cw.muxParams.Unlock()
+	return Curve.Randomnum(cw.muxParams.P(), cw.muxParams.G.Rng())
 }
 
 // New creates new instance of a coconutWorker.

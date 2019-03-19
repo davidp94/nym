@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
@@ -190,7 +189,7 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*BlindSignMats, error) {
+func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*Lambda, error) {
 	G, p, g1, hs, rng := params.G, params.p, params.g1, params.hs, params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -230,11 +229,11 @@ func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BI
 		ks[i] = k
 	}
 
-	signerProof, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
-	return &BlindSignMats{
+	return &Lambda{
 		cm:    cm,
 		enc:   encs,
 		proof: signerProof,
@@ -243,20 +242,20 @@ func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BI
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindedSignature, error) {
+func BlindSign(params *Params, sk *SecretKey, lambda *Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindedSignature, error) {
 	// todo: can optimize by calculating first pubM * yj and then do single G1mul rather than two of them
 
 	hs := params.hs
 
-	if len(blindSignMats.enc)+len(pubM) > len(hs) {
+	if len(lambda.enc)+len(pubM) > len(hs) {
 		return nil, ErrBlindSignParams
 	}
-	if !VerifySignerProof(params, egPub.Gamma, blindSignMats) {
+	if !VerifySignerProof(params, egPub.Gamma(), lambda) {
 		return nil, ErrBlindSignProof
 	}
 
 	b := make([]byte, constants.ECPLen)
-	blindSignMats.cm.ToBytes(b, true)
+	lambda.cm.ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
@@ -269,14 +268,14 @@ func BlindSign(params *Params, sk *SecretKey, blindSignMats *BlindSignMats, egPu
 	}
 
 	t2 := Curve.NewECP()
-	for i := 0; i < len(blindSignMats.enc); i++ {
-		t2.Add(Curve.G1mul(blindSignMats.enc[i].C1(), sk.y[i]))
+	for i := 0; i < len(lambda.enc); i++ {
+		t2.Add(Curve.G1mul(lambda.enc[i].C1(), sk.y[i]))
 	}
 
 	t3 := Curve.G1mul(h, sk.x)
-	tmpSlice := make([]*Curve.ECP, len(blindSignMats.enc))
-	for i := range blindSignMats.enc {
-		tmpSlice[i] = blindSignMats.enc[i].C2()
+	tmpSlice := make([]*Curve.ECP, len(lambda.enc))
+	for i := range lambda.enc {
+		tmpSlice[i] = lambda.enc[i].C2()
 	}
 	tmpSlice = append(tmpSlice, t1...)
 
@@ -345,18 +344,15 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
-// ShowBlindSignature builds cryptographic material required for blind verification.
-// It returns kappa and nu - group elements needed to perform verification
-// and zero-knowledge proof asserting corectness of the above.
+// ConstructKappaNu creates Kappa and Nu based on values in the signature
+// to allow for proofs with different application-specific predicates
+// by not tying it to Show protocol
 // nolint: lll
-func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*BlindShowMats, error) {
-	p, rng := params.p, params.G.Rng()
-
+func ConstructKappaNu(vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*Curve.ECP2, *Curve.ECP, error) {
 	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() || !ValidateBigSlice(privM) {
-		return nil, ErrShowBlindAttr
+		return nil, nil, ErrShowBlindAttr
 	}
 
-	t := Curve.Randomnum(p, rng)
 	kappa := Curve.G2mul(vk.g2, t)
 	kappa.Add(vk.alpha)
 	for i := range privM {
@@ -364,12 +360,27 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 	}
 	nu := Curve.G1mul(sig.sig1, t)
 
+	return kappa, nu, nil
+}
+
+// ShowBlindSignature builds cryptographic material required for blind verification.
+// It returns kappa and nu - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG) (*Theta, error) {
+	p, rng := params.p, params.G.Rng()
+	t := Curve.Randomnum(p, rng)
+
+	kappa, nu, err := ConstructKappaNu(vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
+
 	verifierProof, err := ConstructVerifierProof(params, vk, sig, privM, t)
 	if err != nil {
 		return nil, err
 	}
 
-	return &BlindShowMats{
+	return &Theta{
 		kappa: kappa,
 		nu:    nu,
 		proof: verifierProof,
@@ -378,15 +389,15 @@ func ShowBlindSignature(params *Params, vk *VerificationKey, sig *Signature, pri
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 // nolint: lll
-func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *BlindShowMats, pubM []*Curve.BIG) bool {
+func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, theta *Theta, pubM []*Curve.BIG) bool {
 	G := params.G
 
-	privateLen := len(showMats.proof.rm)
-	if len(pubM)+privateLen > len(vk.beta) || !VerifyVerifierProof(params, vk, sig, showMats) {
+	privateLen := len(theta.proof.rm)
+	if len(pubM)+privateLen > len(vk.beta) || !VerifyVerifierProof(params, vk, sig, theta) {
 		return false
 	}
 
-	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+	if !sig.Validate() {
 		return false
 	}
 
@@ -398,12 +409,12 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, showMats *
 	}
 
 	t1 := Curve.NewECP2()
-	t1.Copy(showMats.kappa)
+	t1.Copy(theta.kappa)
 	t1.Add(aggr)
 
 	t2 := Curve.NewECP()
 	t2.Copy(sig.sig2)
-	t2.Add(showMats.nu)
+	t2.Add(theta.nu)
 
 	Gt1 := G.Pair(sig.sig1, t1)
 	Gt2 := G.Pair(t2, vk.g2)

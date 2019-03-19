@@ -30,6 +30,9 @@ func TestEmpty(t *testing.T) {
 	_, err = config.LoadBinary([]byte(`
 	[Client]
 	IAAddresses = []
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`))
 	assert.Error(t, err)
 
@@ -37,6 +40,9 @@ func TestEmpty(t *testing.T) {
 	[Client]
 	UseGRPC = true
 	IAgRPCAddresses = []
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`))
 	assert.Error(t, err)
 }
@@ -46,6 +52,9 @@ func TestGRPCIDs(t *testing.T) {
 	UseGRPC = true
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	cfg, err := config.LoadBinary([]byte(cfgStr))
 	assert.Nil(t, err)
@@ -61,6 +70,9 @@ func TestGRPCIDs(t *testing.T) {
 	UseGRPC = false
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -69,6 +81,9 @@ func TestGRPCIDs(t *testing.T) {
 	UseGRPC = true
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -77,6 +92,9 @@ func TestGRPCIDs(t *testing.T) {
 	UseGRPC = true
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -85,6 +103,9 @@ func TestGRPCIDs(t *testing.T) {
 	UseGRPC = true
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	cfg, err = config.LoadBinary([]byte(cfgStr))
 	assert.Nil(t, err)
@@ -101,6 +122,9 @@ func TestTCPIDs(t *testing.T) {
 	UseGRPC = false
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	cfg, err := config.LoadBinary([]byte(cfgStr))
 	assert.Nil(t, err)
@@ -116,6 +140,9 @@ func TestTCPIDs(t *testing.T) {
 	UseGRPC = false
 	IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -124,6 +151,9 @@ func TestTCPIDs(t *testing.T) {
 	UseGRPC = false
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -132,6 +162,9 @@ func TestTCPIDs(t *testing.T) {
 	UseGRPC = false
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001" ]
 	IAIDs = [ 19, 22, 332 ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	_, err = config.LoadBinary([]byte(cfgStr))
 	assert.Error(t, err)
@@ -140,6 +173,9 @@ func TestTCPIDs(t *testing.T) {
 	UseGRPC = false
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ ]
+[Nym]
+	AccountKeysFile = "foo.json"
+	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
 	`
 	cfg, err = config.LoadBinary([]byte(cfgStr))
 	assert.Nil(t, err)
@@ -151,35 +187,4 @@ func TestTCPIDs(t *testing.T) {
 	}
 }
 
-func TestKeys(t *testing.T) {
-	cfgStr := `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = false
-	`
-	_, err := config.LoadBinary([]byte(cfgStr))
-	assert.Nil(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Error(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	PublicKeyFile = "/foo/bar"
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Error(t, err)
-
-	cfgStr = `[Client]
-	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
-	PersistentKeys = true
-	PrivateKeyFile = "/foo/bar"
-	PublicKeyFile = "/foo/baz"
-	`
-	_, err = config.LoadBinary([]byte(cfgStr))
-	assert.Nil(t, err)
-}
+// TODO: test nym block behaviour

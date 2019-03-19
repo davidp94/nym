@@ -92,6 +92,7 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 	inb=int(nb)
 	inbt=int(nbt)
 	sh=ib*(1+((8*inb-1)//ib))-inbt
+
 	if sh > 30 :
 		sh=30
 	replace(fnameh,"@SH@",str(sh))
@@ -239,6 +240,22 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 			replace(fnameh,"XXX",bd)
 			os.system("g++ -O3 -c "+fnamec)
 
+
+
+			fnamec="bls_"+tc+".cpp"
+			fnameh="bls_"+tc+".h"
+
+			os.system(copytext+" bls.cpp "+fnamec)
+			os.system(copytext+" bls.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("g++ -O3 -c "+fnamec)
+
+
 		if cs == "192" :
 			fnamec="fp8_"+tf+".cpp"
 			fnameh="fp8_"+tf+".h"
@@ -296,6 +313,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 
 			os.system(copytext+" mpin192.cpp "+fnamec)
 			os.system(copytext+" mpin192.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("g++ -O3 -c "+fnamec)
+
+			fnamec="bls192_"+tc+".cpp"
+			fnameh="bls192_"+tc+".h"
+
+			os.system(copytext+" bls192.cpp "+fnamec)
+			os.system(copytext+" bls192.h "+fnameh)
 			replace(fnamec,"ZZZ",tc)
 			replace(fnamec,"YYY",tf)
 			replace(fnamec,"XXX",bd)
@@ -378,6 +408,19 @@ def curveset(tb,tf,tc,nb,base,nbt,m8,mt,ct,pf,stw,sx,cs) :
 
 			os.system(copytext+" mpin256.cpp "+fnamec)
 			os.system(copytext+" mpin256.h "+fnameh)
+			replace(fnamec,"ZZZ",tc)
+			replace(fnamec,"YYY",tf)
+			replace(fnamec,"XXX",bd)
+			replace(fnameh,"ZZZ",tc)
+			replace(fnameh,"YYY",tf)
+			replace(fnameh,"XXX",bd)
+			os.system("g++ -O3 -c "+fnamec)
+
+			fnamec="bls256_"+tc+".cpp"
+			fnameh="bls256_"+tc+".h"
+
+			os.system(copytext+" bls256.cpp "+fnamec)
+			os.system(copytext+" bls256.h "+fnameh)
 			replace(fnamec,"ZZZ",tc)
 			replace(fnamec,"YYY",tf)
 			replace(fnamec,"XXX",bd)
@@ -599,13 +642,15 @@ os.system(deltext+" ecp8.*")
 
 os.system(deltext+" pair.*")
 os.system(deltext+" mpin.*")
+os.system(deltext+" bls.*")
 
 os.system(deltext+" pair192.*")
 os.system(deltext+" mpin192.*")
+os.system(deltext+" bls192.*")
 
 os.system(deltext+" pair256.*")
 os.system(deltext+" mpin256.*")
-
+os.system(deltext+" bls256.*")
 
 # create library
 os.system("g++ -O3 -c randapi.cpp")

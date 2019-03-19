@@ -23,19 +23,19 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
-
-	"github.com/eapache/channels"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/listener"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	"0xacab.org/jstuczyn/CoconutGo/server/cryptoworker"
+	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
+	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
+	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -43,15 +43,16 @@ import (
 type Server struct {
 	cfg *config.Config
 
-	sk  *coconut.SecretKey
-	vk  *coconut.VerificationKey
-	avk *coconut.VerificationKey
+	sk         *coconut.SecretKey
+	vk         *coconut.VerificationKey
+	avk        *coconut.VerificationKey
+	nymAccount account.Account
 
-	cmdCh *channels.InfiniteChannel
+	cmdCh *requestqueue.RequestQueue
 	jobCh *jobqueue.JobQueue
 	log   *logging.Logger
 
-	cryptoWorkers []*cryptoworker.CryptoWorker
+	serverWorkers []*serverworker.ServerWorker
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.JobWorker
@@ -62,94 +63,85 @@ type Server struct {
 
 // getIAsVerificationKeys gets verification keys of the issuers.
 // Returns at least threshold number of them or nil if it times out.
-func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
-	maxRequests := s.cfg.Debug.ProviderMaxRequests
-	if s.cfg.Debug.ProviderMaxRequests <= 0 {
-		maxRequests = 16 // virtually no limit for our needs, but in case there's a bug somewhere it wouldn't destroy it all.
-	}
-
+func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.PolynomialPoints, error) {
 	cmd, err := commands.NewVerificationKeyRequest()
 	if err != nil {
-		s.log.Errorf("Failed to create Vk request: %v", err)
-		return nil, nil
+		return nil, nil, comm.LogAndReturnError(s.log, "Failed to create Vk request: %v", err)
 	}
 
 	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
 	if err != nil {
-		s.log.Error("Could not create VK data packet: %v", err) // should never happen...
-		return nil, nil
+		// should never happen...
+		return nil, nil, comm.LogAndReturnError(s.log, "Could not create VK data packet: %v", err)
 	}
 
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
-	responses := make([]*utils.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
-	respCh := make(chan *utils.ServerResponse)
-	receivedResponses := make(map[string]bool)
+	responses := make([]*comm.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
 
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
 	timeout := time.After(time.Duration(s.cfg.Debug.ProviderStartupTimeout) * time.Millisecond)
 
-outLoop:
-	for {
+	// this allows to enter the case immediately, but in return timeout won't happen
+	// exactly after ProviderStartupTimeout, but instead after N * ProviderStartupRetryInterval,
+	// such that N * ProviderStartupRetryInterval > ProviderStartupTimeout, where N is a natural number.
+	for ; true; <-retryTicker.C {
+		s.log.Debug("Trying to obtain vks of all IAs...")
+		// this is redone every run so that we would not get stale results
+		responses = comm.GetServerResponses(
+			&comm.RequestParams{
+				MarshaledPacket:   packetBytes,
+				MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
+				ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
+				RequestTimeout:    s.cfg.Debug.RequestTimeout,
+				ServerAddresses:   s.cfg.Provider.IAAddresses,
+				ServerIDs:         s.cfg.Provider.IAIDs,
+			},
+			s.log,
+		)
+
+		validResponses := 0
+		for _, resp := range responses {
+			if resp != nil {
+				validResponses++
+			}
+		}
+
+		if validResponses == len(s.cfg.Provider.IAAddresses) {
+			s.log.Notice("Received Verification Keys from all IAs")
+			break
+		} else if validResponses >= s.cfg.Provider.Threshold && s.cfg.Provider.Threshold > 0 {
+			s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
+			break
+		} else {
+			s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
+				validResponses, s.cfg.Provider.Threshold)
+		}
+
 		select {
-		// todo: figure out how to enter the case immediately without waiting for first tick
-		case <-retryTicker.C:
-			// this is recreated every run so that we would not get stale results
-			reqCh := utils.SendServerRequests(respCh, maxRequests, s.log, s.cfg.Debug.ConnectTimeout)
-
-			// write requests in a goroutine so we wouldn't block when trying to read responses
-			go func() {
-				for i := range s.cfg.Provider.IAAddresses {
-					if _, ok := receivedResponses[s.cfg.Provider.IAAddresses[i]]; !ok {
-						s.log.Debug("Writing request to %v", s.cfg.Provider.IAAddresses[i])
-						// TODO: can write to closed channel in certain situations (test with timeout at getvk)
-						reqCh <- &utils.ServerRequest{
-							MarshaledData: packetBytes,
-							ServerMetadata: &utils.ServerMetadata{
-								Address: s.cfg.Provider.IAAddresses[i],
-								ID:      s.cfg.Provider.IAIDs[i],
-							},
-						}
-					}
-				}
-			}()
-			utils.WaitForServerResponses(respCh, responses[len(receivedResponses):], s.log, s.cfg.Debug.RequestTimeout)
-			close(reqCh)
-
-			for i := range responses {
-				if responses[i] != nil {
-					receivedResponses[responses[i].ServerMetadata.Address] = true
-				}
-			}
-
-			if len(receivedResponses) == len(s.cfg.Provider.IAAddresses) {
-				s.log.Notice("Received Verification Keys from all IAs")
-				break outLoop
-			} else if len(receivedResponses) >= s.cfg.Provider.Threshold {
-				s.log.Notice("Did not receive all verification keys, but got more than (or equal to) threshold of them")
-				break outLoop
-			} else {
-				s.log.Noticef("Did not receive enough verification keys (%v out of minimum %v)",
-					len(receivedResponses), s.cfg.Provider.Threshold)
-			}
-
 		case <-timeout:
 			s.log.Critical("Timed out while starting up...")
-			return nil, nil
+			return nil, nil, errors.New("Startup timeout")
+		default:
 		}
 	}
 	retryTicker.Stop()
 
-	vks, pp := utils.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
-
-	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 {
-		s.log.Notice("Number of verification keys received is within threshold")
-	} else {
-		s.log.Error("Received less than threshold number of verification keys")
-		return nil, nil
+	vks, pp := comm.ParseVerificationKeyResponses(responses, s.cfg.Provider.Threshold > 0, s.log)
+	vks, pp, err = comm.HandleVks(s.log, vks, pp, s.cfg.Provider.Threshold)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return vks, pp
+	if len(vks) >= s.cfg.Provider.Threshold && len(vks) > 0 && s.cfg.Provider.Threshold > 0 {
+		s.log.Notice("Number of verification keys received is within threshold")
+		vks = vks[:s.cfg.Provider.Threshold]
+		pp = coconut.NewPP(pp.Xs()[:s.cfg.Provider.Threshold])
+	} else if s.cfg.Provider.Threshold > 0 {
+		return nil, nil, comm.LogAndReturnError(s.log, "Received less than threshold number of verification keys")
+	}
+
+	return vks, pp, nil
 }
 
 // New returns a new Server instance parameterized with the specified configuration.
@@ -164,20 +156,23 @@ func New(cfg *config.Config) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create a logger: %v", err)
 	}
-	serverLog := log.GetLogger("Server")
+	// without this, the servers during tests would have same id and would run into concurrency issues
+	serverLog := log.GetLogger("Server - " + cfg.Server.Identifier)
 
 	serverLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 	serverLog.Notice("Server's functionality: \nProvider:\t%v\nIA:\t\t%v", cfg.Server.IsProvider, cfg.Server.IsIssuer)
 
-	jobCh := jobqueue.New()                // commands issued by coconutworkers, like do pairing, g1mul, etc
-	cmdCh := channels.NewInfiniteChannel() // commands received via the socket, like sign those attributes
+	jobCh := jobqueue.New()     // commands issued by coconutworkers, like do pairing, g1mul, etc
+	cmdCh := requestqueue.New() // commands received via the socket, like sign those attributes
 
 	var params *coconut.Params
 	sk := &coconut.SecretKey{}
 	vk := &coconut.VerificationKey{}
+	var IAID uint32
 
 	// if it's not an issuer, we don't care about own keys, because they are not going to be used anyway (for now).
 	if cfg.Server.IsIssuer {
+		IAID = cfg.Issuer.ID
 		if cfg.Debug.RegenerateKeys {
 			serverLog.Notice("Generating new sk/vk coconut keypair")
 			params, err = coconut.Setup(cfg.Server.MaximumAttributes)
@@ -218,29 +213,65 @@ func New(cfg *config.Config) (*Server, error) {
 			}
 		}
 	} else {
+		IAID = 0
 		params, err = coconut.Setup(cfg.Server.MaximumAttributes)
 		if err != nil {
 			return nil, err
 		}
 	}
 
+	acc := account.Account{}
+	var nymClient *nymclient.Client
+	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
+		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
+			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+		serverLog.Notice("Loaded Nym Blochain keys from the file.")
+
+		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+	} else {
+		serverLog.Notice("No keys for the Nym Blockchain were specified.")
+	}
+
 	avk := &coconut.VerificationKey{}
 
-	cryptoWorkers := make([]*cryptoworker.CryptoWorker, cfg.Debug.NumCryptoWorkers)
-	for i := range cryptoWorkers {
-		cryptoWorkerCfg := &cryptoworker.Config{
+	serverWorkers := make([]*serverworker.ServerWorker, 0, cfg.Debug.NumServerWorkers)
+	for i := 0; i < cfg.Debug.NumServerWorkers; i++ {
+		serverWorkerCfg := &serverworker.Config{
 			JobQueue:   jobCh.In(),
 			IncomingCh: cmdCh.Out(),
 			ID:         uint64(i + 1),
 			Log:        log,
 			Params:     params,
+			IAID:       IAID,
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
+			NymAccount: acc,
+			NymClient:  nymClient,
 		}
-		cryptoWorkers[i] = cryptoworker.New(cryptoWorkerCfg)
+		serverWorker, err := serverworker.New(serverWorkerCfg)
+
+		if err == nil {
+			serverWorkers = append(serverWorkers, serverWorker)
+		} else {
+			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, err)
+		}
 	}
-	serverLog.Noticef("Started %v Coconut Worker(s)", cfg.Debug.NumCryptoWorkers)
+
+	if len(serverWorkers) == 0 {
+		errMsg := "Could not start any server worker"
+		serverLog.Critical(errMsg)
+		return nil, errors.New(errMsg)
+	}
+	serverLog.Noticef("Started %v Server Worker(s)", cfg.Debug.NumServerWorkers)
 
 	jobworkers := make([]*jobworker.JobWorker, cfg.Debug.NumJobWorkers)
 	for i := range jobworkers {
@@ -271,13 +302,15 @@ func New(cfg *config.Config) (*Server, error) {
 	s := &Server{
 		cfg: cfg,
 
-		sk:    sk,
-		vk:    vk,
+		sk:         sk,
+		vk:         vk,
+		nymAccount: acc,
+
 		cmdCh: cmdCh,
 		jobCh: jobCh,
 		log:   serverLog,
 
-		cryptoWorkers: cryptoWorkers,
+		serverWorkers: serverWorkers,
 		listeners:     listeners,
 		grpclisteners: grpclisteners,
 		jobWorkers:    jobworkers,
@@ -289,11 +322,12 @@ func New(cfg *config.Config) (*Server, error) {
 	if !cfg.Server.IsProvider {
 		avk = nil
 	} else {
-		vks, pp := s.getIAsVerificationKeys()
-		if vks == nil {
+		vks, pp, err := s.getIAsVerificationKeys()
+		if err != nil {
 			return nil, errors.New("Failed to obtain verification keys of IAs")
 		}
-		*avk = *cryptoWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
+
+		*avk = *serverWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
 	}
 	s.avk = avk
 
@@ -337,10 +371,10 @@ func (s *Server) halt() {
 		}
 	}
 
-	for i, w := range s.cryptoWorkers {
+	for i, w := range s.serverWorkers {
 		if w != nil {
 			w.Halt()
-			s.cryptoWorkers[i] = nil
+			s.serverWorkers[i] = nil
 		}
 	}
 

@@ -1,0 +1,116 @@
+syntax = "proto3";
+import "crypto/coconut/scheme/proto/types.proto";
+import "crypto/elgamal/proto/types.proto";
+import "crypto/coconut/scheme/proto/tumblertypes.proto";
+
+package commands;
+option go_package = "0xacab.org/jstuczyn/CoconutGo/common/comm/commands";
+
+enum StatusCode {
+    OK = 0;
+    UNKNOWN = 1;
+    INVALID_COMMAND = 2;
+    INVALID_ARGUMENTS = 3;
+    PROCESSING_ERROR = 4;
+    NOT_IMPLEMENTED = 5;
+    REQUEST_TIMEOUT = 6;
+    UNAVAILABLE = 7;
+    INVALID_TRANSACTION = 8;
+    INVALID_BINDING = 9;
+}
+
+message Status {
+    int32 code = 1;
+    string message = 2;
+}
+
+message SignRequest {
+    repeated bytes pubM = 1;
+}
+
+message SignResponse {
+    coconut.ProtoSignature sig = 1;
+    Status status = 2;
+}
+
+message VerificationKeyRequest {
+
+}
+
+message VerificationKeyResponse {
+    coconut.ProtoVerificationKey vk = 1;
+    Status status = 2;
+}
+
+message VerifyRequest {
+    coconut.ProtoSignature sig = 1;
+    repeated bytes pubM = 2;
+}
+
+message VerifyResponse {
+    bool isValid = 1;
+    Status status = 2;
+}
+
+message BlindSignRequest {
+    repeated bytes pubM = 1;
+    coconut.ProtoLambda lambda = 2;
+    elgamal.ProtoPublicKey egPub = 3;
+}
+
+message BlindSignResponse {
+    coconut.ProtoBlindedSignature sig = 1;
+    Status status = 2;
+}
+
+message BlindVerifyRequest {
+    coconut.ProtoSignature sig = 1;
+    repeated bytes pubM = 2;
+    coconut.ProtoTheta theta = 3;
+}
+
+message BlindVerifyResponse {
+    bool isValid = 1;
+    Status status = 2; 
+}
+
+// ======= NYM SPECIFIC =======
+
+message GetCredentialRequest {
+    // Public Key of the user used to derive account address and validate signature.
+    bytes publicKey = 1; 
+    // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+    elgamal.ProtoPublicKey egPub = 2;
+    // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+    coconut.ProtoLambda lambda = 3;
+    // Value of the desired credential.
+    int32 value = 4;
+    // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
+    repeated bytes pubM = 5;
+    // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
+    bytes sig = 6; 
+}
+
+message GetCredentialResponse {
+    coconut.ProtoBlindedSignature sig = 1;
+    Status status = 2;
+}
+
+// Sent by user to some service provider
+message SpendCredentialRequest {
+    // The actual credential
+    coconut.ProtoSignature Sig = 1;
+    // The public attributes in credential. Note that pubM[0] = BIG(value)
+    repeated bytes PubM = 2;
+    // Crypto materials to verify the credential + required NIZK; also contains g^s
+    coconut.ProtoThetaTumbler Theta = 3;
+    // Value of the credential
+    int32 Value = 4;
+    // Address of the merchant to which the proof is bound. Included so that the provider could verify it
+    bytes MerchantAddress = 5;
+}
+
+message SpendCredentialResponse {
+    bool wasSuccessful = 1;
+    Status status = 2;
+}

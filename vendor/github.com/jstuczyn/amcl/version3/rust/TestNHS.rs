@@ -25,13 +25,14 @@ under the License.
 
 extern crate amcl;
 
-use std::str;
-use std::io;
+//use std::str;
+//use std::io;
 
 use amcl::rand::RAND;
-use amcl::aes;
+//use amcl::aes;
 use amcl::nhs;
 
+//#[test]
 fn main()
 {
 	let mut raw:[u8;100]=[0;100];	

@@ -1,5 +1,5 @@
 // proofs_test.go - tests for NIZK
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -83,7 +83,7 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 				}
 
 				b.StartTimer()
-				_, err := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
+				_, err := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, []*Curve.BIG{}, privs)
 				if err != nil {
 					panic(err)
 				}
@@ -127,10 +127,10 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 					ks[i] = k
 				}
 
-				signerProof, _ := ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, []*Curve.BIG{}, privs)
-				bsm := NewBlindSignMats(cm, encs, signerProof)
+				signerProof, _ := ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, []*Curve.BIG{}, privs)
+				lambda := NewLambda(cm, encs, signerProof)
 				b.StartTimer()
-				isValid := VerifySignerProof(params, egPub.Gamma, bsm)
+				isValid := VerifySignerProof(params, egPub.Gamma(), lambda)
 				if !isValid {
 					panic(isValid)
 				}

@@ -23,6 +23,8 @@ under the License.
 
 package XXX
 
+//import "fmt"
+
 type FP8 struct {
 	a *FP4
 	b *FP4
@@ -71,7 +73,6 @@ func (F *FP8) norm() {
 
 /* test this==0 ? */
 func (F *FP8) iszilch() bool {
-	//F.reduce()
 	return F.a.iszilch() && F.b.iszilch()
 }
 
@@ -136,7 +137,6 @@ func (F *FP8) neg() {
 	t := NewFP4int(0)
 	m.add(F.b)
 	m.neg()
-	//m.norm()
 	t.copy(m)
 	t.add(F.b)
 	F.b.copy(m)
@@ -202,8 +202,6 @@ func (F *FP8) imul(c int) {
 
 /* this*=this */
 func (F *FP8) sqr() {
-	//	F.norm()
-
 	t1 := NewFP4copy(F.a)
 	t2 := NewFP4copy(F.b)
 	t3 := NewFP4copy(F.a)
@@ -235,8 +233,6 @@ func (F *FP8) sqr() {
 
 /* this*=y */
 func (F *FP8) mul(y *FP8) {
-	//	F.norm()
-
 	t1 := NewFP4copy(F.a)
 	t2 := NewFP4copy(F.b)
 	t3 := NewFP4int(0)
@@ -277,8 +273,6 @@ func (F *FP8) toString() string {
 
 /* this=1/this */
 func (F *FP8) inverse() {
-	//	F.norm()
-
 	t1 := NewFP4copy(F.a)
 	t2 := NewFP4copy(F.b)
 
@@ -297,7 +291,6 @@ func (F *FP8) inverse() {
 
 /* this*=i where i = sqrt(sqrt(-1+sqrt(-1))) */
 func (F *FP8) times_i() {
-	//	F.norm()
 	s := NewFP4copy(F.b)
 	t := NewFP4copy(F.a)
 	s.times_i()
@@ -322,16 +315,15 @@ func (F *FP8) frob(f *FP2) {
 	F.b.frob(ff)
 	F.b.pmul(f)
 	F.b.times_i()
-
 }
 
 /* this=this^e */
 func (F *FP8) pow(e *BIG) *FP8 {
-	F.norm()
-	e.norm()
 	w := NewFP8copy(F)
+	w.norm()
 	z := NewBIGcopy(e)
 	r := NewFP8int(1)
+	z.norm()
 	for true {
 		bt := z.parity()
 		z.fshr(1)
@@ -351,7 +343,6 @@ func (F *FP8) pow(e *BIG) *FP8 {
 func (F *FP8) xtr_A(w *FP8, y *FP8, z *FP8) {
 	r := NewFP8copy(w)
 	t := NewFP8copy(w)
-	//y.norm()
 	r.sub(y)
 	r.norm()
 	r.pmul(F.a)
@@ -386,10 +377,12 @@ func (F *FP8) xtr_pow(n *BIG) *FP8 {
 	c.xtr_D()
 	t := NewFP8int(0)
 	r := NewFP8int(0)
+	sf := NewFP8copy(F)
+	sf.norm()
 
-	n.norm()
 	par := n.parity()
 	v := NewBIGcopy(n)
+	v.norm()
 	v.fshr(1)
 	if par == 0 {
 		v.dec(1)
@@ -400,10 +393,10 @@ func (F *FP8) xtr_pow(n *BIG) *FP8 {
 	for i := nb - 1; i >= 0; i-- {
 		if v.bit(i) != 1 {
 			t.copy(b)
-			F.conj()
+			sf.conj()
 			c.conj()
-			b.xtr_A(a, F, c)
-			F.conj()
+			b.xtr_A(a, sf, c)
+			sf.conj()
 			c.copy(t)
 			c.xtr_D()
 			a.xtr_D()
@@ -412,7 +405,7 @@ func (F *FP8) xtr_pow(n *BIG) *FP8 {
 			t.conj()
 			a.copy(b)
 			a.xtr_D()
-			b.xtr_A(c, F, t)
+			b.xtr_A(c, sf, t)
 			c.xtr_D()
 		}
 	}
@@ -427,12 +420,12 @@ func (F *FP8) xtr_pow(n *BIG) *FP8 {
 
 /* r=ck^a.cl^n using XTR double exponentiation method on traces of FP12s. See Stam thesis. */
 func (F *FP8) xtr_pow2(ck *FP8, ckml *FP8, ckm2l *FP8, a *BIG, b *BIG) *FP8 {
-	a.norm()
-	b.norm()
+
 	e := NewBIGcopy(a)
 	d := NewBIGcopy(b)
 	w := NewBIGint(0)
-
+	e.norm()
+	d.norm()
 	cu := NewFP8copy(ck) // can probably be passed in w/o copying
 	cv := NewFP8copy(F)
 	cumv := NewFP8copy(ckml)

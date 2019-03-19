@@ -26,7 +26,11 @@ under the License.
  * For use with byte-oriented messages only.
  */
 
+//package main
+
 package amcl
+
+//import "fmt"
 
 const SHA3_HASH224 int = 28
 const SHA3_HASH256 int = 32

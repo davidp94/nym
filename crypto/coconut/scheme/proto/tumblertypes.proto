@@ -1,0 +1,10 @@
+syntax = "proto3";
+import "crypto/coconut/scheme/proto/types.proto";
+
+package coconut;
+option go_package = "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme";
+
+message ProtoThetaTumbler {
+    coconut.ProtoTheta theta = 1;
+    bytes zeta = 2;
+}

@@ -588,12 +588,11 @@ int mpin_BN254(csprng *RNG)
     printf("Client Secret= ");
     OCT_output(&TOKEN);
 
+
 // Client and Server are issued secrets by DTA 
     MPIN_GET_SERVER_SECRET(&S,&SST);
     printf("Server Secret= ");
     OCT_output(&SST);
-
-
 
     // Client extracts PIN from secret to create Token 
     pin=1234;
@@ -1612,12 +1611,13 @@ int main()
     RAW.val[1]=ran>>8;
     RAW.val[2]=ran>>16;
     RAW.val[3]=ran>>24;
-    for (i=0; i<100; i++) RAW.val[i]=i;
+    for (i=4; i<100; i++) RAW.val[i]=i;
 
     CREATE_CSPRNG(&RNG,&RAW);   // initialise strong RNG 
 
 	printf("\nTesting MPIN protocols for curve BN254\n");
 	mpin_BN254(&RNG);
+
 #if CHUNK!=16
 	printf("\nTesting MPIN protocols for curve BLS383\n");
 	mpin_BLS383(&RNG);

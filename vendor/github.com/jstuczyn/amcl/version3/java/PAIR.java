@@ -23,18 +23,12 @@ package org.apache.milagro.amcl.XXX;
 
 public final class PAIR {
 
-	public static final boolean USE_GLV =true;
-	public static final boolean USE_GS_G2 =true;
-	public static final boolean USE_GS_GT =true;	
-	public static final boolean GT_STRONG=false;
-
+//	public static final boolean GT_STRONG=false;
 
 /* Line function */
 	public static FP12 line(ECP2 A,ECP2 B,FP Qx,FP Qy)
 	{
-//System.out.println("Into line");
 		FP4 a,b,c;                            // Edits here
-//		c=new FP4(0);
 		if (A==B)
 		{ // Doubling
 			FP2 XX=new FP2(A.getx());  //X
@@ -56,11 +50,11 @@ public final class PAIR {
 			int sb=3*ROM.CURVE_B_I;
 			ZZ.imul(sb); 	
 			
-			if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 			{
 				ZZ.div_ip2();
 			}
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				ZZ.mul_ip();
 				ZZ.add(ZZ);
@@ -74,12 +68,12 @@ public final class PAIR {
 			ZZ.sub(YY); ZZ.norm();     // 3b.Z^2-Y^2
 
 			a=new FP4(YZ,ZZ);          // -2YZ.Ys | 3b.Z^2-Y^2 | 3X^2.Xs 
-			if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 			{			
 				b=new FP4(XX);             // L(0,1) | L(0,0) | L(1,0)
 				c=new FP4(0);
 			}
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				b=new FP4(0);
 				c=new FP4(XX); c.times_i();
@@ -103,7 +97,7 @@ public final class PAIR {
 			T1.copy(X1);            // T1=X1-Z1.X2
 			X1.pmul(Qy);            // X1=(X1-Z1.X2).Ys
 
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				X1.mul_ip();
 				X1.norm();
@@ -117,19 +111,19 @@ public final class PAIR {
 			Y1.pmul(Qx);  Y1.neg(); Y1.norm(); // Y1=-(Y1-Z1.Y2).Xs
 
 			a=new FP4(X1,T2);       // (X1-Z1.X2).Ys  |  (Y1-Z1.Y2).X2 - (X1-Z1.X2).Y2  | - (Y1-Z1.Y2).Xs
-			if (ECP.SEXTIC_TWIST==ECP.D_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.D_TYPE)
 			{
 				b=new FP4(Y1);
 				c=new FP4(0);
 			}
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				b=new FP4(0);
 				c=new FP4(Y1); c.times_i();
 			}
 			A.add(B);
 		}
-//System.out.println("Out of line");
+
 		return new FP12(a,b,c);
 	}
 
@@ -150,16 +144,16 @@ public final class PAIR {
 		P.affine();
 		Q.affine();
 
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			f=new FP2(new BIG(ROM.Fra),new BIG(ROM.Frb));
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				f.inverse();
 				f.norm();
 			}
 			n.pmul(6);
-			if (ECP.SIGN_OF_X==ECP.POSITIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.POSITIVEX)
 			{
 				n.inc(2);
 			} else {
@@ -190,44 +184,41 @@ public final class PAIR {
 		{
 			r.sqr();
 			lv=line(A,A,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 
-			bt=n3.bit(i)-n.bit(i); // bt=n.bit(i);
+			bt=n3.bit(i)-n.bit(i); 
 			if (bt==1)
 			{
 				lv=line(A,P,Qx,Qy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			}
 			if (bt==-1)
 			{
-				//P.neg();
 				lv=line(A,MP,Qx,Qy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
-				//P.neg();
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			}
 		}
 
-		if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+		if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 		{
 			r.conj();
 		}
 
 /* R-ate fixup required for BN curves */
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
-				//r.conj();
 				A.neg();
 			}
 			K.copy(P);
 			K.frob(f);
 			lv=line(A,K,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			K.frob(f);
 			K.neg();
 			lv=line(A,K,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 		} 
 		return r;
 	}
@@ -254,16 +245,16 @@ public final class PAIR {
 		R.affine();
 		S.affine();
 
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			f=new FP2(new BIG(ROM.Fra),new BIG(ROM.Frb));
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				f.inverse();
 				f.norm();
 			}
 			n.pmul(6); 
-			if (ECP.SIGN_OF_X==ECP.POSITIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.POSITIVEX)
 			{
 				n.inc(2);
 			} else {
@@ -302,41 +293,37 @@ public final class PAIR {
 		{
 			r.sqr();
 			lv=line(A,A,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 
 			lv=line(B,B,Sx,Sy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 
-			bt=n3.bit(i)-n.bit(i); // bt=n.bit(i);
+			bt=n3.bit(i)-n.bit(i);
 			if (bt==1)
 			{
 				lv=line(A,P,Qx,Qy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 				lv=line(B,R,Sx,Sy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			}
 			if (bt==-1)
 			{
-				//P.neg(); 
 				lv=line(A,MP,Qx,Qy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
-				//P.neg(); 
-				//R.neg();
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 				lv=line(B,MR,Sx,Sy);
-				r.smul(lv,ECP.SEXTIC_TWIST);
-				//R.neg();
+				r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			}
 		}
 
-		if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+		if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 		{
 			r.conj();
 		}
 
 /* R-ate fixup required for BN curves */
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 			//	r.conj();
 				A.neg();
@@ -347,19 +334,19 @@ public final class PAIR {
 			K.frob(f);
 
 			lv=line(A,K,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			K.frob(f);
 			K.neg();
 			lv=line(A,K,Qx,Qy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			K.copy(R);
 			K.frob(f);
 			lv=line(B,K,Sx,Sy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 			K.frob(f);
 			K.neg();
 			lv=line(B,K,Sx,Sy);
-			r.smul(lv,ECP.SEXTIC_TWIST);
+			r.smul(lv,CONFIG_CURVE.SEXTIC_TWIST);
 		}
 		return r;
 	}
@@ -382,7 +369,7 @@ public final class PAIR {
 		r.frob(f);
 		r.mul(lv);
 /* Hard part of final exp */
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			FP12 x0,x1,x2,x3,x4,x5;			
 			lv.copy(r);
@@ -395,7 +382,7 @@ public final class PAIR {
 			x1=new FP12(r);
 			x1.conj();
 			x4=r.pow(x);
-			if (ECP.SIGN_OF_X==ECP.POSITIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.POSITIVEX)
 			{
 				x4.conj();
 			}
@@ -404,13 +391,13 @@ public final class PAIR {
 			x3.frob(f);
 
 			x2=x4.pow(x);
-			if (ECP.SIGN_OF_X==ECP.POSITIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.POSITIVEX)
 			{
 				x2.conj();
 			}
 			x5=new FP12(x2); x5.conj();
 			lv=x2.pow(x);
-			if (ECP.SIGN_OF_X==ECP.POSITIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.POSITIVEX)
 			{
 				lv.conj();
 			}
@@ -448,12 +435,12 @@ public final class PAIR {
 // Ghamman & Fouotsa Method
 			y0=new FP12(r); y0.usqr();
 			y1=y0.pow(x);
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				y1.conj();
 			}
 			x.fshr(1); y2=y1.pow(x); 
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				y2.conj();
 			}			
@@ -466,12 +453,12 @@ public final class PAIR {
 			y1.mul(y2);
 
 			y2=y1.pow(x);
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				y2.conj();
 			}
 			y3=y2.pow(x);
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				y3.conj();
 			}
@@ -484,7 +471,7 @@ public final class PAIR {
 			y1.mul(y2);
 
 			y2=y3.pow(x);
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				y2.conj();
 			}
@@ -505,7 +492,7 @@ public final class PAIR {
 	public static BIG[] glv(BIG e)
 	{
 		BIG[] u=new BIG[2];
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			int i,j;
 			BIG t=new BIG(0);
@@ -548,7 +535,7 @@ public final class PAIR {
 	public static BIG[] gs(BIG e)
 	{
 		BIG[] u=new BIG[4];
-		if (ECP.CURVE_PAIRING_TYPE==ECP.BN)
+		if (CONFIG_CURVE.CURVE_PAIRING_TYPE==CONFIG_CURVE.BN)
 		{
 			int i,j;
 			BIG t=new BIG(0);
@@ -584,7 +571,7 @@ public final class PAIR {
 				w.div(x);
 			}
 			u[3]=new BIG(w);
-			if (ECP.SIGN_OF_X==ECP.NEGATIVEX)
+			if (CONFIG_CURVE.SIGN_OF_X==CONFIG_CURVE.NEGATIVEX)
 			{
 				u[1].copy(BIG.modneg(u[1],q));
 				u[3].copy(BIG.modneg(u[3],q));
@@ -597,7 +584,7 @@ public final class PAIR {
 	public static ECP G1mul(ECP P,BIG e)
 	{
 		ECP R;
-		if (USE_GLV)
+		if (CONFIG_CURVE.USE_GLV)
 		{
 			//P.affine();
 			R=new ECP();
@@ -644,12 +631,12 @@ public final class PAIR {
 	public static ECP2 G2mul(ECP2 P,BIG e)
 	{
 		ECP2 R;
-		if (USE_GS_G2)
+		if (CONFIG_CURVE.USE_GS_G2)
 		{
 			ECP2[] Q=new ECP2[4];
 			FP2 f=new FP2(new BIG(ROM.Fra),new BIG(ROM.Frb));
 
-			if (ECP.SEXTIC_TWIST==ECP.M_TYPE)
+			if (CONFIG_CURVE.SEXTIC_TWIST==CONFIG_CURVE.M_TYPE)
 			{
 				f.inverse();
 				f.norm();
@@ -660,7 +647,6 @@ public final class PAIR {
 
 			BIG t=new BIG(0);
 			int i,np,nn;
-			//P.affine();
 
 			Q[0]=new ECP2(); Q[0].copy(P);
 			for (i=1;i<4;i++)
@@ -679,7 +665,6 @@ public final class PAIR {
 					Q[i].neg();
 				}
 				u[i].norm();	
-				//Q[i].affine();
 			}
 
 			R=ECP2.mul4(Q,u);
@@ -696,7 +681,7 @@ public final class PAIR {
 	public static FP12 GTpow(FP12 d,BIG e)
 	{
 		FP12 r;
-		if (USE_GS_GT)
+		if (CONFIG_CURVE.USE_GS_GT)
 		{
 			FP12[] g=new FP12[4];
 			FP2 f=new FP2(new BIG(ROM.Fra),new BIG(ROM.Frb));
@@ -732,86 +717,5 @@ public final class PAIR {
 		return r;
 	}
 
-/* test group membership - no longer needed */
-/* with GT-Strong curve, now only check that m!=1, conj(m)*m==1, and m.m^{p^4}=m^{p^2} */
-/*
-	public static boolean GTmember(FP12 m)
-	{
-		if (m.isunity()) return false;
-		FP12 r=new FP12(m);
-		r.conj();
-		r.mul(m);
-		if (!r.isunity()) return false;
-
-		FP2 f=new FP2(new BIG(ROM.Fra),new BIG(ROM.Frb));
-
-		r.copy(m); r.frob(f); r.frob(f);
-		FP12 w=new FP12(r); w.frob(f); w.frob(f);
-		w.mul(m);
-		if (!ROM.GT_STRONG)
-		{
-			if (!w.equals(r)) return false;
-			BIG x=new BIG(ROM.CURVE_Bnx);
-			r.copy(m); w=r.pow(x); w=w.pow(x);
-			r.copy(w); r.sqr(); r.mul(w); r.sqr();
-			w.copy(m); w.frob(f);
-		}
-		return w.equals(r);
-	}
-*/
-/*
-	public static void main(String[] args) {
-		ECP Q=new ECP(new BIG(ROM.CURVE_Gx),new BIG(ROM.CURVE_Gy));
-		ECP2 P=new ECP2(new FP2(new BIG(ROM.CURVE_Pxa),new BIG(ROM.CURVE_Pxb)),new FP2(new BIG(ROM.CURVE_Pya),new BIG(ROM.CURVE_Pyb)));
-
-		BIG r=new BIG(ROM.CURVE_Order);
-		BIG xa=new BIG(ROM.CURVE_Pxa);
-
-		System.out.println("P= "+P.toString());
-		System.out.println("Q= "+Q.toString());
-
-		BIG m=new BIG(17);
-
-		FP12 e=ate(P,Q);
-		System.out.println("\ne= "+e.toString());
-
-		e=fexp(e);
-
-		for (int i=1;i<1000;i++)
-		{
-			e=ate(P,Q);
-			e=fexp(e);
-		}
-	//	e=GTpow(e,m);
-
-		System.out.println("\ne= "+e.toString());
-
-		BIG [] GLV=glv(r);
-
-		System.out.println("GLV[0]= "+GLV[0].toString());
-		System.out.println("GLV[0]= "+GLV[1].toString());
-
-		ECP G=new ECP(); G.copy(Q);
-		ECP2 R=new ECP2(); R.copy(P);
-
-
-		e=ate(R,Q);
-		e=fexp(e);
-
-		e=GTpow(e,xa);
-		System.out.println("\ne= "+e.toString()); 
-
-
-		R=G2mul(R,xa);
-		e=ate(R,G);
-		e=fexp(e);
-
-		System.out.println("\ne= "+e.toString());
-
-		G=G1mul(G,xa);
-		e=ate(P,G);
-		e=fexp(e);
-		System.out.println("\ne= "+e.toString()); 
-	} */
 }
 

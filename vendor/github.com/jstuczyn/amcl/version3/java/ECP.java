@@ -23,40 +23,15 @@ package org.apache.milagro.amcl.XXX;
 
 public final class ECP {
 
-	public static final int WEIERSTRASS=0;
-	public static final int EDWARDS=1;
-	public static final int MONTGOMERY=2;
-	public static final int NOT=0;
-	public static final int BN=1;
-	public static final int BLS=2;
-	public static final int D_TYPE=0;
-	public static final int M_TYPE=1;
-	public static final int POSITIVEX=0;
-	public static final int NEGATIVEX=1;
-
-	public static final int CURVETYPE=@CT@;
-	public static final int CURVE_PAIRING_TYPE=@PF@;
-	public static final int SEXTIC_TWIST=@ST@;
-	public static final int SIGN_OF_X=@SX@;
-
-	public static final int SHA256=32;
-	public static final int SHA384=48;
-	public static final int SHA512=64;
-
-	public static final int HASH_TYPE=@HT@;
-	public static final int AESKEY=@AK@;
-
 	private FP x;
 	private FP y;
 	private FP z;
-//	private boolean INF;
 
 /* Constructor - set to O */
 	public ECP() {
-		//INF=true;
 		x=new FP(0);
 		y=new FP(1);
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{
 			z=new FP(1);
 		}
@@ -75,15 +50,15 @@ public final class ECP {
 /* test for O point-at-infinity */
 	public boolean is_infinity() {
 //		if (INF) return true;                            // Edits made
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{
 			return (x.iszilch() && y.equals(z));
 		}
-		if (CURVETYPE==WEIERSTRASS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
 		{
 			return (x.iszilch() && z.iszilch());
 		}
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 			return z.iszilch();
 		}
@@ -93,32 +68,16 @@ public final class ECP {
 	private void cswap(ECP Q,int d)
 	{
 		x.cswap(Q.x,d);
-		if (CURVETYPE!=MONTGOMERY) y.cswap(Q.y,d);
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY) y.cswap(Q.y,d);
 		z.cswap(Q.z,d);
-	//	if (CURVETYPE!=EDWARDS)
-	//	{
-	//		boolean bd;
-	//		if (d==0) bd=false;
-	//		else bd=true;
-	//		bd=bd&(INF^Q.INF);
-	//		INF^=bd;
-	//		Q.INF^=bd;
-	//	}
 	}
 
 /* Conditional move of Q to P dependant on d */
 	private void cmove(ECP Q,int d)
 	{
 		x.cmove(Q.x,d);
-		if (CURVETYPE!=MONTGOMERY) y.cmove(Q.y,d);
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY) y.cmove(Q.y,d);
 		z.cmove(Q.z,d);
-	//	if (CURVETYPE!=EDWARDS)
-	//	{
-	//		boolean bd;
-	//		if (d==0) bd=false;
-	//		else bd=true;
-	//		INF^=(INF^Q.INF)&bd;
-	//	}
 	}
 
 /* return 1 if b==c, no branching */
@@ -153,15 +112,13 @@ public final class ECP {
 
 /* Test P == Q */
 	public boolean equals(ECP Q) {
-//		if (is_infinity() && Q.is_infinity()) return true;
-//		if (is_infinity() || Q.is_infinity()) return false;
 
 		FP a=new FP(0);                                        // Edits made
 		FP b=new FP(0);
 		a.copy(x); a.mul(Q.z); 
 		b.copy(Q.x); b.mul(z); 
 		if (!a.equals(b)) return false;
-		if (CURVETYPE!=MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY)
 		{
 			a.copy(y); a.mul(Q.z); 
 			b.copy(Q.y); b.mul(z); 
@@ -174,18 +131,16 @@ public final class ECP {
 	public void copy(ECP P)
 	{
 		x.copy(P.x);
-		if (CURVETYPE!=MONTGOMERY) y.copy(P.y);
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY) y.copy(P.y);
 		z.copy(P.z);
-		//INF=P.INF;
 	}
 /* this=-this */
 	public void neg() {
-//		if (is_infinity()) return;
-		if (CURVETYPE==WEIERSTRASS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
 		{
 			y.neg(); y.norm();
 		}
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{
 			x.neg(); x.norm();
 		}
@@ -195,18 +150,17 @@ public final class ECP {
 	public void inf() {
 //		INF=true;
 		x.zero();
-		if (CURVETYPE!=MONTGOMERY) y.one();
-		if (CURVETYPE!=EDWARDS) z.zero();
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY) y.one();
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.EDWARDS) z.zero();
 		else z.one();
 	}
 
 /* Calculate RHS of curve equation */
 	public static FP RHS(FP x) {
-		x.norm();
 		FP r=new FP(x);
 		r.sqr();
 
-		if (CURVETYPE==WEIERSTRASS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
 		{ // x^3+Ax+B
 			FP b=new FP(new BIG(ROM.CURVE_B));
 			r.mul(x);
@@ -219,7 +173,7 @@ public final class ECP {
 			}
 			r.add(b);
 		}
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{ // (Ax^2-1)/(Bx^2-1) 
 			FP b=new FP(new BIG(ROM.CURVE_B));
 
@@ -233,7 +187,7 @@ public final class ECP {
 
 			r.mul(b);
 		}
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{ // x^3+Ax^2+x
 			FP x3=new FP(0);
 			x3.copy(r);
@@ -251,26 +205,24 @@ public final class ECP {
 		x=new FP(ix);
 		y=new FP(iy);
 		z=new FP(1);
+		x.norm();
 		FP rhs=RHS(x);
 
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 			if (rhs.jacobi()!=1) inf();
-			//if (rhs.jacobi()==1) INF=false;
-			//else inf();
 		}
 		else
 		{
 			FP y2=new FP(y);
 			y2.sqr();
 			if (!y2.equals(rhs)) inf();
-			//if (y2.equals(rhs)) INF=false;
-			//else inf();
 		}
 	}
 /* set (x,y) from BIG and a bit */
 	public ECP(BIG ix,int s) {
 		x=new FP(ix);
+		x.norm();
 		FP rhs=RHS(x);
 		y=new FP(0);
 		z=new FP(1);
@@ -279,7 +231,6 @@ public final class ECP {
 			FP ny=rhs.sqrt();
 			if (ny.redc().parity()!=s) ny.neg();
 			y.copy(ny);
-			//INF=false;
 		}
 		else inf();
 	}
@@ -287,13 +238,13 @@ public final class ECP {
 /* set from x - calculate y from curve equation */
 	public ECP(BIG ix) {
 		x=new FP(ix);
+		x.norm();
 		FP rhs=RHS(x);
 		y=new FP(0);
 		z=new FP(1);
 		if (rhs.jacobi()==1)
 		{
-			if (CURVETYPE!=MONTGOMERY) y.copy(rhs.sqrt());
-			//INF=false;
+			if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY) y.copy(rhs.sqrt());
 		}
 		else inf(); //INF=true;
 	}
@@ -305,7 +256,7 @@ public final class ECP {
 		if (z.equals(one)) return;
 		z.inverse();
 		x.mul(z); x.reduce();
-		if (CURVETYPE!=MONTGOMERY)            // Edits made
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY)            // Edits made
 		{
 			y.mul(z); y.reduce();
 		}
@@ -329,7 +280,6 @@ public final class ECP {
 /* get sign of Y */
 	public int getS()
 	{
-		//affine();
 		BIG y=getY();
 		return y.parity();
 	}
@@ -351,14 +301,14 @@ public final class ECP {
 /* convert to byte array */
 	public void toBytes(byte[] b,boolean compress)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		ECP W=new ECP(this);
 		W.affine();
 
 		W.x.redc().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++) b[i+1]=t[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) b[i+1]=t[i];
 
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 			b[0]=0x06;
 			return;
@@ -374,26 +324,26 @@ public final class ECP {
 		b[0]=0x04;
 
 		W.y.redc().toBytes(t);
-		for (int i=0;i<BIG.MODBYTES;i++) b[i+BIG.MODBYTES+1]=t[i];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) b[i+CONFIG_BIG.MODBYTES+1]=t[i];
 	}
 /* convert from byte array to point */
 	public static ECP fromBytes(byte[] b)
 	{
-		byte[] t=new byte[BIG.MODBYTES];
+		byte[] t=new byte[CONFIG_BIG.MODBYTES];
 		BIG p=new BIG(ROM.Modulus);
 
-		for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i+1];
+		for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i+1];
 		BIG px=BIG.fromBytes(t);
 		if (BIG.comp(px,p)>=0) return new ECP();
 
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 			return new ECP(px);
 		}
 
 		if (b[0]==0x04)
 		{
-			for (int i=0;i<BIG.MODBYTES;i++) t[i]=b[i+BIG.MODBYTES+1];
+			for (int i=0;i<CONFIG_BIG.MODBYTES;i++) t[i]=b[i+CONFIG_BIG.MODBYTES+1];
 			BIG py=BIG.fromBytes(t);
 			if (BIG.comp(py,p)>=0) return new ECP();
 			return new ECP(px,py);
@@ -410,28 +360,24 @@ public final class ECP {
 		ECP W=new ECP(this);	
 		W.affine();
 		if (W.is_infinity()) return "infinity";
-		if (CURVETYPE==MONTGOMERY) return "("+W.x.redc().toString()+")";
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY) return "("+W.x.redc().toString()+")";
 		else return "("+W.x.redc().toString()+","+W.y.redc().toString()+")";
 	}
 
 /* convert to hex string */
 	public String toRawString() {
-		//if (is_infinity()) return "infinity";
-		//affine();
 		ECP W=new ECP(this);	
-		if (CURVETYPE==MONTGOMERY) return "("+W.x.redc().toString()+","+W.z.redc().toString()+")";
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY) return "("+W.x.redc().toString()+","+W.z.redc().toString()+")";
 		else return "("+W.x.redc().toString()+","+W.y.redc().toString()+","+W.z.redc().toString()+")";
 	}
 
 /* this*=2 */
 	public void dbl() {
-//		if (INF) return;
 		
-		if (CURVETYPE==WEIERSTRASS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
 		{
 			if (ROM.CURVE_A==0)
 			{
-//System.out.println("Into dbl");
 				FP t0=new FP(y);                      /*** Change ***/    // Edits made
 				t0.sqr();
 				FP t1=new FP(y);
@@ -456,7 +402,6 @@ public final class ECP {
 				x.copy(t0); x.norm(); x.mul(t1); x.add(x);
 				x.norm(); 
 				y.copy(y3); y.norm();
-//System.out.println("Out of dbl");
 			}
 			else
 			{
@@ -527,9 +472,8 @@ public final class ECP {
 				z.copy(z3); z.norm();
 			}
 		}
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{
-//System.out.println("Into dbl");
 			FP C=new FP(x);
 			FP D=new FP(y);
 			FP H=new FP(z);
@@ -553,9 +497,8 @@ public final class ECP {
 			C.sub(D); C.norm();
 			y.mul(C);
 			z.mul(J);
-//System.out.println("Out of dbl");
 		}
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 			FP A=new FP(x);
 			FP B=new FP(x);		
@@ -580,21 +523,11 @@ public final class ECP {
 
 /* this+=Q */
 	public void add(ECP Q) {
-//		if (INF)
-//		{
-//			copy(Q);
-//			return;
-//		}
-//		if (Q.INF) return;
 
-		if (CURVETYPE==WEIERSTRASS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
 		{
-
-
 			if (ROM.CURVE_A==0)
 			{
-// Edits made
-//System.out.println("Into add");
 				int b=3*ROM.CURVE_B_I;
 				FP t0=new FP(x);
 				t0.mul(Q.x);
@@ -642,7 +575,6 @@ public final class ECP {
 				x.copy(x3); x.norm(); 
 				y.copy(y3); y.norm();
 				z.copy(z3); z.norm();
-//System.out.println("Out of add");
 			}
 			else
 			{
@@ -727,9 +659,8 @@ public final class ECP {
 				z.copy(z3); z.norm();
 			}
 		}
-		if (CURVETYPE==EDWARDS)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
 		{
-//System.out.println("Into add");
 			FP A=new FP(z);
 			FP B=new FP(0);
 			FP C=new FP(x);
@@ -780,12 +711,11 @@ public final class ECP {
 
 			z.copy(F);	
 			z.mul(G);
-//System.out.println("Out of add");
 		}
 		return;
 	}
 
-/* Differential Add for Montgomery curves. this+=Q where W is this-Q and is affine. */
+/* Differential Add for CONFIG_CURVE.MONTGOMERY curves. this+=Q where W is this-Q and is affine. */
 	public void dadd(ECP Q,ECP W) {
 		FP A=new FP(x);
 		FP B=new FP(x);
@@ -825,7 +755,7 @@ public final class ECP {
 
 /* constant time multiply by small integer of length bts - use ladder */
 	public ECP pinmul(int e,int bts) {	
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 			return this.mul(new BIG(e));
 		else
 		{
@@ -855,7 +785,7 @@ public final class ECP {
 	public ECP mul(BIG e) {
 		if (e.iszilch() || is_infinity()) return new ECP();
 		ECP P=new ECP();
-		if (CURVETYPE==MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)
 		{
 /* use Ladder */
 			int nb,i,b;
@@ -890,9 +820,7 @@ public final class ECP {
 			ECP Q=new ECP();
 			ECP C=new ECP();
 			ECP[] W=new ECP[8];
-			byte[] w=new byte[1+(BIG.NLEN*BIG.BASEBITS+3)/4];
-
-			//affine();
+			byte[] w=new byte[1+(BIG.NLEN*CONFIG_BIG.BASEBITS+3)/4];
 
 // precompute table 
 			Q.copy(this);
@@ -953,12 +881,9 @@ public final class ECP {
 		ECP T=new ECP();
 		ECP C=new ECP();
 		ECP[] W=new ECP[8];
-		byte[] w=new byte[1+(BIG.NLEN*BIG.BASEBITS+1)/2];		
+		byte[] w=new byte[1+(BIG.NLEN*CONFIG_BIG.BASEBITS+1)/2];		
 		int i,s,ns,nb;
 		byte a,b;
-
-		//affine();
-		//Q.affine();
 
 		te.copy(e);
 		tf.copy(f);
@@ -1051,7 +976,7 @@ public final class ECP {
 		{
 			while (true)
 			{
-				if (CURVETYPE!=MONTGOMERY)
+				if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY)
 					P=new ECP(x,0);
 				else
 					P=new ECP(x);	
@@ -1070,7 +995,7 @@ public final class ECP {
 		BIG gx,gy;
 		gx=new BIG(ROM.CURVE_Gx);
 
-		if (ECP.CURVETYPE!=ECP.MONTGOMERY)
+		if (CONFIG_CURVE.CURVETYPE!=CONFIG_CURVE.MONTGOMERY)
 		{
 			gy=new BIG(ROM.CURVE_Gy);
 			G=new ECP(gx,gy);
@@ -1080,30 +1005,5 @@ public final class ECP {
 		return G;
 	}
 
-/*
-	public static void main(String[] args) {
-
-		BIG Gx=new BIG(ROM.CURVE_Gx);
-		BIG Gy;
-		ECP P;
-		if (CURVETYPE!=MONTGOMERY) Gy=new BIG(ROM.CURVE_Gy);
-		BIG r=new BIG(ROM.CURVE_Order);
-
-		//r.dec(7);
-	
-		System.out.println("Gx= "+Gx.toString());		
-		if (CURVETYPE!=MONTGOMERY) System.out.println("Gy= "+Gy.toString());	
-
-		if (CURVETYPE!=MONTGOMERY) P=new ECP(Gx,Gy);
-		else  P=new ECP(Gx);
-
-		System.out.println("P= "+P.toString());		
-
-		ECP R=P.mul(r);
-		//for (int i=0;i<10000;i++)
-		//	R=P.mul(r);
-	
-		System.out.println("R= "+R.toString());
-    } */
 }
 

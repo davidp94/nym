@@ -178,69 +178,83 @@ func (p *Params) Hs() []*Curve.ECP {
 	return p.hs
 }
 
-// BlindSignMats encapsulates data created by PrepareBlindSign function.
-type BlindSignMats struct {
+// Validate checks for nil elements in the params.
+func (p *Params) Validate() bool {
+	if p == nil || p.p == nil || p.g1 == nil || p.g2 == nil || p.hs == nil {
+		return false
+	}
+	for i := range p.hs {
+		if p.hs[i] == nil {
+			return false
+		}
+	}
+	// todo: check bpgroup, dont assume its valid
+	return true
+}
+
+// Lambda encapsulates data created by PrepareBlindSign function.
+type Lambda struct {
 	cm    *Curve.ECP
 	enc   []*elgamal.Encryption
 	proof *SignerProof
 }
 
 // Validate checks for nil elements in the mats.
-func (bsm *BlindSignMats) Validate() bool {
-	if bsm == nil || bsm.cm == nil || bsm.enc == nil {
+func (l *Lambda) Validate() bool {
+	if l == nil || l.cm == nil || l.enc == nil {
 		return false
 	}
-	for i := range bsm.enc {
-		if !bsm.enc[i].Validate() {
+	for i := range l.enc {
+		if !l.enc[i].Validate() {
 			return false
 		}
 	}
-	return bsm.proof.Validate()
+	return l.proof.Validate()
 }
 
-// Cm returns the commitment part of the BlindSignMats
-func (bsm *BlindSignMats) Cm() *Curve.ECP {
-	return bsm.cm
+// Cm returns the commitment part of the Lambda.
+func (l *Lambda) Cm() *Curve.ECP {
+	return l.cm
 }
 
-// Enc returns the encryptions part of the BlindSignMats
-func (bsm *BlindSignMats) Enc() []*elgamal.Encryption {
-	return bsm.enc
+// Enc returns the encryptions part of the Lambda.
+func (l *Lambda) Enc() []*elgamal.Encryption {
+	return l.enc
 }
 
-// Proof returns the proof part of the BlindSignMats
-func (bsm *BlindSignMats) Proof() *SignerProof {
-	return bsm.proof
+// Proof returns the proof part of the Lambda.
+func (l *Lambda) Proof() *SignerProof {
+	return l.proof
 }
 
-// BlindShowMats encapsulates data created by ShowBlindSignature function.
-type BlindShowMats struct {
+// Theta encapsulates data created by ShowBlindSignature function.
+type Theta struct {
 	kappa *Curve.ECP2
 	nu    *Curve.ECP
 	proof *VerifierProof
 }
 
-// Kappa returns the kappa part of the BlindShowMats
-func (bsm *BlindShowMats) Kappa() *Curve.ECP2 {
-	return bsm.kappa
+// Kappa returns the kappa part of the Theta.
+func (t *Theta) Kappa() *Curve.ECP2 {
+	return t.kappa
 }
 
-// Nu returns the nu part of the BlindShowMats
-func (bsm *BlindShowMats) Nu() *Curve.ECP {
-	return bsm.nu
+// Nu returns the nu part of the Theta.
+func (t *Theta) Nu() *Curve.ECP {
+	return t.nu
 }
 
-// Proof returns the proof part of the BlindShowMats
-func (bsm *BlindShowMats) Proof() *VerifierProof {
-	return bsm.proof
+// Proof returns the proof part of the Theta.
+func (t *Theta) Proof() *VerifierProof {
+	return t.proof
 }
 
 // Validate checks for nil elements in the mats.
-func (bsm *BlindShowMats) Validate() bool {
-	if bsm == nil || bsm.kappa == nil || bsm.nu == nil {
+func (t *Theta) Validate() bool {
+	if t == nil || t.kappa == nil || t.nu == nil {
 		return false
 	}
-	return bsm.proof.Validate()
+	return t.proof.Validate()
 }
 
 // PolynomialPoints (tmp) represents x values of points on polynomial of degree t - 1
@@ -321,17 +335,17 @@ type VerifierProof struct {
 	rt *Curve.BIG
 }
 
-// C returns challenge part of the signer proof
+// C returns challenge part of the signer proof.
 func (vp *VerifierProof) C() *Curve.BIG {
 	return vp.c
 }
 
-// Rm returns set of rm responses of the signer proof
+// Rm returns set of rm responses of the signer proof.
 func (vp *VerifierProof) Rm() []*Curve.BIG {
 	return vp.rm
 }
 
-// Rt returns set of rt responses of the signer proof
+// Rt returns set of rt responses of the signer proof.
 func (vp *VerifierProof) Rt() *Curve.BIG {
 	return vp.rt
 }
@@ -347,6 +361,26 @@ func (vp *VerifierProof) Validate() bool {
 		}
 	}
 	return true
+}
+
+// type VerifierProof interface {
+// 	C() *Curve.BIG
+// 	Rm() []*Curve.BIG
+// 	Rt() *Curve.BIG
+// 	Validate() bool
+// 	Verify() bool
+// }
+
+// NewParams returns instance of params key from the provided attributes.
+// Created for tendermint ABCI to create params without the bpgroup.
+func NewParams(G *bpgroup.BpGroup, p *Curve.BIG, g1 *Curve.ECP, g2 *Curve.ECP2, hs []*Curve.ECP) *Params {
+	return &Params{
+		G:  G,
+		p:  p,
+		g1: g1,
+		g2: g2,
+		hs: hs,
+	}
 }
 
 // NewSk returns instance of verification key from the provided attributes.
@@ -385,20 +419,20 @@ func NewPP(xs []*Curve.BIG) *PolynomialPoints {
 	}
 }
 
-// NewBlindSignMats returns instance of BlindSignMats from the provided attributes.
+// NewLambda returns instance of Lambda from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
-func NewBlindSignMats(cm *Curve.ECP, enc []*elgamal.Encryption, proof *SignerProof) *BlindSignMats {
-	return &BlindSignMats{
+func NewLambda(cm *Curve.ECP, enc []*elgamal.Encryption, proof *SignerProof) *Lambda {
+	return &Lambda{
 		cm:    cm,
 		enc:   enc,
 		proof: proof,
 	}
 }
 
-// NewBlindShowMats returns instance of BlindShowMats from the provided attributes.
+// NewTheta returns instance of Theta from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
-func NewBlindShowMats(kappa *Curve.ECP2, nu *Curve.ECP, proof *VerifierProof) *BlindShowMats {
-	return &BlindShowMats{
+func NewTheta(kappa *Curve.ECP2, nu *Curve.ECP, proof *VerifierProof) *Theta {
+	return &Theta{
 		kappa: kappa,
 		nu:    nu,
 		proof: proof,

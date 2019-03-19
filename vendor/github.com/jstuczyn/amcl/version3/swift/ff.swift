@@ -31,25 +31,13 @@ import amcl
 
 final public class FF {
 
-    static public let FFLEN:UInt=@ML@
-
-    static public let FF_BITS:UInt=(BIG.BIGBITS*FF.FFLEN) /* Finite Field Size in bits - must be BIGBITS.2^n */
-    static public let HFLEN=(FF.FFLEN/2);  /* Useful for half-size RSA private key operations */
-
-    static let P_MBITS:UInt=BIG.MODBYTES*8
-    static let P_OMASK:Chunk=Chunk(-1)<<Chunk(FF.P_MBITS%BIG.BASEBITS)
-    static let P_FEXCESS:Chunk=(1<<Chunk(BIG.BASEBITS*UInt(BIG.NLEN)-FF.P_MBITS-1))
-    static let P_TBITS=(FF.P_MBITS%BIG.BASEBITS)
- 
-
-
     var v = [BIG]()
     var length:Int=1
 
 /* calculate Field Excess */
     static func EXCESS(_ a: BIG) -> Chunk
     {
-        return ((a.w[BIG.NLEN-1] & FF.P_OMASK)>>Chunk(FF.P_MBITS%BIG.BASEBITS))+1
+        return ((a.w[CONFIG_BIG.NLEN-1] & CONFIG_FF.P_OMASK)>>Chunk(CONFIG_FF.P_MBITS%CONFIG_BIG.BASEBITS))+1
     }
 
 #if D32
@@ -57,13 +45,13 @@ final public class FF {
     {
         let ea=FF.EXCESS(a)
         let eb=FF.EXCESS(b)
-        if (DChunk(ea)+1)*(DChunk(eb)+1) > DChunk(FF.P_FEXCESS) {return true}
+        if (DChunk(ea)+1)*(DChunk(eb)+1) > DChunk(CONFIG_FF.P_FEXCESS) {return true}
         return false;
     }
     static func sexceed(_ a: BIG) -> Bool
     {
         let ea=FF.EXCESS(a)
-        if (DChunk(ea)+1)*(DChunk(ea)+1) > DChunk(FF.P_FEXCESS) {return true}
+        if (DChunk(ea)+1)*(DChunk(ea)+1) > DChunk(CONFIG_FF.P_FEXCESS) {return true}
         return false;
     }
 #endif
@@ -72,13 +60,13 @@ final public class FF {
     {
         let ea=FF.EXCESS(a)
         let eb=FF.EXCESS(b)
-        if (ea+1) > FF.P_FEXCESS/(eb+1) {return true}
+        if (ea+1) > CONFIG_FF.P_FEXCESS/(eb+1) {return true}
         return false;
     }
     static func sexceed(_ a: BIG) -> Bool
     {
         let ea=FF.EXCESS(a)
-        if (ea+1) > FF.P_FEXCESS/(ea+1) {return true}
+        if (ea+1) > CONFIG_FF.P_FEXCESS/(ea+1) {return true}
         return false;
     }
 #endif
@@ -284,13 +272,13 @@ final public class FF {
         }
         for i in 0 ..< nn-1
         {
-            let carry=v[vp+i].norm();
-            v[vp+i].xortop(carry<<Chunk(FF.P_TBITS))
-            v[vp+i+1].w[0]+=carry; //inc(carry)
+            let carry=v[vp+i].norm()
+            v[vp+i].xortop(carry<<Chunk(CONFIG_FF.P_TBITS))
+            v[vp+i+1].w[0]+=carry
         }
-        let carry=v[vp+nn-1].norm();
+        let carry=v[vp+nn-1].norm()
         if (trunc)
-            {v[vp+nn-1].xortop(carry<<Chunk(FF.P_TBITS))}
+            {v[vp+nn-1].xortop(carry<<Chunk(CONFIG_FF.P_TBITS))}
     }
     
     func norm()
@@ -301,14 +289,14 @@ final public class FF {
     /* increment/decrement by a small integer */
     func inc(_ m: Int)
     {
-        v[0].inc(m);
-        norm();
+        v[0].inc(m)
+        norm()
     }
     
     func dec(_ m: Int)
     {
-        v[0].dec(m);
-        norm();
+        v[0].dec(m)
+        norm()
     }
     
     /* shift left by one bit */
@@ -319,7 +307,7 @@ final public class FF {
         {
             let carry=v[i].fshl(1)
             v[i].inc(delay_carry);
-            v[i].xortop(Chunk(carry)<<Chunk(FF.P_TBITS));
+            v[i].xortop(Chunk(carry)<<Chunk(CONFIG_FF.P_TBITS));
             delay_carry=carry;
         }
         v[length-1].fshl(1)
@@ -332,7 +320,7 @@ final public class FF {
         for i in (1..<length).reversed()
         {
             let carry=v[i].fshr(1);
-            v[i-1].ortop(Chunk(carry)<<Chunk(FF.P_TBITS));
+            v[i-1].ortop(Chunk(carry)<<Chunk(CONFIG_FF.P_TBITS));
         }
         v[0].fshr(1);
     }
@@ -354,14 +342,14 @@ final public class FF {
     {
         for i in 0 ..< length
         {
-            v[i].tobytearray(&b,(length-i-1)*Int(BIG.MODBYTES))
+            v[i].tobytearray(&b,(length-i-1)*Int(CONFIG_BIG.MODBYTES))
         }
     }
     static func fromBytes(_ x: FF,_ b:[UInt8])
     {
         for i in 0 ..< x.length
         {
-            x.v[i]=BIG.frombytearray(b,(x.length-i-1)*Int(BIG.MODBYTES))
+            x.v[i]=BIG.frombytearray(b,(x.length-i-1)*Int(CONFIG_BIG.MODBYTES))
         }
     }
     
@@ -370,7 +358,7 @@ final public class FF {
     {
         for i in 0 ..< a.length
         {
-            a.v[i].cswap(b.v[i],d)
+            a.v[i].cswap(&(b.v[i]),d)
         }
     }
     /* z=x*y, t is workspace */
@@ -379,8 +367,8 @@ final public class FF {
         if (n==1)
         {
             x.v[xp].norm(); y.v[yp].norm()
-            let d=BIG.mul(x.v[xp],y.v[yp])
-            v[vp+1]=d.split(8*BIG.MODBYTES)
+            var d=BIG.mul(x.v[xp],y.v[yp])
+            v[vp+1]=d.split(8*CONFIG_BIG.MODBYTES)
             v[vp].copy(d)
             return
         }
@@ -404,8 +392,8 @@ final public class FF {
         if (n==1)
         {
             x.v[xp].norm()
-            let d=BIG.sqr(x.v[xp])
-            v[vp+1].copy(d.split(8*BIG.MODBYTES))
+            var d=BIG.sqr(x.v[xp])
+            v[vp+1].copy(d.split(8*CONFIG_BIG.MODBYTES))
             v[vp].copy(d);
             return;
         }
@@ -541,7 +529,7 @@ final public class FF {
         x.copy(self)
         x.norm()
         m.dsucopy(b)
-        var k=Int(BIG.BIGBITS)*n
+        var k=Int(CONFIG_BIG.BIGBITS)*n
     
         while (FF.comp(x,m)>=0)
         {
@@ -645,8 +633,8 @@ final public class FF {
     {
         let n=m.length
         if (n==1) {
-                let d=DBIG(v[0])
-                d.shl(UInt(BIG.NLEN)*BIG.BASEBITS)
+                var d=DBIG(v[0])
+                d.shl(UInt(CONFIG_BIG.NLEN)*CONFIG_BIG.BASEBITS)
                 v[0].copy(d.mod(m.v[0]))
             } else {
                 let d=FF(2*n)
@@ -659,8 +647,8 @@ final public class FF {
     {
         let n=m.length
         if (n==1) {
-                let d=DBIG(v[0])
-                v[0].copy(BIG.monty(m.v[0],(Chunk(1)<<Chunk(BIG.BASEBITS))-ND.v[0].w[0],d))
+                var d=DBIG(v[0])
+                v[0].copy(BIG.monty(m.v[0],(Chunk(1)<<Chunk(CONFIG_BIG.BASEBITS))-ND.v[0].w[0],&d))
             } else {
                 let d=FF(2*n)
                 mod(m)
@@ -688,7 +676,6 @@ final public class FF {
         U.v[0].invmod2m();
     
         var i=1
-        //for var i=1;i<n;i<<=1
         while (i<n)
         {
             b.copy(self); b.mod2m(i);
@@ -708,25 +695,25 @@ final public class FF {
         return U;
     }
     
-    func random(_ rng: RAND)
+    func random(_ rng: inout RAND)
     {
         let n=length;
         for i in 0 ..< n
         {
-            v[i].copy(BIG.random(rng));
+            v[i].copy(BIG.random(&rng));
         }
     /* make sure top bit is 1 */
-        while (v[n-1].nbits()<Int(BIG.MODBYTES)*8) {v[n-1].copy(BIG.random(rng))}
+        while (v[n-1].nbits()<Int(CONFIG_BIG.MODBYTES)*8) {v[n-1].copy(BIG.random(&rng))}
     }
     /* generate random x */
-    func randomnum(_ p: FF,_ rng: RAND)
+    func randomnum(_ p: FF,_ rng: inout RAND)
     {
         let n=length;
         let d=FF(2*n);
     
         for i in 0 ..< 2*n
         {
-            d.v[i].copy(BIG.random(rng));
+            d.v[i].copy(BIG.random(&rng));
         }
         copy(d.dmod(p));
     }
@@ -736,8 +723,8 @@ final public class FF {
         if FF.pexceed(v[length-1],y.v[y.length-1]) {mod(p)}
         let n=p.length
         if (n==1) {
-                let d=BIG.mul(v[0],y.v[0])
-                v[0].copy(BIG.monty(p.v[0],(Chunk(1)<<Chunk(BIG.BASEBITS))-nd.v[0].w[0],d))
+                var d=BIG.mul(v[0],y.v[0])
+                v[0].copy(BIG.monty(p.v[0],(Chunk(1)<<Chunk(CONFIG_BIG.BASEBITS))-nd.v[0].w[0],&d))
             } else {
                 let d=FF.mul(self,y);
                 copy(d.reduce(p,nd));
@@ -750,8 +737,8 @@ final public class FF {
         if FF.sexceed(v[length-1]) {mod(p)}
         let n=p.length
         if (n==1) {
-                let d=BIG.sqr(v[0])
-                v[0].copy(BIG.monty(p.v[0],(Chunk(1)<<Chunk(BIG.BASEBITS))-nd.v[0].w[0],d))
+                var d=BIG.sqr(v[0])
+                v[0].copy(BIG.monty(p.v[0],(Chunk(1)<<Chunk(CONFIG_BIG.BASEBITS))-nd.v[0].w[0],&d))
             } else {
                 let d=FF.sqr(self);
                 copy(d.reduce(p,nd));
@@ -772,9 +759,9 @@ final public class FF {
         R0.nres(p)
         R1.nres(p)
     
-        for i in (0...8*Int(BIG.MODBYTES)*n-1).reversed()
+        for i in (0...8*Int(CONFIG_BIG.MODBYTES)*n-1).reversed()
         {
-            let b=Int(e.v[i/Int(BIG.BIGBITS)].bit(UInt(i%Int(BIG.BIGBITS))))
+            let b=Int(e.v[i/Int(CONFIG_BIG.BIGBITS)].bit(UInt(i%Int(CONFIG_BIG.BIGBITS))))
             copy(R0)
             modmul(R1,p,ND)
     
@@ -804,7 +791,7 @@ final public class FF {
         R0.nres(p)
         R1.nres(p)
     
-        for i in (0...8*Int(BIG.MODBYTES)-1).reversed()
+        for i in (0...8*Int(CONFIG_BIG.MODBYTES)-1).reversed()
         {
             let b=(e.bit(UInt(i)))
             copy(R0)
@@ -866,11 +853,10 @@ final public class FF {
         one();
         nres(p);
         w.nres(p);
-        for i in (0...8*Int(BIG.MODBYTES)*n-1).reversed()
-      //  for var i=8*Int(BIG.MODBYTES)*n-1;i>=0;i--
+        for i in (0...8*Int(CONFIG_BIG.MODBYTES)*n-1).reversed()
         {
             modsqr(p,ND)
-            let b=e.v[i/Int(BIG.BIGBITS)].bit(UInt(i%Int(BIG.BIGBITS)))
+            let b=e.v[i/Int(CONFIG_BIG.BIGBITS)].bit(UInt(i%Int(CONFIG_BIG.BIGBITS)))
             if (b==1) {modmul(w,p,ND)}
         }
         redc(p,ND);
@@ -892,8 +878,7 @@ final public class FF {
         one()
         nres(p)
     
-        for i in (0...8*Int(BIG.MODBYTES)-1).reversed()
-    //    for var i=8*Int(BIG.MODBYTES)-1;i>=0;i--
+        for i in (0...8*Int(CONFIG_BIG.MODBYTES)-1).reversed()
         {
             let eb=e.bit(UInt(i))
             let fb=f.bit(UInt(i))
@@ -948,7 +933,7 @@ final public class FF {
     }
  
     /* Miller-Rabin test for primality. Slow. */
-    static func prime(_ p: FF,_ rng:RAND) -> Bool
+    static func prime(_ p: FF,_ rng: inout RAND) -> Bool
     {
         var s=0
         let n=p.length
@@ -977,7 +962,7 @@ final public class FF {
         if (s==0) {return false}
         for _ in 0 ..< 10
         {
-            x.randomnum(p,rng)
+            x.randomnum(p,&rng)
             x.pow(d,p)
             if (FF.comp(x,unity)==0 || FF.comp(x,nm1)==0) {continue}
             loop=false

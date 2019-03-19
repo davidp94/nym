@@ -1,3 +1,4 @@
+
 /*
 	Licensed to the Apache Software Foundation (ASF) under one
 	or more contributor license agreements.  See the NOTICE file
@@ -24,117 +25,109 @@
 //  Copyright (c) 2015 Michael Scott. All rights reserved.
 //
 
-final class DBIG{
-    var w=[Chunk](repeating: 0,count: BIG.DNLEN)
+    struct DBIG{
+    var w=[Chunk](repeating: 0,count: CONFIG_BIG.DNLEN)
     init() {
-        for i in 0 ..< BIG.DNLEN {w[i]=0}
+        for i in 0 ..< CONFIG_BIG.DNLEN {w[i]=0}
     }
     init(_ x: Int)
     {
         w[0]=Chunk(x);
-        for i in 1 ..< BIG.DNLEN {w[i]=0}
+        for i in 1 ..< CONFIG_BIG.DNLEN {w[i]=0}
     }
     init(_ x: BIG)
     {
-        for i in 0 ..< BIG.NLEN {w[i]=x.w[i]}
-        w[BIG.NLEN-1]=x.w[BIG.NLEN-1]&BIG.BMASK
-        w[BIG.NLEN]=x.w[BIG.NLEN-1]>>Chunk(BIG.BASEBITS)
-        for i in BIG.NLEN+1 ..< BIG.DNLEN {w[i]=0}
+        for i in 0 ..< CONFIG_BIG.NLEN {w[i]=x.w[i]}
+        w[CONFIG_BIG.NLEN-1]=x.w[CONFIG_BIG.NLEN-1]&CONFIG_BIG.BMASK
+        w[CONFIG_BIG.NLEN]=x.w[CONFIG_BIG.NLEN-1]>>Chunk(CONFIG_BIG.BASEBITS)
+        for i in CONFIG_BIG.NLEN+1 ..< CONFIG_BIG.DNLEN {w[i]=0}
     }
     init(_ x: DBIG)
     {
-        for i in 0 ..< BIG.DNLEN {w[i]=x.w[i]}
+        for i in 0 ..< CONFIG_BIG.DNLEN {w[i]=x.w[i]}
     }
     init(_ x: [Chunk])
     {
-        for i in 0 ..< BIG.DNLEN {w[i]=x[i]}
+        for i in 0 ..< CONFIG_BIG.DNLEN {w[i]=x[i]}
     }
 
-    func cmove(_ g: DBIG,_ d: Int)
+    mutating func cmove(_ g: DBIG,_ d: Int)
     {
         let b = Chunk(-d)
     
-        for i in 0 ..< BIG.DNLEN
+        for i in 0 ..< CONFIG_BIG.DNLEN
         {
             w[i]^=(w[i]^g.w[i])&b;
         }
     }
 
 /* Copy from another DBIG */
-    func copy(_ x: DBIG)
+    mutating func copy(_ x: DBIG)
     {
-        for i in 0 ..< BIG.DNLEN {w[i] = x.w[i]}
+        for i in 0 ..< CONFIG_BIG.DNLEN {w[i] = x.w[i]}
     }
 
-    func ucopy(_ x: BIG)
+    mutating func ucopy(_ x: BIG)
     {
-        for i in 0 ..< BIG.NLEN {w[i] = 0}
-        for i in BIG.NLEN ..< BIG.DNLEN {w[i] = x.w[i-BIG.NLEN]}        
+        for i in 0 ..< CONFIG_BIG.NLEN {w[i] = 0}
+        for i in CONFIG_BIG.NLEN ..< CONFIG_BIG.DNLEN {w[i] = x.w[i-CONFIG_BIG.NLEN]}        
     }
 
     /* this+=x */
-    func add(_ x: DBIG)
+    mutating func add(_ x: DBIG)
     {
-        for i in 0 ..< BIG.DNLEN
+        for i in 0 ..< CONFIG_BIG.DNLEN
         {
             w[i]+=x.w[i]
         }
     }
 
     /* this-=x */
-    func sub(_ x: DBIG)
+    mutating func sub(_ x: DBIG)
     {
-        for i in 0 ..< BIG.DNLEN
+        for i in 0 ..< CONFIG_BIG.DNLEN
         {
             w[i]-=x.w[i]
         }
     }
 
     /* this-=x */
-    func rsub(_ x: DBIG)
+    mutating func rsub(_ x: DBIG)
     {
-        for i in 0 ..< BIG.DNLEN
+        for i in 0 ..< CONFIG_BIG.DNLEN
         {
             w[i]=x.w[i]-w[i]
         }
     }    
-/*    func muladd(_ x: Int32,_ y: Int32,_ c: Int32,_ i: Int) -> Int32
-    {
-        let prod:Int64 = Int64(x)*Int64(y)+Int64(c)+Int64(w[i])
-        w[i]=Int32(prod&Int64(BIG.BMASK))
-        return Int32(prod>>Int64(BIG.BASEBITS))
-    } */
     /* general shift left */
-    func shl(_ k: UInt)
+    mutating func shl(_ k: UInt)
     {
-        let n=k%BIG.BASEBITS
-        let m=Int(k/BIG.BASEBITS)
-        w[BIG.DNLEN-1]=((w[BIG.DNLEN-1-m]<<Chunk(n)))|(w[BIG.DNLEN-m-2]>>Chunk(BIG.BASEBITS-n))
-        for i in (m+1...BIG.DNLEN-2).reversed()
-     //   for var i=BIG.DNLEN-2;i>m;i--
+        let n=k%CONFIG_BIG.BASEBITS
+        let m=Int(k/CONFIG_BIG.BASEBITS)
+        w[CONFIG_BIG.DNLEN-1]=((w[CONFIG_BIG.DNLEN-1-m]<<Chunk(n)))|(w[CONFIG_BIG.DNLEN-m-2]>>Chunk(CONFIG_BIG.BASEBITS-n))
+        for i in (m+1...CONFIG_BIG.DNLEN-2).reversed()
         {
-            w[i]=((w[i-m]<<Chunk(n))&BIG.BMASK)|(w[i-m-1]>>Chunk(BIG.BASEBITS-n))
+            w[i]=((w[i-m]<<Chunk(n))&CONFIG_BIG.BMASK)|(w[i-m-1]>>Chunk(CONFIG_BIG.BASEBITS-n))
         }
-        w[m]=(w[0]<<Chunk(n))&BIG.BMASK
+        w[m]=(w[0]<<Chunk(n))&CONFIG_BIG.BMASK
         for i in 0 ..< m {w[i]=0}
     }
     /* general shift right */
-    func shr(_ k: UInt)
+    mutating func shr(_ k: UInt)
     {
-        let n=k%BIG.BASEBITS
-        let m=Int(k/BIG.BASEBITS)
-        for i in 0 ..< BIG.DNLEN-m-1
+        let n=k%CONFIG_BIG.BASEBITS
+        let m=Int(k/CONFIG_BIG.BASEBITS)
+        for i in 0 ..< CONFIG_BIG.DNLEN-m-1
         {
-            w[i]=(w[m+i]>>Chunk(n))|((w[m+i+1]<<Chunk(BIG.BASEBITS-n))&BIG.BMASK)
+            w[i]=(w[m+i]>>Chunk(n))|((w[m+i+1]<<Chunk(CONFIG_BIG.BASEBITS-n))&CONFIG_BIG.BMASK)
         }
-        w[BIG.DNLEN - m - 1]=w[BIG.DNLEN-1]>>Chunk(n)
-        for i in BIG.DNLEN - m ..< BIG.DNLEN {w[i]=0}
+        w[CONFIG_BIG.DNLEN - m - 1]=w[CONFIG_BIG.DNLEN-1]>>Chunk(n)
+        for i in CONFIG_BIG.DNLEN - m ..< CONFIG_BIG.DNLEN {w[i]=0}
     }
     /* Compare a and b, return 0 if a==b, -1 if a<b, +1 if a>b. Inputs must be normalised */
     static func comp(_ a: DBIG,_ b: DBIG) -> Int
     {
-        for i in (0...BIG.DNLEN-1).reversed()
-       // for var i=BIG.DNLEN-1;i>=0;i--
+        for i in (0...CONFIG_BIG.DNLEN-1).reversed()
         {
             if (a.w[i]==b.w[i]) {continue}
             if (a.w[i]>b.w[i]) {return 1}
@@ -143,24 +136,24 @@ final class DBIG{
         return 0;
     }
     /* normalise BIG - force all digits < 2^BASEBITS */
-    func norm()
+    mutating func norm()
     {
         var carry:Chunk=0
-        for i in 0 ..< BIG.DNLEN-1
+        for i in 0 ..< CONFIG_BIG.DNLEN-1
         {
             let d=w[i]+carry
-            w[i]=d&BIG.BMASK
-            carry=d>>Chunk(BIG.BASEBITS)
+            w[i]=d&CONFIG_BIG.BMASK
+            carry=d>>Chunk(CONFIG_BIG.BASEBITS)
         }
-        w[BIG.DNLEN-1]+=carry
+        w[CONFIG_BIG.DNLEN-1]+=carry
     }
     /* reduces this DBIG mod a BIG, and returns the BIG */
-    func mod(_ c: BIG) -> BIG
+    mutating func mod(_ c: BIG) -> BIG
     {
         var k:Int=0
         norm()
-        let m=DBIG(c)
-        let r=DBIG(0)
+        var m=DBIG(c)
+        var r=DBIG(0)
     
         if DBIG.comp(self,m)<0 {return BIG(self)}
     
@@ -178,27 +171,21 @@ final class DBIG{
 		r.copy(self)
 		r.sub(m)
 		r.norm()
-		cmove(r,Int(1-((r.w[BIG.DNLEN-1]>>Chunk(BIG.CHUNK-1))&1)))
-/*
+		cmove(r,Int(1-((r.w[CONFIG_BIG.DNLEN-1]>>Chunk(CONFIG_BIG.CHUNK-1))&1)))
 
-            if (DBIG.comp(self,m)>=0)
-            {
-				sub(m)
-				norm()
-            } */
-            k -= 1;
+            k -= 1
         }
         return BIG(self)
     }
     /* return this/c */
-    func div(_ c:BIG) -> BIG
+    mutating func div(_ c:BIG) -> BIG
     {
         var k:Int=0
-        let m=DBIG(c)
-        let a=BIG(0)
-        let e=BIG(1)
-        let r=BIG(0)
-        let dr=DBIG(0)
+        var m=DBIG(c)
+        var a=BIG(0)
+        var e=BIG(1)
+        var r=BIG(0)
+        var dr=DBIG(0)
 
         norm()
     
@@ -217,51 +204,44 @@ final class DBIG{
 		dr.copy(self)
 		dr.sub(m)
 		dr.norm()
-		let d=Int(1-((dr.w[BIG.DNLEN-1]>>Chunk(BIG.CHUNK-1))&1))
+		let d=Int(1-((dr.w[CONFIG_BIG.DNLEN-1]>>Chunk(CONFIG_BIG.CHUNK-1))&1))
 		cmove(dr,d)
 		r.copy(a)
 		r.add(e)
 		r.norm()
 		a.cmove(r,d)
-/*
-            if (DBIG.comp(self,m)>0)
-            {
-				a.add(e)
-				a.norm()
-				sub(m)
-				norm()
-            } */
+
             k -= 1
         }
         return a
     }
     
     /* split DBIG at position n, return higher half, keep lower half */
-    func split(_ n: UInt) -> BIG
+    mutating func split(_ n: UInt) -> BIG
     {
-        let t=BIG(0)
-        let m=n%BIG.BASEBITS
-        var carry=w[BIG.DNLEN-1]<<Chunk(BIG.BASEBITS-m)
+        var t=BIG(0)
+        let m=n%CONFIG_BIG.BASEBITS
+        var carry=w[CONFIG_BIG.DNLEN-1]<<Chunk(CONFIG_BIG.BASEBITS-m)
     
-        for i in (BIG.NLEN-1...BIG.DNLEN-2).reversed()
-      //  for var i=BIG.DNLEN-2;i>=BIG.NLEN-1;i--
+        for i in (CONFIG_BIG.NLEN-1...CONFIG_BIG.DNLEN-2).reversed()
         {
             let nw=(w[i]>>Chunk(m))|carry;
-            carry=(w[i]<<Chunk(BIG.BASEBITS-m))&BIG.BMASK;
-            t.set(i-BIG.NLEN+1,nw);
+            carry=(w[i]<<Chunk(CONFIG_BIG.BASEBITS-m))&CONFIG_BIG.BMASK;
+            t.set(i-CONFIG_BIG.NLEN+1,nw);
         }
-        w[BIG.NLEN-1]&=((1<<Chunk(m))-1);
+        w[CONFIG_BIG.NLEN-1]&=((1<<Chunk(m))-1);
         return t;
     }
     /* return number of bits */
     func nbits() -> Int
     {
-        var k=(BIG.DNLEN-1)
-        norm()
-        while k>=0 && w[k]==0 {k -= 1}
+        var k=(CONFIG_BIG.DNLEN-1)
+        var t=BIG(self)        
+        t.norm()
+        while k>=0 && t.w[k]==0 {k -= 1}
         if k<0 {return 0}
-        var bts=Int(BIG.BASEBITS)*k
-        var c=w[k];
+        var bts=Int(CONFIG_BIG.BASEBITS)*k
+        var c=t.w[k];
         while c != 0 {c/=2; bts+=1}
         return bts
     }
@@ -275,9 +255,8 @@ final class DBIG{
         else {len/=4; len += 1}
         
         for i in (0...len-1).reversed()
-    //    for var i=len-1;i>=0;i--
         {
-            let b = DBIG(self)
+            var b = DBIG(self)
             b.shr(UInt(i*4))
             let n=String(b.w[0]&15,radix:16,uppercase:false)
             s+=n

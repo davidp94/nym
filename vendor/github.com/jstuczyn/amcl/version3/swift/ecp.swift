@@ -24,58 +24,36 @@
 //
 
 
-final public class ECP {
-
-    static public let WEIERSTRASS=0
-    static public let EDWARDS=1
-    static public let MONTGOMERY=2
-    static public let NOT=0
-    static public let BN=1
-    static public let BLS=2
-    static public let D_TYPE=0
-    static public let M_TYPE=1
-    static public let POSITIVEX=0
-    static public let NEGATIVEX=1
-
-    static public let CURVETYPE = @CT@
-    static public let CURVE_PAIRING_TYPE = @PF@
-    static public let SEXTIC_TWIST = @ST@
-    static public let SIGN_OF_X = @SX@
-
-    static public let HASH_TYPE = @HT@
-    static public let AESKEY = @AK@
+public struct ECP {
 
     private var x:FP
     private var y:FP
     private var z:FP
-    //private var INF:Bool
     
    /* Constructor - set to O */
     init()
     {
         x=FP(0)
         y=FP(1)
-        if ECP.CURVETYPE==ECP.EDWARDS {
-		z=FP(1)
-	} else {
-		z=FP(0)
-	}
-    //    INF=true
+        if CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS {
+	       z=FP(1)
+	   } else {
+	       z=FP(0)
+	   }
     }
     
     /* test for O point-at-infinity */
     public func is_infinity() -> Bool
-    {
-        //if INF {return true}        
-        if (ECP.CURVETYPE==ECP.EDWARDS)
+    {  
+        if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.EDWARDS)
         {
             return x.iszilch() && y.equals(z)
         }
-        if (ECP.CURVETYPE==ECP.WEIERSTRASS)
+        if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.WEIERSTRASS)
         {
             return x.iszilch() && z.iszilch()
         }        
-        if (ECP.CURVETYPE==ECP.MONTGOMERY)     
+        if (CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY)     
         {
             return z.iszilch()
         }   
@@ -83,30 +61,19 @@ final public class ECP {
     }
  
     /* Conditional swap of P and Q dependant on d */
-    private func cswap(_ Q: ECP,_ d:Int)
+    private mutating func cswap(_ Q: inout ECP,_ d:Int)
     {
-        x.cswap(Q.x,d);
-        if ECP.CURVETYPE != ECP.MONTGOMERY {y.cswap(Q.y,d)}
-        z.cswap(Q.z,d);
-/*
-        var bd:Bool
-        if d==0 {bd=false}
-        else {bd=true}
-        bd=bd && (INF != Q.INF)
-        INF = (INF != bd)
-        Q.INF = (Q.INF != bd) */
+        x.cswap(&(Q.x),d)
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {y.cswap(&(Q.y),d)}
+        z.cswap(&(Q.z),d)
     }
     
     /* Conditional move of Q to P dependant on d */
-    private func cmove(_ Q: ECP,_ d:Int)
+    private mutating func cmove(_ Q: ECP,_ d:Int)
     {
-        x.cmove(Q.x,d);
-        if ECP.CURVETYPE != ECP.MONTGOMERY {y.cmove(Q.y,d)}
-        z.cmove(Q.z,d);
-   /*     var bd:Bool
-        if d==0 {bd=false}
-        else {bd=true}
-        INF = (INF != Q.INF) && bd; */
+        x.cmove(Q.x,d)
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {y.cmove(Q.y,d)}
+        z.cmove(Q.z,d)
     }
     
     /* return 1 if b==c, no branching */
@@ -118,21 +85,19 @@ final public class ECP {
     }
  
     /* self=P */
-    public func copy(_ P: ECP)
+    public mutating func copy(_ P: ECP)
     {
         x.copy(P.x)
-        if ECP.CURVETYPE != ECP.MONTGOMERY {y.copy(P.y)}
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {y.copy(P.y)}
         z.copy(P.z)
-    //    INF=P.INF
     }
     /* self=-self */
-    func neg() {
-    //    if is_infinity() {return}
-        if (ECP.CURVETYPE == ECP.WEIERSTRASS)
+    mutating func neg() {
+        if (CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.WEIERSTRASS)
         {
             y.neg(); y.norm();
         }
-        if (ECP.CURVETYPE == ECP.EDWARDS)
+        if (CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.EDWARDS)
         {
             x.neg(); x.norm();
         }
@@ -140,9 +105,9 @@ final public class ECP {
     }
     
     /* Constant time select from pre-computed table */
-    private func select(_ W:[ECP],_ b:Int32)
+    private mutating func select(_ W:[ECP],_ b:Int32)
     {
-        let MP=ECP()
+        var MP=ECP()
         let m=b>>31
         var babs=(b^m)-m
     
@@ -165,15 +130,12 @@ final public class ECP {
     /* Test P == Q */
     func equals(_ Q: ECP) -> Bool
     {
-    //    if (is_infinity() && Q.is_infinity()) {return true}
-    //    if (is_infinity() || Q.is_infinity()) {return false}
- 
-        let a=FP(0)
-        let b=FP(0)
+        var a=FP(0)
+        var b=FP(0)
         a.copy(x); a.mul(Q.z)
         b.copy(Q.x); b.mul(z)
         if !a.equals(b) {return false}
-        if ECP.CURVETYPE != ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY
         {
 			a.copy(y); a.mul(Q.z); 
 			b.copy(Q.y); b.mul(z); 
@@ -182,39 +144,43 @@ final public class ECP {
         return true
     }
   
+    mutating func mulx(_ w: FP)
+    {
+        x.mul(w)
+    }
+
 /* set self=O */
-    func inf()
+    mutating func inf()
     {
     //    INF=true;
         x.zero()
-        if ECP.CURVETYPE != ECP.MONTGOMERY {y.one()}
-        if ECP.CURVETYPE != ECP.EDWARDS {z.zero()}
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {y.one()}
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.EDWARDS {z.zero()}
         else {z.one()}
     }
     
     /* Calculate RHS of curve equation */
     static func RHS(_ x: FP) -> FP
     {
-        x.norm();
-        let r=FP(x);
-        r.sqr();
+        var r=FP(x)
+        r.sqr()
     
-        if ECP.CURVETYPE == ECP.WEIERSTRASS
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.WEIERSTRASS
         { // x^3+Ax+B
             let b=FP(BIG(ROM.CURVE_B))
             r.mul(x)
             if (ROM.CURVE_A == -3)
             {
-				let cx=FP(x)
+				var cx=FP(x)
 				cx.imul(3)
 				cx.neg(); cx.norm()
 				r.add(cx)
             }
             r.add(b);
         }
-        if (ECP.CURVETYPE == ECP.EDWARDS)
+        if (CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.EDWARDS)
         { // (Ax^2-1)/(Bx^2-1)
-            let b=FP(BIG(ROM.CURVE_B))
+            var b=FP(BIG(ROM.CURVE_B))
     
             let one=FP(1);
             b.mul(r);
@@ -224,9 +190,9 @@ final public class ECP {
             b.inverse()
             r.mul(b);
         }
-        if ECP.CURVETYPE == ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY
         { // x^3+Ax^2+x
-            let x3=FP(0)
+            var x3=FP(0)
             x3.copy(r);
             x3.mul(x);
             r.imul(ROM.CURVE_A);
@@ -243,16 +209,17 @@ final public class ECP {
         x=FP(ix)
         y=FP(iy)
         z=FP(1)
-    //    INF=true
+
+        x.norm()
         let rhs=ECP.RHS(x);
     
-        if ECP.CURVETYPE == ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY
         {
             if rhs.jacobi() != 1 {inf()}
         }
         else
         {
-            let y2=FP(y)
+            var y2=FP(y)
             y2.sqr()
             if !y2.equals(rhs) {inf()}
         }
@@ -262,16 +229,16 @@ final public class ECP {
     public init(_ ix: BIG,_ s:Int)
     {
         x=FP(ix)
-        let rhs=ECP.RHS(x)
+        x.norm()
+        var rhs=ECP.RHS(x)
         y=FP(0)
         z=FP(1)
-    //    INF=true
+
         if rhs.jacobi()==1
         {
-            let ny=rhs.sqrt()
+            var ny=rhs.sqrt()
             if (ny.redc().parity() != s) {ny.neg()}
             y.copy(ny)
-   //         INF=false;
         }
         else {inf()}
     }
@@ -280,19 +247,19 @@ final public class ECP {
     public init(_ ix:BIG)
     {
         x=FP(ix)
-        let rhs=ECP.RHS(x)
+        x.norm()
+        var rhs=ECP.RHS(x)
         y=FP(0)
         z=FP(1)
         if rhs.jacobi()==1
         {
-            if ECP.CURVETYPE != ECP.MONTGOMERY {y.copy(rhs.sqrt())}
-         //   INF=false;
+            if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {y.copy(rhs.sqrt())}
         }
         else {inf()}
     }
     
     /* set to affine - from (x,y,z) to (x,y) */
-    func affine()
+    mutating func affine()
     {
         if is_infinity() {return}
         let one=FP(1)
@@ -303,7 +270,7 @@ final public class ECP {
         z.inverse()
 
         x.mul(z); x.reduce()
-        if ECP.CURVETYPE != ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY
         {
             y.mul(z); y.reduce()
  
@@ -313,14 +280,14 @@ final public class ECP {
     /* extract x as a BIG */
     func getX() -> BIG
     {
-	let W=ECP(); W.copy(self)
+        var W=ECP(); W.copy(self)
         W.affine()
         return W.x.redc()
     }
     /* extract y as a BIG */
     func getY() -> BIG
     {
-	let W=ECP(); W.copy(self)
+        var W=ECP(); W.copy(self)
         W.affine();
         return W.y.redc();
     }
@@ -328,7 +295,6 @@ final public class ECP {
     /* get sign of Y */
     func getS() -> Int
     {
-        //affine()
         let y=getY()
         return y.parity()
     }
@@ -350,14 +316,14 @@ final public class ECP {
     /* convert to byte array */
     func toBytes(_ b:inout [UInt8],_ compress: Bool)
     {
-        let RM=Int(BIG.MODBYTES)
+        let RM=Int(CONFIG_BIG.MODBYTES)
         var t=[UInt8](repeating: 0,count: RM)
-	let W=ECP(); W.copy(self)
+        var W=ECP(); W.copy(self)
         W.affine()
         W.x.redc().toBytes(&t)
         for i in 0 ..< RM {b[i+1]=t[i]}
 
-        if ECP.CURVETYPE == ECP.MONTGOMERY {
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY {
 		b[0]=0x06
 		return
 	}
@@ -376,7 +342,7 @@ final public class ECP {
     /* convert from byte array to point */
     static func fromBytes(_ b: [UInt8]) -> ECP
     {
-        let RM=Int(BIG.MODBYTES)
+        let RM=Int(CONFIG_BIG.MODBYTES)
         var t=[UInt8](repeating: 0,count: RM)
         let p=BIG(ROM.Modulus);
     
@@ -384,7 +350,7 @@ final public class ECP {
         let px=BIG.fromBytes(t)
         if BIG.comp(px,p)>=0 {return ECP()}
     
-        if ECP.CURVETYPE == ECP.MONTGOMERY {
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY {
 		return ECP(px)
 	}
 
@@ -404,27 +370,26 @@ final public class ECP {
     /* convert to hex string */
     func toString() -> String
     {
-	let W=ECP(); W.copy(self)
+        var W=ECP(); W.copy(self)
         if W.is_infinity() {return "infinity"}
         W.affine();
-        if ECP.CURVETYPE==ECP.MONTGOMERY {return "("+W.x.redc().toString()+")"}
+        if CONFIG_CURVE.CURVETYPE==CONFIG_CURVE.MONTGOMERY {return "("+W.x.redc().toString()+")"}
         else {return "("+W.x.redc().toString()+","+W.y.redc().toString()+")"}
     }
     
     /* self*=2 */
-    func dbl()
+    mutating func dbl()
     {
-//        if INF {return} 
-        if (ECP.CURVETYPE == ECP.WEIERSTRASS)
+        if (CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.WEIERSTRASS)
         {
 
             if ROM.CURVE_A == 0
             {
-                let t0=FP(y)        
+                var t0=FP(y)        
                 t0.sqr()
-                let t1=FP(y)
+                var t1=FP(y)
                 t1.mul(z);
-                let t2=FP(z)
+                var t2=FP(z)
                 t2.sqr()
 
                 z.copy(t0)
@@ -432,10 +397,10 @@ final public class ECP {
                 z.add(z); z.add(z); z.norm()
                 t2.imul(3*ROM.CURVE_B_I)
 
-                let x3=FP(t2)
+                var x3=FP(t2)
                 x3.mul(z)
 
-                let y3=FP(t0)
+                var y3=FP(t0)
                 y3.add(t2); y3.norm()
                 z.mul(t1)
                 t1.copy(t2); t1.add(t2); t2.add(t1)
@@ -446,14 +411,14 @@ final public class ECP {
                 y.copy(y3); y.norm()
             }
             else {
-                let t0=FP(x)
-                let t1=FP(y)
-                let t2=FP(z)
-                let t3=FP(x)
-                let z3=FP(z)
-                let y3=FP(0)
-                let x3=FP(0)
-                let b=FP(0)
+                var t0=FP(x)
+                var t1=FP(y)
+                var t2=FP(z)
+                var t3=FP(x)
+                var z3=FP(z)
+                var y3=FP(0)
+                var x3=FP(0)
+                var b=FP(0)
 
                 if ROM.CURVE_B_I==0
                 {
@@ -477,15 +442,15 @@ final public class ECP {
                     y3.imul(ROM.CURVE_B_I)
                 }
 
-                y3.sub(z3) //y3.norm(); //9  ***
+                y3.sub(z3)  //9  ***
                 x3.copy(y3); x3.add(y3); x3.norm()//10
 
-                y3.add(x3) //y3.norm();//11
+                y3.add(x3) //11
                 x3.copy(t1); x3.sub(y3); x3.norm()//12
                 y3.add(t1); y3.norm()//13
                 y3.mul(x3) //14
                 x3.mul(t3) //15
-                t3.copy(t2); t3.add(t2) //t3.norm(); //16
+                t3.copy(t2); t3.add(t2)  //16
                 t2.add(t3) //t2.norm(); //17
 
                 if ROM.CURVE_B_I==0 {
@@ -495,21 +460,21 @@ final public class ECP {
                     z3.imul(ROM.CURVE_B_I)
                 }
 
-                z3.sub(t2) //z3.norm();//19
+                z3.sub(t2) //19
                 z3.sub(t0); z3.norm()//20  ***
-                t3.copy(z3); t3.add(z3) //t3.norm();//21
+                t3.copy(z3); t3.add(z3) //21
 
                 z3.add(t3); z3.norm() //22
-                t3.copy(t0); t3.add(t0) //t3.norm(); //23
-                t0.add(t3) //t0.norm();//24
+                t3.copy(t0); t3.add(t0)  //23
+                t0.add(t3) //24
                 t0.sub(t2); t0.norm()//25
 
                 t0.mul(z3)//26
-                y3.add(t0) //y3.norm();//27
+                y3.add(t0) //27
                 t0.copy(y); t0.mul(z)//28
                 t0.add(t0); t0.norm() //29
                 z3.mul(t0)//30
-                x3.sub(z3) //x3.norm();//31
+                x3.sub(z3) //31
                 t0.add(t0); t0.norm()//32
                 t1.add(t1); t1.norm()//33
                 z3.copy(t0); z3.mul(t1)//34
@@ -519,12 +484,12 @@ final public class ECP {
                 z.copy(z3); z.norm()                
             }
         }
-        if ECP.CURVETYPE == ECP.EDWARDS
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.EDWARDS
         {
-            let C=FP(x)
-            let D=FP(y)
-            let H=FP(z)
-            let J=FP(0)
+            var C=FP(x)
+            var D=FP(y)
+            var H=FP(z)
+            var J=FP(0)
     
             x.mul(y); x.add(x); x.norm()
             C.sqr()
@@ -540,13 +505,13 @@ final public class ECP {
             z.mul(J)
     
         }
-        if ECP.CURVETYPE == ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY
         {
-            let A=FP(x)
-            let B=FP(x);
-            let AA=FP(0);
-            let BB=FP(0);
-            let C=FP(0);
+            var A=FP(x)
+            var B=FP(x);
+            var AA=FP(0);
+            var BB=FP(0);
+            var C=FP(0);
         
             A.add(z); A.norm()
             AA.copy(A); AA.sqr()
@@ -565,30 +530,24 @@ final public class ECP {
     }
     
     /* self+=Q */
-    func add(_ Q:ECP)
+    mutating func add(_ Q:ECP)
     {
-    /*    if (INF)
-        {
-            copy(Q)
-            return
-        }
-        if Q.INF {return} */
 
-        if ECP.CURVETYPE == ECP.WEIERSTRASS
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.WEIERSTRASS
         {
 
                 if ROM.CURVE_A == 0
                 {
                     let b=3*ROM.CURVE_B_I
-                    let t0=FP(x)
+                    var t0=FP(x)
                     t0.mul(Q.x)
-                    let t1=FP(y)
+                    var t1=FP(y)
                     t1.mul(Q.y)
-                    let t2=FP(z)
+                    var t2=FP(z)
                     t2.mul(Q.z)
-                    let t3=FP(x)
+                    var t3=FP(x)
                     t3.add(y); t3.norm()
-                    let t4=FP(Q.x)
+                    var t4=FP(Q.x)
                     t4.add(Q.y); t4.norm()
                     t3.mul(t4)
                     t4.copy(t0); t4.add(t1)
@@ -596,7 +555,7 @@ final public class ECP {
                     t3.sub(t4); t3.norm()
                     t4.copy(y)
                     t4.add(z); t4.norm()
-                    let x3=FP(Q.y)
+                    var x3=FP(Q.y)
                     x3.add(Q.z); x3.norm()
 
                     t4.mul(x3)
@@ -605,7 +564,7 @@ final public class ECP {
     
                     t4.sub(x3); t4.norm()
                     x3.copy(x); x3.add(z); x3.norm()
-                    let y3=FP(Q.x)
+                    var y3=FP(Q.x)
                     y3.add(Q.z); y3.norm()
                     x3.mul(y3)
                     y3.copy(t0)
@@ -615,7 +574,7 @@ final public class ECP {
                     t0.add(x3); t0.norm()
                     t2.imul(b);
 
-                    let z3=FP(t1); z3.add(t2); z3.norm()
+                    var z3=FP(t1); z3.add(t2); z3.norm()
                     t1.sub(t2); t1.norm()
                     y3.imul(b)
     
@@ -629,15 +588,15 @@ final public class ECP {
                 } 
                 else {
 
-                    let t0=FP(x)
-                    let t1=FP(y)
-                    let t2=FP(z)
-                    let t3=FP(x)
-                    let t4=FP(Q.x)
-                    let z3=FP(0)
-                    let y3=FP(Q.x)
-                    let x3=FP(Q.y)
-                    let b=FP(0)
+                    var t0=FP(x)
+                    var t1=FP(y)
+                    var t2=FP(z)
+                    var t3=FP(x)
+                    var t4=FP(Q.x)
+                    var z3=FP(0)
+                    var y3=FP(Q.x)
+                    var x3=FP(Q.y)
+                    var b=FP(0)
 
                     if ROM.CURVE_B_I==0
                     {
@@ -651,19 +610,19 @@ final public class ECP {
                     t3.add(y); t3.norm() //4
                     t4.add(Q.y); t4.norm()//5
                     t3.mul(t4)//6
-                    t4.copy(t0); t4.add(t1) //t4.norm(); //7
+                    t4.copy(t0); t4.add(t1)  //7
                     t3.sub(t4); t3.norm() //8
                     t4.copy(y); t4.add(z); t4.norm()//9
                     x3.add(Q.z); x3.norm()//10
                     t4.mul(x3) //11
-                    x3.copy(t1); x3.add(t2) //x3.norm();//12
+                    x3.copy(t1); x3.add(t2) //12
 
                     t4.sub(x3); t4.norm()//13
                     x3.copy(x); x3.add(z); x3.norm() //14
                     y3.add(Q.z); y3.norm()//15
 
                     x3.mul(y3) //16
-                    y3.copy(t0); y3.add(t2) //y3.norm();//17
+                    y3.copy(t0); y3.add(t2) //17
 
                     y3.rsub(x3); y3.norm() //18
                     z3.copy(t2)
@@ -678,9 +637,9 @@ final public class ECP {
                     }
                 
                     x3.copy(y3); x3.sub(z3); x3.norm() //20
-                    z3.copy(x3); z3.add(x3) //z3.norm(); //21
+                    z3.copy(x3); z3.add(x3)  //21
 
-                    x3.add(z3) //x3.norm(); //22
+                    x3.add(z3)  //22
                     z3.copy(t1); z3.sub(x3); z3.norm() //23
                     x3.add(t1); x3.norm() //24
 
@@ -692,17 +651,17 @@ final public class ECP {
                         y3.imul(ROM.CURVE_B_I)
                     }
 
-                    t1.copy(t2); t1.add(t2) //t1.norm();//26
-                    t2.add(t1) //t2.norm();//27
+                    t1.copy(t2); t1.add(t2) //26
+                    t2.add(t1) //27
 
-                    y3.sub(t2) //y3.norm(); //28
+                    y3.sub(t2) //28
 
                     y3.sub(t0); y3.norm() //29
-                    t1.copy(y3); t1.add(y3) //t1.norm();//30
+                    t1.copy(y3); t1.add(y3) //30
                     y3.add(t1); y3.norm() //31
 
-                    t1.copy(t0); t1.add(t0) //t1.norm(); //32
-                    t0.add(t1) //t0.norm();//33
+                    t1.copy(t0); t1.add(t0) //32
+                    t0.add(t1) //33
                     t0.sub(t2); t0.norm()//34
                     t1.copy(t4); t1.mul(y3)//35
                     t2.copy(t0); t2.mul(y3)//36
@@ -718,16 +677,16 @@ final public class ECP {
                     z.copy(z3); z.norm()
                 }
         }
-        if ECP.CURVETYPE == ECP.EDWARDS
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.EDWARDS
         {
             let b=FP(BIG(ROM.CURVE_B))
-            let A=FP(z)
-            let B=FP(0)
-            let C=FP(x)
-            let D=FP(y)
-            let E=FP(0)
-            let F=FP(0)
-            let G=FP(0)
+            var A=FP(z)
+            var B=FP(0)
+            var C=FP(x)
+            var D=FP(y)
+            var E=FP(0)
+            var F=FP(0)
+            var G=FP(0)
     
             A.mul(Q.z)
             B.copy(A); B.sqr()
@@ -768,14 +727,14 @@ final public class ECP {
     }
     
     /* Differential Add for Montgomery curves. self+=Q where W is self-Q and is affine. */
-    func dadd(_ Q:ECP,_ W:ECP)
+    mutating func dadd(_ Q:ECP,_ W:ECP)
     {
-        let A=FP(x)
-        let B=FP(x)
-        let C=FP(Q.x)
-        let D=FP(Q.x)
-        let DA=FP(0)
-        let CB=FP(0)
+        var A=FP(x)
+        var B=FP(x)
+        var C=FP(Q.x)
+        var D=FP(Q.x)
+        var DA=FP(0)
+        var CB=FP(0)
     
         A.add(z)
         B.sub(z)
@@ -799,9 +758,9 @@ final public class ECP {
 
     }
     /* this-=Q */
-    func sub(_ Q:ECP)
+    mutating func sub(_ Q:ECP)
     {
-	let NQ=ECP(); NQ.copy(Q)
+        var NQ=ECP(); NQ.copy(Q)
         NQ.neg()
         add(NQ)
     }
@@ -809,23 +768,23 @@ final public class ECP {
     /* constant time multiply by small integer of length bts - use ladder */
     func pinmul(_ e:Int32,_ bts:Int32) -> ECP
     {
-        if ECP.CURVETYPE == ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY
             {return self.mul(BIG(Int(e)))}
         else
         {
-            let P=ECP()
-            let R0=ECP()
-            let R1=ECP(); R1.copy(self)
+            var P=ECP()
+            var R0=ECP()
+            var R1=ECP(); R1.copy(self)
     
             for i in (0...bts-1).reversed()
             {
 				let b=Int(e>>i)&1;
 				P.copy(R1);
 				P.add(R0);
-				R0.cswap(R1,b);
+				R0.cswap(&R1,b);
 				R1.copy(P);
 				R0.dbl();
-				R0.cswap(R1,b);
+				R0.cswap(&R1,b);
             }
             P.copy(R0);
             P.affine();
@@ -839,13 +798,13 @@ final public class ECP {
     {
         if (e.iszilch() || is_infinity()) {return ECP()}
     
-        let P=ECP()
-        if ECP.CURVETYPE == ECP.MONTGOMERY
+        var P=ECP()
+        if CONFIG_CURVE.CURVETYPE == CONFIG_CURVE.MONTGOMERY
         {
             /* use Ladder */
-            let D=ECP()
-            let R0=ECP(); R0.copy(self)
-            let R1=ECP(); R1.copy(self)
+            var D=ECP()
+            var R0=ECP(); R0.copy(self)
+            var R1=ECP(); R1.copy(self)
             R1.dbl();
             D.copy(self); D.affine();
             let nb=e.nbits();
@@ -853,28 +812,25 @@ final public class ECP {
             for i in (0...nb-2).reversed()
             {
 				let b=e.bit(UInt(i))
-                //print("\(b)")
 				P.copy(R1)
 				P.dadd(R0,D)
-				R0.cswap(R1,b)
+				R0.cswap(&R1,b)
 				R1.copy(P)
 				R0.dbl()
-				R0.cswap(R1,b)
+				R0.cswap(&R1,b)
             }
             P.copy(R0)
         }
         else
         {
     // fixed size windows
-            let mt=BIG()
-            let t=BIG()
-            let Q=ECP()
-            let C=ECP()
+            var mt=BIG()
+            var t=BIG()
+            var Q=ECP()
+            var C=ECP()
             var W=[ECP]()
-            let n=1+(BIG.NLEN*Int(BIG.BASEBITS)+3)/4
+            let n=1+(CONFIG_BIG.NLEN*Int(CONFIG_BIG.BASEBITS)+3)/4
             var w=[Int8](repeating: 0,count: n)
-    
-            //affine();
     
     // precompute table
             Q.copy(self)
@@ -931,18 +887,15 @@ final public class ECP {
     
     public func mul2(_ e:BIG,_ Q:ECP,_ f:BIG) -> ECP
     {
-        let te=BIG()
-        let tf=BIG()
-        let mt=BIG()
-        let S=ECP()
-        let T=ECP()
-        let C=ECP()
+        var te=BIG()
+        var tf=BIG()
+        var mt=BIG()
+        var S=ECP()
+        var T=ECP()
+        var C=ECP()
         var W=[ECP]()
-        let n=1+(BIG.NLEN*Int(BIG.BASEBITS)+1)/2
+        let n=1+(CONFIG_BIG.NLEN*Int(CONFIG_BIG.BASEBITS)+1)/2
         var w=[Int8](repeating: 0,count: n);
-        
-        //affine();
-        //Q.affine();
     
         te.copy(e);
         tf.copy(f);
@@ -1003,19 +956,17 @@ final public class ECP {
         return S;
     }
     
-   func cfp()
+   mutating func cfp()
    {
 
 	let cf=ROM.CURVE_Cof_I;
 	if cf==1 {return}
 	if cf==4 {
 		dbl(); dbl()
-		//affine()
 		return
 	} 
 	if cf==8 {
 		dbl(); dbl(); dbl()
-		//affine()
 		return;
 	}
 	let c=BIG(ROM.CURVE_Cof);
@@ -1026,12 +977,12 @@ final public class ECP {
     static func mapit(_ h:[UInt8]) -> ECP
     {
         let q=BIG(ROM.Modulus)
-        let x=BIG.fromBytes(h)
+        var x=BIG.fromBytes(h)
         x.mod(q)
-        let P=ECP()
+        var P=ECP()
         while (true) {
 		while (true) {
-			if ECP.CURVETYPE != ECP.MONTGOMERY {
+			if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY {
 				P.copy(ECP(x,0))
 			} else {
 				P.copy(ECP(x))
@@ -1050,7 +1001,7 @@ final public class ECP {
     {
         let gx=BIG(ROM.CURVE_Gx);
         var G:ECP
-        if ECP.CURVETYPE != ECP.MONTGOMERY
+        if CONFIG_CURVE.CURVETYPE != CONFIG_CURVE.MONTGOMERY
         {
             let gy=BIG(ROM.CURVE_Gy)
             G=ECP(gx,gy)

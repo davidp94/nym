@@ -21,6 +21,7 @@ under the License.
 
 package XXX
 
+//import "fmt"
 import "github.com/jstuczyn/amcl/version3/go/amcl"
 
 const RFS int = int(MODBYTES) * FFLEN

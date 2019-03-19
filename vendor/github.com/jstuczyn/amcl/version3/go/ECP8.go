@@ -21,11 +21,12 @@ under the License.
 
 package XXX
 
+//import "fmt"
+
 type ECP8 struct {
 	x *FP8
 	y *FP8
 	z *FP8
-	//	INF bool
 }
 
 func NewECP8() *ECP8 {
@@ -33,13 +34,11 @@ func NewECP8() *ECP8 {
 	E.x = NewFP8int(0)
 	E.y = NewFP8int(1)
 	E.z = NewFP8int(0)
-	//	E.INF=true
 	return E
 }
 
 /* Test this=O? */
 func (E *ECP8) Is_infinity() bool {
-	//	if E.INF {return true}
 	E.x.reduce()
 	E.y.reduce()
 	E.z.reduce()
@@ -51,12 +50,10 @@ func (E *ECP8) Copy(P *ECP8) {
 	E.x.copy(P.x)
 	E.y.copy(P.y)
 	E.z.copy(P.z)
-	//	E.INF=P.INF
 }
 
 /* set this=O */
 func (E *ECP8) inf() {
-	//	E.INF=true
 	E.x.zero()
 	E.y.one()
 	E.z.zero()
@@ -74,13 +71,6 @@ func (E *ECP8) cmove(Q *ECP8, d int) {
 	E.x.cmove(Q.x, d)
 	E.y.cmove(Q.y, d)
 	E.z.cmove(Q.z, d)
-	/*
-		var bd bool
-		if (d==0) {
-			bd=false
-		} else {bd=true}
-		E.INF=(E.INF!=((E.INF!=Q.INF)&&bd))
-	*/
 }
 
 /* Constant time select from pre-computed table */
@@ -107,8 +97,6 @@ func (E *ECP8) selector(W []*ECP8, b int32) {
 
 /* Test if P == Q */
 func (E *ECP8) Equals(Q *ECP8) bool {
-	//	if E.Is_infinity() && Q.Is_infinity() {return true}
-	//	if E.Is_infinity() || Q.Is_infinity() {return false}
 
 	a := NewFP8copy(E.x)
 	b := NewFP8copy(Q.x)
@@ -378,8 +366,7 @@ func (E *ECP8) ToString() string {
 }
 
 /* Calculate RHS of twisted curve equation x^3+B/i */
-func RHS4(x *FP8) *FP8 {
-	x.norm()
+func RHS8(x *FP8) *FP8 {
 	r := NewFP8copy(x)
 	r.sqr()
 	b2 := NewFP2big(NewBIGints(CURVE_B))
@@ -405,7 +392,8 @@ func NewECP8fp8s(ix *FP8, iy *FP8) *ECP8 {
 	E.x = NewFP8copy(ix)
 	E.y = NewFP8copy(iy)
 	E.z = NewFP8int(1)
-	rhs := RHS4(E.x)
+	E.x.norm()
+	rhs := RHS8(E.x)
 	y2 := NewFP8copy(E.y)
 	y2.sqr()
 	if !y2.Equals(rhs) {
@@ -420,10 +408,10 @@ func NewECP8fp8(ix *FP8) *ECP8 {
 	E.x = NewFP8copy(ix)
 	E.y = NewFP8int(1)
 	E.z = NewFP8int(1)
-	rhs := RHS4(E.x)
+	E.x.norm()
+	rhs := RHS8(E.x)
 	if rhs.sqrt() {
 		E.y.copy(rhs)
-		//E.INF=false;
 	} else {
 		E.inf()
 	}
@@ -432,14 +420,12 @@ func NewECP8fp8(ix *FP8) *ECP8 {
 
 /* this+=this */
 func (E *ECP8) dbl() int {
-	//	if E.INF {return -1}
-
 	iy := NewFP8copy(E.y)
 	if SEXTIC_TWIST == D_TYPE {
-		iy.times_i() //iy.norm()
+		iy.times_i()
 	}
 
-	t0 := NewFP8copy(E.y) //***** Change
+	t0 := NewFP8copy(E.y)
 	t0.sqr()
 	if SEXTIC_TWIST == D_TYPE {
 		t0.times_i()
@@ -459,7 +445,6 @@ func (E *ECP8) dbl() int {
 	t2.imul(3 * CURVE_B_I)
 	if SEXTIC_TWIST == M_TYPE {
 		t2.times_i()
-		//t2.norm()
 	}
 	x3 := NewFP8copy(t2)
 	x3.mul(E.z)
@@ -493,12 +478,6 @@ func (E *ECP8) dbl() int {
 
 /* this+=Q - return 0 for add, 1 for double, -1 for O */
 func (E *ECP8) Add(Q *ECP8) int {
-	/*	if E.INF {
-			E.Copy(Q)
-			return -1
-		}
-		if Q.INF {return -1}
-	*/
 	b := 3 * CURVE_B_I
 	t0 := NewFP8copy(E.x)
 	t0.mul(Q.x) // x.Q.x
@@ -520,7 +499,7 @@ func (E *ECP8) Add(Q *ECP8) int {
 	t3.sub(t4)
 	t3.norm()
 	if SEXTIC_TWIST == D_TYPE {
-		t3.times_i() //t3.norm()         //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
+		t3.times_i() //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
 	}
 	t4.copy(E.y)
 	t4.add(E.z)
@@ -536,7 +515,7 @@ func (E *ECP8) Add(Q *ECP8) int {
 	t4.sub(x3)
 	t4.norm()
 	if SEXTIC_TWIST == D_TYPE {
-		t4.times_i() //t4.norm()          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
+		t4.times_i() //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
 	}
 	x3.copy(E.x)
 	x3.add(E.z)
@@ -551,8 +530,8 @@ func (E *ECP8) Add(Q *ECP8) int {
 	y3.norm() // y3=(X1+Z1)(X2+Z2) - (X1.X2+Z1.Z2) = X1.Z2+X2.Z1
 
 	if SEXTIC_TWIST == D_TYPE {
-		t0.times_i() //t0.norm() // x.Q.x
-		t1.times_i() //t1.norm() // y.Q.y
+		t0.times_i() // x.Q.x
+		t1.times_i() // y.Q.y
 	}
 	x3.copy(t0)
 	x3.add(t0)
@@ -570,7 +549,6 @@ func (E *ECP8) Add(Q *ECP8) int {
 	y3.imul(b)
 	if SEXTIC_TWIST == M_TYPE {
 		y3.times_i()
-		//y3.norm()
 	}
 	x3.copy(y3)
 	x3.mul(t4)
@@ -600,7 +578,6 @@ func (E *ECP8) Sub(Q *ECP8) int {
 	NQ.Copy(Q)
 	NQ.neg()
 	D := E.Add(NQ)
-	//Q.neg()
 	return D
 }
 
@@ -637,7 +614,6 @@ func ECP8_frob_constants() [3]*FP2 {
 
 /* set this*=q, where q is Modulus, using Frobenius */
 func (E *ECP8) frob(F [3]*FP2, n int) {
-	//	if E.INF {return}
 	for i := 0; i < n; i++ {
 		E.x.frob(F[2])
 		E.x.qmul(F[0])
@@ -678,7 +654,6 @@ func (E *ECP8) mul(e *BIG) *ECP8 {
 	var W []*ECP8
 	var w [1 + (NLEN*int(BASEBITS)+3)/4]int8
 
-	//E.Affine()
 	/* precompute table */
 	Q.Copy(E)
 	Q.dbl()
@@ -861,7 +836,6 @@ func mul16(Q []*ECP8, u []*BIG) *ECP8 {
 
 	for i := 0; i < 16; i++ {
 		t = append(t, NewBIGcopy(u[i]))
-		//Q[i].Affine();
 	}
 
 	T1 = append(T1, NewECP8())
@@ -906,19 +880,15 @@ func mul16(Q []*ECP8, u []*BIG) *ECP8 {
 	// Make them odd
 	pb1 := 1 - t[0].parity()
 	t[0].inc(pb1)
-	//	t[0].norm();
 
 	pb2 := 1 - t[4].parity()
 	t[4].inc(pb2)
-	//	t[4].norm();
 
 	pb3 := 1 - t[8].parity()
 	t[8].inc(pb3)
-	//	t[8].norm();
 
 	pb4 := 1 - t[12].parity()
 	t[12].inc(pb4)
-	//	t[12].norm();
 
 	// Number of bits
 	mt.zero()

@@ -1,5 +1,5 @@
 // client.go - coconut client API
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -22,22 +22,22 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"reflect"
 	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/client/cryptoworker"
-	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
+	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	pb "0xacab.org/jstuczyn/CoconutGo/server/comm/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/server/comm/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/commands"
-	"0xacab.org/jstuczyn/CoconutGo/server/packet"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -49,11 +49,19 @@ type Client struct {
 	cfg *config.Config
 	log *logging.Logger
 
-	elGamalPrivateKey *elgamal.PrivateKey
-	elGamalPublicKey  *elgamal.PublicKey
-
+	// elGamalPrivateKey *elgamal.PrivateKey
+	// elGamalPublicKey  *elgamal.PublicKey
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
+
+	nymAccount account.Account
+	nymClient  *nymclient.Client
+}
+
+// used to share code for parsing BlindSign and GetCredential responses. They return same data but under different name
+type blindedSignatureResponse interface {
+	GetSig() *coconut.ProtoBlindedSignature
+	commands.ProtoResponse
 }
 
 const (
@@ -97,28 +105,29 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 	return sig, nil
 }
 
-func (c *Client) parseBlindSignResponse(resp *commands.BlindSignResponse) (*coconut.Signature, error) {
+// nolint: lll
+func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse, elGamalPrivateKey *elgamal.PrivateKey) (*coconut.Signature, error) {
 	if err := c.checkResponseStatus(resp); err != nil {
 		return nil, err
 	}
 	blindSig := &coconut.BlindedSignature{}
-	if err := blindSig.FromProto(resp.Sig); err != nil {
+	if err := blindSig.FromProto(resp.GetSig()); err != nil {
 		return nil, c.logAndReturnError("parseBlindSignResponse: Failed to unmarshal received signature")
 	}
-	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, c.elGamalPrivateKey), nil
+	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, elGamalPrivateKey), nil
 }
 
-func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.Message) []*utils.ServerResponseGrpc {
-	responses := make([]*utils.ServerResponseGrpc, len(c.cfg.Client.IAgRPCAddresses))
-	respCh := make(chan *utils.ServerResponseGrpc)
+func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.Message) []*comm.ServerResponseGrpc {
+	responses := make([]*comm.ServerResponseGrpc, len(c.cfg.Client.IAgRPCAddresses))
+	respCh := make(chan *comm.ServerResponseGrpc)
 	reqCh, cancelFuncs := c.sendGRPCs(respCh, dialOptions)
 
 	go func() {
 		for i := range c.cfg.Client.IAgRPCAddresses {
 			c.log.Debug("Writing request to %v", c.cfg.Client.IAgRPCAddresses[i])
-			reqCh <- &utils.ServerRequestGrpc{
+			reqCh <- &comm.ServerRequestGrpc{
 				Message: request,
-				ServerMetadata: &utils.ServerMetadata{
+				ServerMetadata: &comm.ServerMetadata{
 					Address: c.cfg.Client.IAgRPCAddresses[i],
 					ID:      c.cfg.Client.IAIDs[i],
 				},
@@ -132,7 +141,7 @@ func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.M
 }
 
 // nolint: lll
-func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponseGrpc, responses []*utils.ServerResponseGrpc, cancelFuncs []context.CancelFunc) {
+func (c *Client) waitForGrpcResponses(respCh <-chan *comm.ServerResponseGrpc, responses []*comm.ServerResponseGrpc, cancelFuncs []context.CancelFunc) {
 	i := 0
 	for {
 		select {
@@ -157,8 +166,8 @@ func (c *Client) waitForGrpcResponses(respCh <-chan *utils.ServerResponseGrpc, r
 
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
 // nolint: lll, errcheck
-func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions []grpc.DialOption) (chan<- *utils.ServerRequestGrpc, []context.CancelFunc) {
-	reqCh := make(chan *utils.ServerRequestGrpc)
+func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc, dialOptions []grpc.DialOption) (chan<- *comm.ServerRequestGrpc, []context.CancelFunc) {
+	reqCh := make(chan *comm.ServerRequestGrpc)
 
 	// there can be at most that many connections active at given time,
 	// as each goroutine can only access a single index and will overwrite its previous entry
@@ -205,9 +214,9 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 				if errgrpc != nil {
 					c.log.Errorf("Failed to obtain signature from %v, err: %v", req.ServerMetadata.Address, err)
 				} else {
-					respCh <- &utils.ServerResponseGrpc{
+					respCh <- &comm.ServerResponseGrpc{
 						Message: resp,
-						ServerMetadata: &utils.ServerMetadata{
+						ServerMetadata: &comm.ServerMetadata{
 							Address: req.ServerMetadata.Address,
 							ID:      req.ServerMetadata.ID,
 						},
@@ -219,9 +228,15 @@ func (c *Client) sendGRPCs(respCh chan<- *utils.ServerResponseGrpc, dialOptions 
 	return reqCh, cancelFuncs
 }
 
-// nolint: lll
-// currently it tries to parse everything and just ignores an invalid request, should it fail on any single invalid request?
-func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse, isThreshold bool, isBlind bool) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+// currently it tries to parse everything and just ignores an invalid request,
+// should it fail on any single invalid request?
+func (c *Client) parseSignatureServerResponses(
+	responses []*comm.ServerResponse,
+	isThreshold bool,
+	isBlind bool,
+	elGamalPrivateKey *elgamal.PrivateKey,
+) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+
 	if responses == nil {
 		return nil, nil
 	}
@@ -252,8 +267,8 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 
 			var sig *coconut.Signature
 			var err error
-			if isBlind {
-				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse))
+			if isBlind && elGamalPrivateKey != nil {
+				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse), elGamalPrivateKey)
 				if err != nil {
 					continue
 				}
@@ -280,37 +295,10 @@ func (c *Client) parseSignatureServerResponses(responses []*utils.ServerResponse
 	return sigs, nil
 }
 
-func (c *Client) handleIds(pp *coconut.PolynomialPoints) (map[int]bool, error) {
-	seenIds := make(map[string]bool)
-	entriesToRemove := make(map[int]bool)
-
-	if pp != nil {
-		for i, id := range pp.Xs() {
-			if id == nil {
-				// we ignore that entry
-				entriesToRemove[i] = true
-				continue
-			}
-			// converting it to bytes is order of magnitude quicker than converting to string with BIG.ToString
-			b := make([]byte, constants.BIGLen)
-			id.ToBytes(b)
-			s := string(b)
-			if _, ok := seenIds[s]; ok {
-				return nil, c.logAndReturnError("handleIds: Multiple responses from server with ID: %v", id.ToString())
-			}
-			seenIds[s] = true
-		}
-	} else {
-		// we assume all sigs are 'valid', but system cannot be threshold
-		if c.cfg.Client.Threshold > 0 {
-			return nil, c.logAndReturnError("handleIds: This is a threshold system, yet received no server IDs!")
-		}
-	}
-	return entriesToRemove, nil
-}
-
 // nolint: lll, gocyclo
 func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
+	// TODO: the code has very similar structure to comm.HandleVks. Can it somehow be generalised?
+
 	if len(sigs) <= 0 {
 		return nil, c.logAndReturnError("handleReceivedSignatures: No signatures provided")
 	}
@@ -319,7 +307,11 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 		return nil, c.logAndReturnError("handleReceivedSignatures: Passed pp to a non-threshold system")
 	}
 
-	entriesToRemove, err := c.handleIds(pp)
+	if c.cfg.Client.Threshold > 0 && pp == nil {
+		return nil, c.logAndReturnError("handleReceivedSignatures: nil pp in a threshold system")
+	}
+
+	entriesToRemove, err := comm.ValidateIDs(c.log, pp, c.cfg.Client.Threshold > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -442,8 +434,8 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	}
 
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -453,65 +445,15 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 		},
 		c.log,
 	)
-	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false))
+	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false, nil))
 }
 
 // nolint: lll, gocyclo
 func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
-	if vks == nil {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: No verification keys provided")
-	}
-
-	if c.cfg.Client.Threshold == 0 && pp != nil {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: Passed pp to a non-threshold system")
-	}
-
-	entriesToRemove, err := c.handleIds(pp)
+	vks, pp, err := comm.HandleVks(c.log, vks, pp, c.cfg.Client.Threshold)
 	if err != nil {
+		// error was already logged at HandleVks
 		return nil, err
-	}
-
-	betalen := -1
-	for i := range vks {
-		if !vks[i].Validate() {
-			// the entire key is invalid
-			entriesToRemove[i] = true
-		} else {
-			if betalen == -1 { // only on first run
-				betalen = len(vks[i].Beta())
-				// we don't know which subset is correct - abandon further execution
-			} else if betalen != len(vks[i].Beta()) {
-				return nil, c.logAndReturnError("handleReceivedVerificationKeys: verification keys of inconsistent lengths provided")
-			}
-		}
-	}
-
-	if len(entriesToRemove) > 0 {
-		if c.cfg.Client.Threshold > 0 {
-			newXs := make([]*Curve.BIG, 0, len(pp.Xs()))
-			for i, x := range pp.Xs() {
-				if _, ok := entriesToRemove[i]; !ok {
-					newXs = append(newXs, x)
-				}
-			}
-			pp = coconut.NewPP(newXs)
-		}
-		newVks := make([]*coconut.VerificationKey, 0, len(vks))
-		for i, vk := range vks {
-			if _, ok := entriesToRemove[i]; !ok {
-				newVks = append(newVks, vk)
-			}
-		}
-		vks = newVks
-	}
-
-	if len(vks) >= c.cfg.Client.Threshold && len(vks) > 0 {
-		if c.cfg.Client.Threshold > 0 && len(vks) != len(pp.Xs()) {
-			return nil, c.logAndReturnError("handleReceivedVerificationKeys: Inconsistent response, vks: %v, pp: %v", len(vks), len(pp.Xs()))
-		}
-		c.log.Notice("Number of verification keys received is within threshold")
-	} else {
-		return nil, c.logAndReturnError("handleReceivedVerificationKeys: Received less than threshold number of verification keys")
 	}
 
 	// we only want threshold number of them, in future randomly choose them?
@@ -557,10 +499,6 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 	vks := make([]*coconut.VerificationKey, 0, len(c.cfg.Client.IAgRPCAddresses))
 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
 
-	// works under assumption that servers specified in config file are ordered by their IDs
-	// which will in most cases be the case since they're just going to be 1,2,.., etc.
-	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
-
 	for i := range responses {
 		if responses[i] == nil {
 			c.log.Error("nil response received")
@@ -575,6 +513,10 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
 		}
 	}
+
+	// works under assumption that servers specified in config file are ordered by their IDs
+	// which will in most cases be the case since they're just going to be 1,2,.., etc.
+	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	if c.cfg.Client.Threshold > 0 {
 		return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
@@ -603,8 +545,8 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 	}
 	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -614,7 +556,7 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 		},
 		c.log,
 	)
-	vks, pp := utils.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
+	vks, pp := comm.ParseVerificationKeyResponses(responses, c.cfg.Client.Threshold > 0, c.log)
 	return c.handleReceivedVerificationKeys(vks, pp, shouldAggregate)
 }
 
@@ -651,16 +593,18 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 	grpcDialOptions := c.defaultDialOptions
 	isThreshold := c.cfg.Client.Threshold > 0
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	if !coconut.ValidateBigSlice(pubM) || !coconut.ValidateBigSlice(privM) {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: invalid slice of attributes provided")
 	}
 
-	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(elGamalPublicKey, pubM, privM)
 	if err != nil {
-		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Could not create blindSignMats: %v", err)
+		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Could not create lambda: %v", err)
 	}
 
-	blindSignRequest, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	blindSignRequest, err := commands.NewBlindSignRequest(lambda, elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributesGrpc: Failed to create BlindSign request: %v", err)
 	}
@@ -676,7 +620,7 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 			c.log.Error("nil response received")
 			continue
 		}
-		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse))
+		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.BlindSignResponse), elGamalPrivateKey)
 		if err != nil {
 			continue
 		}
@@ -702,16 +646,18 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError(gRPCClientErr)
 	}
 
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+
 	if !coconut.ValidateBigSlice(pubM) || !coconut.ValidateBigSlice(privM) {
 		return nil, c.logAndReturnError("BlindSignAttributes: invalid slice of attributes provided")
 	}
 
-	blindSignMats, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(c.elGamalPublicKey, pubM, privM)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignWrapper(elGamalPublicKey, pubM, privM)
 	if err != nil {
-		return nil, c.logAndReturnError("BlindSignAttributes: Could not create blindSignMats: %v", err)
+		return nil, c.logAndReturnError("BlindSignAttributes: Could not create lambda: %v", err)
 	}
 
-	cmd, err := commands.NewBlindSignRequest(blindSignMats, c.elGamalPublicKey, pubM)
+	cmd, err := commands.NewBlindSignRequest(lambda, elGamalPublicKey, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributes: Failed to create BlindSign request: %v", err)
 	}
@@ -723,8 +669,8 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 
 	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := utils.GetServerResponses(
-		&utils.RequestParams{
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
@@ -734,7 +680,7 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		},
 		c.log,
 	)
-	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true)
+	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
@@ -806,7 +752,7 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to set read deadline for connection: %v", sderr)
 	}
 
-	respPacket, err := utils.ReadPacketFromConn(conn)
+	respPacket, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForVerification: Received invalid response from %v: %v", addr, err)
 	}
@@ -853,12 +799,12 @@ func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG
 		}
 	}
 
-	blindShowMats, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
+	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureWrapper(vk, sig, privM)
 	if err != nil {
 		return nil, c.logAndReturnError("prepareBlindVerifyRequest: Failed when creating proofs for verification: %v", err)
 	}
 
-	blindVerifyRequest, err := commands.NewBlindVerifyRequest(blindShowMats, sig, pubM)
+	blindVerifyRequest, err := commands.NewBlindVerifyRequest(theta, sig, pubM)
 	if err != nil {
 		return nil, c.logAndReturnError("prepareBlindVerifyRequest: Failed to create BlindVerify request: %v", err)
 	}
@@ -937,11 +883,121 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v", sderr)
 	}
 
-	resp, err := utils.ReadPacketFromConn(conn)
+	resp, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", addr, err)
 	}
 	return c.parseBlindVerifyResponse(resp)
+}
+
+func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
+	blindVerifyResponse := &commands.BlindVerifyResponse{}
+	if err := proto.Unmarshal(packetResponse.Payload(), blindVerifyResponse); err != nil {
+		return false, c.logAndReturnError("parseBlindVerifyResponse: Failed to recover verification result: %v", err)
+	} else if blindVerifyResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
+		return false, c.logAndReturnError(
+			"parseBlindVerifyResponse: Received invalid response with status: %v. Error: %v",
+			blindVerifyResponse.GetStatus().Code,
+			blindVerifyResponse.GetStatus().Message,
+		)
+	}
+	return blindVerifyResponse.IsValid, nil
+}
+
+func (c *Client) prepareSpendCredentialRequest(
+	token *token.Token,
+	sig *coconut.Signature,
+	vk *coconut.VerificationKey,
+	providerAddress []byte,
+) (*commands.SpendCredentialRequest, error) {
+	var err error
+	if vk == nil {
+		if c.cfg.Client.UseGRPC {
+			vk, err = c.GetAggregateVerificationKeyGrpc()
+		} else {
+			vk, err = c.GetAggregateVerificationKey()
+		}
+		if err != nil {
+			return nil,
+				c.logAndReturnError("prepareSpendCredentialRequest: Could not obtain aggregate verification key required to create proofs for verification: %v", err)
+		}
+	}
+
+	pubM, privM := token.GetPublicAndPrivateSlices()
+	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureTumblerWrapper(vk, sig, privM, providerAddress)
+	if err != nil {
+		return nil,
+			c.logAndReturnError("prepareSpendCredentialRequest: Failed when creating proofs for verification: %v", err)
+	}
+
+	spendCredentialRequest, err := commands.NewSpendCredentialRequest(sig, pubM, theta, token.Value(), providerAddress)
+	if err != nil {
+		return nil,
+			c.logAndReturnError("prepareSpendCredentialRequest: Failed to create SpendCredential request: %v", err)
+	}
+	return spendCredentialRequest, nil
+}
+
+// SpendCredential sends a TCP request to spend an issued credential at a particular provider.
+func (c *Client) SpendCredential(
+	token *token.Token, // token on which the credential is issued; encapsulates required attributes
+	credential *coconut.Signature, // the credential to be spent
+	address string, // physical address of the merchant to which we send the request
+	providerAccountAddress []byte, // blockchain address of the merchant to which the proof will be bound
+	vk *coconut.VerificationKey, // aggregate verification key of the issuers in the system
+) (bool, error) {
+	if c.cfg.Client.UseGRPC {
+		return false, c.logAndReturnError(gRPCClientErr)
+	}
+
+	spendCredentialRequest, err := c.prepareSpendCredentialRequest(token, credential, vk, providerAccountAddress)
+	if err != nil {
+		return false, c.logAndReturnError("SpendCredential: Failed to prepare spendCredentialRequest: %v", err)
+	}
+
+	packetBytes, err := commands.CommandToMarshaledPacket(spendCredentialRequest)
+	if err != nil {
+		return false, c.logAndReturnError("Could not create data packet for blind verify command: %v", err)
+	}
+
+	c.log.Debugf("Dialing %v", address)
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Could not dial %v (%v)", address, err)
+	}
+
+	// currently will never be thrown since there is no writedeadline
+	if _, werr := conn.Write(packetBytes); werr != nil {
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to write to connection: %v", werr)
+	}
+
+	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+	if sderr != nil {
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v",
+				sderr)
+	}
+
+	resp, err := comm.ReadPacketFromConn(conn)
+	if err != nil {
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", address, err)
+	}
+
+	// TODO: parse response
+	_ = resp
+
+	return false, nil
+}
+
+// SpendCredentialGrpc sends a gRPC request to spend an issued credential at a particular provider.
+func (c *Client) SpendCredentialGrpc(token *token.Token, credential *coconut.Signature, providerAddress []byte) error {
+	if !c.cfg.Client.UseGRPC {
+		return c.logAndReturnError(nonGRPCClientErr)
+	}
+
+	return nil // not implemeneted
 }
 
 func (c *Client) logAndReturnError(fmtString string, a ...interface{}) error {
@@ -975,61 +1031,26 @@ func New(cfg *config.Config) (*Client, error) {
 	clientLog := log.GetLogger("Client")
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
-	G := bpgroup.New()
-	elGamalPrivateKey := &elgamal.PrivateKey{}
-	elGamalPublicKey := &elgamal.PublicKey{}
+	acc := account.Account{}
+	var nymClient *nymclient.Client
 
-	if cfg.Debug.RegenerateKeys || !cfg.Client.PersistentKeys {
-		clientLog.Notice("Generating new coconut-specific ElGamal keypair")
-		elGamalPrivateKey, elGamalPublicKey = elgamal.Keygen(G)
-		clientLog.Debug("Generated new keys")
-
-		if cfg.Client.PersistentKeys {
-			if err := elGamalPrivateKey.ToPEMFile(cfg.Client.PrivateKeyFile); err != nil {
-				errstr := fmt.Sprintf("Couldn't write new keys (private key) to the files: %v", err)
-				clientLog.Error(errstr)
-				return nil, errors.New(errstr)
-			}
-			if cfg.Client.PublicKeyFile != "" {
-				if err := elGamalPublicKey.ToPEMFile(cfg.Client.PublicKeyFile); err != nil {
-					errstr := fmt.Sprintf("Couldn't write new keys (public key) to the files: %v", err)
-					clientLog.Error(errstr)
-					return nil, errors.New(errstr)
-				}
-			}
-			clientLog.Notice("Written new keys to the files")
+	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
+		if err := acc.FromJSONFile(cfg.Nym.AccountKeysFile); err != nil {
+			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			clientLog.Error(errStr)
+			return nil, errors.New(errStr)
 		}
+		clientLog.Notice("Loaded Nym Blochain keys from the file.")
+
+		nymClient, err = nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			clientLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+
 	} else {
-		// we must have a private key
-		if _, err := os.Stat(cfg.Client.PrivateKeyFile); os.IsNotExist(err) {
-			errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the private key does not exist: %v", err)
-			clientLog.Error(errstr)
-			return nil, errors.New(errstr)
-		}
-
-		if err := elGamalPrivateKey.FromPEMFile(cfg.Client.PrivateKeyFile); err != nil {
-			return nil, err
-		}
-
-		if cfg.Client.PublicKeyFile != "" {
-			if _, err := os.Stat(cfg.Client.PublicKeyFile); os.IsNotExist(err) {
-				errstr := fmt.Sprintf("the config did not specify to regenerate the keys and the key file for the public key does not exist: %v", err)
-				clientLog.Error(errstr)
-				return nil, errors.New(errstr)
-			}
-			if err := elGamalPublicKey.FromPEMFile(cfg.Client.PublicKeyFile); err != nil {
-				return nil, err
-			}
-			// but it is possible to derive the public key if we recovered the private component
-		} else {
-			elGamalPublicKey = elgamal.PublicKeyFromPrivate(elGamalPrivateKey)
-		}
-
-		if !elGamalPublicKey.Gamma.Equals(Curve.G1mul(elGamalPublicKey.G, elGamalPrivateKey.D)) {
-			clientLog.Error("Couldn't Load the keys")
-			return nil, errors.New("The loaded keys were invalid. Delete the files and restart the server to regenerate them")
-		}
-		clientLog.Notice("Loaded Client's coconut-specific ElGamal keys from the files.")
+		clientLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
 
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
@@ -1044,14 +1065,14 @@ func New(cfg *config.Config) (*Client, error) {
 		cfg: cfg,
 		log: clientLog,
 
-		elGamalPrivateKey: elGamalPrivateKey,
-		elGamalPublicKey:  elGamalPublicKey,
-
 		cryptoworker: cryptoworker,
 
 		defaultDialOptions: []grpc.DialOption{
 			grpc.WithInsecure(),
 		},
+
+		nymAccount: acc,
+		nymClient:  nymClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

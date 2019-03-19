@@ -163,7 +163,7 @@ func (cw *CoconutWorker) Sign(params *MuxParams, sk *coconut.SecretKey, pubM []*
 // encryptions of the private attributes
 // and zero-knowledge proof asserting corectness of the above.
 // nolint: lll
-func (cw *CoconutWorker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.BlindSignMats, error) {
+func (cw *CoconutWorker) PrepareBlindSign(params *MuxParams, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Lambda, error) {
 	p, g1, hs, rng := params.P(), params.G1(), params.Hs(), params.G.Rng()
 
 	if len(privM) <= 0 {
@@ -213,27 +213,27 @@ func (cw *CoconutWorker) PrepareBlindSign(params *MuxParams, egPub *elgamal.Publ
 		ks[i] = encFull.K()
 	}
 
-	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma, encs, cm, ks, r, pubM, privM)
+	signerProof, err := cw.ConstructSignerProof(params, egPub.Gamma(), encs, cm, ks, r, pubM, privM)
 	if err != nil {
 		return nil, err
 	}
-	return coconut.NewBlindSignMats(cm, encs, signerProof), nil
+	return coconut.NewLambda(cm, encs, signerProof), nil
 }
 
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
-func (cw *CoconutWorker) BlindSign(params *MuxParams, sk *coconut.SecretKey, blindSignMats *coconut.BlindSignMats, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
+func (cw *CoconutWorker) BlindSign(params *MuxParams, sk *coconut.SecretKey, lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*coconut.BlindedSignature, error) {
 	p, hs := params.P(), params.Hs()
 
-	if len(blindSignMats.Enc())+len(pubM) > len(hs) {
+	if len(lambda.Enc())+len(pubM) > len(hs) {
 		return nil, coconut.ErrBlindSignParams
 	}
-	if !cw.VerifySignerProof(params, egPub.Gamma, blindSignMats) {
+	if !cw.VerifySignerProof(params, egPub.Gamma(), lambda) {
 		return nil, coconut.ErrBlindSignProof
 	}
 
 	b := make([]byte, constants.ECPLen)
-	blindSignMats.Cm().ToBytes(b, true)
+	lambda.Cm().ToBytes(b, true)
 
 	h, err := utils.HashBytesToG1(amcl.SHA512, b)
 	if err != nil {
@@ -244,32 +244,32 @@ func (cw *CoconutWorker) BlindSign(params *MuxParams, sk *coconut.SecretKey, bli
 	t2 := Curve.NewECP()
 	t3 := Curve.NewECP()
 
-	t2Ch := make(chan interface{}, len(blindSignMats.Enc()))
-	t3Ch := make(chan interface{}, 1+len(blindSignMats.Enc())+len(pubM))
+	t2Ch := make(chan interface{}, len(lambda.Enc()))
+	t3Ch := make(chan interface{}, 1+len(lambda.Enc())+len(pubM))
 
-	j := len(blindSignMats.Enc())
+	j := len(lambda.Enc())
 	for i := range pubM {
 		t1[i] = Curve.Modmul(pubM[i], sk.Y()[j+i], p) // pubM[i] * y[j + i]
 	}
 
-	for i := range blindSignMats.Enc() {
-		cw.jobQueue <- jobpacket.MakeG1MulPacket(t2Ch, blindSignMats.Enc()[i].C1(), sk.Y()[i]) // g1 ^ (k * yi)
+	for i := range lambda.Enc() {
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(t2Ch, lambda.Enc()[i].C1(), sk.Y()[i]) // g1 ^ (k * yi)
 	}
 
 	cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, sk.X())
-	for i := range blindSignMats.Enc() {
-		cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, blindSignMats.Enc()[i].C2(), sk.Y()[i]) // privs
+	for i := range lambda.Enc() {
+		cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, lambda.Enc()[i].C2(), sk.Y()[i]) // privs
 	}
 	for i := range t1 {
 		cw.jobQueue <- jobpacket.MakeG1MulPacket(t3Ch, h, t1[i]) // pubs
 	}
 
-	for range blindSignMats.Enc() {
+	for range lambda.Enc() {
 		t2Res := <-t2Ch
 		t2.Add(t2Res.(*Curve.ECP))
 	}
 
-	for i := 0; i < 1+len(blindSignMats.Enc())+len(pubM); i++ {
+	for i := 0; i < 1+len(lambda.Enc())+len(pubM); i++ {
 		t3Res := <-t3Ch
 		t3.Add(t3Res.(*Curve.ECP))
 	}
@@ -433,20 +433,14 @@ func (cw *CoconutWorker) AggregateSignatures(params *MuxParams, sigs []*coconut.
 	return coconut.NewSignature(sigs[0].Sig1(), sig2)
 }
 
-// ShowBlindSignature builds cryptographic material required for blind verification.
-// It returns kappa and nu - group elements needed to perform verification
-// and zero-knowledge proof asserting corectness of the above.
+// ConstructKappaNu creates Kappa and Nu based on values in the signature
+// to allow for proofs with different application-specific predicates
+// by not tying it to Show protocol
 // nolint: lll
-func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.BlindShowMats, error) {
-	p, rng := params.P(), params.G.Rng()
-
+func (cw *CoconutWorker) ConstructKappaNu(vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*Curve.ECP2, *Curve.ECP, error) {
 	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.Beta()) || !sig.Validate() || !coconut.ValidateBigSlice(privM) {
-		return nil, coconut.ErrShowBlindAttr
+		return nil, nil, coconut.ErrShowBlindAttr
 	}
-
-	params.Lock()
-	t := Curve.Randomnum(p, rng)
-	params.Unlock()
 
 	kappaCh := make(chan interface{}, len(privM)+1)
 	cw.jobQueue <- jobpacket.MakeG2MulPacket(kappaCh, vk.G2(), t)
@@ -468,23 +462,41 @@ func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.Verif
 	nuRes := <-nuCh
 	nu := nuRes.(*Curve.ECP)
 
+	return kappa, nu, nil
+}
+
+// ShowBlindSignature builds cryptographic material required for blind verification.
+// It returns kappa and nu - group elements needed to perform verification
+// and zero-knowledge proof asserting corectness of the above.
+// nolint: lll
+func (cw *CoconutWorker) ShowBlindSignature(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG) (*coconut.Theta, error) {
+	p, rng := params.P(), params.G.Rng()
+	params.Lock()
+	t := Curve.Randomnum(p, rng)
+	params.Unlock()
+
+	kappa, nu, err := cw.ConstructKappaNu(vk, sig, privM, t)
+	if err != nil {
+		return nil, err
+	}
+
 	verifierProof, err := cw.ConstructVerifierProof(params, vk, sig, privM, t)
 	if err != nil {
 		return nil, err
 	}
 
-	return coconut.NewBlindShowMats(kappa, nu, verifierProof), nil
+	return coconut.NewTheta(kappa, nu, verifierProof), nil
 }
 
 // BlindVerify verifies the Coconut credential on the private and optional public attributes.
 // nolint: lll
-func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, blindShowMats *coconut.BlindShowMats, pubM []*Curve.BIG) bool {
-	privateLen := len(blindShowMats.Proof().Rm())
-	if len(pubM)+privateLen > len(vk.Beta()) || !cw.VerifyVerifierProof(params, vk, sig, blindShowMats) {
+func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta, pubM []*Curve.BIG) bool {
+	privateLen := len(theta.Proof().Rm())
+	if len(pubM)+privateLen > len(vk.Beta()) || !cw.VerifyVerifierProof(params, vk, sig, theta) {
 		return false
 	}
 
-	if sig == nil || sig.Sig1() == nil || sig.Sig2() == nil {
+	if !sig.Validate() {
 		return false
 	}
 
@@ -492,7 +504,7 @@ func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.Verification
 	// the other one depends on resolution of aggr
 	t1 := Curve.NewECP()
 	t1.Copy(sig.Sig2())
-	t1.Add(blindShowMats.Nu())
+	t1.Add(theta.Nu())
 
 	outChPair := make(chan interface{}, 2)
 	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, t1, vk.G2())
@@ -510,7 +522,7 @@ func (cw *CoconutWorker) BlindVerify(params *MuxParams, vk *coconut.Verification
 	}
 
 	t2 := Curve.NewECP2()
-	t2.Copy(blindShowMats.Kappa())
+	t2.Copy(theta.Kappa())
 	t2.Add(aggr)
 
 	cw.jobQueue <- jobpacket.MakePairingPacket(outChPair, sig.Sig1(), t2)

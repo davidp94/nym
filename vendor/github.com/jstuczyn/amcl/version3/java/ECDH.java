@@ -31,18 +31,8 @@ public final class ECDH {
 	public static final int INVALID_PUBLIC_KEY=-2;
 	public static final int ERROR=-3;
 	public static final int INVALID=-4;
-	public static final int EFS=BIG.MODBYTES;
-	public static final int EGS=BIG.MODBYTES;
-//	public static final int EAS=16;
-//	public static final int EBS=16;
-
-//	public static final int SHA256=32;
-//	public static final int SHA384=48;
-//	public static final int SHA512=64;
-
-
-//	public static final int HASH_TYPE=SHA512;
-
+	public static final int EFS=CONFIG_BIG.MODBYTES;
+	public static final int EGS=CONFIG_BIG.MODBYTES;
 
 /* Convert Integer to n-byte array */
 	public static byte[] inttoBytes(int n,int len)
@@ -65,21 +55,21 @@ public final class ECDH {
 	{
 		byte[] R=null;
 
-		if (sha==ECP.SHA256)
+		if (sha==CONFIG_CURVE.SHA256)
 		{
 			HASH256 H=new HASH256();
 			H.process_array(A); if (n>0) H.process_num(n);
 			if (B!=null) H.process_array(B);
 			R=H.hash();
 		}
-		if (sha==ECP.SHA384)
+		if (sha==CONFIG_CURVE.SHA384)
 		{
 			HASH384 H=new HASH384();
 			H.process_array(A); if (n>0) H.process_num(n);
 			if (B!=null) H.process_array(B);
 			R=H.hash();
 		}
-		if (sha==ECP.SHA512)
+		if (sha==CONFIG_CURVE.SHA512)
 		{
 			HASH512 H=new HASH512();
 			H.process_array(A); if (n>0) H.process_num(n);
@@ -99,9 +89,6 @@ public final class ECDH {
 		{
 			for (int i=0;i<sha;i++) W[i+pad-sha]=R[i];
             for (int i=0;i<pad-sha;i++) W[i]=0;
- 
-			//for (int i=0;i<sha;i++) W[i]=R[i];
-			//for (int i=sha;i<pad;i++) W[i]=0;
 		}
 		return W;
 	}
@@ -199,8 +186,7 @@ public final class ECDH {
 		byte[] K0=new byte[b];
 		int olen=tag.length;
 
-		//b=K0.length;
-		if (olen<4 /*|| olen>sha*/) return 0;
+		if (olen<4) return 0;
 
 		for (int i=0;i<b;i++) K0[i]=0;
 
@@ -327,7 +313,6 @@ public final class ECDH {
 		BIG r,s;
 		ECP G,WP;
 		int res=0;
-	//	byte[] T=new byte[EFS];
 
 		G=ECP.generator();
 
@@ -343,10 +328,6 @@ public final class ECDH {
 			s=BIG.randomnum(r,RNG);
 		}
 
-		//if (ROM.AES_S>0)
-		//{
-		//	s.mod2m(2*ROM.AES_S);
-		//}
 		s.toBytes(S);
 
 		WP=G.mul(s);
@@ -423,7 +404,7 @@ public final class ECDH {
 		byte[] T=new byte[EFS];
 		BIG r,s,f,c,d,u,vx,w;
 		ECP G,V;
-		byte[] B=hashit(sha,F,0,null,BIG.MODBYTES);
+		byte[] B=hashit(sha,F,0,null,CONFIG_BIG.MODBYTES);
 
 		G=ECP.generator();
 		r=new BIG(ROM.CURVE_Order);
@@ -438,10 +419,7 @@ public final class ECDH {
 		do {
 			u=BIG.randomnum(r,RNG);
 			w=BIG.randomnum(r,RNG); /* side channel masking */
-			//if (ROM.AES_S>0)
-			//{
-			//	u.mod2m(2*ROM.AES_S);
-			//}			
+
 			V.copy(G);
 			V=V.mul(u);   		
 			vx=V.getX();
@@ -475,7 +453,7 @@ public final class ECDH {
 		ECP G,WP,P;
 		int valid; 
 
-		byte[] B=hashit(sha,F,0,null,BIG.MODBYTES);
+		byte[] B=hashit(sha,F,0,null,CONFIG_BIG.MODBYTES);
 
 		G=ECP.generator();
 		r=new BIG(ROM.CURVE_Order);
@@ -520,8 +498,8 @@ public final class ECDH {
 
 		byte[] Z=new byte[EFS];
 		byte[] VZ=new byte[3*EFS+1];
-		byte[] K1=new byte[ECP.AESKEY];
-		byte[] K2=new byte[ECP.AESKEY];
+		byte[] K1=new byte[CONFIG_CURVE.AESKEY];
+		byte[] K2=new byte[CONFIG_CURVE.AESKEY];
 		byte[] U=new byte[EGS];
 
 		if (KEY_PAIR_GENERATE(RNG,U,V)!=0) return new byte[0];  
@@ -531,9 +509,9 @@ public final class ECDH {
 		for (i=0;i<EFS;i++) VZ[2*EFS+1+i]=Z[i];
 
 
-		byte[] K=KDF2(sha,VZ,P1,2*ECP.AESKEY);
+		byte[] K=KDF2(sha,VZ,P1,2*CONFIG_CURVE.AESKEY);
 
-		for (i=0;i<ECP.AESKEY;i++) {K1[i]=K[i]; K2[i]=K[ECP.AESKEY+i];} 
+		for (i=0;i<CONFIG_CURVE.AESKEY;i++) {K1[i]=K[i]; K2[i]=K[CONFIG_CURVE.AESKEY+i];} 
 
 		byte[] C=AES_CBC_IV0_ENCRYPT(K1,M);
 
@@ -569,8 +547,8 @@ public final class ECDH {
 
 		byte[] Z=new byte[EFS];
 		byte[] VZ=new byte[3*EFS+1];
-		byte[] K1=new byte[ECP.AESKEY];
-		byte[] K2=new byte[ECP.AESKEY];
+		byte[] K1=new byte[CONFIG_CURVE.AESKEY];
+		byte[] K2=new byte[CONFIG_CURVE.AESKEY];
 		byte[] TAG=new byte[T.length];
 
 		if (SVDP_DH(U,V,Z)!=0) return new byte[0];  
@@ -578,9 +556,9 @@ public final class ECDH {
 		for (i=0;i<2*EFS+1;i++) VZ[i]=V[i];
 		for (i=0;i<EFS;i++) VZ[2*EFS+1+i]=Z[i];
 
-		byte[] K=KDF2(sha,VZ,P1,2*ECP.AESKEY);
+		byte[] K=KDF2(sha,VZ,P1,2*CONFIG_CURVE.AESKEY);
 
-		for (i=0;i<ECP.AESKEY;i++) {K1[i]=K[i]; K2[i]=K[ECP.AESKEY+i];} 
+		for (i=0;i<CONFIG_CURVE.AESKEY;i++) {K1[i]=K[i]; K2[i]=K[CONFIG_CURVE.AESKEY+i];} 
 
 		byte[] M=AES_CBC_IV0_DECRYPT(K1,C); 
 
@@ -597,10 +575,6 @@ public final class ECDH {
 		HMAC(sha,AC,K2,TAG);
 
 		if (!ncomp(T,TAG,T.length)) return new byte[0];
-		
-//		boolean same=true;
-//		for (i=0;i<T.length;i++) if (T[i]!=TAG[i]) same=false;
-//		if (!same) return new byte[0];
 	
 		return M;
 

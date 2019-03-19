@@ -1,4 +1,10 @@
 
+NEW: 7/10/2018 classes replaced with structs, which are *much* faster (~50%).
+Who knew? Unfortunately Swift performance (as of 4.2) continues to be 
+crucified by its lack of support for short fixed length arrays allocated 
+from the stack. Instead they are allocated as variable length from the heap, 
+so the code spends more time doing garbage collection than doing crypto.
+
 Each supported primitive is implemented inside of its own swift namespace. 
 
 So for example to support both ed25519 and the NIST P256 curves, one
@@ -29,9 +35,16 @@ example program provided). Select 0 to exit.
 
 Then execute
 
-swift -I. -L. -led25519 -lnist256 -lgoldilocks -lbn254 -lbls383 -lbls24 -lbls48 -lrsa2048 TestALL.swift 
+swift -I. -L. -lamcl -led25519 -lnist256 -lgoldilocks -lbn254 -lbls383 -lbls24 -lbls48 -lrsa2048 TestALL.swift 
 
 and
 
-swift -I. -L. -led25519 -lnist256 -lgoldilocks -lbn254 -lbls383 -lbls24 -lbls48 -lrsa2048 BenchtestALL.swift 
+swift -I. -L. -lamcl -lbn254 -lbls383 -lbls24 -lbls48 TestBLS.swift 
 
+and 
+
+swift -I. -L. -lamcl -led25519 -lnist256 -lgoldilocks -lbn254 -lbls383 -lbls24 -lbls48 -lrsa2048 BenchtestALL.swift 
+
+Also
+
+swift -I. -L. -lamcl TestNHS.swift

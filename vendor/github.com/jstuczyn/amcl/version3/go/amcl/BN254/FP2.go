@@ -23,6 +23,8 @@ under the License.
 
 package BN254
 
+//import "fmt"
+
 type FP2 struct {
 	a *FP
 	b *FP
@@ -85,7 +87,6 @@ func (F *FP2) norm() {
 
 /* test this=0 ? */
 func (F *FP2) iszilch() bool {
-	//F.reduce()
 	return (F.a.iszilch() && F.b.iszilch())
 }
 
@@ -135,13 +136,11 @@ func (F *FP2) one() {
 
 /* negate this mod Modulus */
 func (F *FP2) neg() {
-	//	F.norm()
 	m := NewFPcopy(F.a)
 	t := NewFPint(0)
 
 	m.add(F.b)
 	m.neg()
-	//	m.norm()
 	t.copy(m)
 	t.add(F.b)
 	F.b.copy(m)
@@ -191,8 +190,6 @@ func (F *FP2) sqr() {
 	w1 := NewFPcopy(F.a)
 	w3 := NewFPcopy(F.a)
 	mb := NewFPcopy(F.b)
-
-	//	w3.mul(F.b)
 	w1.add(F.b)
 
 	w3.add(F.a)
@@ -206,9 +203,6 @@ func (F *FP2) sqr() {
 	F.a.norm()
 
 	F.a.mul(w1)
-	//	F.b.copy(w3); F.b.add(w3)
-
-	//	F.b.norm()
 }
 
 /* this*=y */
@@ -323,7 +317,6 @@ func (F *FP2) div2() {
 
 /* this*=sqrt(-1) */
 func (F *FP2) times_i() {
-	//	a.norm();
 	z := NewFPcopy(F.a)
 	F.a.copy(F.b)
 	F.a.neg()
@@ -333,14 +326,12 @@ func (F *FP2) times_i() {
 /* w*=(1+sqrt(-1)) */
 /* where X*2-(1+sqrt(-1)) is irreducible for FP4, assumes p=3 mod 8 */
 func (F *FP2) mul_ip() {
-	//	F.norm()
 	t := NewFP2copy(F)
 	z := NewFPcopy(F.a)
 	F.a.copy(F.b)
 	F.a.neg()
 	F.b.copy(z)
 	F.add(t)
-	//	F.norm()
 }
 
 func (F *FP2) div_ip2() {

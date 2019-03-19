@@ -5,7 +5,6 @@
 package webdav
 
 import (
-	"context"
 	"encoding/xml"
 	"fmt"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"testing"
+
+	"golang.org/x/net/context"
 )
 
 func TestMemPS(t *testing.T) {

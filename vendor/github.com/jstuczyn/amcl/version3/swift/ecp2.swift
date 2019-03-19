@@ -25,16 +25,14 @@
 
 /* AMCL Weierstrass elliptic curve functions over FP2 */
 
-final public class ECP2 {
+public struct ECP2 {
     private var x:FP2
     private var y:FP2
     private var z:FP2
- //   private var INF:Bool
     
     /* Constructor - set self=O */
     init()
     {
-    //    INF=true
         x=FP2(0)
         y=FP2(1)
         z=FP2(0)
@@ -42,35 +40,27 @@ final public class ECP2 {
     /* Test self=O? */
     public func is_infinity() -> Bool
     {
-    //    if INF {return true}
         return x.iszilch() && z.iszilch()
     }
     /* copy self=P */
-    public func copy(_ P:ECP2)
+    mutating public func copy(_ P:ECP2)
     {
         x.copy(P.x)
         y.copy(P.y)
         z.copy(P.z)
-    //    INF=P.INF
     }
     /* set self=O */
-    func inf() {
-    //    INF=true
+    mutating func inf() {
         x.zero()
         y.one()
         z.zero()
     }
     /* Conditional move of Q to P dependant on d */
-    func cmove(_ Q:ECP2,_ d:Int)
+    mutating func cmove(_ Q:ECP2,_ d:Int)
     {
         x.cmove(Q.x,d);
         y.cmove(Q.y,d);
         z.cmove(Q.z,d);
-    /*
-        var bd:Bool
-        if d==0 {bd=false}
-        else {bd=true}
-        INF = (INF != ((INF != Q.INF) && bd)) */
     }
     
     /* return 1 if b==c, no branching */
@@ -81,9 +71,9 @@ final public class ECP2 {
         return Int((x>>31)&1)
     }
     /* Constant time select from pre-computed table */
-    func select(_ W:[ECP2],_ b:Int32)
+    mutating func select(_ W:[ECP2],_ b:Int32)
     {
-        let MP=ECP2()
+        var MP=ECP2()
         let m=b>>31
         var babs=(b^m)-m
         
@@ -106,11 +96,9 @@ final public class ECP2 {
     /* Test if P == Q */
     func equals(_ Q:ECP2) -> Bool
     {
-    //    if is_infinity() && Q.is_infinity() {return true}
-    //    if is_infinity() || Q.is_infinity() {return false}
     
-        let a=FP2(x)                            // *****
-        let b=FP2(Q.x)
+        var a=FP2(x)  
+        var b=FP2(Q.x)
         a.mul(Q.z); b.mul(z) 
         if !a.equals(b) {return false}
         a.copy(y); a.mul(Q.z)
@@ -120,14 +108,13 @@ final public class ECP2 {
         return true;
     }
     /* set self=-self */
-    func neg()
+    mutating func neg()
     {
-    //    if is_infinity() {return}
         y.norm(); y.neg(); y.norm()
         return
     }
     /* set to Affine - (x,y,z) to (x,y) */
-    func affine() {
+    mutating func affine() {
         if is_infinity() {return}
         let one=FP2(1)
         if z.equals(one) {
@@ -143,14 +130,14 @@ final public class ECP2 {
     /* extract affine x as FP2 */
     func getX() -> FP2
     {
-	let W=ECP2(); W.copy(self)
+        var W=ECP2(); W.copy(self)
         W.affine()
         return W.x
     }
     /* extract affine y as FP2 */
     func getY() -> FP2
     {
-	let W=ECP2(); W.copy(self)
+        var W=ECP2(); W.copy(self)
         W.affine()
         return W.y
     }
@@ -172,9 +159,9 @@ final public class ECP2 {
     /* convert to byte array */
     func toBytes(_ b:inout [UInt8])
     {
-        let RM=Int(BIG.MODBYTES)
+        let RM=Int(CONFIG_BIG.MODBYTES)
         var t=[UInt8](repeating: 0,count: RM)
-	let W=ECP2(); W.copy(self)
+        var W=ECP2(); W.copy(self)
 
         W.affine();
         W.x.getA().toBytes(&t)
@@ -194,7 +181,7 @@ final public class ECP2 {
     /* convert from byte array to point */
     static func fromBytes(_ b:[UInt8]) -> ECP2
     {
-        let RM=Int(BIG.MODBYTES)
+        let RM=Int(CONFIG_BIG.MODBYTES)
         var t=[UInt8](repeating: 0,count: RM)
 
     
@@ -215,7 +202,7 @@ final public class ECP2 {
 /* convert self to hex string */
     func toString() -> String
     {
-	let W=ECP2(); W.copy(self)
+        var W=ECP2(); W.copy(self)
         if W.is_infinity() {return "infinity"}
         W.affine()
         return "("+W.x.toString()+","+W.y.toString()+")"
@@ -224,14 +211,13 @@ final public class ECP2 {
 /* Calculate RHS of twisted curve equation x^3+B/i */
     static func RHS(_ x:FP2) -> FP2
     {
-        x.norm()
-        let r=FP2(x)
+        var r=FP2(x)
         r.sqr()
-        let b=FP2(BIG(ROM.CURVE_B))
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {
+        var b=FP2(BIG(ROM.CURVE_B))
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {
             b.div_ip()
         }
-        if ECP.SEXTIC_TWIST == ECP.M_TYPE {
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE {
             b.norm()
             b.mul_ip()
             b.norm()
@@ -248,8 +234,9 @@ final public class ECP2 {
         x=FP2(ix)
         y=FP2(iy)
         z=FP2(1)
+        x.norm()
         let rhs=ECP2.RHS(x)
-        let y2=FP2(y)
+        var y2=FP2(y)
         y2.sqr()
         if !y2.equals(rhs) {inf()}
     }
@@ -259,38 +246,37 @@ final public class ECP2 {
         x=FP2(ix)
         y=FP2(1)
         z=FP2(1)
-        let rhs=ECP2.RHS(x)
+        x.norm()
+        var rhs=ECP2.RHS(x)
         if rhs.sqrt()
         {
             y.copy(rhs);
-        //    INF=false;
         }
         else {inf()}
     }
     
     /* this+=this */
-    @discardableResult func dbl() -> Int
+    @discardableResult mutating func dbl() -> Int
     {
-    //    if (INF) {return -1}
         if y.iszilch()
         {
             inf();
             return -1;
         }
     
-        let iy=FP2(y)
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {       
+        var iy=FP2(y)
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {       
             iy.mul_ip(); iy.norm()
         }
 
-        let t0=FP2(y) 
+        var t0=FP2(y) 
         t0.sqr();
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {           
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {           
             t0.mul_ip() 
         }  
-        let t1=FP2(iy)  
+        var t1=FP2(iy)  
         t1.mul(z)
-        let t2=FP2(z)
+        var t2=FP2(z)
         t2.sqr()
 
         z.copy(t0)
@@ -300,14 +286,14 @@ final public class ECP2 {
         z.norm()  
 
         t2.imul(3*ROM.CURVE_B_I) 
-        if ECP.SEXTIC_TWIST == ECP.M_TYPE {
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE {
             t2.mul_ip()
             t2.norm()   
         }
-        let x3=FP2(t2)
+        var x3=FP2(t2)
         x3.mul(z) 
 
-        let y3=FP2(t0)   
+        var y3=FP2(t0)   
 
         y3.add(t2); y3.norm()
         z.mul(t1)
@@ -322,37 +308,31 @@ final public class ECP2 {
         return 1
     }
 /* this+=Q - return 0 for add, 1 for double, -1 for O */
-    @discardableResult func add(_ Q:ECP2) -> Int
+    @discardableResult mutating func add(_ Q:ECP2) -> Int
     {
-    /*    if INF
-        {
-            copy(Q)
-            return -1
-        }
-        if Q.INF {return -1} */
 
         let b=3*ROM.CURVE_B_I
-        let t0=FP2(x)
+        var t0=FP2(x)
         t0.mul(Q.x)         // x.Q.x
-        let t1=FP2(y)
+        var t1=FP2(y)
         t1.mul(Q.y)         // y.Q.y
 
-        let t2=FP2(z)
+        var t2=FP2(z)
         t2.mul(Q.z)
-        let t3=FP2(x)
+        var t3=FP2(x)
         t3.add(y); t3.norm()          //t3=X1+Y1
-        let t4=FP2(Q.x)            
+        var t4=FP2(Q.x)            
         t4.add(Q.y); t4.norm()         //t4=X2+Y2
         t3.mul(t4)                     //t3=(X1+Y1)(X2+Y2)
         t4.copy(t0); t4.add(t1)        //t4=X1.X2+Y1.Y2
 
         t3.sub(t4); t3.norm(); 
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {
             t3.mul_ip();  t3.norm()         //t3=(X1+Y1)(X2+Y2)-(X1.X2+Y1.Y2) = X1.Y2+X2.Y1
         }
         t4.copy(y)                    
         t4.add(z); t4.norm()           //t4=Y1+Z1
-        let x3=FP2(Q.y)
+        var x3=FP2(Q.y)
         x3.add(Q.z); x3.norm()         //x3=Y2+Z2
 
         t4.mul(x3)                     //t4=(Y1+Z1)(Y2+Z2)
@@ -360,30 +340,30 @@ final public class ECP2 {
         x3.add(t2)                     //X3=Y1.Y2+Z1.Z2
     
         t4.sub(x3); t4.norm(); 
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {  
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {  
             t4.mul_ip(); t4.norm()          //t4=(Y1+Z1)(Y2+Z2) - (Y1.Y2+Z1.Z2) = Y1.Z2+Y2.Z1
         }
         x3.copy(x); x3.add(z); x3.norm()   // x3=X1+Z1
-        let y3=FP2(Q.x)                
+        var y3=FP2(Q.x)                
         y3.add(Q.z); y3.norm()             // y3=X2+Z2
         x3.mul(y3)                         // x3=(X1+Z1)(X2+Z2)
         y3.copy(t0)
         y3.add(t2)                         // y3=X1.X2+Z1+Z2
         y3.rsub(x3); y3.norm()             // y3=(X1+Z1)(X2+Z2) - (X1.X2+Z1.Z2) = X1.Z2+X2.Z1
-        if ECP.SEXTIC_TWIST == ECP.D_TYPE {  
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.D_TYPE {  
             t0.mul_ip(); t0.norm() // x.Q.x
             t1.mul_ip(); t1.norm() // y.Q.y
         }
         x3.copy(t0); x3.add(t0) 
         t0.add(x3); t0.norm()
         t2.imul(b)
-        if ECP.SEXTIC_TWIST == ECP.M_TYPE {
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE {
             t2.mul_ip(); t2.norm()
         }  
-        let z3=FP2(t1); z3.add(t2); z3.norm()
+        var z3=FP2(t1); z3.add(t2); z3.norm()
         t1.sub(t2); t1.norm()
         y3.imul(b)
-        if ECP.SEXTIC_TWIST == ECP.M_TYPE {          
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE {          
             y3.mul_ip()
             y3.norm()
         }
@@ -399,19 +379,17 @@ final public class ECP2 {
     }
 
     /* set self-=Q */
-    @discardableResult func sub(_ Q:ECP2) -> Int
+    @discardableResult mutating func sub(_ Q:ECP2) -> Int
     {
- 	let NQ=ECP2(); NQ.copy(Q)
+        var NQ=ECP2(); NQ.copy(Q)
         NQ.neg()
         let D=add(NQ)
-        //Q.neg()
         return D
     }
 /* set self*=q, where q is Modulus, using Frobenius */
-    func frob(_ X:FP2)
+    mutating func frob(_ X:FP2)
     {
-    //    if INF {return}
-        let X2=FP2(X)
+        var X2=FP2(X)
         X2.sqr()
         x.conj()
         y.conj()
@@ -426,20 +404,18 @@ final public class ECP2 {
     func mul(_ e:BIG) -> ECP2
     {
     /* fixed size windows */
-        let mt=BIG()
-        let t=BIG()
-        let P=ECP2()
-        let Q=ECP2()
-        let C=ECP2()
+        var mt=BIG()
+        var t=BIG()
+        var P=ECP2()
+        var Q=ECP2()
+        var C=ECP2()
         
         var W=[ECP2]();
         for _ in 0 ..< 8 {W.append(ECP2())}
         
-        var w=[Int8](repeating: 0,count: 1+(BIG.NLEN*Int(BIG.BASEBITS)+3)/4)
+        var w=[Int8](repeating: 0,count: 1+(CONFIG_BIG.NLEN*Int(CONFIG_BIG.BASEBITS)+3)/4)
     
         if is_infinity() {return ECP2()}
-    
-        //affine()
     
     /* precompute table */
         Q.copy(self)
@@ -472,7 +448,6 @@ final public class ECP2 {
     
         P.copy(W[Int(w[nb]-1)/2])
         for i in (0...nb-1).reversed()
-        //for var i=nb-1;i>=0;i--
         {
             Q.select(W,Int32(w[i]))
             P.dbl()
@@ -493,23 +468,22 @@ final public class ECP2 {
 
     static func mul4(_ Q:[ECP2],_ u:[BIG]) -> ECP2
     {
-        let W=ECP2()
-        let P=ECP2()
+        var W=ECP2()
+        var P=ECP2()
         
         var T=[ECP2]();
         for _ in 0 ..< 8 {T.append(ECP2())}
     
-        let mt=BIG()
+        var mt=BIG()
         var t=[BIG]()
     
-        var w=[Int8](repeating: 0,count: BIG.NLEN*Int(BIG.BASEBITS)+1)
-        var s=[Int8](repeating: 0,count: BIG.NLEN*Int(BIG.BASEBITS)+1)
+        var w=[Int8](repeating: 0,count: CONFIG_BIG.NLEN*Int(CONFIG_BIG.BASEBITS)+1)
+        var s=[Int8](repeating: 0,count: CONFIG_BIG.NLEN*Int(CONFIG_BIG.BASEBITS)+1)
     
         for i in 0 ..< 4
         {
             t.append(BIG(u[i]))
             t[i].norm()
-            //Q[i].affine()
         }
 
     // precompute table 
@@ -573,94 +547,6 @@ final public class ECP2 {
         return P
     }
 
-    /* P=u0.Q0+u1*Q1+u2*Q2+u3*Q3 */
-/*    
-    static func mul4(_ Q:[ECP2],_ u:[BIG]) -> ECP2
-    {
-        var a=[Int32](repeating: 0,count: 4)
-        let T=ECP2()
-        let C=ECP2()
-        let P=ECP2()
-        
-        var W=[ECP2]();
-        for _ in 0 ..< 8 {W.append(ECP2())}
-    
-        let mt=BIG()
-        var t=[BIG]()
-    
-        var w=[Int8](repeating: 0,count: BIG.NLEN*Int(BIG.BASEBITS)+1)
-    
-        for i in 0 ..< 4
-        {
-            t.append(BIG(u[i]))
-            //Q[i].affine()
-        }
-    
-    // precompute table 
-    
-        W[0].copy(Q[0]); W[0].sub(Q[1])
-        W[1].copy(W[0])
-        W[2].copy(W[0])
-        W[3].copy(W[0])
-        W[4].copy(Q[0]); W[4].add(Q[1])
-        W[5].copy(W[4])
-        W[6].copy(W[4])
-        W[7].copy(W[4])
-        T.copy(Q[2]); T.sub(Q[3])
-        W[1].sub(T)
-        W[2].add(T)
-        W[5].sub(T)
-        W[6].add(T)
-        T.copy(Q[2]); T.add(Q[3])
-        W[0].sub(T)
-        W[3].add(T)
-        W[4].sub(T)
-        W[7].add(T)
-    
-    // if multiplier is even add 1 to multiplier, and add P to correction 
-        mt.zero(); C.inf()
-        for i in 0 ..< 4
-        {
-            if (t[i].parity()==0)
-            {
-				t[i].inc(1); t[i].norm()
-                C.add(Q[i])
-            }
-            mt.add(t[i]); mt.norm()
-        }
-    
-        let nb=1+mt.nbits();
-    
-    // convert exponent to signed 1-bit window 
-        for j in 0 ..< nb
-        {
-            	for i in 0 ..< 4 {
-			a[i]=Int32(t[i].lastbits(2)-2)
-                
-			t[i].dec(Int(a[i]))
-                	t[i].norm()
-			t[i].fshr(1)
-            	}
-		let sum=8*a[0]+4*a[1]+2*a[2]+a[3]
-            	w[j]=Int8(sum)
-        }
-        w[nb]=Int8(8*t[0].lastbits(2)+4*t[1].lastbits(2))
-        w[nb]+=Int8(2*t[2].lastbits(2)+t[3].lastbits(2))
-    
-        P.copy(W[Int(w[nb]-1)/2])
-        for i in (0...nb-1).reversed()
-        //for var i=nb-1;i>=0;i--
-        {
-            T.select(W,Int32(w[i]))
-            P.dbl()
-            P.add(T)
-        }
-        P.sub(C) // apply correction 
-    
-        P.affine()
-        return P
-    }
-*/    
      // needed for SOK
     static func mapit(_ h:[UInt8]) -> ECP2
     {
@@ -671,28 +557,28 @@ final public class ECP2 {
         x.mod(q);
         while (true)
         {
-            let X=FP2(one,x);
-            Q=ECP2(X);
+            let X=FP2(one,x)
+            Q=ECP2(X)
             if !Q.is_infinity() {break}
-            x.inc(1); x.norm();
+            x.inc(1); x.norm()
         }
     // Fast Hashing to G2 - Fuentes-Castaneda, Knapp and Rodriguez-Henriquez
-        let Fra=BIG(ROM.Fra);
-        let Frb=BIG(ROM.Frb);
-        let X=FP2(Fra,Frb);
-        if ECP.SEXTIC_TWIST == ECP.M_TYPE { 
+        let Fra=BIG(ROM.Fra)
+        let Frb=BIG(ROM.Frb)
+        var X=FP2(Fra,Frb)
+        if CONFIG_CURVE.SEXTIC_TWIST == CONFIG_CURVE.M_TYPE { 
             X.inverse()
             X.norm()
         }         
-        x=BIG(ROM.CURVE_Bnx);
+        x=BIG(ROM.CURVE_Bnx)
     
-        if ECP.CURVE_PAIRING_TYPE == ECP.BN {
-            let T=Q.mul(x); 
-            if ECP.SIGN_OF_X == ECP.NEGATIVEX {
+        if CONFIG_CURVE.CURVE_PAIRING_TYPE == CONFIG_CURVE.BN {
+            var T=Q.mul(x)
+            if CONFIG_CURVE.SIGN_OF_X == CONFIG_CURVE.NEGATIVEX {
                 T.neg()
             }
-            let K=ECP2(); K.copy(T)
-            K.dbl(); K.add(T); //K.affine()
+            var K=ECP2(); K.copy(T)
+            K.dbl(); K.add(T)
     
             K.frob(X)
             Q.frob(X); Q.frob(X); Q.frob(X)
@@ -700,11 +586,11 @@ final public class ECP2 {
             T.frob(X); T.frob(X)
             Q.add(T)
         }
-        if ECP.CURVE_PAIRING_TYPE == ECP.BLS {
-            let xQ=Q.mul(x);
-            let x2Q=xQ.mul(x);
+        if CONFIG_CURVE.CURVE_PAIRING_TYPE == CONFIG_CURVE.BLS {
+            var xQ=Q.mul(x);
+            var x2Q=xQ.mul(x);
 
-            if ECP.SIGN_OF_X == ECP.NEGATIVEX {
+            if CONFIG_CURVE.SIGN_OF_X == CONFIG_CURVE.NEGATIVEX {
                 xQ.neg()
             }
 
