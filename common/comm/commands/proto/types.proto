@@ -103,7 +103,7 @@ message GetCredentialRequest {
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
     repeated bytes pubM = 5;
     // Hash of Tx that includes transfer of the tokens to the holding account
-    repeated bytes txHash = 6;
+    bytes txHash = 6;
     // Signature on {PublicKey, Value, txHash} to confirm validitiy of the request.
     bytes sig = 7; 
 }
