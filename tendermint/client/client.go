@@ -167,7 +167,7 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 	var res *ctypes.ResultTx
 	var err error
 	if c.tmclient != nil && c.tmclient.IsRunning() {
-		res, err = c.tmclient.Tx(hash, false)
+		res, err = c.tmclient.Tx(hash, true)
 	} else { // reconnection is most likely already in progress
 		err = errors.New("Invalid client - reconnection required")
 	}
@@ -180,7 +180,7 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 			return nil, err
 		}
 		// repeat the query
-		res, err = c.tmclient.Tx(hash, false)
+		res, err = c.tmclient.Tx(hash, true)
 	}
 	c.logMsg("DEBUG", "TxByHash call done")
 	return res, err
