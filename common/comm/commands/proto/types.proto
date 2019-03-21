@@ -76,6 +76,21 @@ message BlindVerifyResponse {
 
 // ======= NYM SPECIFIC =======
 
+// message GetCredentialRequest {
+//     // Public Key of the user used to derive account address and validate signature.
+//     bytes publicKey = 1; 
+//     // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+//     elgamal.ProtoPublicKey egPub = 2;
+//     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+//     coconut.ProtoLambda lambda = 3;
+//     // Value of the desired credential.
+//     int32 value = 4;
+//     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
+//     repeated bytes pubM = 5;
+//     // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
+//     bytes sig = 6; 
+// }
+
 message GetCredentialRequest {
     // Public Key of the user used to derive account address and validate signature.
     bytes publicKey = 1; 
@@ -87,8 +102,10 @@ message GetCredentialRequest {
     int32 value = 4;
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
     repeated bytes pubM = 5;
-    // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
-    bytes sig = 6; 
+    // Hash of Tx that includes transfer of the tokens to the holding account
+    repeated bytes txHash = 6;
+    // Signature on {PublicKey, Value, txHash} to confirm validitiy of the request.
+    bytes sig = 7; 
 }
 
 message GetCredentialResponse {
