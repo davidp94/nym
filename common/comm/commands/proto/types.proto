@@ -104,10 +104,12 @@ message GetCredentialRequest {
     int32 value = 4;
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
     repeated bytes pubM = 5;
-    // Hash of Tx that includes transfer of the tokens to the holding account
-    bytes txHash = 6;
-    // Signature on {PublicKey, Value, txHash} to confirm validitiy of the request.
-    bytes sig = 7; 
+    // Nonce sent to the chain to request the transfer of tokens to the hlding account.
+    bytes nonce = 6;
+    // Hash of Tx that includes transfer of the tokens to the holding account.
+    bytes txHash = 7;
+    // Signature on {PublicKey, Value, Nonce, txHash} to confirm validitiy of the request.
+    bytes sig = 8; 
 }
 
 message GetCredentialResponse {
