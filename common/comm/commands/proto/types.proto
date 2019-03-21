@@ -17,6 +17,8 @@ enum StatusCode {
     UNAVAILABLE = 7;
     INVALID_TRANSACTION = 8;
     INVALID_BINDING = 9;
+    INVALID_SIGNATURE = 10;
+    TX_NOT_ON_CHAIN = 11;
 }
 
 message Status {
