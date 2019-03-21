@@ -204,8 +204,11 @@ func (c *Client) transferTokensToHolding(token *token.Token) (cmn.HexBytes, []by
 	}
 
 	res, err := c.nymClient.Broadcast(req)
-	if err != nil || res.DeliverTx.Code != code.OK {
+	if err != nil {
 		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
+	}
+	if res.DeliverTx.Code != code.OK {
+		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v", res.DeliverTx.Code, code.ToString(res.DeliverTx.Code))
 	}
 
 	return res.Hash, nonceB, nil

@@ -89,7 +89,63 @@ func main() {
 	}
 
 	// IAInteractions(cc)
-	blockchainInteractions(cc)
+	// blockchainInteractions(cc)
+	wip(cc)
+
+	// A50A5EB883EE119599DD3F617C7637B02DA2A6946A2712FC7F7C65E743A46235
+}
+
+func wip(cc *cclient.Client) {
+	log, err := logger.New("", "DEBUG", false)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a logger: %v", err))
+	}
+
+	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
+	}
+
+	// create new account
+	acc := account.NewAccount()
+	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))
+	if err != nil {
+		panic(err)
+	}
+
+	debugAcc := &account.Account{}
+	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
+
+	// transfer some funds to the new account
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 10000)
+	if err != nil {
+		panic(err)
+	}
+
+	params, _ := coconut.Setup(5)
+	G := params.G
+	privM := getRandomAttributes(G, 2) // sequence and the key
+	token := token.New(privM[0], privM[1], int32(10))
+
+	res, err := tmclient.Broadcast(newAccReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// add some funds
+	res, err = tmclient.Broadcast(transferReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+
+	cred, err := cc.GetCredential(token)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Transfered %v to the holding account", token.Value())
+	fmt.Printf("Obtained Credential: %v %v", cred.Sig1().ToString(), cred.Sig2().ToString())
 }
 
 func IAInteractions(cc *cclient.Client) {
