@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -38,6 +39,8 @@ import (
 
 const providerAddress = "127.0.0.1:4000"
 const providerAddressGrpc = "127.0.0.1:5000"
+
+const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0BYcHQIQ=="
 
 var tendermintABCIAddresses = []string{
 	"tcp://0.0.0.0:12345", // does not exist
@@ -117,7 +120,7 @@ func wip(cc *cclient.Client) {
 	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
 
 	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 10000)
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 1000)
 	if err != nil {
 		panic(err)
 	}
@@ -144,8 +147,20 @@ func wip(cc *cclient.Client) {
 		panic(err)
 	}
 
-	fmt.Printf("Transfered %v to the holding account", token.Value())
-	fmt.Printf("Obtained Credential: %v %v", cred.Sig1().ToString(), cred.Sig2().ToString())
+	fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+
+	addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	if err != nil {
+		panic(err)
+	}
+	// spend credential:
+	didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Was credential spent: ", didSucceed)
 }
 
 func IAInteractions(cc *cclient.Client) {

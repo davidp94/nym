@@ -35,7 +35,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"github.com/golang/protobuf/proto"
@@ -888,116 +887,6 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", addr, err)
 	}
 	return c.parseBlindVerifyResponse(resp)
-}
-
-func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
-	blindVerifyResponse := &commands.BlindVerifyResponse{}
-	if err := proto.Unmarshal(packetResponse.Payload(), blindVerifyResponse); err != nil {
-		return false, c.logAndReturnError("parseBlindVerifyResponse: Failed to recover verification result: %v", err)
-	} else if blindVerifyResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
-		return false, c.logAndReturnError(
-			"parseBlindVerifyResponse: Received invalid response with status: %v. Error: %v",
-			blindVerifyResponse.GetStatus().Code,
-			blindVerifyResponse.GetStatus().Message,
-		)
-	}
-	return blindVerifyResponse.IsValid, nil
-}
-
-func (c *Client) prepareSpendCredentialRequest(
-	token *token.Token,
-	sig *coconut.Signature,
-	vk *coconut.VerificationKey,
-	providerAddress []byte,
-) (*commands.SpendCredentialRequest, error) {
-	var err error
-	if vk == nil {
-		if c.cfg.Client.UseGRPC {
-			vk, err = c.GetAggregateVerificationKeyGrpc()
-		} else {
-			vk, err = c.GetAggregateVerificationKey()
-		}
-		if err != nil {
-			return nil,
-				c.logAndReturnError("prepareSpendCredentialRequest: Could not obtain aggregate verification key required to create proofs for verification: %v", err)
-		}
-	}
-
-	pubM, privM := token.GetPublicAndPrivateSlices()
-	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureTumblerWrapper(vk, sig, privM, providerAddress)
-	if err != nil {
-		return nil,
-			c.logAndReturnError("prepareSpendCredentialRequest: Failed when creating proofs for verification: %v", err)
-	}
-
-	spendCredentialRequest, err := commands.NewSpendCredentialRequest(sig, pubM, theta, token.Value(), providerAddress)
-	if err != nil {
-		return nil,
-			c.logAndReturnError("prepareSpendCredentialRequest: Failed to create SpendCredential request: %v", err)
-	}
-	return spendCredentialRequest, nil
-}
-
-// SpendCredential sends a TCP request to spend an issued credential at a particular provider.
-func (c *Client) SpendCredential(
-	token *token.Token, // token on which the credential is issued; encapsulates required attributes
-	credential *coconut.Signature, // the credential to be spent
-	address string, // physical address of the merchant to which we send the request
-	providerAccountAddress []byte, // blockchain address of the merchant to which the proof will be bound
-	vk *coconut.VerificationKey, // aggregate verification key of the issuers in the system
-) (bool, error) {
-	if c.cfg.Client.UseGRPC {
-		return false, c.logAndReturnError(gRPCClientErr)
-	}
-
-	spendCredentialRequest, err := c.prepareSpendCredentialRequest(token, credential, vk, providerAccountAddress)
-	if err != nil {
-		return false, c.logAndReturnError("SpendCredential: Failed to prepare spendCredentialRequest: %v", err)
-	}
-
-	packetBytes, err := commands.CommandToMarshaledPacket(spendCredentialRequest)
-	if err != nil {
-		return false, c.logAndReturnError("Could not create data packet for blind verify command: %v", err)
-	}
-
-	c.log.Debugf("Dialing %v", address)
-	conn, err := net.Dial("tcp", address)
-	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Could not dial %v (%v)", address, err)
-	}
-
-	// currently will never be thrown since there is no writedeadline
-	if _, werr := conn.Write(packetBytes); werr != nil {
-		return false,
-			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to write to connection: %v", werr)
-	}
-
-	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
-	if sderr != nil {
-		return false,
-			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v",
-				sderr)
-	}
-
-	resp, err := comm.ReadPacketFromConn(conn)
-	if err != nil {
-		return false,
-			c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", address, err)
-	}
-
-	// TODO: parse response
-	_ = resp
-
-	return false, nil
-}
-
-// SpendCredentialGrpc sends a gRPC request to spend an issued credential at a particular provider.
-func (c *Client) SpendCredentialGrpc(token *token.Token, credential *coconut.Signature, providerAddress []byte) error {
-	if !c.cfg.Client.UseGRPC {
-		return c.logAndReturnError(nonGRPCClientErr)
-	}
-
-	return nil // not implemeneted
 }
 
 func (c *Client) logAndReturnError(fmtString string, a ...interface{}) error {
