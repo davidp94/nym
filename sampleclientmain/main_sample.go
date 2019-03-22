@@ -43,7 +43,7 @@ const providerAddressGrpc = "127.0.0.1:5000"
 const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0BYcHQIQ=="
 
 var tendermintABCIAddresses = []string{
-	"tcp://0.0.0.0:12345", // does not exist
+	// "tcp://0.0.0.0:12345", // does not exist
 	"tcp://0.0.0.0:46657",
 	"tcp://0.0.0.0:46667",
 	"tcp://0.0.0.0:46677",
@@ -62,7 +62,7 @@ func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 
 // nolint: gosec, lll, errcheck
 func main() {
-	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
+	cfgFile := flag.String("f", "config.toml", "Path to the client config file.")
 	flag.Parse()
 
 	syscall.Umask(0077)
@@ -93,13 +93,11 @@ func main() {
 
 	// IAInteractions(cc)
 	// blockchainInteractions(cc)
-	wip(cc)
-
-	// A50A5EB883EE119599DD3F617C7637B02DA2A6946A2712FC7F7C65E743A46235
+	demo(cc)
 }
 
-func wip(cc *cclient.Client) {
-	log, err := logger.New("", "DEBUG", false)
+func demo(cc *cclient.Client) {
+	log, err := logger.New("", "INFO", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
 	}

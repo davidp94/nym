@@ -86,64 +86,69 @@ echo "Loading peers: $PEERS"
 session="tmnet"
 
 tmux new-session -d -s $session -n node0
+tmux select-window -t $session:0
 
 tmux selectp -t 0 
-tmux send-keys "$NODE_0_START" 
-tmux send-keys C-m 
+tmux send-keys -t $session:0 "$NODE_0_START" 
+tmux send-keys -t $session:0 C-m 
 
-tmux splitw -h
+tmux splitw -t $session:0 -h
 
 tmux selectp -t 1
-tmux send-keys "$NODE_0_APP_START"
-tmux send-keys C-m
+tmux send-keys -t $session:0 "$NODE_0_APP_START"
+tmux send-keys -t $session:0 C-m
 
 tmux new-window -t $session:1 -n node1
+tmux select-window -t $session:1
 
 tmux selectp -t 0 
-tmux send-keys "$NODE_1_START" 
-tmux send-keys C-m 
+tmux send-keys -t $session:1 "$NODE_1_START" 
+tmux send-keys -t $session:1 C-m 
 
-tmux splitw -h
+tmux splitw -t $session:1 -h
 
 tmux selectp -t 1
-tmux send-keys "$NODE_1_APP_START"
-tmux send-keys C-m
+tmux send-keys -t $session:1 "$NODE_1_APP_START"
+tmux send-keys -t $session:1 C-m
 
 tmux new-window -t $session:2 -n node2
+tmux select-window -t $session:2
 
 tmux selectp -t 0 
-tmux send-keys "$NODE_2_START" 
-tmux send-keys C-m 
+tmux send-keys -t $session:2 "$NODE_2_START" 
+tmux send-keys -t $session:2 C-m 
 
-tmux splitw -h
+tmux splitw -t $session:2 -h
 
 tmux selectp -t 1
-tmux send-keys "$NODE_2_APP_START"
-tmux send-keys C-m
+tmux send-keys -t $session:2 "$NODE_2_APP_START"
+tmux send-keys -t $session:2 C-m
 
 tmux new-window -t $session:3 -n node3
+tmux select-window -t $session:3
 
 tmux selectp -t 0 
-tmux send-keys "$NODE_3_START" 
-tmux send-keys C-m 
+tmux send-keys -t $session:3 "$NODE_3_START" 
+tmux send-keys -t $session:3 C-m 
 
-tmux splitw -h
+tmux splitw -t $session:3 -h
 
 tmux selectp -t 1
-tmux send-keys "$NODE_3_APP_START"
-tmux send-keys C-m
+tmux send-keys -t $session:3 "$NODE_3_APP_START"
+tmux send-keys -t $session:3 C-m
 
 tmux new-window -t $session:4 -n wip
+tmux select-window -t $session:4
 
 tmux selectp -t 0 
-tmux send-keys "cd $TESTNET_ROOT_DIR/$TESTNET_FOLDER"
-tmux send-keys C-m 
+tmux send-keys -t $session:4 "cd $TESTNET_ROOT_DIR/$TESTNET_FOLDER"
+tmux send-keys -t $session:4 C-m 
 
-tmux splitw -h
+tmux splitw -t $session:4 -h
 
 tmux selectp -t 1
-tmux send-keys "cd $HOME/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint"
-tmux send-keys C-m
+tmux send-keys -t $session:4 "cd $HOME/go/src/0xacab.org/jstuczyn/CoconutGo/tendermint"
+tmux send-keys -t $session:4 C-m
 
 
 tmux select-window -t $session:0
