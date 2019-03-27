@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## v0.2.1
+
+* Updated transfer to the holding account to return hash of the block including the tx
+* IAs verifying that transfer to holding actually happened
+* Finished logic for Provider to accept 'spend credential' requests
+
 ## v0.2.0
 
 * Tumbler-related Coconut logic for sequential and concurrent computation
