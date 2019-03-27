@@ -19,16 +19,21 @@ package client
 
 import (
 	"encoding/binary"
+	"net"
+	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 // Theoretically could be combined with client.parseSignatureServerResponses, but this is credential-specific
@@ -66,20 +71,19 @@ func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse
 	return sigs, coconut.NewPP(xs)
 }
 
-func (c *Client) createCredentialRequestSig(cm *Curve.ECP, token *token.Token) []byte {
-	cmb := make([]byte, constants.ECPLen)
-	cm.ToBytes(cmb, true)
-	msg := make([]byte, len(c.nymAccount.PublicKey)+4+constants.ECPLen)
+func (c *Client) createCredentialRequestSig(txHash cmn.HexBytes, nonce []byte, token *token.Token) []byte {
+	msg := make([]byte, len(c.nymAccount.PublicKey)+4+len(nonce)+len(txHash))
 	copy(msg, c.nymAccount.PublicKey)
 	binary.BigEndian.PutUint32(msg[len(c.nymAccount.PublicKey):], uint32(token.Value()))
-	copy(msg[len(c.nymAccount.PublicKey)+4:], cmb)
+	copy(msg[len(c.nymAccount.PublicKey)+4:], nonce)
+	copy(msg[len(c.nymAccount.PublicKey)+4+len(nonce):], txHash)
 	return c.nymAccount.PrivateKey.SignBytes(msg)
 }
 
 // GetCredential similarly to previous requests, sends 'getcredential' request
 // to all IA servers specified in the config with the provided token and required cryptographic materials.
 // Error is returned if insufficient number of responses was received.
-func (c *Client) GetCredential(token *token.Token) (token.Credential, error) {
+func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 	if c.cfg.Client.UseGRPC {
 		return nil, c.logAndReturnError(gRPCClientErr)
 	}
@@ -96,9 +100,14 @@ func (c *Client) GetCredential(token *token.Token) (token.Credential, error) {
 		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
 	}
 
-	sig := c.createCredentialRequestSig(lambda.Cm(), token)
+	// we transfer amount of tokens to the holding account
+	txHash, nonce, err := c.transferTokensToHolding(token)
+	if err != nil {
+		return nil, err
+	}
+	sig := c.createCredentialRequestSig(txHash, nonce, token)
 
-	cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, sig)
+	cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, nonce, txHash, sig)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
 	}
@@ -125,88 +134,192 @@ func (c *Client) GetCredential(token *token.Token) (token.Credential, error) {
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
-// GetCredentialGrpc similarly to previous requests, sends 'getcredential' request
-// to all IA-grpc servers specified in the config with the provided token and required cryptographic materials.
-// Error is returned if insufficient number of responses was received.
-func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error) {
-	if !c.cfg.Client.UseGRPC {
-		return nil, c.logAndReturnError(nonGRPCClientErr)
-	}
+// // GetCredentialGrpc similarly to previous requests, sends 'getcredential' request
+// // to all IA-grpc servers specified in the config with the provided token and required cryptographic materials.
+// // Error is returned if insufficient number of responses was received.
+// func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error) {
+// 	if !c.cfg.Client.UseGRPC {
+// 		return nil, c.logAndReturnError(nonGRPCClientErr)
+// 	}
 
-	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+// 	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
 
-	grpcDialOptions := c.defaultDialOptions
-	isThreshold := c.cfg.Client.Threshold > 0
+// 	grpcDialOptions := c.defaultDialOptions
+// 	isThreshold := c.cfg.Client.Threshold > 0
 
+// 	// first check if we have loaded the account information
+// 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
+// 		return nil, c.logAndReturnError("GetCredentialGrpc: Tried to obtain credential on undefined account")
+// 	}
+
+// 	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
+// 	if err != nil {
+// 		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
+// 	}
+
+// 	reqSig := c.createCredentialRequestSig(lambda.Cm(), token)
+
+// 	getCredentialRequest, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, reqSig)
+// 	if err != nil {
+// 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
+// 	}
+
+// 	c.log.Notice("Going to send Get Credential request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
+// 	responses := c.getGrpcResponses(grpcDialOptions, getCredentialRequest)
+
+// 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
+// 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
+
+// 	for i := range responses {
+// 		if responses[i] == nil {
+// 			c.log.Error("nil response received")
+// 			continue
+// 		}
+// 		// needs updating
+// 		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.GetCredentialResponse), elGamalPrivateKey)
+// 		if err != nil {
+// 			continue
+// 		}
+// 		sigs = append(sigs, sig)
+// 		if isThreshold {
+// 			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+// 		}
+// 	}
+// 	if c.cfg.Client.Threshold > 0 {
+// 		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
+// 	}
+// 	return c.handleReceivedSignatures(sigs, nil)
+// }
+
+func (c *Client) transferTokensToHolding(token *token.Token) (cmn.HexBytes, []byte, error) {
 	// first check if we have loaded the account information
 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-		return nil, c.logAndReturnError("GetCredentialGrpc: Tried to obtain credential on undefined account")
-	}
-
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
-	}
-
-	reqSig := c.createCredentialRequestSig(lambda.Cm(), token)
-
-	getCredentialRequest, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, reqSig)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
-	}
-
-	c.log.Notice("Going to send Get Credential request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-	responses := c.getGrpcResponses(grpcDialOptions, getCredentialRequest)
-
-	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
-	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-
-	for i := range responses {
-		if responses[i] == nil {
-			c.log.Error("nil response received")
-			continue
-		}
-		// needs updating
-		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.GetCredentialResponse), elGamalPrivateKey)
-		if err != nil {
-			continue
-		}
-		sigs = append(sigs, sig)
-		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
-		}
-	}
-	if c.cfg.Client.Threshold > 0 {
-		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-	}
-	return c.handleReceivedSignatures(sigs, nil)
-}
-
-func (c *Client) transferTokensToHolding(amount uint32) error {
-	// first check if we have loaded the account information
-	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-		return c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
+		return nil, nil, c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
 	}
 
 	nonce := c.cryptoworker.CoconutWorker().RandomBIG()
 	nonceB := make([]byte, constants.BIGLen)
 	nonce.ToBytes(nonceB)
 
-	req, err := transaction.CreateNewTransferToHoldingRequest(c.nymAccount, amount, nonceB)
+	req, err := transaction.CreateNewTransferToHoldingRequest(c.nymAccount, uint32(token.Value()), nonceB)
 	if err != nil {
-		return c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
+		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
 	}
 
-	_ = req
-	return nil
+	res, err := c.nymClient.Broadcast(req)
+	if err != nil {
+		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
+	}
+	if res.DeliverTx.Code != code.OK {
+		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v", res.DeliverTx.Code, code.ToString(res.DeliverTx.Code))
+	}
 
-	// cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, sig)
-	// if err != nil {
-	// 	return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
-	// }
+	return res.Hash, nonceB, nil
+}
 
-	// packetBytes, err := commands.CommandToMarshaledPacket(cmd)
-	// if err != nil {
-	// 	return nil, c.logAndReturnError("GetCredential: Could not create data packet for GetCredential command: %v", err)
-	// }
+func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
+	spendCredentialResponse := &commands.SpendCredentialResponse{}
+	if err := proto.Unmarshal(packetResponse.Payload(), spendCredentialResponse); err != nil {
+		return false, c.logAndReturnError("parseSpendCredentialResponse: Failed to recover verification result: %v", err)
+	} else if spendCredentialResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
+		return false, c.logAndReturnError(
+			"parseSpendCredentialResponse: Received invalid response with status: %v. Error: %v",
+			spendCredentialResponse.GetStatus().Code,
+			spendCredentialResponse.GetStatus().Message,
+		)
+	}
+	return spendCredentialResponse.WasSuccessful, nil
+}
+
+func (c *Client) prepareSpendCredentialRequest(
+	token *token.Token,
+	sig *coconut.Signature,
+	vk *coconut.VerificationKey,
+	providerAddress []byte,
+) (*commands.SpendCredentialRequest, error) {
+	var err error
+	if vk == nil {
+		if c.cfg.Client.UseGRPC {
+			vk, err = c.GetAggregateVerificationKeyGrpc()
+		} else {
+			vk, err = c.GetAggregateVerificationKey()
+		}
+		if err != nil {
+			return nil,
+				c.logAndReturnError("prepareSpendCredentialRequest: Could not obtain aggregate verification key required to create proofs for verification: %v", err)
+		}
+	}
+
+	pubM, privM := token.GetPublicAndPrivateSlices()
+	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureTumblerWrapper(vk, sig, privM, providerAddress)
+	if err != nil {
+		return nil,
+			c.logAndReturnError("prepareSpendCredentialRequest: Failed when creating proofs for verification: %v", err)
+	}
+
+	spendCredentialRequest, err := commands.NewSpendCredentialRequest(sig, pubM, theta, token.Value(), providerAddress)
+	if err != nil {
+		return nil,
+			c.logAndReturnError("prepareSpendCredentialRequest: Failed to create SpendCredential request: %v", err)
+	}
+	return spendCredentialRequest, nil
+}
+
+// SpendCredential sends a TCP request to spend an issued credential at a particular provider.
+func (c *Client) SpendCredential(
+	token *token.Token, // token on which the credential is issued; encapsulates required attributes
+	credential *coconut.Signature, // the credential to be spent
+	address string, // physical address of the merchant to which we send the request
+	providerAccountAddress []byte, // blockchain address of the merchant to which the proof will be bound
+	vk *coconut.VerificationKey, // aggregate verification key of the issuers in the system
+) (bool, error) {
+	if c.cfg.Client.UseGRPC {
+		return false, c.logAndReturnError(gRPCClientErr)
+	}
+
+	spendCredentialRequest, err := c.prepareSpendCredentialRequest(token, credential, vk, providerAccountAddress)
+	if err != nil {
+		return false, c.logAndReturnError("SpendCredential: Failed to prepare spendCredentialRequest: %v", err)
+	}
+
+	packetBytes, err := commands.CommandToMarshaledPacket(spendCredentialRequest)
+	if err != nil {
+		return false, c.logAndReturnError("Could not create data packet for spend credential command: %v", err)
+	}
+
+	c.log.Debugf("Dialing %v", address)
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return false, c.logAndReturnError("SpendCredential: Could not dial %v (%v)", address, err)
+	}
+
+	// currently will never be thrown since there is no writedeadline
+	if _, werr := conn.Write(packetBytes); werr != nil {
+		return false,
+			c.logAndReturnError("SpendCredential: Failed to write to connection: %v", werr)
+	}
+
+	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
+	if sderr != nil {
+		return false,
+			c.logAndReturnError("SpendCredential: Failed to set read deadline for connection: %v",
+				sderr)
+	}
+
+	resp, err := comm.ReadPacketFromConn(conn)
+	if err != nil {
+		return false,
+			c.logAndReturnError("SpendCredential: Received invalid response from %v: %v", address, err)
+	}
+
+	return c.parseSpendCredentialResponse(resp)
+}
+
+// SpendCredentialGrpc sends a gRPC request to spend an issued credential at a particular provider.
+func (c *Client) SpendCredentialGrpc(token *token.Token, credential *coconut.Signature, providerAddress []byte) error {
+	if !c.cfg.Client.UseGRPC {
+		return c.logAndReturnError(nonGRPCClientErr)
+	}
+
+	return nil // not implemeneted
 }

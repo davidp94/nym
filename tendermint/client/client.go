@@ -161,6 +161,31 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 	return res, err
 }
 
+// TxByHash queries the chain to get particular tx results given its hash.
+func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
+	c.logMsg("DEBUG", "Looking up Tx by its hash: %v", hash)
+	var res *ctypes.ResultTx
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.Tx(hash, true)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		res, err = c.tmclient.Tx(hash, true)
+	}
+	c.logMsg("DEBUG", "TxByHash call done")
+	return res, err
+}
+
 func (c *Client) reconnect(forceTry bool) error {
 	c.connLock.Lock()
 	defer c.connLock.Unlock()

@@ -432,6 +432,20 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			Status: protoStatus,
 		}
 
+	case *commands.SpendCredentialRequest:
+		if data != nil && provReady {
+			wasSpent := data.(bool)
+			protoResp = &commands.SpendCredentialResponse{
+				WasSuccessful: wasSpent,
+				Status:        protoStatus,
+			}
+			log.Debugf("Was the received credential spent successfuly: %v", wasSpent)
+		} else {
+			protoResp = &commands.SpendCredentialResponse{
+				Status: makeProtoStatus(commands.StatusCode_UNAVAILABLE, "The provider has not finished startup yet"),
+			}
+		}
+
 	default:
 		log.Errorf("Received an unrecognized command.")
 		return nil

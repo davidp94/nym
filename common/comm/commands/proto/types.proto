@@ -17,6 +17,8 @@ enum StatusCode {
     UNAVAILABLE = 7;
     INVALID_TRANSACTION = 8;
     INVALID_BINDING = 9;
+    INVALID_SIGNATURE = 10;
+    TX_NOT_ON_CHAIN = 11;
 }
 
 message Status {
@@ -76,6 +78,21 @@ message BlindVerifyResponse {
 
 // ======= NYM SPECIFIC =======
 
+// message GetCredentialRequest {
+//     // Public Key of the user used to derive account address and validate signature.
+//     bytes publicKey = 1; 
+//     // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+//     elgamal.ProtoPublicKey egPub = 2;
+//     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+//     coconut.ProtoLambda lambda = 3;
+//     // Value of the desired credential.
+//     int32 value = 4;
+//     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
+//     repeated bytes pubM = 5;
+//     // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
+//     bytes sig = 6; 
+// }
+
 message GetCredentialRequest {
     // Public Key of the user used to derive account address and validate signature.
     bytes publicKey = 1; 
@@ -87,8 +104,12 @@ message GetCredentialRequest {
     int32 value = 4;
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
     repeated bytes pubM = 5;
-    // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
-    bytes sig = 6; 
+    // Nonce sent to the chain to request the transfer of tokens to the hlding account.
+    bytes nonce = 6;
+    // Hash of Tx that includes transfer of the tokens to the holding account.
+    bytes txHash = 7;
+    // Signature on {PublicKey, Value, Nonce, txHash} to confirm validitiy of the request.
+    bytes sig = 8; 
 }
 
 message GetCredentialResponse {

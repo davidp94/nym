@@ -26,6 +26,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -285,7 +286,14 @@ func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []
 // given set of public attributes, theta and a coconut signature on them.
 // nolint: lll
 // TODO:  MIGHT CHANGE
-func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, token *token.Token, pub, sig []byte) (*GetCredentialRequest, error) {
+func NewGetCredentialRequest(lambda *coconut.Lambda,
+	egPub *elgamal.PublicKey,
+	token *token.Token,
+	pub []byte,
+	nonce []byte,
+	txHash cmn.HexBytes,
+	sig []byte,
+) (*GetCredentialRequest, error) {
 	protoLambda, err := lambda.ToProto()
 	if err != nil {
 		return nil, err
@@ -306,6 +314,8 @@ func NewGetCredentialRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, t
 		Lambda:    protoLambda,
 		Value:     token.Value(),
 		PubM:      pubMb,
+		Nonce:     nonce,
+		TxHash:    txHash,
 		Sig:       sig,
 	}, nil
 }

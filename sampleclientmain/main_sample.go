@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -39,8 +40,10 @@ import (
 const providerAddress = "127.0.0.1:4000"
 const providerAddressGrpc = "127.0.0.1:5000"
 
+const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0BYcHQIQ=="
+
 var tendermintABCIAddresses = []string{
-	"tcp://0.0.0.0:12345", // does not exist
+	// "tcp://0.0.0.0:12345", // does not exist
 	"tcp://0.0.0.0:46657",
 	"tcp://0.0.0.0:46667",
 	"tcp://0.0.0.0:46677",
@@ -59,7 +62,7 @@ func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 
 // nolint: gosec, lll, errcheck
 func main() {
-	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
+	cfgFile := flag.String("f", "config.toml", "Path to the client config file.")
 	flag.Parse()
 
 	syscall.Umask(0077)
@@ -89,7 +92,73 @@ func main() {
 	}
 
 	// IAInteractions(cc)
-	blockchainInteractions(cc)
+	// blockchainInteractions(cc)
+	demo(cc)
+}
+
+func demo(cc *cclient.Client) {
+	log, err := logger.New("", "INFO", false)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a logger: %v", err))
+	}
+
+	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
+	}
+
+	// create new account
+	acc := account.NewAccount()
+	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))
+	if err != nil {
+		panic(err)
+	}
+
+	debugAcc := &account.Account{}
+	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
+
+	// transfer some funds to the new account
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 1000)
+	if err != nil {
+		panic(err)
+	}
+
+	params, _ := coconut.Setup(5)
+	G := params.G
+	privM := getRandomAttributes(G, 2) // sequence and the key
+	token := token.New(privM[0], privM[1], int32(10))
+
+	res, err := tmclient.Broadcast(newAccReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	// add some funds
+	res, err = tmclient.Broadcast(transferReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+
+	cred, err := cc.GetCredential(token)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+
+	addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	if err != nil {
+		panic(err)
+	}
+	// spend credential:
+	didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Was credential spent: ", didSucceed)
 }
 
 func IAInteractions(cc *cclient.Client) {
