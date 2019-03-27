@@ -19,6 +19,9 @@ package transaction
 
 import (
 	"encoding/binary"
+	"errors"
+
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -42,6 +45,17 @@ const (
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
+
+func marshalRequest(req proto.Message, prefix byte) ([]byte, error) {
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = prefix
+	copy(b[1:], protob)
+	return b, nil
+}
 
 // NewLookUpZetaTx creates new request for tx to lookup provided zeta.
 func NewLookUpZetaTx(zeta *Curve.ECP) []byte {
@@ -130,34 +144,74 @@ func CreateNewDepositCoconutCredentialRequest(
 	return b, nil
 }
 
-// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
-// to the holding account.
-// It is designed to be executed by the user itself.
-func CreateNewTransferToHoldingRequest(acc account.Account, amount uint32, nonce []byte) ([]byte, error) {
-	msg := make([]byte, len(acc.PublicKey)+len(tmconst.HoldingAccountAddress)+4+len(nonce))
-	copy(msg, acc.PublicKey)
-	copy(msg[len(acc.PublicKey):], tmconst.HoldingAccountAddress)
-	binary.BigEndian.PutUint32(msg[len(acc.PublicKey)+len(tmconst.HoldingAccountAddress):], amount)
-	copy(msg[len(acc.PublicKey)+len(tmconst.HoldingAccountAddress)+4:], nonce)
-	sig := acc.PrivateKey.SignBytes(msg)
+// TransferToHoldingRequestParams encapsulates parameteres required for the CreateNewTransferToHoldingRequest function.
+type TransferToHoldingRequestParams struct {
+	Acc    account.Account
+	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
+	EgPub  *elgamal.PublicKey
+	Lambda *coconut.Lambda
+	PubM   []*Curve.BIG
+}
 
-	req := &TransferToHoldingRequest{
-		SourcePublicKey: acc.PublicKey,
-		TargetAddress:   tmconst.HoldingAccountAddress,
-		Amount:          amount,
-		Nonce:           nonce,
-		Sig:             sig,
+// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
+// to the holding account. It also writes the required cryptographic material for the blind sign onto the chain,
+// so that the IAs monitoring it could issue the partial credentials.
+// The function is designed to be executed by the user.
+func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([]byte, error) {
+	holdingAddress := tmconst.HoldingAccountAddress
+
+	if params.Amount < 0 {
+		return nil, errors.New("Negative Amount of the credential")
 	}
 
-	protob, err := proto.Marshal(req)
+	protoLambda, err := params.Lambda.ToProto()
 	if err != nil {
 		return nil, err
 	}
-	b := make([]byte, len(protob)+1)
 
-	b[0] = TxTransferToHolding
-	copy(b[1:], protob)
-	return b, nil
+	lambdab, err := proto.Marshal(protoLambda)
+	if err != nil {
+		return nil, err
+	}
+
+	protoEgPub, err := params.EgPub.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	egPubb, err := proto.Marshal(protoEgPub)
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := coconut.BigSliceToByteSlices(params.PubM)
+	if err != nil {
+		return nil, err
+	}
+
+	msg := make([]byte, len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb))
+	copy(msg, params.Acc.PublicKey)
+	copy(msg[len(params.Acc.PublicKey):], holdingAddress)
+	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(holdingAddress):], uint32(params.Amount))
+	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4:], egPubb)
+	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb):], lambdab)
+	for i := range pubMb {
+		copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
+	}
+
+	sig := params.Acc.PrivateKey.SignBytes(msg)
+
+	req := &TransferToHoldingRequest{
+		SourcePublicKey: params.Acc.PublicKey,
+		TargetAddress:   holdingAddress,
+		Amount:          params.Amount,
+		EgPub:           protoEgPub,
+		Lambda:          protoLambda,
+		PubM:            pubMb,
+		Sig:             sig,
+	}
+
+	return marshalRequest(req, TxTransferToHolding)
 }
 
 // DEPRECATED; but left temporarly for reference sake
