@@ -52,11 +52,11 @@ message TransferToHoldingRequest {
     // Amount to be transferred / Value of the desired credential
     int32 Amount = 3; 
     // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
-    elgamal.ProtoPublicKey egPub = 4;
+    elgamal.ProtoPublicKey EgPub = 4;
     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
-    coconut.ProtoLambda lambda = 5;
+    coconut.ProtoLambda Lambda = 5;
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
-    repeated bytes pubM = 6;
+    repeated bytes PubM = 6;
     // Signature on request to confirm its validitiy
     bytes Sig = 7; 
  }
