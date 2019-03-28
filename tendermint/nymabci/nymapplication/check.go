@@ -29,6 +29,7 @@ import (
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // implementation will be IP-specific
@@ -195,6 +196,12 @@ func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
 	// verify sigs and check if all structs can be unmarshalled
 	req := &transaction.TransferToHoldingRequest{}
 	if err := proto.Unmarshal(tx, req); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	if len(req.PubM) < 1 ||
+		len(req.PubM[0]) != constants.BIGLen ||
+		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
 		return code.INVALID_TX_PARAMS
 	}
 

@@ -164,6 +164,10 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([
 		return nil, errors.New("Negative Amount of the credential")
 	}
 
+	if len(params.PubM) < 1 || Curve.Comp(params.PubM[0], Curve.NewBIGint(int(params.Amount))) != 0 {
+		return nil, errors.New("Invalid public parameters")
+	}
+
 	protoLambda, err := params.Lambda.ToProto()
 	if err != nil {
 		return nil, err

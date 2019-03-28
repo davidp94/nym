@@ -18,7 +18,11 @@ package nymapplication
 
 import (
 	"encoding/binary"
+	"math"
 	"testing"
+
+	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -312,6 +316,223 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 	for _, validReq := range [][]byte{validReq} {
 		assert.Equal(t, code.OK, app.checkTransferBetweenAccountsTx(validReq))
 	}
+}
+
+func copybyteslice(in []byte) []byte {
+	out := make([]byte, len(in))
+	copy(out, in)
+	return out
+}
+
+func copysliceofbytes(in [][]byte) [][]byte {
+	out := make([][]byte, len(in))
+	for i := range out {
+		out[i] = make([]byte, len(in[i]))
+		copy(out[i], in[i])
+	}
+	return out
+}
+
+func deepCopyTransferToHoldingRequest(req *transaction.TransferToHoldingRequest) *transaction.TransferToHoldingRequest {
+	enccpy := make([]*elgamal.ProtoEncryption, len(req.Lambda.Enc))
+	for i := range enccpy {
+		enccpy[i] = &elgamal.ProtoEncryption{}
+		enccpy[i].C1 = copybyteslice(req.Lambda.Enc[i].C1)
+		enccpy[i].C2 = copybyteslice(req.Lambda.Enc[i].C2)
+	}
+
+	return &transaction.TransferToHoldingRequest{
+		SourcePublicKey: copybyteslice(req.SourcePublicKey),
+		TargetAddress:   copybyteslice(req.TargetAddress),
+		Amount:          req.Amount,
+		EgPub: &elgamal.ProtoPublicKey{
+			P:     copybyteslice(req.EgPub.P),
+			G:     copybyteslice(req.EgPub.G),
+			Gamma: copybyteslice(req.EgPub.Gamma),
+		},
+		Lambda: &coconut.ProtoLambda{
+			Cm:  copybyteslice(req.Lambda.Cm),
+			Enc: enccpy,
+			Proof: &coconut.ProtoSignerProof{
+				C:  copybyteslice(req.Lambda.Proof.C),
+				Rr: copybyteslice(req.Lambda.Proof.Rr),
+				Rk: copysliceofbytes(req.Lambda.Proof.Rk),
+				Rm: copysliceofbytes(req.Lambda.Proof.Rm),
+			},
+		},
+		PubM: copysliceofbytes(req.PubM),
+		Sig:  copybyteslice(req.Sig),
+	}
+}
+
+func createValidSigOnTransferToHoldingRequest(priv account.ECPrivateKey, req *transaction.TransferToHoldingRequest) []byte {
+	lambdab, _ := proto.Marshal(req.Lambda)
+	egPubb, _ := proto.Marshal(req.EgPub)
+
+	msg := make([]byte, len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
+	copy(msg, req.SourcePublicKey)
+	copy(msg[len(req.SourcePublicKey):], req.TargetAddress)
+	binary.BigEndian.PutUint32(msg[len(req.SourcePublicKey)+len(req.TargetAddress):], uint32(req.Amount))
+	copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4:], egPubb)
+	copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(egPubb):], lambdab)
+	for i := range req.PubM {
+		copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
+	}
+
+	return priv.SignBytes(msg)
+}
+
+func TestCheckTransferToHolding(t *testing.T) {
+	params, _ := coconut.Setup(5)
+	p, rng := params.P(), params.G.Rng()
+	s := Curve.Randomnum(p, rng)
+	k := Curve.Randomnum(p, rng)
+
+	acc := account.NewAccount()
+
+	_, egPub := elgamal.Keygen(bpgroup.New())
+	lambda, err := coconut.PrepareBlindSign(params, egPub, []*Curve.BIG{Curve.NewBIGint(42)}, []*Curve.BIG{s, k})
+	assert.Nil(t, err)
+
+	balance := make([]byte, 8)
+	binary.BigEndian.PutUint64(balance, math.MaxUint64)
+	var accpubcpy account.ECPublicKey = make([]byte, constants.ECPLenUC)
+	copy(accpubcpy, acc.PublicKey)
+	accpubcpy.Compress()
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, accpubcpy), balance)
+
+	// create the holding account
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, tmconst.HoldingAccountAddress), make([]byte, 8))
+
+	// create an existing account
+	acc2 := account.NewAccount()
+	balance = make([]byte, 8)
+	binary.BigEndian.PutUint64(balance, 42)
+	acc2.PublicKey.Compress()
+	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc2.PublicKey), balance)
+
+	reqParams := transaction.TransferToHoldingRequestParams{
+		Acc:    acc,
+		Amount: int32(42),
+		EgPub:  egPub,
+		Lambda: lambda,
+		PubM:   []*Curve.BIG{Curve.NewBIGint(42)},
+	}
+
+	// create a valid request and start malform it in diffent ways
+	validReqTx, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
+	assert.Nil(t, err)
+	validReq := validReqTx[1:] // first byte is the prefix indicating type of tx
+
+	rawReq := &transaction.TransferToHoldingRequest{}
+	assert.Nil(t, proto.Unmarshal(validReq, rawReq))
+
+	// firstly check if valid requests go through
+	assert.Equal(t, code.OK, app.checkTxTransferToHolding(validReq))
+
+	compKeyReq := deepCopyTransferToHoldingRequest(rawReq)
+	compKeyReq.SourcePublicKey = accpubcpy // the key was compressed
+	compKeyReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, compKeyReq)
+
+	req, err := proto.Marshal(compKeyReq)
+	assert.Nil(t, err)
+	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+
+	maxInt32Req := deepCopyTransferToHoldingRequest(rawReq)
+	maxInt32Req.Amount = math.MaxInt32
+	maxint32BIG := Curve.NewBIGint(int(math.MaxInt32))
+	b := make([]byte, constants.BIGLen)
+	maxint32BIG.ToBytes(b)
+	maxInt32Req.PubM[0] = b
+	maxInt32Req.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, maxInt32Req)
+
+	req, err = proto.Marshal(maxInt32Req)
+	assert.Nil(t, err)
+	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+
+	zeroValReq := deepCopyTransferToHoldingRequest(rawReq)
+	zeroValReq.Amount = 0
+	zeroBIG := Curve.NewBIGint(0)
+	b = make([]byte, constants.BIGLen)
+	zeroBIG.ToBytes(b)
+	zeroValReq.PubM[0] = b
+	zeroValReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, zeroValReq)
+
+	req, err = proto.Marshal(zeroValReq)
+	assert.Nil(t, err)
+	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+
+	//
+	// invalid requests
+	//
+
+	noSourceReq := deepCopyTransferToHoldingRequest(rawReq)
+	noSourceReq.SourcePublicKey = nil
+	noSourceReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noSourceReq)
+
+	invalidSourceReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidSourceReq.SourcePublicKey = acc2.PublicKey
+	invalidSourceReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidSourceReq)
+
+	noTargetReq := deepCopyTransferToHoldingRequest(rawReq)
+	noTargetReq.TargetAddress = nil
+	noTargetReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noTargetReq)
+
+	invalidTargetReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidTargetReq.TargetAddress = acc2.PublicKey // so that validate transfer wouldn't fail (acc technically exists)
+	invalidTargetReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidTargetReq)
+
+	noEgPubReq := deepCopyTransferToHoldingRequest(rawReq)
+	noEgPubReq.EgPub = nil
+	noEgPubReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noEgPubReq)
+
+	invalidEgPubReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidEgPubReq.EgPub.Gamma = []byte("Dummy string converted to bytes")
+	invalidEgPubReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidEgPubReq)
+
+	noLambdaReq := deepCopyTransferToHoldingRequest(rawReq)
+	noLambdaReq.Lambda = nil
+	noLambdaReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noLambdaReq)
+
+	invalidLambdaReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidLambdaReq.Lambda.Proof.Rr = []byte("Dummy string converted to bytes")
+	invalidLambdaReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidLambdaReq)
+
+	noPubMReq := deepCopyTransferToHoldingRequest(rawReq)
+	noPubMReq.PubM = nil
+	noPubMReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noPubMReq)
+
+	invalidPubMReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidPubMReq.PubM[0] = []byte("Dummy string converted to bytes")
+	invalidPubMReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidPubMReq)
+
+	noSigReq := deepCopyTransferToHoldingRequest(rawReq)
+	noSigReq.Sig = nil
+
+	invalidSigReq := deepCopyTransferToHoldingRequest(rawReq)
+	invalidSigReq.Sig[42] &= 1
+
+	invalidReqs := []proto.Message{
+		noSourceReq,
+		invalidSourceReq,
+		noTargetReq,
+		invalidTargetReq,
+		noEgPubReq,
+		invalidEgPubReq,
+		noLambdaReq,
+		invalidLambdaReq,
+		noPubMReq,
+		invalidPubMReq,
+		noSigReq,
+		invalidSigReq,
+	}
+
+	for _, reqraw := range invalidReqs {
+		req, err := proto.Marshal(reqraw)
+		assert.Nil(t, err)
+		assert.NotEqual(t, code.OK, app.checkTxTransferToHolding(req))
+	}
+
 }
 
 func TestCheckDepositCoconutCredentialTx(t *testing.T) {
