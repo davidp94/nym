@@ -1,8 +1,6 @@
-## v0.30.0
+## v0.32.0
 
-*TBD*
-
-Special thanks to external contributors on this release:
+**
 
 ### BREAKING CHANGES:
 
@@ -21,3 +19,4 @@ Special thanks to external contributors on this release:
 ### IMPROVEMENTS:
 
 ### BUG FIXES:
+

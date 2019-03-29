@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	// TODO: just replace with "memdb" ?
 	DBTYPE = "leveldb"
 )
 
@@ -40,7 +41,7 @@ func main() {
 		panic(fmt.Errorf("Could not create DB directory: %v", err.Error()))
 	}
 
-	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
+	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "abci-server")
 	app := nymapplication.NewNymApplication(DBTYPE, *dbPath, logger.With("module", "nym-app"))
 
 	srv, err := server.NewServer("tcp://0.0.0.0:"+*port, "socket", app)
@@ -48,14 +49,17 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	srv.SetLogger(logger.With("module", "abci-server"))
+
+	srv.SetLogger(logger)
 	if err := srv.Start(); err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
-	cmn.TrapSignal(func() {
+	cmn.TrapSignal(logger, func() {
 		srv.Stop()
 		logger.Info("Server was stopped")
 	})
+
+	select {}
 }
