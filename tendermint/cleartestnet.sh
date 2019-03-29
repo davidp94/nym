@@ -1,6 +1,6 @@
 #!/bin/bash
 
-TESTNET_ROOT_DIR="/home/jedrzej/tendermint"
+TESTNET_ROOT_DIR="$HOME/tendermint"
 TESTNET_FOLDER="mytestnet"
 
 NODE_0_NAME="node0"
