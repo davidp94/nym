@@ -242,12 +242,12 @@ func (c *Client) Subscribe(ctx context.Context, subscriber, query string,
 
 // Unsubscribe is a wrapper for the websocket unsubscribe method.
 func (c *Client) Unsubscribe(ctx context.Context, subscriber, query string) error {
-	return c.Unsubscribe(ctx, subscriber, query)
+	return c.tmclient.Unsubscribe(ctx, subscriber, query)
 }
 
 // UnsubscribeAll is a wrapper for the websocket unsubscribeAll method.
 func (c *Client) UnsubscribeAll(ctx context.Context, subscriber string) error {
-	return c.UnsubscribeAll(ctx, subscriber)
+	return c.tmclient.UnsubscribeAll(ctx, subscriber)
 }
 
 // Stop gracefully stops the client
