@@ -18,6 +18,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -233,6 +234,22 @@ func (c *Client) reconnect(forceTry bool) error {
 	return nil
 }
 
+// Subscribe is a wrapper for the websocket subscribe method.
+func (c *Client) Subscribe(ctx context.Context, subscriber, query string,
+	outCapacity ...int) (out <-chan ctypes.ResultEvent, err error) {
+	return c.tmclient.Subscribe(ctx, subscriber, query, outCapacity...)
+}
+
+// Unsubscribe is a wrapper for the websocket unsubscribe method.
+func (c *Client) Unsubscribe(ctx context.Context, subscriber, query string) error {
+	return c.Unsubscribe(ctx, subscriber, query)
+}
+
+// UnsubscribeAll is a wrapper for the websocket unsubscribeAll method.
+func (c *Client) UnsubscribeAll(ctx context.Context, subscriber string) error {
+	return c.UnsubscribeAll(ctx, subscriber)
+}
+
 // Stop gracefully stops the client
 func (c *Client) Stop() {
 	c.stopOnce.Do(func() {
@@ -269,6 +286,11 @@ func (c *Client) logMsg(level string, msgfmt string, a ...interface{}) {
 	case "CRITICAL":
 		c.log.Critical(msg)
 	}
+}
+
+// entirely for debug purposes
+func (c *Client) TendermintClient() *tmclient.HTTP {
+	return c.tmclient
 }
 
 // New returns new instance of the client
