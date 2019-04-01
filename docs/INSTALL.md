@@ -1,5 +1,7 @@
 # Installation
 
+## OUTDATED
+
 The installation process of the Coconut servers takes multiple steps.
 
 0. Ensure you have correctly installed go, set up GOPATH, etc.

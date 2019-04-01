@@ -17,12 +17,13 @@
 package main
 
 import (
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
@@ -30,6 +31,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -97,7 +99,9 @@ func main() {
 }
 
 func demo(cc *cclient.Client) {
-	log, err := logger.New("", "INFO", false)
+	tmp := make(chan struct{})
+
+	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
 	}
@@ -106,6 +110,24 @@ func demo(cc *cclient.Client) {
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
+
+	monitor, err := monitor.New(log, tmclient, 42)
+	if err != nil {
+		panic(err)
+	}
+
+	_ = monitor
+	// monitor.Halt()
+	// return
+
+	// // query := query.MustParse("tm.event = 'Tx'")
+	// txs, err := cl.Subscribe(context.Background(), "test-client", "tm.event = 'Tx'")
+	// go func() {
+	// 	for e := range txs {
+	// 		fmt.Println("Received ", e)
+	// 	}
+	// 	fmt.Println("END")
+	// }()
 
 	// create new account
 	acc := account.NewAccount()
@@ -127,38 +149,54 @@ func demo(cc *cclient.Client) {
 	G := params.G
 	privM := getRandomAttributes(G, 2) // sequence and the key
 	token := token.New(privM[0], privM[1], int32(10))
+	_ = token
 
-	res, err := tmclient.Broadcast(newAccReq)
+	res, err := tmclient.SendAsync(newAccReq)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+
+	// fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 	// add some funds
-	res, err = tmclient.Broadcast(transferReq)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-
-	cred, err := cc.GetCredential(token)
+	res, err = tmclient.SendAsync(transferReq)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Printf("Transfered %v to the holding account\n", token.Value())
-	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
-
-	addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	b, err := utils.GenerateRandomBytes(10)
 	if err != nil {
 		panic(err)
 	}
-	// spend credential:
-	didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
-	if err != nil {
-		panic(err)
-	}
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
 
-	fmt.Println("Was credential spent: ", didSucceed)
+	_ = res
+	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+
+	<-tmp
+	// _ = tmp
+	// cred, err := cc.GetCredential(token)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+
+	// addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// // spend credential:
+	// didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Println("Was credential spent: ", didSucceed)
 }
 
 func IAInteractions(cc *cclient.Client) {
