@@ -25,7 +25,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
-	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
@@ -95,44 +94,52 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("GetCredential: Tried to obtain credential on undefined account")
 	}
 
-	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
-	}
-
 	// we transfer amount of tokens to the holding account
-	txHash, nonce, err := c.transferTokensToHolding(token)
+	height, err := c.transferTokensToHolding(token, elGamalPublicKey)
 	if err != nil {
-		return nil, err
-	}
-	sig := c.createCredentialRequestSig(txHash, nonce, token)
-
-	cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, nonce, txHash, sig)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
+		return nil, c.logAndReturnError("GetCredential: could not transfer to the holding account: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Could not create data packet for GetCredential command: %v", err)
-	}
+	c.log.Warningf("Our tx was included in block: %v", height)
 
-	responses := comm.GetServerResponses(
-		&comm.RequestParams{
-			MarshaledPacket:   packetBytes,
-			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
-			ServerAddresses:   c.cfg.Client.IAAddresses,
-			ServerIDs:         c.cfg.Client.IAIDs,
-		},
-		c.log,
-	)
+	_ = elGamalPrivateKey
+	return nil, nil
 
-	// what we receive are basically coconut signatures so we can use old logic to parse them.
-	sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
-	return c.handleReceivedSignatures(sigs, pp)
+	// TODO: logic for communicating with IAs
+
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// sig := c.createCredentialRequestSig(txHash, nonce, token)
+
+	// cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, nonce, txHash, sig)
+	// if err != nil {
+	// 	return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
+	// }
+
+	// packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	// if err != nil {
+	// 	return nil, c.logAndReturnError("GetCredential: Could not create data packet for GetCredential command: %v", err)
+	// }
+
+	// responses := comm.GetServerResponses(
+	// 	&comm.RequestParams{
+	// 		MarshaledPacket:   packetBytes,
+	// 		MaxRequests:       c.cfg.Client.MaxRequests,
+	// 		ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+	// 		RequestTimeout:    c.cfg.Debug.RequestTimeout,
+	// 		ServerAddresses:   c.cfg.Client.IAAddresses,
+	// 		ServerIDs:         c.cfg.Client.IAIDs,
+	// 	},
+	// 	c.log,
+	// )
+
+	// // what we receive are basically coconut signatures so we can use old logic to parse them.
+	// sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
+	// return c.handleReceivedSignatures(sigs, pp)
 }
+
+// TODO: at later date, though we possibly might even ignore it
 
 // // GetCredentialGrpc similarly to previous requests, sends 'getcredential' request
 // // to all IA-grpc servers specified in the config with the provided token and required cryptographic materials.
@@ -191,30 +198,41 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 // 	return c.handleReceivedSignatures(sigs, nil)
 // }
 
-func (c *Client) transferTokensToHolding(token *token.Token) (cmn.HexBytes, []byte, error) {
+func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
 	// first check if we have loaded the account information
 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-		return nil, nil, c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
+		return -1, c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
 	}
 
-	nonce := c.cryptoworker.CoconutWorker().RandomBIG()
-	nonceB := make([]byte, constants.BIGLen)
-	nonce.ToBytes(nonceB)
-
-	req, err := transaction.CreateNewTransferToHoldingRequest(c.nymAccount, uint32(token.Value()), nonceB)
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(egPub, token)
 	if err != nil {
-		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
+		return -1, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
+	}
+
+	pubM, _ := token.GetPublicAndPrivateSlices()
+
+	transferToHoldingRequestParams := transaction.TransferToHoldingRequestParams{
+		Acc:    c.nymAccount,
+		Amount: token.Value(),
+		EgPub:  egPub,
+		Lambda: lambda,
+		PubM:   pubM,
+	}
+
+	req, err := transaction.CreateNewTransferToHoldingRequest(transferToHoldingRequestParams)
+	if err != nil {
+		return -1, c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
 	}
 
 	res, err := c.nymClient.Broadcast(req)
 	if err != nil {
-		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
+		return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
 	}
 	if res.DeliverTx.Code != code.OK {
-		return nil, nil, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v", res.DeliverTx.Code, code.ToString(res.DeliverTx.Code))
+		return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v", res.DeliverTx.Code, code.ToString(res.DeliverTx.Code))
 	}
 
-	return res.Hash, nonceB, nil
+	return res.Height, nil
 }
 
 func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
