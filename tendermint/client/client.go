@@ -70,7 +70,7 @@ func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -97,7 +97,7 @@ func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -123,7 +123,7 @@ func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -149,7 +149,7 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		c.logMsg("DEBUG", "Network error while quering the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -174,7 +174,7 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -195,6 +195,7 @@ func (c *Client) reconnect(forceTry bool) error {
 	if c.lastReconnection.Add(reconnectionValidityPeriod).UnixNano() > time.Now().UnixNano() {
 		// somebody else already caused reconnection
 		c.logMsg("DEBUG", "Another instance already reconnected")
+		time.Sleep(time.Second * 1)
 		return nil
 	}
 
@@ -286,11 +287,6 @@ func (c *Client) logMsg(level string, msgfmt string, a ...interface{}) {
 	case "CRITICAL":
 		c.log.Critical(msg)
 	}
-}
-
-// entirely for debug purposes
-func (c *Client) TendermintClient() *tmclient.HTTP {
-	return c.tmclient
 }
 
 // New returns new instance of the client
