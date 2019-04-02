@@ -263,7 +263,15 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 		}
 
 		sourcePublicKey.Compress()
-		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: sourcePublicKey, Value: bsmb}}}
+		// we need to include slightly more information in the key field in case given user performed
+		// more than 1 transfer in given block. That way he wouldn't need to recreate bsmb to index the tx
+		key := make([]byte, len(sourcePublicKey)+constants.ECPLen)
+		copy(key, sourcePublicKey)
+		// gamma is unique per credential request;
+		// it's client's fault if he intentionally reuses is and is up to him to distinguish correct credentials
+		egPub.Gamma().ToBytes((key[len(sourcePublicKey):]), true)
+
+		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: bsmb}}}
 	}
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
