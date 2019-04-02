@@ -20,12 +20,15 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/tendermint/tendermint/abci/types"
 	cmn "github.com/tendermint/tendermint/libs/common"
 )
@@ -182,53 +185,131 @@ func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseD
 // TODO: wait on deicison on implementation
 func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.TransferToHoldingRequest{}
-
 	if err := proto.Unmarshal(reqb, req); err != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	dbNonce := prefixKey(tmconst.SeenNoncePrefix, req.Nonce)
-	_, zetaStatus := app.state.db.Get(dbNonce)
-	if zetaStatus != nil {
-		return types.ResponseDeliverTx{Code: code.REPLAY_ATTACK_ATTEMPT}
+	if len(req.PubM) < 1 ||
+		len(req.PubM[0]) != constants.BIGLen ||
+		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
-	// regardless of whether request is valid or not, mark the nonce as 'used'
-	app.state.db.Set(dbNonce, []byte{})
+
+	// only recovered to see if an error is thrown
+	lambda := &coconut.Lambda{}
+	if err := lambda.FromProto(req.Lambda); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	lambdab, err := proto.Marshal(req.Lambda)
+	if err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	// only recovered to see if an error is thrown
+	egPub := &elgamal.PublicKey{}
+	if err := egPub.FromProto(req.EgPub); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	egPubb, err := proto.Marshal(req.EgPub)
+	if err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
 	recoveredHoldingAddress := req.TargetAddress
+
+	// TODO: update once epochs, etc. are introduced
 	if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
-		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("HOLDING")}
+		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
 	}
+
 	if retCode, data := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 	}
 
-	msg := make([]byte, len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(req.Nonce))
-	copy(msg, req.SourcePublicKey)
-	copy(msg[len(req.SourcePublicKey):], req.TargetAddress)
-	binary.BigEndian.PutUint32(msg[len(req.SourcePublicKey)+len(req.TargetAddress):], req.Amount)
-	copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4:], req.Nonce)
+	msg := make([]byte, len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
+	copy(msg, sourcePublicKey)
+	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
+	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
+	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
+	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
+	for i := range req.PubM {
+		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
+	}
 
-	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
 		app.log.Info("Failed to verify signature on request")
 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 	}
 
 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
 	if retCode == code.OK {
-		// it can't fail as transferFunds already performed it
+		// lambda, egpub, pubm
+		blindSignMaterials := &coconut.BlindSignMaterials{
+			Lambda: req.Lambda,
+			EgPub:  req.EgPub,
+			PubM:   req.PubM,
+		}
+
+		bsmb, err := proto.Marshal(blindSignMaterials)
+		if err != nil {
+			// it's really impossible for this to fail, but if it somehow does, it's client's fault for providing
+			// such weirdly malformed data
+			app.log.Error("Proto error after transfer already occured")
+			// TODO: possibly revert operation?
+			return types.ResponseDeliverTx{Code: code.UNKNOWN}
+		}
+
 		sourcePublicKey.Compress()
-		amountB := make([]byte, 4)
-		binary.BigEndian.PutUint32(amountB, req.Amount)
-		// only include tags if tx was successful
-		key := make([]byte, len(sourcePublicKey)+len(req.Nonce))
-		copy(key, sourcePublicKey)
-		copy(key[len(sourcePublicKey):], req.Nonce)
-		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: amountB}}}
+		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: sourcePublicKey, Value: bsmb}}}
 	}
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
+
+// req := &transaction.TransferToHoldingRequest{}
+
+// if err := proto.Unmarshal(reqb, req); err != nil {
+// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// }
+
+// var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+// recoveredHoldingAddress := req.TargetAddress
+
+// // TODO: update once epochs, etc. are introduced
+// if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
+// 	return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("HOLDING")}
+// }
+// if retCode, data := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
+// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
+// }
+
+// msg := make([]byte, len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(req.Nonce))
+// copy(msg, req.SourcePublicKey)
+// copy(msg[len(req.SourcePublicKey):], req.TargetAddress)
+// binary.BigEndian.PutUint32(msg[len(req.SourcePublicKey)+len(req.TargetAddress):], req.Amount)
+// copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4:], req.Nonce)
+
+// if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+// 	app.log.Info("Failed to verify signature on request")
+// 	return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+// }
+
+// retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
+// if retCode == code.OK {
+// 	// it can't fail as transferFunds already performed it
+// 	sourcePublicKey.Compress()
+// 	amountB := make([]byte, 4)
+// 	binary.BigEndian.PutUint32(amountB, req.Amount)
+// 	// only include tags if tx was successful
+// 	key := make([]byte, len(sourcePublicKey)+len(req.Nonce))
+// 	copy(key, sourcePublicKey)
+// 	copy(key[len(sourcePublicKey):], req.Nonce)
+// 	return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: amountB}}}
+// }
+// return types.ResponseDeliverTx{Code: retCode, Data: data}
+// }
 
 // old implementation, if initiated by IAs:
 // var IAPub account.ECPublicKey

@@ -65,7 +65,7 @@ message ProtoParams {
 
 // encapsulates everything required by IAs to issue credential
 message BlindSignMaterials {
-    ProtoLambda lamda = 1;
+    ProtoLambda lambda = 1;
     elgamal.ProtoPublicKey egPub = 2;
     repeated bytes pubM = 3;
 }
