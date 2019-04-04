@@ -21,47 +21,206 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
+	cmn "github.com/tendermint/tendermint/libs/common"
 	ctypes "github.com/tendermint/tendermint/rpc/core/types"
+	"github.com/tendermint/tendermint/types"
 	"gopkg.in/op/go-logging.v1"
 )
 
 const (
 	maxInterval = time.Second * 10
-
 	// todo: figure out if we want query per tx or per block
-	chainQuery = "tm.event = 'NewBlock'"
-	// chainQuery = "tm.event = 'Tx'"
 
+	// txs for actual data, block header to know how many should have arrived
+	// (needed if node died after sending only part of them)
+	headersQuery = "tm.event = 'NewBlockHeader'"
+	txsQuery     = "tm.event = 'Tx'"
 )
 
 // Monitor represents the Blockchain monitor
 type Monitor struct {
+	sync.Mutex
 	worker.Worker
+	// some db handler - TODO
 
-	tmClient      *tmclient.Client
-	subscriberStr string
-	eventsCh      <-chan ctypes.ResultEvent
-	haltCh        chan struct{}
-	latestBlock   int64
+	tmClient         *tmclient.Client
+	subscriberStr    string
+	txsEventsCh      <-chan ctypes.ResultEvent
+	headersEventsCh  <-chan ctypes.ResultEvent
+	haltCh           chan struct{}
+	latestBlock      int64
+	uncommitedBlocks map[int64]*block
 
 	log *logging.Logger
 }
 
+type block struct {
+	sync.Mutex
+	creationTime   time.Time // approximate creation time of the given struct, NOT the actual block on the chain
+	height         int64
+	numTxs         int64
+	receivedHeader bool
+
+	txs []*tx
+}
+
+func (b *block) isFull() bool {
+	b.Lock()
+	defer b.Unlock()
+	// below wont work as i think some returned txs may be invalid? i.e. code != ok
+	// for i := range b.txs {
+	// 	if b.txs[i] == nil {
+	// 		return false
+	// 	}
+	// }
+	// return true
+	return false
+}
+
+func (b *block) addTx(newTx *tx) {
+	b.Lock()
+	defer b.Unlock()
+
+	if len(b.txs)+1 < int(newTx.index) {
+		newTxs := make([]*tx, newTx.index+1)
+		for _, oldTx := range b.txs {
+			if oldTx != nil {
+				newTxs[oldTx.index] = oldTx
+			}
+		}
+		b.txs = newTxs
+	}
+	b.txs[newTx.index] = newTx
+}
+
+func startNewBlock(header types.Header) *block {
+	return &block{
+		creationTime:   time.Now(),
+		height:         header.Height,
+		numTxs:         header.NumTxs,
+		receivedHeader: true,
+		txs:            make([]*tx, int(header.NumTxs)),
+	}
+}
+
+type tx struct {
+	height int64
+	index  uint32
+	code   uint32
+	tags   []cmn.KVPair
+}
+
+func startNewTx(txData types.EventDataTx) *tx {
+	return &tx{
+		height: txData.Height,
+		index:  txData.Index,
+		code:   txData.Result.Code,
+		tags:   txData.Result.Tags,
+	}
+}
+
+func (m *Monitor) getLowestFullUnprocessedBlock() (int64, *block) {
+	m.Lock()
+	defer m.Unlock()
+	for k, v := range m.uncommitedBlocks {
+		if v.isFull() {
+			return k, v
+		}
+	}
+	return -1, nil
+}
+
+// should run periodically
+func (m *Monitor) processBlocks() {
+	height, block := m.getLowestFullUnprocessedBlock()
+	if height < 0 {
+		m.log.Info("No valid blocks to process")
+		return
+	}
+	m.log.Infof("Processing block at height: %v", height)
+
+	_ = block
+
+	// if len(txData.Result.Tags) > 0 &&
+	// bytes.HasPrefix(txData.Result.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {
+	// 	m.log.Warning("Valid")
+	// } else {
+	// 	m.log.Warning("Invalid")
+	// }
+
+}
+
+func (m *Monitor) addNewBlock(b *block) {
+	m.Lock()
+	defer m.Unlock()
+	if _, ok := m.uncommitedBlocks[b.height]; !ok {
+		m.uncommitedBlocks[b.height] = b
+		return
+	}
+
+	m.log.Infof("Block at height: %v already present", b.height)
+	if m.uncommitedBlocks[b.height].receivedHeader {
+		// that's really an undefined behaviour. we probably received the same header twice?
+		// ignore for now
+	} else {
+		oldTxs := m.uncommitedBlocks[b.height].txs
+		for _, oldTx := range oldTxs {
+			if oldTx != nil {
+				b.txs[oldTx.index] = oldTx
+			}
+		}
+		m.uncommitedBlocks[b.height] = b
+	}
+
+}
+
+func (m *Monitor) addNewTx(newTx *tx) {
+	m.Lock()
+	defer m.Unlock()
+	b, ok := m.uncommitedBlocks[newTx.height]
+	if !ok {
+		// we haven't received block header  and this is the first tx we received for that block
+		tempBlock := &block{
+			creationTime:   time.Now(),
+			height:         newTx.height,
+			numTxs:         -1,
+			receivedHeader: false,
+			txs:            make([]*tx, int(newTx.index)+1), // we know that there are at least that many txs in the block
+		}
+		tempBlock.txs[newTx.index] = newTx
+		m.uncommitedBlocks[newTx.height] = tempBlock
+		return
+	}
+	b.addTx(newTx)
+}
+
+// for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
+	// TODO: start processing loop in background
+
 	for {
 		select {
-		case e := <-m.eventsCh:
-			m.log.Notice("Received", e)
-			_ = e
+		case e := <-m.headersEventsCh:
+			headerData := e.Data.(types.EventDataNewBlockHeader).Header
+
+			m.log.Noticef("Received", headerData)
+			m.addNewBlock(startNewBlock(headerData))
+
+		case e := <-m.txsEventsCh:
+			txData := e.Data.(types.EventDataTx)
+
+			m.log.Noticef("Received", txData)
+			m.addNewTx(startNewTx(txData))
 
 		case <-time.After(maxInterval):
 			m.log.Warning("Timeout")
-			// unsub and resub
+			// unsub and resub + catchup
 		case <-m.haltCh:
 			return
 		}
@@ -97,17 +256,24 @@ func New(l *logger.Logger, tmClient *tmclient.Client, id int) (*Monitor, error) 
 		log.Noticef("%v", err)
 	}
 
-	eventsCh, err := tmClient.Subscribe(context.Background(), subscriberStr, chainQuery)
+	headersEventsCh, err := tmClient.Subscribe(context.Background(), subscriberStr, headersQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	txsEventsCh, err := tmClient.Subscribe(context.Background(), subscriberStr, txsQuery)
 	if err != nil {
 		return nil, err
 	}
 
 	monitor := &Monitor{
-		tmClient:      tmClient,
-		log:           log,
-		subscriberStr: subscriberStr,
-		eventsCh:      eventsCh,
-		haltCh:        make(chan struct{}),
+		tmClient:         tmClient,
+		log:              log,
+		subscriberStr:    subscriberStr,
+		headersEventsCh:  headersEventsCh,
+		txsEventsCh:      txsEventsCh,
+		haltCh:           make(chan struct{}),
+		uncommitedBlocks: make(map[int64]*block),
 	}
 
 	monitor.Go(monitor.worker)
