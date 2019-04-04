@@ -61,12 +61,15 @@ func (p *Processor) worker() {
 		height, nextBlock := p.monitor.GetLowestFullUnprocessedBlock()
 		if nextBlock == nil {
 			p.log.Info("No blocks to process")
-			time.Sleep(backoffDuration)
+			select {
+			case <-p.haltCh:
+				return
+			case <-time.After(backoffDuration):
+			}
 			continue
 		}
 
 		p.log.Warningf("Processing block at height: %v", height)
-		continue
 
 		// In principle there should be no need to use the lock here because the block shouldn't be touched anymore,
 		// but better safe than sorry
@@ -78,6 +81,7 @@ func (p *Processor) worker() {
 		for i, tx := range nextBlock.Txs {
 			if tx.Code != code.OK || len(tx.Tags) <= 0 ||
 				!bytes.HasPrefix(tx.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {
+				p.log.Infof("Tx %v at height %v is not sign request", i, height)
 				continue
 			}
 
@@ -102,8 +106,8 @@ func (p *Processor) worker() {
 			p.incomingCh <- cmdReq
 			res := <-resCh
 
-			if res.ErrorStatus != commands.StatusCode_OK {
-				p.log.Errorf("Failed to sign request at index: %v on height %v, err: %v", i, height, res.ErrorMessage)
+			if res == nil || res.Data == nil {
+				p.log.Errorf("Failed to sign request at index: %v on height %v", i, height)
 			}
 
 			blindedSig := res.Data.(*coconut.BlindedSignature)

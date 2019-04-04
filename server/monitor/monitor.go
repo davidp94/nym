@@ -74,21 +74,24 @@ type block struct {
 func (b *block) isFull() bool {
 	b.Lock()
 	defer b.Unlock()
-	// below wont work as i think some returned txs may be invalid? i.e. code != ok
-	// for i := range b.Txs {
-	// 	if b.Txs[i] == nil {
-	// 		return false
-	// 	}
-	// }
-	// return true
-	return false
+
+	if int64(len(b.Txs)) != b.NumTxs {
+		return false
+	}
+
+	for i := range b.Txs {
+		if b.Txs[i] == nil {
+			return false
+		}
+	}
+	return true
 }
 
 func (b *block) addTx(newTx *tx) {
 	b.Lock()
 	defer b.Unlock()
 
-	if len(b.Txs)+1 < int(newTx.index) {
+	if len(b.Txs) < int(newTx.index)+1 {
 		newTxs := make([]*tx, newTx.index+1)
 		for _, oldTx := range b.Txs {
 			if oldTx != nil {
@@ -127,9 +130,11 @@ func startNewTx(txData types.EventDataTx) *tx {
 }
 
 func (m *Monitor) FinalizeHeight(height int64) {
+	m.log.Debugf("Finalizing height %v", height)
 	m.Lock()
 	defer m.Unlock()
-	m.latestProcessedHeight = height
+	m.latestProcessedHeight = height // TODO: its not guaranteed we process blocks in order,
+	// we might go say 30 -> 34,35, 32, 31,33, etc
 	delete(m.uncommitedBlocks, height) // TODO: or replace with -1 in case we got it again somehow?
 }
 
@@ -140,6 +145,7 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 		if v.isFull() && !v.beingProcessed { // allows for multiple processors
 			return k, v
 		}
+		m.log.Errorf("Nope %v", k)
 	}
 	return -1, nil
 }
@@ -197,13 +203,13 @@ func (m *Monitor) worker() {
 		case e := <-m.headersEventsCh:
 			headerData := e.Data.(types.EventDataNewBlockHeader).Header
 
-			m.log.Noticef("Received", headerData)
+			m.log.Noticef("Received header for height : %v", headerData.Height)
 			m.addNewBlock(startNewBlock(headerData))
 
 		case e := <-m.txsEventsCh:
 			txData := e.Data.(types.EventDataTx)
 
-			m.log.Noticef("Received", txData)
+			m.log.Noticef("Received tx %v height: %v", txData.Index, txData.Height)
 			m.addNewTx(startNewTx(txData))
 
 		case <-time.After(maxInterval):
