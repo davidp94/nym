@@ -54,9 +54,9 @@ type ServerWorker struct {
 	incomingCh <-chan *commands.CommandRequest
 	log        *logging.Logger
 
-	nymClient               *nymclient.Client
-	blockchainNodeAddresses []string // we keep them for the future so that if the node we are connected to fails,
-	// we could try to reconnect to a different one
+	nymClient *nymclient.Client
+	// blockchainNodeAddresses []string // we keep them for the future so that if the node we are connected to fails,
+	// // we could try to reconnect to a different one
 	iaid       uint32
 	sk         *coconut.SecretKey // ensure they can be safely shared between multiple workers
 	vk         *coconut.VerificationKey

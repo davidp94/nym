@@ -19,6 +19,7 @@ package processor
 
 import (
 	"bytes"
+	"fmt"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
@@ -37,7 +38,9 @@ type Processor struct {
 	monitor    *monitor.Monitor
 	incomingCh chan<- *commands.CommandRequest
 
-	log *logging.Logger
+	haltCh chan struct{}
+	log    *logging.Logger
+	id     int
 }
 
 const (
@@ -46,10 +49,24 @@ const (
 
 func (p *Processor) worker() {
 	for {
+		// first check if haltCh was closed to halt if needed
+
+		select {
+		case <-p.haltCh:
+			return
+		default:
+			p.log.Debug("Default")
+		}
+
 		height, nextBlock := p.monitor.GetLowestFullUnprocessedBlock()
 		if nextBlock == nil {
+			p.log.Info("No blocks to process")
 			time.Sleep(backoffDuration)
+			continue
 		}
+
+		p.log.Warningf("Processing block at height: %v", height)
+		continue
 
 		// In principle there should be no need to use the lock here because the block shouldn't be touched anymore,
 		// but better safe than sorry
@@ -91,7 +108,9 @@ func (p *Processor) worker() {
 
 			blindedSig := res.Data.(*coconut.BlindedSignature)
 			// TODO: writing it to storage
-			_ = blindedSig
+			// _ = blindedSig
+
+			p.log.Warningf("Signed tx %v on height %v : %v", i, height, blindedSig.Sig1().ToString())
 		}
 
 		p.monitor.FinalizeHeight(height)
@@ -99,12 +118,21 @@ func (p *Processor) worker() {
 	}
 }
 
-func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger) (*Processor, error) {
+func (p *Processor) Halt() {
+	p.log.Noticef("Halting Processor %v", p.id)
+	close(p.haltCh)
+	p.Worker.Halt()
+	// todo
+}
+
+func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger, id int) (*Processor, error) {
 
 	p := &Processor{
 		monitor:    monitor,
 		incomingCh: inCh,
-		log:        l.GetLogger("Processor"),
+		haltCh:     make(chan struct{}),
+		log:        l.GetLogger(fmt.Sprintf("Processor:%v", id)),
+		id:         id,
 	}
 
 	p.Go(p.worker)

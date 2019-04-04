@@ -81,6 +81,7 @@ func (t *Token) PrepareBlindSign(params *coconut.Params, egPub *elgamal.PublicKe
 
 // temp, havent decided on where attrs will be generated, but want token instance for test
 func New(s, k *Curve.BIG, val int32) *Token {
+	// TODO: validate val
 	return &Token{
 		privateKey:  k,
 		sequenceNum: s,

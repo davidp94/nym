@@ -227,12 +227,6 @@ func (m *Monitor) Halt() {
 	m.Worker.Halt()
 }
 
-// HaltCh returns channel that upon writing anything to it (or more importantly closing it),
-// will cause monitor to halt
-func (m *Monitor) HaltCh() <-chan struct{} {
-	return m.haltCh
-}
-
 // New creates a new monitor.
 func New(l *logger.Logger, tmClient *tmclient.Client, id int) (*Monitor, error) {
 	// read db with current state etc

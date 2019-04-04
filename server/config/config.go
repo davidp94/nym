@@ -30,6 +30,7 @@ const (
 	defaultLogLevel = "NOTICE"
 
 	defaultNumServerWorkers = 1
+	defaultNumProcessors    = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
 	defaultRequestTimeout               = 5 * 1000  // 5 sec.
@@ -120,6 +121,9 @@ type Debug struct {
 	// NumServerWorkers specifies the number of worker instances to use for client job requests.
 	NumServerWorkers int
 
+	// NumProcessors specifies the number of processor instances attached to the blockchain monitor.
+	NumProcessors int
+
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
 
@@ -149,6 +153,9 @@ func (dCfg *Debug) applyDefaults() {
 	}
 	if dCfg.NumServerWorkers <= 0 {
 		dCfg.NumServerWorkers = defaultNumServerWorkers
+	}
+	if dCfg.NumProcessors <= 0 {
+		dCfg.NumProcessors = defaultNumProcessors
 	}
 	if dCfg.ConnectTimeout <= 0 {
 		dCfg.ConnectTimeout = defaultConnectTimeout

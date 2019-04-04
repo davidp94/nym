@@ -23,6 +23,9 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor/processor"
+
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
@@ -56,6 +59,9 @@ type Server struct {
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.JobWorker
+
+	monitor    *monitor.Monitor
+	processors []*processor.Processor
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -220,6 +226,7 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
+	// TODO: remove the below. it's no longer required (i think...)
 	acc := account.Account{}
 	var nymClient *nymclient.Client
 	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
@@ -299,6 +306,29 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
 
+	var mon *monitor.Monitor
+	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
+	// there's no need for a provider to monitor the chain
+	if cfg.Server.IsIssuer {
+		mon, err = monitor.New(log, nymClient, int(IAID))
+		if err != nil {
+			// in theory we could still progress if chain comes back later on.
+			// We will just have to catch up on the blocks
+			serverLog.Errorf("Failed to spawn blockchain monitor")
+		}
+		serverLog.Noticef("Spawned blockchain monitor")
+		for i := 0; i < cfg.Debug.NumProcessors; i++ {
+			processor, err := processor.New(cmdCh.In(), mon, log, i)
+			if err != nil {
+				// but if we are unable to process the blocks, there's no point of the issuer
+				serverLog.Critical("Failed to spawn blockchain block processor")
+				return nil, err
+			}
+			processors[i] = processor
+		}
+		serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
+	}
+
 	s := &Server{
 		cfg: cfg,
 
@@ -314,6 +344,9 @@ func New(cfg *config.Config) (*Server, error) {
 		listeners:     listeners,
 		grpclisteners: grpclisteners,
 		jobWorkers:    jobworkers,
+
+		monitor:    mon,
+		processors: processors,
 
 		haltedCh: make(chan interface{}),
 	}
@@ -355,6 +388,16 @@ func (s *Server) Shutdown() {
 
 func (s *Server) halt() {
 	s.log.Notice("Starting graceful shutdown.")
+
+	for i, p := range s.processors {
+		if p != nil {
+			p.Halt()
+			s.processors[i] = nil
+		}
+	}
+
+	s.monitor.Halt()
+	s.monitor = nil
 
 	for i, l := range s.grpclisteners {
 		if l != nil {
