@@ -49,13 +49,13 @@ type Monitor struct {
 	worker.Worker
 	// some db handler - TODO
 
-	tmClient         *tmclient.Client
-	subscriberStr    string
-	txsEventsCh      <-chan ctypes.ResultEvent
-	headersEventsCh  <-chan ctypes.ResultEvent
-	haltCh           chan struct{}
-	latestBlock      int64
-	uncommitedBlocks map[int64]*block
+	tmClient              *tmclient.Client
+	subscriberStr         string
+	txsEventsCh           <-chan ctypes.ResultEvent
+	headersEventsCh       <-chan ctypes.ResultEvent
+	haltCh                chan struct{}
+	latestProcessedHeight int64
+	uncommitedBlocks      map[int64]*block
 
 	log *logging.Logger
 }
@@ -64,18 +64,19 @@ type block struct {
 	sync.Mutex
 	creationTime   time.Time // approximate creation time of the given struct, NOT the actual block on the chain
 	height         int64
-	numTxs         int64
+	NumTxs         int64
 	receivedHeader bool
+	beingProcessed bool
 
-	txs []*tx
+	Txs []*tx
 }
 
 func (b *block) isFull() bool {
 	b.Lock()
 	defer b.Unlock()
 	// below wont work as i think some returned txs may be invalid? i.e. code != ok
-	// for i := range b.txs {
-	// 	if b.txs[i] == nil {
+	// for i := range b.Txs {
+	// 	if b.Txs[i] == nil {
 	// 		return false
 	// 	}
 	// }
@@ -87,73 +88,60 @@ func (b *block) addTx(newTx *tx) {
 	b.Lock()
 	defer b.Unlock()
 
-	if len(b.txs)+1 < int(newTx.index) {
+	if len(b.Txs)+1 < int(newTx.index) {
 		newTxs := make([]*tx, newTx.index+1)
-		for _, oldTx := range b.txs {
+		for _, oldTx := range b.Txs {
 			if oldTx != nil {
 				newTxs[oldTx.index] = oldTx
 			}
 		}
-		b.txs = newTxs
+		b.Txs = newTxs
 	}
-	b.txs[newTx.index] = newTx
+	b.Txs[newTx.index] = newTx
 }
 
 func startNewBlock(header types.Header) *block {
 	return &block{
 		creationTime:   time.Now(),
 		height:         header.Height,
-		numTxs:         header.NumTxs,
+		NumTxs:         header.NumTxs,
 		receivedHeader: true,
-		txs:            make([]*tx, int(header.NumTxs)),
+		Txs:            make([]*tx, int(header.NumTxs)),
 	}
 }
 
 type tx struct {
 	height int64
 	index  uint32
-	code   uint32
-	tags   []cmn.KVPair
+	Code   uint32
+	Tags   []cmn.KVPair
 }
 
 func startNewTx(txData types.EventDataTx) *tx {
 	return &tx{
 		height: txData.Height,
 		index:  txData.Index,
-		code:   txData.Result.Code,
-		tags:   txData.Result.Tags,
+		Code:   txData.Result.Code,
+		Tags:   txData.Result.Tags,
 	}
 }
 
-func (m *Monitor) getLowestFullUnprocessedBlock() (int64, *block) {
+func (m *Monitor) FinalizeHeight(height int64) {
+	m.Lock()
+	defer m.Unlock()
+	m.latestProcessedHeight = height
+	delete(m.uncommitedBlocks, height) // TODO: or replace with -1 in case we got it again somehow?
+}
+
+func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	m.Lock()
 	defer m.Unlock()
 	for k, v := range m.uncommitedBlocks {
-		if v.isFull() {
+		if v.isFull() && !v.beingProcessed { // allows for multiple processors
 			return k, v
 		}
 	}
 	return -1, nil
-}
-
-// should run periodically
-func (m *Monitor) processBlocks() {
-	height, block := m.getLowestFullUnprocessedBlock()
-	if height < 0 {
-		m.log.Info("No valid blocks to process")
-		return
-	}
-	m.log.Infof("Processing block at height: %v", height)
-
-	_ = block
-
-	// if len(txData.Result.Tags) > 0 &&
-	// bytes.HasPrefix(txData.Result.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {
-	// 	m.log.Warning("Valid")
-	// } else {
-	// 	m.log.Warning("Invalid")
-	// }
-
 }
 
 func (m *Monitor) addNewBlock(b *block) {
@@ -169,10 +157,10 @@ func (m *Monitor) addNewBlock(b *block) {
 		// that's really an undefined behaviour. we probably received the same header twice?
 		// ignore for now
 	} else {
-		oldTxs := m.uncommitedBlocks[b.height].txs
+		oldTxs := m.uncommitedBlocks[b.height].Txs
 		for _, oldTx := range oldTxs {
 			if oldTx != nil {
-				b.txs[oldTx.index] = oldTx
+				b.Txs[oldTx.index] = oldTx
 			}
 		}
 		m.uncommitedBlocks[b.height] = b
@@ -189,11 +177,11 @@ func (m *Monitor) addNewTx(newTx *tx) {
 		tempBlock := &block{
 			creationTime:   time.Now(),
 			height:         newTx.height,
-			numTxs:         -1,
+			NumTxs:         -1,
 			receivedHeader: false,
-			txs:            make([]*tx, int(newTx.index)+1), // we know that there are at least that many txs in the block
+			Txs:            make([]*tx, int(newTx.index)+1), // we know that there are at least that many txs in the block
 		}
-		tempBlock.txs[newTx.index] = newTx
+		tempBlock.Txs[newTx.index] = newTx
 		m.uncommitedBlocks[newTx.height] = tempBlock
 		return
 	}
