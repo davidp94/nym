@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## v0.2.2
+
+* Docker-compose for the entire environment
+* Issuers monitoring state of the Tendermint blockchain
+* Bunch of Work in Progress files related to Issuers having internal state of signed requests
+
 ## v0.2.1
 
 * Updated transfer to the holding account to return hash of the block including the tx
