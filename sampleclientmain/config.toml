@@ -37,7 +37,7 @@
 	# to which the client should send all relevant requests.
 	# Note that only a single request will ever be sent, but multiple addresses are provided in case
 	# the particular node was unavailable.
-	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
+	BlockchainNodeAddresses = [ "127.0.0.1:26657", "127.0.0.1:26659", "127.0.0.1:26661", "127.0.0.1:26663" ]
 
 [Logging]
 

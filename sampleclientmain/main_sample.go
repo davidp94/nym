@@ -31,7 +31,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -46,10 +45,10 @@ const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0
 
 var tendermintABCIAddresses = []string{
 	// "tcp://0.0.0.0:12345", // does not exist
-	"tcp://0.0.0.0:46657",
-	"tcp://0.0.0.0:46667",
-	"tcp://0.0.0.0:46677",
-	"tcp://0.0.0.0:46687",
+	"tcp://0.0.0.0:26657",
+	"tcp://0.0.0.0:26659",
+	"tcp://0.0.0.0:26661",
+	"tcp://0.0.0.0:26663",
 }
 
 // const tendermintABCIAddress = "tcp://0.0.0.0:26657"
@@ -111,12 +110,11 @@ func demo(cc *cclient.Client) {
 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
 
-	monitor, err := monitor.New(log, tmclient, 42)
-	if err != nil {
-		panic(err)
-	}
+	// monitor, err := monitor.New(log, tmclient, 42)
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	_ = monitor
 	// monitor.Halt()
 	// return
 
@@ -140,7 +138,7 @@ func demo(cc *cclient.Client) {
 	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
 
 	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 1000)
+	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 20)
 	if err != nil {
 		panic(err)
 	}
@@ -148,17 +146,17 @@ func demo(cc *cclient.Client) {
 	params, _ := coconut.Setup(5)
 	G := params.G
 	privM := getRandomAttributes(G, 2) // sequence and the key
-	token := token.New(privM[0], privM[1], int32(10))
+	token := token.New(privM[0], privM[1], int32(1))
 	_ = token
 
-	res, err := tmclient.SendAsync(newAccReq)
+	res, err := tmclient.Broadcast(newAccReq)
 	if err != nil {
 		panic(err)
 	}
 
 	// fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 	// add some funds
-	res, err = tmclient.SendAsync(transferReq)
+	res, err = tmclient.Broadcast(transferReq)
 	if err != nil {
 		panic(err)
 	}
@@ -167,17 +165,19 @@ func demo(cc *cclient.Client) {
 	if err != nil {
 		panic(err)
 	}
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+
+	cc.GetCredential(token)
 
 	_ = res
 	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 
-	<-tmp
-	// _ = tmp
+	// <-tmp
+	_ = tmp
 	// cred, err := cc.GetCredential(token)
 	// if err != nil {
 	// 	panic(err)

@@ -1,5 +1,5 @@
 // server.go - Coconut IA Server
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -229,14 +229,14 @@ func New(cfg *config.Config) (*Server, error) {
 	// TODO: remove the below. it's no longer required (i think...)
 	acc := account.Account{}
 	var nymClient *nymclient.Client
-	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
-		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
-			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-			serverLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
-		serverLog.Notice("Loaded Nym Blochain keys from the file.")
-
+	if cfg.Issuer != nil {
+		// && cfg.Issuer.BlockchainKeysFile != "" {
+		// 	if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
+		// 		errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+		// 		serverLog.Error(errStr)
+		// 		return nil, errors.New(errStr)
+		// 	}
+		// 	serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
