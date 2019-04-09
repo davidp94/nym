@@ -18,7 +18,7 @@
 
   # IsProvider specifies whether the server is a provider.
 	# Currently it means it should be able to verify credentials it receives.
-	IsProvider = false
+	IsProvider = true
 
 	# IsIssuer specifies whether the server is a credential issuer.
 	# Currently it means it should be able to sign attributes it receives.
