@@ -26,6 +26,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
+	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
@@ -129,7 +130,7 @@ func (p *Processor) Halt() {
 	// todo
 }
 
-func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger, id int) (*Processor, error) {
+func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger, id int, store *storage.Database) (*Processor, error) {
 
 	p := &Processor{
 		monitor:    monitor,

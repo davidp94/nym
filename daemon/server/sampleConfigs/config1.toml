@@ -13,6 +13,9 @@
   # to for incoming grpcs.
 	GRPCAddresses = [ "0.0.0.0:5000" ]
 
+	# DataDir specifies path to a .db file holding relevant server-specific persistent data.
+	DataDir = "/coconut_server/"
+  
 	# MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes = 5
 
@@ -23,7 +26,6 @@
 	# IsIssuer specifies whether the server is a credential issuer.
 	# Currently it means it should be able to sign attributes it receives.
 	IsIssuer = true
-
 
 [Issuer]
 	# ID represents the ID of the server used during generation of threshold keys.

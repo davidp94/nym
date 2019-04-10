@@ -23,9 +23,6 @@ import (
 	"sync"
 	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor/processor"
-
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
@@ -35,11 +32,18 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor/processor"
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
+	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
+)
+
+const (
+	dbName = "serverStore"
 )
 
 // Server defines all the required attributes for a coconut server.
@@ -62,6 +66,7 @@ type Server struct {
 
 	monitor    *monitor.Monitor
 	processors []*processor.Processor
+	storage    *storage.Database
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -306,6 +311,12 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
 
+	store, err := storage.New(dbName, cfg.Server.DataDir)
+	if err != nil {
+		serverLog.Errorf("Failed to create a data store: %v", err)
+		return nil, err
+	}
+
 	var mon *monitor.Monitor
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 	// there's no need for a provider to monitor the chain
@@ -318,7 +329,7 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 		serverLog.Noticef("Spawned blockchain monitor")
 		for i := 0; i < cfg.Debug.NumProcessors; i++ {
-			processor, err := processor.New(cmdCh.In(), mon, log, i)
+			processor, err := processor.New(cmdCh.In(), mon, log, i, store)
 			if err != nil {
 				// but if we are unable to process the blocks, there's no point of the issuer
 				serverLog.Critical("Failed to spawn blockchain block processor")
@@ -389,16 +400,6 @@ func (s *Server) Shutdown() {
 func (s *Server) halt() {
 	s.log.Notice("Starting graceful shutdown.")
 
-	for i, p := range s.processors {
-		if p != nil {
-			p.Halt()
-			s.processors[i] = nil
-		}
-	}
-
-	s.monitor.Halt()
-	s.monitor = nil
-
 	for i, l := range s.grpclisteners {
 		if l != nil {
 			l.Halt()
@@ -412,6 +413,23 @@ func (s *Server) halt() {
 			l.Halt() // Closes all connections.
 			s.listeners[i] = nil
 		}
+	}
+
+	for i, p := range s.processors {
+		if p != nil {
+			p.Halt()
+			s.processors[i] = nil
+		}
+	}
+
+	if s.monitor != nil {
+		s.monitor.Halt()
+		s.monitor = nil
+	}
+
+	if s.storage != nil {
+		s.storage.Close()
+		s.storage = nil
 	}
 
 	for i, w := range s.serverWorkers {

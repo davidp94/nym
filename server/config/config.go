@@ -57,9 +57,8 @@ type Server struct {
 	// GRPCAddresses are the IP address:port combinations that the server will bind	to for incoming grpcs.
 	GRPCAddresses []string
 
-	// Will definitely be useful later, but for now, no need for that.
-	// // DataDir is the absolute path to the server's state files.
-	// DataDir string
+	// DataDir specifies path to a .db file holding relevant server-specific persistent data.
+	DataDir string
 
 	// MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes int
@@ -238,6 +237,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if cfg.Server.MaximumAttributes <= 0 || cfg.Server.MaximumAttributes > 255 {
 		return errors.New("config: Invalid number of allowed attributes")
+	}
+
+	if len(cfg.Server.DataDir) <= 0 {
+		return errors.New("config: Unspecified DataDir")
 	}
 
 	if cfg.Debug == nil {
