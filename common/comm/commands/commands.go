@@ -21,6 +21,7 @@ import (
 	"errors"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
@@ -50,6 +51,13 @@ const (
 
 	// SpendCredentialID is commandID for spending given credential at particular provider.
 	SpendCredentialID CommandID = 129
+
+	// LookUpCredentialID is commandID for looking up credential issued at particular block height
+	// identified by particular Gamma.
+	LookUpCredentialID CommandID = 130
+
+	// LookUpBlockCredentialsID is commandID for looking up all credentials issued at particular block height.
+	LookUpBlockCredentialsID CommandID = 131
 )
 
 // Command defines interface that is implemented by all commands defined in the package.
@@ -86,6 +94,10 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 		cmdID = SpendCredentialID
 	case *VerificationKeyRequest:
 		cmdID = GetVerificationKeyID
+	case *LookUpCredentialRequest:
+		cmdID = LookUpCredentialID
+	case *LookUpBlockCredentialsRequest:
+		cmdID = LookUpBlockCredentialsID
 	default:
 		return nil, errors.New("Unknown Command")
 	}
@@ -121,6 +133,10 @@ func FromBytes(b []byte) (Command, error) {
 		cmd = &GetCredentialRequest{}
 	case SpendCredentialID:
 		cmd = &SpendCredentialRequest{}
+	case LookUpCredentialID:
+		cmd = &LookUpCredentialRequest{}
+	case LookUpBlockCredentialsID:
+		cmd = &LookUpBlockCredentialsRequest{}
 	default:
 		return nil, errors.New("Unknown CommandID")
 	}
@@ -238,8 +254,10 @@ func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest
 
 // NewBlindSignRequest returns new instance of a BlindSignRequest
 // given set of public attributes, lambda and corresponding ElGamal public key.
-// nolint: lll
-func NewBlindSignRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindSignRequest, error) {
+func NewBlindSignRequest(lambda *coconut.Lambda,
+	egPub *elgamal.PublicKey,
+	pubM []*Curve.BIG,
+) (*BlindSignRequest, error) {
 	protoLambda, err := lambda.ToProto()
 	if err != nil {
 		return nil, err
@@ -261,8 +279,10 @@ func NewBlindSignRequest(lambda *coconut.Lambda, egPub *elgamal.PublicKey, pubM 
 
 // NewBlindVerifyRequest returns new instance of a BlinfVerifyRequest
 // given set of public attributes, theta and a coconut signature on them.
-// nolint: lll
-func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []*Curve.BIG) (*BlindVerifyRequest, error) {
+func NewBlindVerifyRequest(theta *coconut.Theta,
+	sig *coconut.Signature,
+	pubM []*Curve.BIG,
+) (*BlindVerifyRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
 		return nil, err
@@ -284,7 +304,6 @@ func NewBlindVerifyRequest(theta *coconut.Theta, sig *coconut.Signature, pubM []
 
 // NewGetCredentialRequest returns new instance of a GetCredentialRequest
 // given set of public attributes, theta and a coconut signature on them.
-// nolint: lll
 // TODO:  MIGHT CHANGE
 func NewGetCredentialRequest(lambda *coconut.Lambda,
 	egPub *elgamal.PublicKey,
@@ -322,8 +341,12 @@ func NewGetCredentialRequest(lambda *coconut.Lambda,
 
 // NewSpendCredentialRequest returns new instance of a SpendCredentialRequest
 // given credential and the required cryptographic materials.
-// nolint: lll
-func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta *coconut.ThetaTumbler, val int32, address []byte) (*SpendCredentialRequest, error) {
+func NewSpendCredentialRequest(sig *coconut.Signature,
+	pubM []*Curve.BIG,
+	theta *coconut.ThetaTumbler,
+	val int32,
+	address []byte,
+) (*SpendCredentialRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
 		return nil, err
@@ -352,5 +375,25 @@ func NewSpendCredentialRequest(sig *coconut.Signature, pubM []*Curve.BIG, theta 
 		Theta:           protoThetaTumbler,
 		Value:           val,
 		MerchantAddress: address,
+	}, nil
+}
+
+// NewLookUpCredentialRequest returns new instance of a LookUpCredentialRequest
+// given height of the desired block and public ElGamal key used during the blind issuance.
+func NewLookUpCredentialRequest(height int64, egPub *elgamal.PublicKey) (*LookUpCredentialRequest, error) {
+	gammaB := make([]byte, constants.ECPLen)
+	egPub.Gamma().ToBytes(gammaB, true)
+
+	return &LookUpCredentialRequest{
+		Height: height,
+		Gamma:  gammaB,
+	}, nil
+}
+
+// NewLookUpBlockCredentialsRequest returns new instance of a LookUpBlockCredentialsRequest
+// given height of the desired block.
+func NewLookUpBlockCredentialsRequest(height int64) (*LookUpBlockCredentialsRequest, error) {
+	return &LookUpBlockCredentialsRequest{
+		Height: height,
 	}, nil
 }

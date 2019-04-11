@@ -135,3 +135,22 @@ message SpendCredentialResponse {
     bool wasSuccessful = 1;
     Status status = 2;
 }
+
+message LookUpCredentialRequest {
+    int64 height = 1;
+    bytes gamma = 2;
+}
+
+message LookUpCredentialResponse {
+    bytes credential = 1;
+    Status status = 2;
+}
+
+message LookUpBlockCredentialsRequest {
+    int64 height = 1;
+}
+
+message LookUpBlockCredentialsResponse {
+    repeated bytes credentials = 1;
+    Status status = 2;
+}
