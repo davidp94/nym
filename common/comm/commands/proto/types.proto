@@ -136,13 +136,21 @@ message SpendCredentialResponse {
     Status status = 2;
 }
 
+// defines blinded credential and gamma to which it was issued
+// unless client reused gamma which they shouldn't have, it will be identical to what they sent before,
+// otherwise it will have additional suffix to indicate a duplicate (in given block)
+message credentialPair {
+    bytes gamma = 1;
+    bytes credential = 2;
+}
+
 message LookUpCredentialRequest {
     int64 height = 1;
     bytes gamma = 2;
 }
 
 message LookUpCredentialResponse {
-    bytes credential = 1;
+    credentialPair credential = 1;
     Status status = 2;
 }
 
@@ -151,6 +159,6 @@ message LookUpBlockCredentialsRequest {
 }
 
 message LookUpBlockCredentialsResponse {
-    repeated bytes credentials = 1;
+    repeated credentialPair credentials = 1;
     Status status = 2;
 }
