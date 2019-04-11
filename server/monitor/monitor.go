@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	cmn "github.com/tendermint/tendermint/libs/common"
@@ -47,15 +48,15 @@ const (
 type Monitor struct {
 	sync.Mutex
 	worker.Worker
-	// some db handler - TODO
-
-	tmClient              *tmclient.Client
-	subscriberStr         string
-	txsEventsCh           <-chan ctypes.ResultEvent
-	headersEventsCh       <-chan ctypes.ResultEvent
-	haltCh                chan struct{}
-	latestProcessedHeight int64
-	uncommitedBlocks      map[int64]*block
+	store                      *storage.Database
+	tmClient                   *tmclient.Client
+	subscriberStr              string
+	txsEventsCh                <-chan ctypes.ResultEvent
+	headersEventsCh            <-chan ctypes.ResultEvent
+	haltCh                     chan struct{}
+	latestConsecutiveProcessed int64              // everything up to that point (including it) is already stored on disk
+	processedBlocks            map[int64]struct{} // think of it as a set rather than a hashmap
+	unprocessedBlocks          map[int64]*block
 
 	log *logging.Logger
 }
@@ -129,19 +130,33 @@ func startNewTx(txData types.EventDataTx) *tx {
 	}
 }
 
+// FinalizeHeight gets called when all txs from a particular block are processed.
 func (m *Monitor) FinalizeHeight(height int64) {
 	m.log.Debugf("Finalizing height %v", height)
 	m.Lock()
 	defer m.Unlock()
-	m.latestProcessedHeight = height // TODO: its not guaranteed we process blocks in order,
-	// we might go say 30 -> 34,35, 32, 31,33, etc
-	delete(m.uncommitedBlocks, height) // TODO: or replace with -1 in case we got it again somehow?
+	if height == m.latestConsecutiveProcessed+1 {
+		m.latestConsecutiveProcessed = height
+		for i := height + 1; ; {
+			if _, ok := m.processedBlocks[i]; ok {
+				m.latestConsecutiveProcessed = i
+				delete(m.processedBlocks, i)
+			} else {
+				break
+			}
+		}
+		m.store.FinalizeHeight(m.latestConsecutiveProcessed)
+	} else {
+		m.processedBlocks[height] = struct{}{}
+	}
+	delete(m.unprocessedBlocks, height)
 }
 
+// GetLowestFullUnprocessedBlock returns block on lowest height that is currently not being processed.
 func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	m.Lock()
 	defer m.Unlock()
-	for k, v := range m.uncommitedBlocks {
+	for k, v := range m.unprocessedBlocks {
 		if v.isFull() && !v.beingProcessed { // allows for multiple processors
 			return k, v
 		}
@@ -153,31 +168,30 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 func (m *Monitor) addNewBlock(b *block) {
 	m.Lock()
 	defer m.Unlock()
-	if _, ok := m.uncommitedBlocks[b.height]; !ok {
-		m.uncommitedBlocks[b.height] = b
+	if _, ok := m.unprocessedBlocks[b.height]; !ok {
+		m.unprocessedBlocks[b.height] = b
 		return
 	}
 
 	m.log.Infof("Block at height: %v already present", b.height)
-	if m.uncommitedBlocks[b.height].receivedHeader {
+	if m.unprocessedBlocks[b.height].receivedHeader {
 		// that's really an undefined behaviour. we probably received the same header twice?
 		// ignore for now
 	} else {
-		oldTxs := m.uncommitedBlocks[b.height].Txs
+		oldTxs := m.unprocessedBlocks[b.height].Txs
 		for _, oldTx := range oldTxs {
 			if oldTx != nil {
 				b.Txs[oldTx.index] = oldTx
 			}
 		}
-		m.uncommitedBlocks[b.height] = b
+		m.unprocessedBlocks[b.height] = b
 	}
-
 }
 
 func (m *Monitor) addNewTx(newTx *tx) {
 	m.Lock()
 	defer m.Unlock()
-	b, ok := m.uncommitedBlocks[newTx.height]
+	b, ok := m.unprocessedBlocks[newTx.height]
 	if !ok {
 		// we haven't received block header  and this is the first tx we received for that block
 		tempBlock := &block{
@@ -188,7 +202,7 @@ func (m *Monitor) addNewTx(newTx *tx) {
 			Txs:            make([]*tx, int(newTx.index)+1), // we know that there are at least that many txs in the block
 		}
 		tempBlock.Txs[newTx.index] = newTx
-		m.uncommitedBlocks[newTx.height] = tempBlock
+		m.unprocessedBlocks[newTx.height] = tempBlock
 		return
 	}
 	b.addTx(newTx)
@@ -196,8 +210,6 @@ func (m *Monitor) addNewTx(newTx *tx) {
 
 // for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
-	// TODO: start processing loop in background
-
 	for {
 		select {
 		case e := <-m.headersEventsCh:
@@ -234,7 +246,7 @@ func (m *Monitor) Halt() {
 }
 
 // New creates a new monitor.
-func New(l *logger.Logger, tmClient *tmclient.Client, id int) (*Monitor, error) {
+func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, id int) (*Monitor, error) {
 	// read db with current state etc
 	subscriberStr := fmt.Sprintf("monitor%v", id)
 	log := l.GetLogger("Monitor")
@@ -255,13 +267,14 @@ func New(l *logger.Logger, tmClient *tmclient.Client, id int) (*Monitor, error) 
 	}
 
 	monitor := &Monitor{
-		tmClient:         tmClient,
-		log:              log,
-		subscriberStr:    subscriberStr,
-		headersEventsCh:  headersEventsCh,
-		txsEventsCh:      txsEventsCh,
-		haltCh:           make(chan struct{}),
-		uncommitedBlocks: make(map[int64]*block),
+		tmClient:          tmClient,
+		store:             store,
+		log:               log,
+		subscriberStr:     subscriberStr,
+		headersEventsCh:   headersEventsCh,
+		txsEventsCh:       txsEventsCh,
+		haltCh:            make(chan struct{}),
+		unprocessedBlocks: make(map[int64]*block),
 	}
 
 	monitor.Go(monitor.worker)

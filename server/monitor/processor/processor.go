@@ -34,6 +34,11 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+const (
+	backoffDuration = time.Second * 5
+)
+
+// Processor defines struct containing all data required to sign requests comitted on the blockchain.
 type Processor struct {
 	worker.Worker
 	monitor    *monitor.Monitor
@@ -44,10 +49,6 @@ type Processor struct {
 	log    *logging.Logger
 	id     int
 }
-
-const (
-	backoffDuration = time.Second * 5
-)
 
 func (p *Processor) worker() {
 	for {
@@ -77,9 +78,6 @@ func (p *Processor) worker() {
 		// but better safe than sorry
 		nextBlock.Lock()
 
-		if nextBlock.NumTxs == 0 {
-			p.monitor.FinalizeHeight(height)
-		}
 		for i, tx := range nextBlock.Txs {
 			if tx.Code != code.OK || len(tx.Tags) <= 0 ||
 				!bytes.HasPrefix(tx.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {

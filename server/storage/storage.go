@@ -88,13 +88,15 @@ func (db *Database) StoreBlindedSignature(height int64, gammaB []byte, sig []byt
 	}
 }
 
-// FinalizeHeight sets a flag on given block height to indicate all txs from that height were processed.
+// FinalizeHeight increases the height of the latest processed block.
 func (db *Database) FinalizeHeight(height int64) {
 	val := make([]byte, 8)
 	binary.BigEndian.PutUint64(val, uint64(height))
 	db.Set(latestStoredKey, val)
 }
 
+// even though we might have already stored all txs from the target height, we should not allow to access them
+// unless we have processed all the blocks before it
 func (db *Database) checkHeight(height int64) bool {
 	curB := db.Get(latestStoredKey)
 	cur := int64(binary.BigEndian.Uint64(curB))
