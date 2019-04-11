@@ -20,7 +20,6 @@ package serverworker
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
@@ -29,6 +28,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -55,8 +55,8 @@ type ServerWorker struct {
 	log        *logging.Logger
 
 	nymClient *nymclient.Client
-	// blockchainNodeAddresses []string // we keep them for the future so that if the node we are connected to fails,
-	// // we could try to reconnect to a different one
+	store     *storage.Database
+
 	iaid       uint32
 	sk         *coconut.SecretKey // ensure they can be safely shared between multiple workers
 	vk         *coconut.VerificationKey
@@ -247,93 +247,130 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
 	// IMPLEMENTATION CHANGED: user is responsible for triggering transfer
 	response := getDefaultResponse()
+	response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+	response.ErrorMessage = "This endpoint is no longer available"
+
+	return response
+
+	// below code is temporarily left for the reference sake.
+
 	// any prior checks on the actual request would go here:
 
-	lambda := &coconut.Lambda{}
-	if err := lambda.FromProto(req.Lambda); err != nil {
-		errMsg := "Could not recover received lambda."
+	// lambda := &coconut.Lambda{}
+	// if err := lambda.FromProto(req.Lambda); err != nil {
+	// 	errMsg := "Could not recover received lambda."
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	// 	return response
+	// }
+	// if len(req.PubM)+len(lambda.Enc()) > len(sw.sk.Y()) {
+	// 	errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
+	// 		" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(sw.sk.Y()))
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	// 	return response
+	// }
+	// egPub := &elgamal.PublicKey{}
+	// if err := egPub.FromProto(req.EgPub); err != nil {
+	// 	errMsg := "Could not recover received ElGamal Public Key."
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	// 	return response
+	// }
+
+	// // before we can issue credential we need to check if the user actually performed a valid transfer to the holding
+	// // account
+	// // FIXME: we are not performing any checks if this txHash was used before, etc.
+
+	// // first check the sig on request
+	// var userPub account.ECPublicKey = req.PublicKey
+
+	// msg := make([]byte, len(req.PublicKey)+4+len(req.Nonce)+len(req.TxHash))
+	// copy(msg, req.PublicKey)
+	// binary.BigEndian.PutUint32(msg[len(req.PublicKey):], uint32(req.Value))
+	// copy(msg[len(req.PublicKey)+4:], req.Nonce)
+	// copy(msg[len(req.PublicKey)+4+len(req.Nonce):], req.TxHash)
+
+	// if !userPub.VerifyBytes(msg, req.Sig) {
+	// 	errMsg := "Failed to validate the request"
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_SIGNATURE)
+	// 	return response
+	// }
+
+	// txRex, err := sw.nymClient.TxByHash(req.TxHash)
+	// if err != nil {
+	// 	errMsg := fmt.Sprintf("Failed to Query the chain: %v", err)
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_UNKNOWN)
+	// 	return response
+	// }
+
+	// userPub.Compress()
+
+	// // tag is (pub||nonce - value)
+	// expectedTagKey := make([]byte, len(userPub)+len(req.Nonce))
+	// copy(expectedTagKey, userPub)
+	// copy(expectedTagKey[len(userPub):], req.Nonce)
+
+	// expectedTagValue := make([]byte, 4)
+	// binary.BigEndian.PutUint32(expectedTagValue, uint32(req.Value))
+
+	// txSuccessful := false
+	// for _, tag := range txRex.TxResult.Tags {
+	// 	// this is our tag
+	// 	if bytes.Compare(tag.Key, expectedTagKey) == 0 {
+	// 		if bytes.Compare(tag.Value, expectedTagValue) == 0 {
+	// 			txSuccessful = true
+	// 			sw.log.Debug("Found matching tags in the tx")
+	// 		} else {
+	// 			break
+	// 		}
+	// 	}
+	// }
+
+	// if !txSuccessful {
+	// 	errMsg := "Tx not included in the chain (or failed to be executed)"
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_TX_NOT_ON_CHAIN)
+	// 	return response
+	// }
+
+	// // everything is valid now - issue the partial credential
+	// sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	// if err != nil {
+	// 	// TODO: should client really know those details?
+	// 	errMsg := fmt.Sprintf("Error while signing message: %v", err)
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+	// 	return response
+	// }
+
+	// sw.log.Debugf("Writing back blinded signature")
+	// response.Data = sig
+	// return response
+}
+
+func (sw *ServerWorker) handleLookUpCredentialRequest(req *commands.LookUpCredentialRequest) *commands.Response {
+	response := getDefaultResponse()
+
+	credPair := sw.store.GetCredential(req.Height, req.Gamma)
+	if len(credPair.Credential) <= 0 {
+		errMsg := "Could not lookup the credential using provided arguments"
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	if len(req.PubM)+len(lambda.Enc()) > len(sw.sk.Y()) {
-		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(sw.sk.Y()))
+
+	response.Data = credPair
+	return response
+}
+
+func (sw *ServerWorker) handleLookUpBlockCredentialsRequest(req *commands.LookUpBlockCredentialsRequest,
+) *commands.Response {
+	response := getDefaultResponse()
+
+	credPairs := sw.store.GetBlockCredentials(req.Height)
+	if len(credPairs) <= 0 {
+		errMsg := "Could not lookup the credential using provided arguments. " +
+			"Either there were no valid txs in this block or it wasn't processed yet."
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	egPub := &elgamal.PublicKey{}
-	if err := egPub.FromProto(req.EgPub); err != nil {
-		errMsg := "Could not recover received ElGamal Public Key."
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
 
-	// before we can issue credential we need to check if the user actually performed a valid transfer to the holding
-	// account
-	// FIXME: we are not performing any checks if this txHash was used before, etc.
-
-	// first check the sig on request
-	var userPub account.ECPublicKey = req.PublicKey
-
-	msg := make([]byte, len(req.PublicKey)+4+len(req.Nonce)+len(req.TxHash))
-	copy(msg, req.PublicKey)
-	binary.BigEndian.PutUint32(msg[len(req.PublicKey):], uint32(req.Value))
-	copy(msg[len(req.PublicKey)+4:], req.Nonce)
-	copy(msg[len(req.PublicKey)+4+len(req.Nonce):], req.TxHash)
-
-	if !userPub.VerifyBytes(msg, req.Sig) {
-		errMsg := "Failed to validate the request"
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_SIGNATURE)
-		return response
-	}
-
-	txRex, err := sw.nymClient.TxByHash(req.TxHash)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to Query the chain: %v", err)
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_UNKNOWN)
-		return response
-	}
-
-	userPub.Compress()
-
-	// tag is (pub||nonce - value)
-	expectedTagKey := make([]byte, len(userPub)+len(req.Nonce))
-	copy(expectedTagKey, userPub)
-	copy(expectedTagKey[len(userPub):], req.Nonce)
-
-	expectedTagValue := make([]byte, 4)
-	binary.BigEndian.PutUint32(expectedTagValue, uint32(req.Value))
-
-	txSuccessful := false
-	for _, tag := range txRex.TxResult.Tags {
-		// this is our tag
-		if bytes.Compare(tag.Key, expectedTagKey) == 0 {
-			if bytes.Compare(tag.Value, expectedTagValue) == 0 {
-				txSuccessful = true
-				sw.log.Debug("Found matching tags in the tx")
-			} else {
-				break
-			}
-		}
-	}
-
-	if !txSuccessful {
-		errMsg := "Tx not included in the chain (or failed to be executed)"
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_TX_NOT_ON_CHAIN)
-		return response
-	}
-
-	// everything is valid now - issue the partial credential
-	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
-	if err != nil {
-		// TODO: should client really know those details?
-		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-
-	sw.log.Debugf("Writing back blinded signature")
-	response.Data = sig
+	response.Data = credPairs
 	return response
 }
 
@@ -376,9 +413,17 @@ func (sw *ServerWorker) worker() {
 				sw.log.Notice("Received Spend Credential Command")
 				response = sw.handleSpendCredentialRequest(req)
 
+			case *commands.LookUpCredentialRequest:
+				sw.log.Notice("Received Look Up Credential Command")
+				response = sw.handleLookUpCredentialRequest(req)
+
+			case *commands.LookUpBlockCredentialsRequest:
+				sw.log.Notice("Received Look Up Block Credentials Command")
+				response = sw.handleLookUpBlockCredentialsRequest(req)
+
 			default:
 				errMsg := "Received Invalid Command"
-				sw.log.Critical(errMsg)
+				sw.log.Warning(errMsg)
 				response = getDefaultResponse()
 				response.ErrorStatus = commands.StatusCode_INVALID_COMMAND
 			}
@@ -397,13 +442,14 @@ type Config struct {
 	Log *logger.Logger
 
 	NymClient *nymclient.Client
+	Store     *storage.Database
 
-	Params     *coconut.Params
-	IAID       uint32
-	Sk         *coconut.SecretKey
-	Vk         *coconut.VerificationKey
-	Avk        *coconut.VerificationKey
-	NymAccount account.Account
+	Params *coconut.Params
+	IAID   uint32
+	Sk     *coconut.SecretKey
+	Vk     *coconut.VerificationKey
+	Avk    *coconut.VerificationKey
+	// NymAccount account.Account
 }
 
 // New creates new instance of a serverWorker.
@@ -417,8 +463,9 @@ func New(cfg *Config) (*ServerWorker, error) {
 		vk:            cfg.Vk,
 		avk:           cfg.Avk,
 		nymClient:     cfg.NymClient,
-		nymAccount:    cfg.NymAccount,
-		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
+		store:         cfg.Store,
+		// nymAccount:    cfg.NymAccount,
+		log: cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
 	sw.Go(sw.worker)

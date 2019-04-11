@@ -22,6 +22,7 @@ import (
 	"encoding/binary"
 	"path/filepath"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -109,18 +110,18 @@ func (db *Database) GetHighest() int64 {
 }
 
 // GetBlockCredentials gets all blinded signatures for given block height.
-func (db *Database) GetBlockCredentials(height int64) [][]byte {
+func (db *Database) GetBlockCredentials(height int64) []*commands.CredentialPair {
 	if !db.checkHeight(height) {
 		return nil
 	}
 
-	sigs := [][]byte{}
+	creds := []*commands.CredentialPair{}
 	iter := db.db.NewIterator(util.BytesPrefix(credentialPrefix), nil)
 	for iter.Next() {
-		sig := iter.Value()
-		sigCpy := make([]byte, len(sig))
-		copy(sigCpy, sig)
-		sigs = append(sigs, sig)
+		creds = append(creds, &commands.CredentialPair{
+			Gamma:      iter.Key()[len(credentialPrefix)+8:],
+			Credential: iter.Value(), // since it's a byte slice, it will be coppied
+		})
 	}
 	iter.Release()
 	if err := iter.Error(); err != nil {
@@ -128,17 +129,17 @@ func (db *Database) GetBlockCredentials(height int64) [][]byte {
 	}
 
 	// todo: cleanup sigs slice?
-	return sigs
+	return creds
 }
 
 // GetCredential gets credential at given height that used particular gamma.
-func (db *Database) GetCredential(height int64, gammaB []byte) []byte {
+func (db *Database) GetCredential(height int64, gammaB []byte) *commands.CredentialPair {
 	key := make([]byte, len(credentialPrefix)+8+len(gammaB))
 	copy(key, credentialPrefix)
 	binary.BigEndian.PutUint64(key[len(credentialPrefix):], uint64(height))
 	copy(key[len(credentialPrefix)+8:], gammaB)
 
-	return db.Get(key)
+	return &commands.CredentialPair{Gamma: gammaB, Credential: db.Get(key)}
 }
 
 // Close closes the database connection. It should be called upon server shutdown.

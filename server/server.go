@@ -66,7 +66,7 @@ type Server struct {
 
 	monitor    *monitor.Monitor
 	processors []*processor.Processor
-	storage    *storage.Database
+	store      *storage.Database
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -252,6 +252,12 @@ func New(cfg *config.Config) (*Server, error) {
 		serverLog.Notice("No keys for the Nym Blockchain were specified.")
 	}
 
+	store, err := storage.New(dbName, cfg.Server.DataDir)
+	if err != nil {
+		serverLog.Errorf("Failed to create a data store: %v", err)
+		return nil, err
+	}
+
 	avk := &coconut.VerificationKey{}
 
 	serverWorkers := make([]*serverworker.ServerWorker, 0, cfg.Debug.NumServerWorkers)
@@ -268,6 +274,7 @@ func New(cfg *config.Config) (*Server, error) {
 			Avk:        avk,
 			NymAccount: acc,
 			NymClient:  nymClient,
+			Store:      store,
 		}
 		serverWorker, err := serverworker.New(serverWorkerCfg)
 
@@ -311,17 +318,11 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
 
-	store, err := storage.New(dbName, cfg.Server.DataDir)
-	if err != nil {
-		serverLog.Errorf("Failed to create a data store: %v", err)
-		return nil, err
-	}
-
 	var mon *monitor.Monitor
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 	// there's no need for a provider to monitor the chain
 	if cfg.Server.IsIssuer {
-		mon, err = monitor.New(log, nymClient, int(IAID))
+		mon, err = monitor.New(log, nymClient, store, int(IAID))
 		if err != nil {
 			// in theory we could still progress if chain comes back later on.
 			// We will just have to catch up on the blocks
@@ -358,6 +359,7 @@ func New(cfg *config.Config) (*Server, error) {
 
 		monitor:    mon,
 		processors: processors,
+		store:      store,
 
 		haltedCh: make(chan interface{}),
 	}
@@ -427,11 +429,6 @@ func (s *Server) halt() {
 		s.monitor = nil
 	}
 
-	if s.storage != nil {
-		s.storage.Close()
-		s.storage = nil
-	}
-
 	for i, w := range s.serverWorkers {
 		if w != nil {
 			w.Halt()
@@ -444,6 +441,11 @@ func (s *Server) halt() {
 			w.Halt()
 			s.jobWorkers[i] = nil
 		}
+	}
+
+	if s.store != nil {
+		s.store.Close()
+		s.store = nil
 	}
 
 	s.log.Notice("Shutdown complete.")
