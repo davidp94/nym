@@ -30,11 +30,11 @@ import (
 //
 // Currently issuers store the following:
 // [CREDENTIAL_PREFIX || BLOCK_HEIGHT || GAMMA] --- BLINDED_SIGNATURE
-// [BLOCK_STATUS_PREFIX || BLOCK_HEIGHT] --- 0/1 // required if client requested entire block of signatures while processing the particular block
+// [LATEST_STORED_KEY] - BLOCK_HEIGHT // used to indicate heighest processed block. It is guaranteed to be stored in order and hence there are no missing blocks before that.
 
 var (
-	credentialPrefix  = []byte("CRED")
-	blockStatusPrefix = []byte("STAT")
+	credentialPrefix = []byte("CRED")
+	latestStoredKey  = []byte("LATEST")
 )
 
 // Database represents all data required to interact with the storage.
@@ -90,30 +90,30 @@ func (db *Database) StoreBlindedSignature(height int64, gammaB []byte, sig []byt
 
 // FinalizeHeight sets a flag on given block height to indicate all txs from that height were processed.
 func (db *Database) FinalizeHeight(height int64) {
-	key := make([]byte, len(blockStatusPrefix)+8)
-	copy(key, blockStatusPrefix)
-	binary.BigEndian.PutUint64(key[len(blockStatusPrefix):], uint64(height))
-	db.Set(key, []byte{1})
+	val := make([]byte, 8)
+	binary.BigEndian.PutUint64(val, uint64(height))
+	db.Set(latestStoredKey, val)
+}
+
+func (db *Database) checkHeight(height int64) bool {
+	curB := db.Get(latestStoredKey)
+	cur := int64(binary.BigEndian.Uint64(curB))
+	return cur >= height
+}
+
+// GetHighest obtains the height of the latest stored block. It's required on server restart.
+func (db *Database) GetHighest() int64 {
+	return int64(binary.BigEndian.Uint64(db.Get(latestStoredKey)))
 }
 
 // GetBlockCredentials gets all blinded signatures for given block height.
 func (db *Database) GetBlockCredentials(height int64) [][]byte {
-	key := make([]byte, len(blockStatusPrefix)+8)
-	copy(key, blockStatusPrefix)
-	binary.BigEndian.PutUint64(key[len(blockStatusPrefix):], uint64(height))
-	contains, err := db.db.Has(key, nil)
-	if err != nil {
-		panic(err)
-	}
-	if !contains {
+	if !db.checkHeight(height) {
 		return nil
 	}
 
-	heightBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(heightBytes, uint64(height))
-
 	sigs := [][]byte{}
-	iter := db.db.NewIterator(util.BytesPrefix(heightBytes), nil)
+	iter := db.db.NewIterator(util.BytesPrefix(credentialPrefix), nil)
 	for iter.Next() {
 		sig := iter.Value()
 		sigCpy := make([]byte, len(sig))
@@ -121,7 +121,7 @@ func (db *Database) GetBlockCredentials(height int64) [][]byte {
 		sigs = append(sigs, sig)
 	}
 	iter.Release()
-	if err = iter.Error(); err != nil {
+	if err := iter.Error(); err != nil {
 		panic(err)
 	}
 
@@ -158,6 +158,19 @@ func New(name string, dir string) (*Database, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	contains, err := db.Has(latestStoredKey, nil)
+	if err != nil {
+		return nil, err
+	}
+	if !contains {
+		val := make([]byte, 8)
+		binary.BigEndian.PutUint64(val, uint64(0))
+		if err := db.Put(latestStoredKey, val, nil); err != nil {
+			return nil, err
+		}
+	}
+
 	database := &Database{
 		db: db,
 	}

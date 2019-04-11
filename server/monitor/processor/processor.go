@@ -37,6 +37,7 @@ import (
 type Processor struct {
 	worker.Worker
 	monitor    *monitor.Monitor
+	store      *storage.Database
 	incomingCh chan<- *commands.CommandRequest
 
 	haltCh chan struct{}
@@ -110,14 +111,18 @@ func (p *Processor) worker() {
 			if res == nil || res.Data == nil {
 				p.log.Errorf("Failed to sign request at index: %v on height %v", i, height)
 			}
+			p.log.Infof("Signed tx %v on height %v", i, height)
 
 			blindedSig := res.Data.(*coconut.BlindedSignature)
-			// TODO: writing it to storage
-			// _ = blindedSig
+			blindedSigB, err := blindedSig.MarshalBinary()
+			if err != nil {
+				p.log.Errorf("Could not marshal blinded sig at index: %v on height %v, err: %v", i, height, err)
+			}
 
-			p.log.Warningf("Signed tx %v on height %v : %v", i, height, blindedSig.Sig1().ToString())
+			p.store.StoreBlindedSignature(height, blindSignMaterials.EgPub.Gamma, blindedSigB)
+			p.log.Infof("Stored sig for tx %v on height %v", i, height)
 		}
-
+		p.store.FinalizeHeight(height)
 		p.monitor.FinalizeHeight(height)
 		nextBlock.Unlock()
 	}
@@ -134,6 +139,7 @@ func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logg
 
 	p := &Processor{
 		monitor:    monitor,
+		store:      store,
 		incomingCh: inCh,
 		haltCh:     make(chan struct{}),
 		log:        l.GetLogger(fmt.Sprintf("Processor:%v", id)),
