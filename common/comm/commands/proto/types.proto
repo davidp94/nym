@@ -142,6 +142,8 @@ message SpendCredentialResponse {
 // otherwise it will have additional suffix to indicate a duplicate (in given block)
 message credentialPair {
     bytes gamma = 1;
+    // credential is defined as bytes rather than protoBlindedSignature as it in fact is marshalled proto blinded signature
+    // there is no point in extra unmarshaling and further marshaling just for the sake of it.
     bytes credential = 2;
 }
 

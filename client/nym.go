@@ -19,6 +19,7 @@ package client
 
 import (
 	"encoding/binary"
+	"fmt"
 	"net"
 	"time"
 
@@ -100,9 +101,42 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("GetCredential: could not transfer to the holding account: %v", err)
 	}
 
-	c.log.Warningf("Our tx was included in block: %v", height)
+	if height <= 1 {
+		return nil, c.logAndReturnError("GetCredential: tx was included at invalid height: %v", height)
+	}
+
+	c.log.Debugf("Our tx was included in block: %v", height)
+
+	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
+	}
+
+	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
+	}
+
+	c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
+
+	responses := comm.GetServerResponses(
+		&comm.RequestParams{
+			MarshaledPacket:   packetBytes,
+			MaxRequests:       c.cfg.Client.MaxRequests,
+			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ServerAddresses:   c.cfg.Client.IAAddresses,
+			ServerIDs:         c.cfg.Client.IAIDs,
+		},
+		c.log,
+	)
 
 	_ = elGamalPrivateKey
+	fmt.Println(responses)
+	fmt.Println(responses[0].MarshaledData)
+	// sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
+	// return c.handleReceivedSignatures(sigs, pp)
+
 	return nil, nil
 
 	// TODO: logic for communicating with IAs

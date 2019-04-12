@@ -37,7 +37,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -50,10 +49,9 @@ const (
 type Server struct {
 	cfg *config.Config
 
-	sk         *coconut.SecretKey
-	vk         *coconut.VerificationKey
-	avk        *coconut.VerificationKey
-	nymAccount account.Account
+	sk  *coconut.SecretKey
+	vk  *coconut.VerificationKey
+	avk *coconut.VerificationKey
 
 	cmdCh *requestqueue.RequestQueue
 	jobCh *jobqueue.JobQueue
@@ -231,17 +229,8 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
-	// TODO: remove the below. it's no longer required (i think...)
-	acc := account.Account{}
 	var nymClient *nymclient.Client
 	if cfg.Issuer != nil {
-		// && cfg.Issuer.BlockchainKeysFile != "" {
-		// 	if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
-		// 		errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-		// 		serverLog.Error(errStr)
-		// 		return nil, errors.New(errStr)
-		// 	}
-		// 	serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
@@ -272,7 +261,6 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
-			NymAccount: acc,
 			NymClient:  nymClient,
 			Store:      store,
 		}
@@ -344,9 +332,8 @@ func New(cfg *config.Config) (*Server, error) {
 	s := &Server{
 		cfg: cfg,
 
-		sk:         sk,
-		vk:         vk,
-		nymAccount: acc,
+		sk: sk,
+		vk: vk,
 
 		cmdCh: cmdCh,
 		jobCh: jobCh,

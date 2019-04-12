@@ -275,6 +275,7 @@ func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, i
 		txsEventsCh:       txsEventsCh,
 		haltCh:            make(chan struct{}),
 		unprocessedBlocks: make(map[int64]*block),
+		processedBlocks:   make(map[int64]struct{}),
 	}
 
 	monitor.Go(monitor.worker)
