@@ -346,6 +346,11 @@ func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 
 func (sw *ServerWorker) handleLookUpCredentialRequest(req *commands.LookUpCredentialRequest) *commands.Response {
 	response := getDefaultResponse()
+	if sw.store.GetHighest() < req.Height {
+		errMsg := "Target height hasn't been processed yet."
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_NOT_PROCESSED_YET)
+		return response
+	}
 
 	credPair := sw.store.GetCredential(req.Height, req.Gamma)
 	if len(credPair.Credential) <= 0 {
@@ -361,6 +366,11 @@ func (sw *ServerWorker) handleLookUpCredentialRequest(req *commands.LookUpCreden
 func (sw *ServerWorker) handleLookUpBlockCredentialsRequest(req *commands.LookUpBlockCredentialsRequest,
 ) *commands.Response {
 	response := getDefaultResponse()
+	if sw.store.GetHighest() < req.Height {
+		errMsg := "Target height hasn't been processed yet."
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_NOT_PROCESSED_YET)
+		return response
+	}
 
 	credPairs := sw.store.GetBlockCredentials(req.Height)
 	if len(credPairs) <= 0 {

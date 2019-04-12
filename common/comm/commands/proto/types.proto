@@ -19,6 +19,7 @@ enum StatusCode {
     INVALID_BINDING = 9;
     INVALID_SIGNATURE = 10;
     TX_NOT_ON_CHAIN = 11;
+    NOT_PROCESSED_YET = 12;
 }
 
 message Status {
