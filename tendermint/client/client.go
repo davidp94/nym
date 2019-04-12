@@ -181,9 +181,61 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 			return nil, err
 		}
 		// repeat the query
-		res, err = c.tmclient.Tx(hash, true)
+		return c.TxByHash(hash)
 	}
 	c.logMsg("DEBUG", "TxByHash call done")
+	return res, err
+}
+
+// BlockchainInfo return block headers from the specified range.
+// Note: according to the docs it can only return up to 20 results.
+func (c *Client) BlockchainInfo(minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
+	c.logMsg("DEBUG", "Getting all block headers from %v to %v", minHeight, maxHeight)
+	var res *ctypes.ResultBlockchainInfo
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BlockchainInfo(minHeight, maxHeight)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		return c.BlockchainInfo(minHeight, maxHeight)
+	}
+	c.logMsg("DEBUG", "BlockchainInfo call done")
+	return res, err
+}
+
+// BlockResults results from a block at given height.
+func (c *Client) BlockResults(height int64) (*ctypes.ResultBlockResults, error) {
+	c.logMsg("DEBUG", "Getting all results from height %v", height)
+	var res *ctypes.ResultBlockResults
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		// TODO: why is it taking pointer to int64??
+		res, err = c.tmclient.BlockResults(&height)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		return c.BlockResults(height)
+	}
+	c.logMsg("DEBUG", "BlockResults call done")
 	return res, err
 }
 
