@@ -18,6 +18,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -69,7 +70,7 @@ func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -96,7 +97,7 @@ func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -122,7 +123,7 @@ func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while sending tx to the ABCI")
+		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -148,7 +149,7 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		c.logMsg("DEBUG", "Network error while quering the ABCI: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -173,16 +174,72 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 	}
 	// network error
 	if err != nil {
-		c.logMsg("DEBUG", "Network error while quering the ABCI")
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
 			return nil, err
 		}
 		// repeat the query
-		res, err = c.tmclient.Tx(hash, true)
+		return c.TxByHash(hash)
 	}
 	c.logMsg("DEBUG", "TxByHash call done")
+	return res, err
+}
+
+// BlockchainInfo return block headers from the specified range.
+// Note: according to the docs it can only return up to 20 results.
+func (c *Client) BlockchainInfo(minHeight, maxHeight int64) (*ctypes.ResultBlockchainInfo, error) {
+	c.logMsg("DEBUG", "Getting all block headers from %v to %v", minHeight, maxHeight)
+	var res *ctypes.ResultBlockchainInfo
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BlockchainInfo(minHeight, maxHeight)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		return c.BlockchainInfo(minHeight, maxHeight)
+	}
+	c.logMsg("DEBUG", "BlockchainInfo call done")
+	return res, err
+}
+
+// BlockResults results from a block at given height.
+// If no height is provided, most recent block is queried
+func (c *Client) BlockResults(height *int64) (*ctypes.ResultBlockResults, error) {
+	if height != nil {
+		c.logMsg("DEBUG", "Getting all results from height %v", *height)
+	} else {
+		c.logMsg("DEBUG", "Getting all results from the most recent height")
+	}
+	var res *ctypes.ResultBlockResults
+	var err error
+	if c.tmclient != nil && c.tmclient.IsRunning() {
+		res, err = c.tmclient.BlockResults(height)
+	} else { // reconnection is most likely already in progress
+		err = errors.New("Invalid client - reconnection required")
+	}
+	// network error
+	if err != nil {
+		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		err := c.reconnect(false)
+		if err != nil {
+			// workers should decide how to handle it
+			return nil, err
+		}
+		// repeat the query
+		return c.BlockResults(height)
+	}
+	c.logMsg("DEBUG", "BlockResults call done")
 	return res, err
 }
 
@@ -194,6 +251,7 @@ func (c *Client) reconnect(forceTry bool) error {
 	if c.lastReconnection.Add(reconnectionValidityPeriod).UnixNano() > time.Now().UnixNano() {
 		// somebody else already caused reconnection
 		c.logMsg("DEBUG", "Another instance already reconnected")
+		time.Sleep(time.Second * 1)
 		return nil
 	}
 
@@ -231,6 +289,27 @@ func (c *Client) reconnect(forceTry bool) error {
 
 	c.lastReconnection = time.Now()
 	return nil
+}
+
+// Subscribe is a wrapper for the websocket subscribe method.
+func (c *Client) Subscribe(ctx context.Context, subscriber, query string,
+	outCapacity ...int) (out <-chan ctypes.ResultEvent, err error) {
+	return c.tmclient.Subscribe(ctx, subscriber, query, outCapacity...)
+}
+
+// Unsubscribe is a wrapper for the websocket unsubscribe method.
+func (c *Client) Unsubscribe(ctx context.Context, subscriber, query string) error {
+	return c.tmclient.Unsubscribe(ctx, subscriber, query)
+}
+
+// UnsubscribeAll is a wrapper for the websocket unsubscribeAll method.
+func (c *Client) UnsubscribeAll(ctx context.Context, subscriber string) error {
+	return c.tmclient.UnsubscribeAll(ctx, subscriber)
+}
+
+// ForceReconnect tries to force the client to reconnect to one of the blockchain nodes.
+func (c *Client) ForceReconnect() error {
+	return c.reconnect(true)
 }
 
 // Stop gracefully stops the client

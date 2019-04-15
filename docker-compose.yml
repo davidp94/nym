@@ -1,0 +1,194 @@
+version: '3'
+
+services:
+  node0:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: node0
+    image: "tendermint/tendermint"
+    ports:
+      - "26656-26657:26656-26657"
+    environment:
+      - ID=0
+      - LOG=$${LOG:-tendermint.log}
+    volumes:
+      - ./build/nodes/node0:/tendermint:Z
+    command: "node --consensus.create_empty_blocks=false --proxy_app=tcp://abci0:26658"
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.2
+
+  node1:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: node1
+    image: "tendermint/tendermint"
+    ports:
+      - "26659-26660:26656-26657"
+    environment:
+      - ID=1
+      - LOG=$${LOG:-tendermint.log}
+    volumes:
+      - ./build/nodes/node1:/tendermint:Z
+    command: "node --consensus.create_empty_blocks=false --proxy_app=tcp://abci1:26658"
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.3
+
+  node2:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: node2
+    image: "tendermint/tendermint"
+    environment:
+      - ID=2
+      - LOG=$${LOG:-tendermint.log}
+    ports:
+      - "26661-26662:26656-26657"
+    volumes:
+      - ./build/nodes/node2:/tendermint:Z
+    command: "node --consensus.create_empty_blocks=false --proxy_app=tcp://abci2:26658"
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.4
+
+  node3:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: node3
+    image: "tendermint/tendermint"
+    environment:
+      - ID=3
+      - LOG=$${LOG:-tendermint.log}
+    ports:
+      - "26663-26664:26656-26657"
+    volumes:
+      - ./build/nodes/node3:/tendermint:Z
+    command: "node --consensus.create_empty_blocks=false --proxy_app=tcp://abci3:26658"
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.5
+
+  abci0:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: abci0
+    image: "nym/nymabci"
+    volumes:
+      - ./build/abcis/abci0:/nymabci:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.6
+
+  abci1:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: abci1
+    image: "nymabci"
+    volumes:
+      - ./build/abcis/abci1:/nymabci:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.7
+
+  abci2:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: abci2
+    image: "nymabci"
+    volumes:
+      - ./build/abcis/abci2:/nymabci:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.8
+
+  abci3:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: abci3
+    image: "nymabci"
+    volumes:
+      - ./build/abcis/abci3:/nymabci:Z
+    networks:
+      localnet:
+        ipv4_address: 192.167.10.9
+
+  issuer1-provider:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: issuer1-provider
+    image: "nym/server"
+    ports:
+      - "4000:4000"
+      - "5000:5000"
+    command: "-f /coconut_server/config.toml"
+    volumes:
+      - ./build/issuers/issuer1:/coconut_server:Z
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+    networks:
+      localnet:
+        ipv4_address: 192.167.11.1
+
+  issuer2:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: issuer2
+    image: "nym/server"
+    ports:
+      - "4001:4000"
+      - "5001:5000"
+    command: "-f /coconut_server/config.toml"
+    volumes:
+      - ./build/issuers/issuer2:/coconut_server:Z
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+    networks:
+      localnet:
+        ipv4_address: 192.167.11.2
+
+  issuer3:
+    # below two are for debug purposes only
+    stdin_open: true
+    tty: true
+    container_name: issuer3
+    image: "nym/server"
+    ports:
+      - "4002:4000"
+      - "5002:5000"
+    command: "-f /coconut_server/config.toml"
+    volumes:
+      - ./build/issuers/issuer3:/coconut_server:Z
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+    networks:
+      localnet:
+        ipv4_address: 192.167.11.3
+
+networks:
+  localnet:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+      -
+        subnet: 192.167.10.0/16

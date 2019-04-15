@@ -1,6 +1,7 @@
 syntax = "proto3";
 import "crypto/coconut/scheme/proto/types.proto";
 import "crypto/coconut/scheme/proto/tumblertypes.proto";
+import "crypto/elgamal/proto/types.proto";
 
 package transaction;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
@@ -27,6 +28,7 @@ message AccountTransferRequest {
     bytes Sig = 4; 
 }
 
+// literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
 message DepositCoconutCredentialRequest {
     // The actual credential
     coconut.ProtoSignature Sig = 1;
@@ -40,19 +42,23 @@ message DepositCoconutCredentialRequest {
     bytes MerchantAddress = 5;
 }
 
-// Initiated by users themselves
+// Initiated by users and sent directly to the chain
 message TransferToHoldingRequest {
     // Used to validate signature + determine source address
     bytes SourcePublicKey = 1;
     // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
     // in case wanted to change it
     bytes TargetAddress = 2; 
-    // Amount to be transferred 
-    uint32 Amount = 3; 
-    // Random nonce to prevent replay attacks
-    bytes Nonce = 4;
+    // Amount to be transferred / Value of the desired credential
+    int32 Amount = 3; 
+    // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+    elgamal.ProtoPublicKey EgPub = 4;
+    // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+    coconut.ProtoLambda Lambda = 5;
+    // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
+    repeated bytes PubM = 6;
     // Signature on request to confirm its validitiy
-    bytes Sig = 5; 
+    bytes Sig = 7; 
  }
 
 

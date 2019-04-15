@@ -16,7 +16,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
@@ -27,35 +26,40 @@ import (
 )
 
 const (
+	// TODO: just replace with "memdb" ?
 	DBTYPE = "leveldb"
+	dbPath = "/nymabci"
 )
 
 func main() {
-	dbPath := flag.String("dbpath", "", "defines path to db to store app state")
-	port := flag.String("port", "-1", "defines port for the application") // todo: change to address
+	// no need to pass it as a flag anymore. the location can be redefined using docker volumes
+	// dbPath := flag.String("dbpath", "", "defines path to db to store app state")
 
-	flag.Parse()
-
-	if err := cmn.EnsureDir(*dbPath, 0700); err != nil {
+	// EnsureDir checks if given dir exists and if it doesnt, creates the entire path
+	if err := cmn.EnsureDir(dbPath, 0700); err != nil {
 		panic(fmt.Errorf("Could not create DB directory: %v", err.Error()))
 	}
 
-	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
-	app := nymapplication.NewNymApplication(DBTYPE, *dbPath, logger.With("module", "nym-app"))
+	// TODO: location of logger, etc
+	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout)).With("module", "abci-server")
+	app := nymapplication.NewNymApplication(DBTYPE, dbPath, logger.With("module", "nym-app"))
 
-	srv, err := server.NewServer("tcp://0.0.0.0:"+*port, "socket", app)
+	srv, err := server.NewServer("tcp://0.0.0.0:26658", "socket", app)
 	if err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	srv.SetLogger(logger.With("module", "abci-server"))
+
+	srv.SetLogger(logger)
 	if err := srv.Start(); err != nil {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
 
-	cmn.TrapSignal(func() {
+	cmn.TrapSignal(logger, func() {
 		srv.Stop()
 		logger.Info("Server was stopped")
 	})
+
+	select {}
 }

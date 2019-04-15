@@ -47,4 +47,8 @@ var (
 
 	// SeenNoncePrefix represents prefix for each seen nonce in the database.
 	SeenNoncePrefix = []byte("NONCE")
+
+	// CredentialRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
+	// to a successful request to transfer tokents to a holding account.
+	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
 )

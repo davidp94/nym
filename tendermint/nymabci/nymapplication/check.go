@@ -20,12 +20,16 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	proto "github.com/golang/protobuf/proto"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // implementation will be IP-specific
@@ -189,11 +193,65 @@ func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
 }
 
 func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
-	// TODO: wait for more details on how to implement
+	// verify sigs and check if all structs can be unmarshalled
 	req := &transaction.TransferToHoldingRequest{}
-
 	if err := proto.Unmarshal(tx, req); err != nil {
 		return code.INVALID_TX_PARAMS
+	}
+
+	if len(req.PubM) < 1 ||
+		len(req.PubM[0]) != constants.BIGLen ||
+		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
+		return code.INVALID_TX_PARAMS
+	}
+
+	// only recovered to see if an error is thrown
+	lambda := &coconut.Lambda{}
+	if err := lambda.FromProto(req.Lambda); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	lambdab, err := proto.Marshal(req.Lambda)
+	if err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	// only recovered to see if an error is thrown
+	egPub := &elgamal.PublicKey{}
+	if err := egPub.FromProto(req.EgPub); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	egPubb, err := proto.Marshal(req.EgPub)
+	if err != nil {
+		return code.INVALID_TX_PARAMS
+	}
+
+	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+	recoveredHoldingAddress := req.TargetAddress
+
+	// TODO: update once epochs, etc. are introduced
+	if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
+		return code.MALFORMED_ADDRESS
+	}
+
+	if retCode, _ := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
+		return retCode
+	}
+
+	msg := make([]byte, len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
+	copy(msg, sourcePublicKey)
+	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
+	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
+	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
+	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
+	for i := range req.PubM {
+		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
+	}
+
+	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+		app.log.Info("Failed to verify signature on request")
+		return code.INVALID_SIGNATURE
 	}
 
 	return code.OK

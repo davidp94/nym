@@ -419,6 +419,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
 	case *commands.GetCredentialRequest:
+		// NO LONGER BEING USED
 		protoBlindSig := &coconut.ProtoBlindedSignature{}
 		if data != nil {
 			protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
@@ -430,6 +431,26 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 		protoResp = &commands.GetCredentialResponse{
 			Sig:    protoBlindSig,
 			Status: protoStatus,
+		}
+
+	case *commands.LookUpCredentialRequest:
+		credPair := (*commands.CredentialPair)(nil)
+		if data != nil {
+			credPair = data.(*commands.CredentialPair)
+		}
+		protoResp = &commands.LookUpCredentialResponse{
+			Credential: credPair,
+			Status:     protoStatus,
+		}
+
+	case *commands.LookUpBlockCredentialsRequest:
+		credPairs := ([]*commands.CredentialPair)(nil)
+		if data != nil {
+			credPairs = data.([]*commands.CredentialPair)
+		}
+		protoResp = &commands.LookUpBlockCredentialsResponse{
+			Credentials: credPairs,
+			Status:      protoStatus,
 		}
 
 	case *commands.SpendCredentialRequest:

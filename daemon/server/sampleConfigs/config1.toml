@@ -1,0 +1,80 @@
+# Coconut IA server configuration file.
+
+[Server]
+
+  # Identifier is the human readable identifier for the node (eg: FQDN).
+  Identifier = "Test IA Server"
+
+  # Addresses are the IP address/port combinations that the server will bind
+  # to for incoming connections.
+  Addresses = [ "0.0.0.0:4000" ]
+
+	# GRPCAddresses are the IP address:port combinations that the server will bind
+  # to for incoming grpcs.
+	GRPCAddresses = [ "0.0.0.0:5000" ]
+
+	# DataDir specifies path to a .db file holding relevant server-specific persistent data.
+	DataDir = "/coconut_server/"
+  
+	# MaximumAttributes specifies the maximum number of attributes the system supports.
+	MaximumAttributes = 5
+
+  # IsProvider specifies whether the server is a provider.
+	# Currently it means it should be able to verify credentials it receives.
+	IsProvider = true
+
+	# IsIssuer specifies whether the server is a credential issuer.
+	# Currently it means it should be able to sign attributes it receives.
+	IsIssuer = true
+
+[Issuer]
+	# ID represents the ID of the server used during generation of threshold keys.
+	ID = 1
+
+  # VerificationKeyFile specifies the file containing the Coconut Verification Key.
+  VerificationKeyFile = "/coconut_server/coconutkeys/verification0-n=3-t=2.pem"
+
+  # SecretKeyFile specifies the file containing the Coconut Secret Key.
+  SecretKeyFile = "/coconut_server/coconutkeys/secret0-n=3-t=2.pem"
+
+	# BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	# to which the issuer should send all relevant requests. 
+	# Note that only a single request will ever be sent, but multiple addresses are provided in case 
+	# the particular node was unavailable.
+	BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
+
+	# BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+	# BlockchainKeysFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/blockchainkeys/ia1.json"
+
+[Provider]
+
+	# IAAddresses are the IP address:port combinations of all Authority Servers.
+	# Required if the server is a provider.
+  IAAddresses = [ "192.167.11.1:4000", "192.167.11.2:4000", "192.167.11.3:4000" ]
+
+  # IAIDs are IDs of the servers used during generation of threshold keys.
+  IAIDs = [ 1, 2, 3 ]
+  
+  # Threshold defines minimum number of verification keys provider needs to obtain. Default = len(IAAddresses).
+  # TODO: should it be server or debug property?
+  Threshold = 2
+
+
+[Logging]
+
+  # Disable disables logging entirely.
+  Disable = false
+
+  # File specifies the log file, if omitted stdout will be used.
+  # File = "/var/log/coconutIA.log"
+
+  # Level specifies the log level out of `CRITICAL`, `ERROR`, `WARNING`,
+  # `NOTICE`, `INFO` and `DEBUG`.
+  #
+  # Warning: The `DEBUG` log level is unsafe for production use.
+  Level = "INFO"
+
+
+[Debug]
+
+  # RegenerateKeys = true

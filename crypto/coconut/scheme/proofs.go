@@ -68,30 +68,6 @@ func CreateWitnessResponses(p *Curve.BIG, ws []*Curve.BIG, c *Curve.BIG, xs []*C
 	return rs
 }
 
-// CreateBinding creates a binding to given byte sequence by either recovering it's direct value as ECP
-// or by hashing it onto G1.
-func CreateBinding(seq []byte) (*Curve.ECP, error) {
-	if len(seq) <= 0 {
-		return nil, errors.New("Nil or slice of length 0 provided")
-	}
-	var bind *Curve.ECP
-	// if it is a bytes ECP just use that
-	// if it's compressed, per RFC, it needs to start with either byte 0x02 or 0x03 (based on parity)
-	if (len(seq) == constants.ECPLen && (seq[0] == 0x02 || seq[0] == 0x03)) ||
-		// and if it's compressed it needs to start with 0x04 byte
-		(len(seq) == constants.ECPLenUC && seq[0] == 0x04) {
-		bind = Curve.ECP_fromBytes(seq)
-	} else {
-		// otherwise hash whatever we have onto a G1
-		var err error
-		bind, err = utils.HashBytesToG1(amcl.SHA256, seq)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return bind, nil
-}
-
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16

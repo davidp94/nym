@@ -30,6 +30,7 @@ const (
 	defaultLogLevel = "NOTICE"
 
 	defaultNumServerWorkers = 1
+	defaultNumProcessors    = 1
 
 	defaultConnectTimeout               = 5 * 1000  // 5 sec.
 	defaultRequestTimeout               = 5 * 1000  // 5 sec.
@@ -56,9 +57,8 @@ type Server struct {
 	// GRPCAddresses are the IP address:port combinations that the server will bind	to for incoming grpcs.
 	GRPCAddresses []string
 
-	// Will definitely be useful later, but for now, no need for that.
-	// // DataDir is the absolute path to the server's state files.
-	// DataDir string
+	// DataDir specifies path to a .db file holding relevant server-specific persistent data.
+	DataDir string
 
 	// MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes int
@@ -120,6 +120,9 @@ type Debug struct {
 	// NumServerWorkers specifies the number of worker instances to use for client job requests.
 	NumServerWorkers int
 
+	// NumProcessors specifies the number of processor instances attached to the blockchain monitor.
+	NumProcessors int
+
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
 
@@ -149,6 +152,9 @@ func (dCfg *Debug) applyDefaults() {
 	}
 	if dCfg.NumServerWorkers <= 0 {
 		dCfg.NumServerWorkers = defaultNumServerWorkers
+	}
+	if dCfg.NumProcessors <= 0 {
+		dCfg.NumProcessors = defaultNumProcessors
 	}
 	if dCfg.ConnectTimeout <= 0 {
 		dCfg.ConnectTimeout = defaultConnectTimeout
@@ -231,6 +237,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if cfg.Server.MaximumAttributes <= 0 || cfg.Server.MaximumAttributes > 255 {
 		return errors.New("config: Invalid number of allowed attributes")
+	}
+
+	if len(cfg.Server.DataDir) <= 0 {
+		return errors.New("config: Unspecified DataDir")
 	}
 
 	if cfg.Debug == nil {

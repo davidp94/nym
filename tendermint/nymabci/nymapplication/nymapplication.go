@@ -35,6 +35,7 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/tendermint/iavl"
 	"github.com/tendermint/tendermint/abci/types"
+	cmn "github.com/tendermint/tendermint/libs/common"
 	dbm "github.com/tendermint/tendermint/libs/db"
 	"github.com/tendermint/tendermint/libs/log"
 	"github.com/tendermint/tendermint/version"
@@ -191,7 +192,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
 		app.state.db.Set(tx[1:], []byte{1})
 
-		return types.ResponseDeliverTx{Code: code.OK}
+		return types.ResponseDeliverTx{Code: code.OK, Tags: []cmn.KVPair{{Key: []byte{tx[1]}, Value: tx[1:]}}}
 	default:
 		app.log.Error("Unknown tx")
 

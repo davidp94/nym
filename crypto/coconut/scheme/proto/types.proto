@@ -62,3 +62,10 @@ message ProtoParams {
     bytes g2 = 4;
     repeated bytes hs = 5;
 }
+
+// encapsulates everything required by IAs to issue credential
+message BlindSignMaterials {
+    ProtoLambda lambda = 1;
+    elgamal.ProtoPublicKey egPub = 2;
+    repeated bytes pubM = 3;
+}

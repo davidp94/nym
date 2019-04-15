@@ -1,5 +1,5 @@
 // server.go - Coconut IA Server
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -32,21 +32,26 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
 	"0xacab.org/jstuczyn/CoconutGo/server/listener"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
+	"0xacab.org/jstuczyn/CoconutGo/server/monitor/processor"
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
+)
+
+const (
+	dbName = "serverStore"
 )
 
 // Server defines all the required attributes for a coconut server.
 type Server struct {
 	cfg *config.Config
 
-	sk         *coconut.SecretKey
-	vk         *coconut.VerificationKey
-	avk        *coconut.VerificationKey
-	nymAccount account.Account
+	sk  *coconut.SecretKey
+	vk  *coconut.VerificationKey
+	avk *coconut.VerificationKey
 
 	cmdCh *requestqueue.RequestQueue
 	jobCh *jobqueue.JobQueue
@@ -56,6 +61,10 @@ type Server struct {
 	listeners     []*listener.Listener
 	grpclisteners []*grpclistener.Listener
 	jobWorkers    []*jobworker.JobWorker
+
+	monitor    *monitor.Monitor
+	processors []*processor.Processor
+	store      *storage.Database
 
 	haltedCh chan interface{}
 	haltOnce sync.Once
@@ -220,16 +229,8 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
-	acc := account.Account{}
 	var nymClient *nymclient.Client
-	if cfg.Issuer != nil && cfg.Issuer.BlockchainKeysFile != "" {
-		if err := acc.FromJSONFile(cfg.Issuer.BlockchainKeysFile); err != nil {
-			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-			serverLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
-		serverLog.Notice("Loaded Nym Blochain keys from the file.")
-
+	if cfg.Issuer != nil {
 		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
 		if err != nil {
 			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
@@ -238,6 +239,12 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	} else {
 		serverLog.Notice("No keys for the Nym Blockchain were specified.")
+	}
+
+	store, err := storage.New(dbName, cfg.Server.DataDir)
+	if err != nil {
+		serverLog.Errorf("Failed to create a data store: %v", err)
+		return nil, err
 	}
 
 	avk := &coconut.VerificationKey{}
@@ -254,8 +261,8 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
-			NymAccount: acc,
 			NymClient:  nymClient,
+			Store:      store,
 		}
 		serverWorker, err := serverworker.New(serverWorkerCfg)
 
@@ -299,12 +306,34 @@ func New(cfg *config.Config) (*Server, error) {
 	}
 	serverLog.Noticef("Started %v grpclistener(s)", len(cfg.Server.GRPCAddresses))
 
+	var mon *monitor.Monitor
+	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
+	// there's no need for a provider to monitor the chain
+	if cfg.Server.IsIssuer {
+		mon, err = monitor.New(log, nymClient, store, int(IAID))
+		if err != nil {
+			// in theory we could still progress if chain comes back later on.
+			// We will just have to catch up on the blocks
+			serverLog.Errorf("Failed to spawn blockchain monitor")
+		}
+		serverLog.Noticef("Spawned blockchain monitor")
+		for i := 0; i < cfg.Debug.NumProcessors; i++ {
+			processor, err := processor.New(cmdCh.In(), mon, log, i, store)
+			if err != nil {
+				// but if we are unable to process the blocks, there's no point of the issuer
+				serverLog.Critical("Failed to spawn blockchain block processor")
+				return nil, err
+			}
+			processors[i] = processor
+		}
+		serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
+	}
+
 	s := &Server{
 		cfg: cfg,
 
-		sk:         sk,
-		vk:         vk,
-		nymAccount: acc,
+		sk: sk,
+		vk: vk,
 
 		cmdCh: cmdCh,
 		jobCh: jobCh,
@@ -314,6 +343,10 @@ func New(cfg *config.Config) (*Server, error) {
 		listeners:     listeners,
 		grpclisteners: grpclisteners,
 		jobWorkers:    jobworkers,
+
+		monitor:    mon,
+		processors: processors,
+		store:      store,
 
 		haltedCh: make(chan interface{}),
 	}
@@ -371,6 +404,18 @@ func (s *Server) halt() {
 		}
 	}
 
+	for i, p := range s.processors {
+		if p != nil {
+			p.Halt()
+			s.processors[i] = nil
+		}
+	}
+
+	if s.monitor != nil {
+		s.monitor.Halt()
+		s.monitor = nil
+	}
+
 	for i, w := range s.serverWorkers {
 		if w != nil {
 			w.Halt()
@@ -383,6 +428,11 @@ func (s *Server) halt() {
 			w.Halt()
 			s.jobWorkers[i] = nil
 		}
+	}
+
+	if s.store != nil {
+		s.store.Close()
+		s.store = nil
 	}
 
 	s.log.Notice("Shutdown complete.")
