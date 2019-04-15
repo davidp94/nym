@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	maxInterval = time.Second * 10
+	maxInterval = time.Second * 30
 	// todo: figure out if we want query per tx or per block
 
 	// txs for actual data, block header to know how many should have arrived
@@ -287,8 +287,69 @@ func (m *Monitor) catchUp(startHeight, endHeight int64) {
 	}
 }
 
+func (m *Monitor) resyncWithBlockchain() error {
+	latestStored := m.store.GetHighest()
+	m.log.Debug("Resyncing blocks with the chain")
+	latestBlock, err := m.tmClient.BlockResults(nil)
+	if err != nil {
+		return err
+	}
+
+	if latestBlock.Height != latestStored {
+		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
+		m.addNewCatchUpBlock(latestBlock, false)
+		m.catchUp(latestStored+1, latestBlock.Height-1)
+	} else {
+		m.log.Notice("Monitor is up to date with the blockchain")
+	}
+	return nil
+}
+
+func (m *Monitor) resubscribeToBlockchain() error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	headersEventsCh, err := m.tmClient.Subscribe(ctx, m.subscriberStr, headersQuery)
+	if err != nil {
+		return err
+	}
+	m.log.Debug("Resubscribed to new headers")
+
+	txsEventsCh, err := m.tmClient.Subscribe(ctx, m.subscriberStr, txsQuery)
+	if err != nil {
+		return err
+	}
+	m.log.Debug("Resubscribed to new txs")
+
+	m.headersEventsCh = headersEventsCh
+	m.txsEventsCh = txsEventsCh
+
+	return nil
+}
+
+func (m *Monitor) resubscribeToBlockchainFull() error {
+	m.log.Notice("Resubscribing to the blockchain")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+
+	if err := m.tmClient.UnsubscribeAll(ctx, m.subscriberStr); err != nil {
+		m.log.Noticef("%v", err)
+	}
+
+	if err := m.resubscribeToBlockchain(); err != nil {
+		err := m.tmClient.ForceReconnect()
+		if err != nil {
+			return err
+		}
+		// after reconnecting to new node we try to recreate the subscriptions again
+		return m.resubscribeToBlockchain()
+	}
+	return nil
+}
+
 // for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
+	timeoutTicker := time.NewTicker(maxInterval)
 	for {
 		select {
 		case e := <-m.headersEventsCh:
@@ -296,17 +357,36 @@ func (m *Monitor) worker() {
 
 			m.log.Noticef("Received header for height : %v", headerData.Height)
 			m.addNewBlock(startNewBlock(headerData))
+			// reset ticker on each successful read
+			timeoutTicker = time.NewTicker(maxInterval)
 
 		case e := <-m.txsEventsCh:
 			txData := e.Data.(types.EventDataTx)
 
 			m.log.Noticef("Received tx %v height: %v", txData.Index, txData.Height)
 			m.addNewTx(startNewTx(txData))
+			// reset ticker on each successful read
+			timeoutTicker = time.NewTicker(maxInterval)
 
-		case <-time.After(maxInterval):
-			m.log.Warning("Timeout")
+		case <-timeoutTicker.C:
+			// on target environment we assume regular-ish block intervals with empty blocks if needed.
+			// if we dont hear anything back, we assume a failure.
+			m.log.Warningf("Timeout - Didn't receive any data in %v seconds", maxInterval)
 			m.log.Debugf("%v blocks to be processed", len(m.unprocessedBlocks))
-			// unsub and resub + catchup
+
+			if err := m.resubscribeToBlockchainFull(); err != nil {
+				// what to do now?
+				m.log.Critical(fmt.Sprintf("Couldn't resubscribe to the blockchain: %v", err))
+				return
+			}
+			if err := m.resyncWithBlockchain(); err != nil {
+				// again, what to do now? But at least we're connected so we could theoretically receive some data?
+				m.log.Errorf("Couldn't resync with the blockchain: %v", err)
+			}
+
+			// for now do a dummy catchup as in on everything after last stored block.
+			// later improve and do it selectively
+
 		case <-m.haltCh:
 			return
 		}
@@ -336,42 +416,23 @@ func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, i
 		log.Noticef("%v", err)
 	}
 
-	headersEventsCh, err := tmClient.Subscribe(context.Background(), subscriberStr, headersQuery)
-	if err != nil {
-		return nil, err
-	}
-
-	txsEventsCh, err := tmClient.Subscribe(context.Background(), subscriberStr, txsQuery)
-	if err != nil {
-		return nil, err
-	}
-
-	latestStored := store.GetHighest()
-
 	monitor := &Monitor{
 		tmClient:                   tmClient,
 		store:                      store,
 		log:                        log,
 		subscriberStr:              subscriberStr,
-		headersEventsCh:            headersEventsCh,
-		txsEventsCh:                txsEventsCh,
 		haltCh:                     make(chan struct{}),
 		unprocessedBlocks:          make(map[int64]*block),
 		processedBlocks:            make(map[int64]struct{}),
-		latestConsecutiveProcessed: latestStored,
+		latestConsecutiveProcessed: store.GetHighest(),
 	}
 
-	latestBlock, err := tmClient.BlockResults(nil)
-	if err != nil {
+	if err := monitor.resubscribeToBlockchain(); err != nil {
 		return nil, err
 	}
 
-	if latestBlock.Height != latestStored {
-		monitor.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
-		monitor.addNewCatchUpBlock(latestBlock, false)
-		monitor.catchUp(latestStored+1, latestBlock.Height-1)
-	} else {
-		monitor.log.Notice("Monitor is up to date with the blockchain")
+	if err := monitor.resyncWithBlockchain(); err != nil {
+		return nil, err
 	}
 
 	monitor.Go(monitor.worker)

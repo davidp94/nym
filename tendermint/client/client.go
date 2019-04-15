@@ -307,6 +307,11 @@ func (c *Client) UnsubscribeAll(ctx context.Context, subscriber string) error {
 	return c.tmclient.UnsubscribeAll(ctx, subscriber)
 }
 
+// ForceReconnect tries to force the client to reconnect to one of the blockchain nodes.
+func (c *Client) ForceReconnect() error {
+	return c.reconnect(true)
+}
+
 // Stop gracefully stops the client
 func (c *Client) Stop() {
 	c.stopOnce.Do(func() {

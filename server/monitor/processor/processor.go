@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	backoffDuration = time.Second * 5
+	backoffDuration = time.Second * 10
 )
 
 // Processor defines struct containing all data required to sign requests comitted on the blockchain.
