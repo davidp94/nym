@@ -110,23 +110,6 @@ func demo(cc *cclient.Client) {
 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
 	}
 
-	// monitor, err := monitor.New(log, tmclient, 42)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// monitor.Halt()
-	// return
-
-	// // query := query.MustParse("tm.event = 'Tx'")
-	// txs, err := cl.Subscribe(context.Background(), "test-client", "tm.event = 'Tx'")
-	// go func() {
-	// 	for e := range txs {
-	// 		fmt.Println("Received ", e)
-	// 	}
-	// 	fmt.Println("END")
-	// }()
-
 	// create new account
 	acc := account.NewAccount()
 	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))

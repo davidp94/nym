@@ -21,10 +21,9 @@ import (
 	"encoding/binary"
 	"errors"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	proto "github.com/golang/protobuf/proto"

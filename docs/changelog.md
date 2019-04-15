@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## v0.3.0
+
+* Issuers monitoring the blockchain state
+* Issuers keeping persistent state with credentials for given txs
+* Issuers resyncing with the blockchain upon startup or periodically after not receiving any data during a specified interval
+
 ## v0.2.2
 
 * Docker-compose for the entire environment
