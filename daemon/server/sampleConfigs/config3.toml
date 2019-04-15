@@ -72,7 +72,7 @@
   # `NOTICE`, `INFO` and `DEBUG`.
   #
   # Warning: The `DEBUG` log level is unsafe for production use.
-  Level = "INFO"
+  Level = "DEBUG"
 
 
 [Debug]

@@ -214,13 +214,17 @@ func (c *Client) BlockchainInfo(minHeight, maxHeight int64) (*ctypes.ResultBlock
 }
 
 // BlockResults results from a block at given height.
-func (c *Client) BlockResults(height int64) (*ctypes.ResultBlockResults, error) {
-	c.logMsg("DEBUG", "Getting all results from height %v", height)
+// If no height is provided, most recent block is queried
+func (c *Client) BlockResults(height *int64) (*ctypes.ResultBlockResults, error) {
+	if height != nil {
+		c.logMsg("DEBUG", "Getting all results from height %v", *height)
+	} else {
+		c.logMsg("DEBUG", "Getting all results from the most recent height")
+	}
 	var res *ctypes.ResultBlockResults
 	var err error
 	if c.tmclient != nil && c.tmclient.IsRunning() {
-		// TODO: why is it taking pointer to int64??
-		res, err = c.tmclient.BlockResults(&height)
+		res, err = c.tmclient.BlockResults(height)
 	} else { // reconnection is most likely already in progress
 		err = errors.New("Invalid client - reconnection required")
 	}

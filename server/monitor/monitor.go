@@ -119,6 +119,7 @@ type tx struct {
 	index  uint32
 	Code   uint32
 	Tags   []cmn.KVPair
+	isNil  bool
 }
 
 func startNewTx(txData types.EventDataTx) *tx {
@@ -133,15 +134,18 @@ func startNewTx(txData types.EventDataTx) *tx {
 // FinalizeHeight gets called when all txs from a particular block are processed.
 func (m *Monitor) FinalizeHeight(height int64) {
 	m.log.Debugf("Finalizing height %v", height)
+	m.log.Debugf("Unprocessed: \n%v\n\n\nProcessed: \n%v", m.unprocessedBlocks, m.processedBlocks)
 	m.Lock()
 	defer m.Unlock()
 	if height == m.latestConsecutiveProcessed+1 {
 		m.latestConsecutiveProcessed = height
-		for i := height + 1; ; {
+		for i := height + 1; ; i++ {
 			if _, ok := m.processedBlocks[i]; ok {
+				m.log.Debugf("Also finalizing %v", i)
 				m.latestConsecutiveProcessed = i
 				delete(m.processedBlocks, i)
 			} else {
+				m.log.Debugf("%v is not in processed blocks", i)
 				break
 			}
 		}
@@ -153,6 +157,7 @@ func (m *Monitor) FinalizeHeight(height int64) {
 }
 
 // GetLowestFullUnprocessedBlock returns block on lowest height that is currently not being processed.
+// FIXME: it doesn't actually return the lowest, but does it matter?
 func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	m.Lock()
 	defer m.Unlock()
@@ -208,6 +213,80 @@ func (m *Monitor) addNewTx(newTx *tx) {
 	b.addTx(newTx)
 }
 
+func (m *Monitor) addNewCatchUpBlock(res *ctypes.ResultBlockResults, overwrite bool) {
+	m.Lock()
+	defer m.Unlock()
+
+	m.log.Infof("Catching up on block %v", res.Height)
+
+	// ensure it's not in blocks to be processed or that are processed
+	// TODO: overwrite, etc.
+	if _, ok := m.unprocessedBlocks[res.Height]; !ok && res.Height > m.latestConsecutiveProcessed {
+		if _, ok := m.processedBlocks[res.Height]; !ok {
+
+			b := &block{
+				creationTime:   time.Now(),
+				height:         res.Height,
+				NumTxs:         int64(len(res.Results.DeliverTx)),
+				receivedHeader: true,
+				Txs:            make([]*tx, len(res.Results.DeliverTx)),
+			}
+
+			for i, resTx := range res.Results.DeliverTx {
+				if resTx == nil {
+					b.Txs[i] = &tx{
+						isNil: true,
+					}
+					continue
+				}
+				b.Txs[i] = &tx{
+					height: res.Height,
+					index:  uint32(i),
+					Code:   resTx.Code,
+					Tags:   resTx.Tags,
+				}
+			}
+			m.unprocessedBlocks[res.Height] = b
+		}
+	}
+}
+
+// gets blockchain data from startHeight to endHeight (both inclusive)
+func (m *Monitor) catchUp(startHeight, endHeight int64) {
+	m.log.Infof("Catching up from %v to %v", startHeight, endHeight)
+	// according to docs, blockchaininfo can return at most 20 items
+	if endHeight-startHeight >= 20 {
+		m.log.Debug("There are more than 20 blocks to catchup on")
+		m.catchUp(startHeight, startHeight+19)
+		m.catchUp(startHeight+20, endHeight)
+	}
+
+	res, err := m.tmClient.BlockchainInfo(startHeight, endHeight)
+	if err != nil {
+		// TODO:
+		// how should we behave on error, panic, return, etc?
+		m.log.Critical("Error on catchup")
+	}
+
+	for _, blockMeta := range res.BlockMetas {
+		header := blockMeta.Header
+		if header.NumTxs == 0 {
+			// then we can just add the block and forget about it
+			m.addNewBlock(startNewBlock(header))
+		} else {
+			// otherwise we need to get tx details
+			// TODO: parallelize it perhaps?
+			blockRes, err := m.tmClient.BlockResults(&header.Height)
+			if err != nil {
+				// TODO:
+				// same issue, how to behave?; panic, return, etc?
+				m.log.Critical("Error on catchup")
+			}
+			m.addNewCatchUpBlock(blockRes, false)
+		}
+	}
+}
+
 // for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
 	for {
@@ -226,6 +305,7 @@ func (m *Monitor) worker() {
 
 		case <-time.After(maxInterval):
 			m.log.Warning("Timeout")
+			m.log.Debugf("%v blocks to be processed", len(m.unprocessedBlocks))
 			// unsub and resub + catchup
 		case <-m.haltCh:
 			return
@@ -266,16 +346,32 @@ func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, i
 		return nil, err
 	}
 
+	latestStored := store.GetHighest()
+
 	monitor := &Monitor{
-		tmClient:          tmClient,
-		store:             store,
-		log:               log,
-		subscriberStr:     subscriberStr,
-		headersEventsCh:   headersEventsCh,
-		txsEventsCh:       txsEventsCh,
-		haltCh:            make(chan struct{}),
-		unprocessedBlocks: make(map[int64]*block),
-		processedBlocks:   make(map[int64]struct{}),
+		tmClient:                   tmClient,
+		store:                      store,
+		log:                        log,
+		subscriberStr:              subscriberStr,
+		headersEventsCh:            headersEventsCh,
+		txsEventsCh:                txsEventsCh,
+		haltCh:                     make(chan struct{}),
+		unprocessedBlocks:          make(map[int64]*block),
+		processedBlocks:            make(map[int64]struct{}),
+		latestConsecutiveProcessed: latestStored,
+	}
+
+	latestBlock, err := tmClient.BlockResults(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if latestBlock.Height != latestStored {
+		monitor.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
+		monitor.addNewCatchUpBlock(latestBlock, false)
+		monitor.catchUp(latestStored+1, latestBlock.Height-1)
+	} else {
+		monitor.log.Notice("Monitor is up to date with the blockchain")
 	}
 
 	monitor.Go(monitor.worker)

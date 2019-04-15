@@ -120,7 +120,6 @@ func (p *Processor) worker() {
 			p.store.StoreBlindedSignature(height, blindSignMaterials.EgPub.Gamma, blindedSigB)
 			p.log.Infof("Stored sig for tx %v on height %v", i, height)
 		}
-		p.store.FinalizeHeight(height)
 		p.monitor.FinalizeHeight(height)
 		nextBlock.Unlock()
 	}
