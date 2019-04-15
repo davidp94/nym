@@ -64,3 +64,10 @@ localnet-stop:
 localnet-clear:
 	make localnet-stop
 	sudo rm -rf build
+
+# for debug purposes (assumes the appropriate issuer is already down, tendermint is running, etc.)
+# basically point of it is to remove a lot of overhead after introducing tiny change to issuer
+restart_single_issuer:
+	-docker stop testissuer3
+	make build_servers
+	docker run -it --rm -p 4002:4000 -p 5002:5000 --name=testissuer3 --network=coconutgo_localnet -v $(CURDIR)/build/issuers/issuer3:/coconut_server:Z nym/server -f /coconut_server/config.toml
