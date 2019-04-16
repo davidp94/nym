@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## v0.3.2
+
+* Client retrying to look up credentials with specified backoff interval
+* Client correctly parsing look up credential responses from the issuers
+* Minor refactoring and bug fixes
+
 ## v0.3.1
 
 * Fixed issuers not storing issued credentials
