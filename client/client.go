@@ -104,8 +104,9 @@ func (c *Client) parseSignResponse(resp *commands.SignResponse) (*coconut.Signat
 	return sig, nil
 }
 
-// nolint: lll
-func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse, elGamalPrivateKey *elgamal.PrivateKey) (*coconut.Signature, error) {
+func (c *Client) parseBlindSignResponse(resp blindedSignatureResponse,
+	elGamalPrivateKey *elgamal.PrivateKey,
+) (*coconut.Signature, error) {
 	if err := c.checkResponseStatus(resp); err != nil {
 		return nil, err
 	}

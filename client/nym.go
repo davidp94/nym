@@ -19,7 +19,6 @@ package client
 
 import (
 	"encoding/binary"
-	"fmt"
 	"net"
 	"time"
 
@@ -36,9 +35,26 @@ import (
 	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
-// Theoretically could be combined with client.parseSignatureServerResponses, but this is credential-specific
-// implementation that might change in the future. This way it will be easier to uppdate it.
-func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse, elGamalPrivateKey *elgamal.PrivateKey) ([]*coconut.Signature, *coconut.PolynomialPoints) {
+func (c *Client) parseCredentialPairResponse(resp *commands.LookUpCredentialResponse,
+	elGamalPrivateKey *elgamal.PrivateKey,
+) (*coconut.Signature, error) {
+	if err := c.checkResponseStatus(resp); err != nil {
+		return nil, err
+	}
+	protoBlindSig := &coconut.ProtoBlindedSignature{}
+	if err := proto.Unmarshal(resp.CredentialPair.Credential, protoBlindSig); err != nil {
+		return nil, c.logAndReturnError("parseCredentialPairResponse: failed to unmarshal received proto-credential")
+	}
+	blindSig := &coconut.BlindedSignature{}
+	if err := blindSig.FromProto(protoBlindSig); err != nil {
+		return nil, c.logAndReturnError("parseCredentialPairResponse: failed to unmarshal received credential")
+	}
+	return c.cryptoworker.CoconutWorker().UnblindWrapper(blindSig, elGamalPrivateKey), nil
+}
+
+func (c *Client) parseLookUpCredentialServerResponses(responses []*comm.ServerResponse,
+	elGamalPrivateKey *elgamal.PrivateKey,
+) ([]*coconut.Signature, *coconut.PolynomialPoints) {
 	if responses == nil {
 		return nil, nil
 	}
@@ -52,7 +68,7 @@ func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse
 				continue
 			}
 
-			resp := &commands.GetCredentialResponse{}
+			resp := &commands.LookUpCredentialResponse{}
 			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
 				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerMetadata.Address)
 				continue
@@ -60,7 +76,7 @@ func (c *Client) parseCredentialServerResponses(responses []*comm.ServerResponse
 
 			var sig *coconut.Signature
 			var err error
-			sig, err = c.parseBlindSignResponse(resp, elGamalPrivateKey)
+			sig, err = c.parseCredentialPairResponse(resp, elGamalPrivateKey)
 			if err != nil {
 				continue
 			}
@@ -105,6 +121,9 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("GetCredential: tx was included at invalid height: %v", height)
 	}
 
+	// TODO: if there's a failure anywhere beyond this point, we must be able to return height and elgamal keypair
+	// so that client could theoretically retry at later time
+
 	c.log.Debugf("Our tx was included in block: %v", height)
 
 	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
@@ -117,60 +136,33 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
 	}
 
-	c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
+	for i := 0; i < c.cfg.Debug.NumberOfLookUpRetries; i++ {
+		c.log.Debug("Waiting for %v", time.Millisecond*time.Duration(c.cfg.Debug.LookUpBackoff))
+		time.Sleep(time.Millisecond * time.Duration(c.cfg.Debug.LookUpBackoff))
+		c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	responses := comm.GetServerResponses(
-		&comm.RequestParams{
-			MarshaledPacket:   packetBytes,
-			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
-			ServerAddresses:   c.cfg.Client.IAAddresses,
-			ServerIDs:         c.cfg.Client.IAIDs,
-		},
-		c.log,
-	)
+		responses := comm.GetServerResponses(
+			&comm.RequestParams{
+				MarshaledPacket:   packetBytes,
+				MaxRequests:       c.cfg.Client.MaxRequests,
+				ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+				RequestTimeout:    c.cfg.Debug.RequestTimeout,
+				ServerAddresses:   c.cfg.Client.IAAddresses,
+				ServerIDs:         c.cfg.Client.IAIDs,
+			},
+			c.log,
+		)
 
-	_ = elGamalPrivateKey
-	fmt.Println(responses)
-	fmt.Println(responses[0].MarshaledData)
-	// sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
-	// return c.handleReceivedSignatures(sigs, pp)
+		sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
+		if err != nil {
+			continue
+		}
+		return sig, nil
+	}
 
-	return nil, nil
-
-	// TODO: logic for communicating with IAs
-
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// sig := c.createCredentialRequestSig(txHash, nonce, token)
-
-	// cmd, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, nonce, txHash, sig)
-	// if err != nil {
-	// 	return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
-	// }
-
-	// packetBytes, err := commands.CommandToMarshaledPacket(cmd)
-	// if err != nil {
-	// 	return nil, c.logAndReturnError("GetCredential: Could not create data packet for GetCredential command: %v", err)
-	// }
-
-	// responses := comm.GetServerResponses(
-	// 	&comm.RequestParams{
-	// 		MarshaledPacket:   packetBytes,
-	// 		MaxRequests:       c.cfg.Client.MaxRequests,
-	// 		ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-	// 		RequestTimeout:    c.cfg.Debug.RequestTimeout,
-	// 		ServerAddresses:   c.cfg.Client.IAAddresses,
-	// 		ServerIDs:         c.cfg.Client.IAIDs,
-	// 	},
-	// 	c.log,
-	// )
-
-	// // what we receive are basically coconut signatures so we can use old logic to parse them.
-	// sigs, pp := c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, true, elGamalPrivateKey)
-	// return c.handleReceivedSignatures(sigs, pp)
+	// todo: somehow return gamma and height in response rather than in error message
+	return nil, c.logAndReturnError(`GetCredential: Could not communicate with enough IAs to obtain credentials.
+Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 }
 
 // TODO: at later date, though we possibly might even ignore it

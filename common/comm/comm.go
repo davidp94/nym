@@ -439,8 +439,8 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 			credPair = data.(*commands.CredentialPair)
 		}
 		protoResp = &commands.LookUpCredentialResponse{
-			Credential: credPair,
-			Status:     protoStatus,
+			CredentialPair: credPair,
+			Status:         protoStatus,
 		}
 
 	case *commands.LookUpBlockCredentialsRequest:
