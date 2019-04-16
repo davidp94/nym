@@ -148,11 +148,11 @@ func demo(cc *cclient.Client) {
 	if err != nil {
 		panic(err)
 	}
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
 
 	cred, err := cc.GetCredential(token)
 
