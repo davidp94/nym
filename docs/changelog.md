@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.3.1
+
+* Fixed issuers not storing issued credentials
+
 ## v0.3.0
 
 * Issuers monitoring the blockchain state
