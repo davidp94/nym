@@ -72,7 +72,7 @@ func (p *Processor) worker() {
 			continue
 		}
 
-		p.log.Warningf("Processing block at height: %v", height)
+		p.log.Debugf("Processing block at height: %v", height)
 
 		// In principle there should be no need to use the lock here because the block shouldn't be touched anymore,
 		// but better safe than sorry

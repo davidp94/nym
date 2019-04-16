@@ -134,7 +134,7 @@ func startNewTx(txData types.EventDataTx) *tx {
 // FinalizeHeight gets called when all txs from a particular block are processed.
 func (m *Monitor) FinalizeHeight(height int64) {
 	m.log.Debugf("Finalizing height %v", height)
-	m.log.Debugf("Unprocessed: \n%v\n\n\nProcessed: \n%v", m.unprocessedBlocks, m.processedBlocks)
+	// m.log.Debugf("Unprocessed: \n%v\n\n\nProcessed: \n%v", m.unprocessedBlocks, m.processedBlocks)
 	m.Lock()
 	defer m.Unlock()
 	if height == m.latestConsecutiveProcessed+1 {

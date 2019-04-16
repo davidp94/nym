@@ -154,7 +154,9 @@ func demo(cc *cclient.Client) {
 	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
 	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
 
-	cc.GetCredential(token)
+	cred, err := cc.GetCredential(token)
+
+	fmt.Println("Credential:", cred)
 
 	_ = res
 	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))

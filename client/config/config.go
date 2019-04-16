@@ -34,6 +34,9 @@ const (
 	defaultMaxRequests       = 3
 	noLimitMaxRequests       = 16
 	defaultMaximumAttributes = 5
+
+	defaultLookUpBackoff         = 10 * 1000 // 10 sec.
+	defaultNumberOfLookUpRetries = 3
 )
 
 // nolint: gochecknoglobals
@@ -88,8 +91,8 @@ type Nym struct {
 // Debug is the Coconut Client debug configuration.
 type Debug struct {
 	// NumJobWorkers specifies the number of worker instances to use for jobpacket processing.
-
 	NumJobWorkers int
+
 	// ConnectTimeout specifies the maximum time a connection can take to establish a TCP/IP connection in milliseconds.
 	ConnectTimeout int
 
@@ -98,6 +101,13 @@ type Debug struct {
 
 	// RegenerateKeys specifies whether to generate new Coconut-specific ElGamal keypair and overwrite existing files.
 	RegenerateKeys bool
+
+	// NumberOfLookUpRetries specifies maximum number of retries to call issuer to look up the credentials.
+	NumberOfLookUpRetries int
+
+	// LookUpBackoff specifies the backoff duration after failing to look up credential
+	// (assuming it was due to not being processed yet).
+	LookUpBackoff int
 }
 
 func (dCfg *Debug) applyDefaults() {
@@ -109,6 +119,12 @@ func (dCfg *Debug) applyDefaults() {
 	}
 	if dCfg.RequestTimeout <= 0 {
 		dCfg.RequestTimeout = defaultRequestTimeout
+	}
+	if dCfg.NumberOfLookUpRetries <= 0 {
+		dCfg.NumberOfLookUpRetries = defaultNumberOfLookUpRetries
+	}
+	if dCfg.LookUpBackoff <= 0 {
+		dCfg.LookUpBackoff = defaultLookUpBackoff
 	}
 }
 
