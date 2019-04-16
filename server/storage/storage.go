@@ -86,6 +86,8 @@ func (db *Database) StoreBlindedSignature(height int64, gammaB []byte, sig []byt
 		}
 		// otherwise include a suffix in the entry which is up to the client to decode and try again
 		db.StoreBlindedSignature(height, append(gammaB, 0), sig)
+	} else {
+		db.Set(key, sig)
 	}
 }
 
