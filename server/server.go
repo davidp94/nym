@@ -37,6 +37,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -49,6 +50,7 @@ const (
 type Server struct {
 	cfg *config.Config
 
+	// TODO: do we need to store all the keys and queues in the server struct?
 	sk  *coconut.SecretKey
 	vk  *coconut.VerificationKey
 	avk *coconut.VerificationKey
@@ -229,16 +231,29 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
-	var nymClient *nymclient.Client
-	if cfg.Issuer != nil {
-		nymClient, err = nymclient.New(cfg.Issuer.BlockchainNodeAddresses, log)
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+	// if server is a provider we actually do need to keep the blockchain keys as we need to accept spend requests
+	// and hence verify whether request is bound to our address
+	acc := account.Account{}
+	if cfg.Server.IsProvider {
+		if cfg.Provider.BlockchainKeysFile != "" {
+			if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
+				errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+				serverLog.Error(errStr)
+				return nil, errors.New(errStr)
+			}
+			serverLog.Notice("Loaded Nym Blochain keys from the file.")
+		} else {
+			errStr := "No keys for the Nym Blockchain were specified while server is a provider"
 			serverLog.Error(errStr)
 			return nil, errors.New(errStr)
 		}
-	} else {
-		serverLog.Notice("No keys for the Nym Blockchain were specified.")
+	}
+
+	nymClient, err := nymclient.New(cfg.Server.BlockchainNodeAddresses, log)
+	if err != nil {
+		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+		serverLog.Error(errStr)
+		return nil, errors.New(errStr)
 	}
 
 	store, err := storage.New(dbName, cfg.Server.DataDir)
@@ -261,6 +276,7 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
+			NymAccount: acc,
 			NymClient:  nymClient,
 			Store:      store,
 		}

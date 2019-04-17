@@ -20,6 +20,7 @@ package serverworker
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
@@ -76,7 +77,7 @@ func getDefaultResponse() *commands.Response {
 
 func (sw *ServerWorker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
 	sw.log.Error(errMsg)
-	response.Data = nil
+	// response.Data = nil
 	response.ErrorMessage = errMsg
 	response.ErrorStatus = errCode
 }
@@ -199,7 +200,9 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 		accountCompressed.Compress()
 
 		if bytes.Compare(address, accountCompressed) != 0 {
-			errMsg := "Request is bound to an invalid address"
+			b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
+			b64Bind := base64.StdEncoding.EncodeToString(address)
+			errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
 			sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_BINDING)
 			return response
 		}
@@ -222,9 +225,8 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
 		sw.log.Critical(errMsg)
-		response.Data = nil
 		response.ErrorMessage = errMsg
-		response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+		response.ErrorStatus = commands.StatusCode_PROCESSING_ERROR
 		return response
 	}
 
@@ -247,7 +249,7 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
 	// IMPLEMENTATION CHANGED: user is responsible for triggering transfer
 	response := getDefaultResponse()
-	response.ErrorStatus = commands.StatusCode_UNAVAILABLE
+	response.ErrorStatus = commands.StatusCode_NOT_IMPLEMENTED
 	response.ErrorMessage = "This endpoint is no longer available"
 
 	return response
@@ -456,12 +458,12 @@ type Config struct {
 	NymClient *nymclient.Client
 	Store     *storage.Database
 
-	Params *coconut.Params
-	IAID   uint32
-	Sk     *coconut.SecretKey
-	Vk     *coconut.VerificationKey
-	Avk    *coconut.VerificationKey
-	// NymAccount account.Account
+	Params     *coconut.Params
+	IAID       uint32
+	Sk         *coconut.SecretKey
+	Vk         *coconut.VerificationKey
+	Avk        *coconut.VerificationKey
+	NymAccount account.Account
 }
 
 // New creates new instance of a serverWorker.
@@ -476,8 +478,8 @@ func New(cfg *Config) (*ServerWorker, error) {
 		avk:           cfg.Avk,
 		nymClient:     cfg.NymClient,
 		store:         cfg.Store,
-		// nymAccount:    cfg.NymAccount,
-		log: cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
+		nymAccount:    cfg.NymAccount,
+		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
 	sw.Go(sw.worker)
