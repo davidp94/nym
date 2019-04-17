@@ -63,6 +63,12 @@ type Server struct {
 	// MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes int
 
+	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	// to which the issuer should send all relevant requests.
+	// Note that only a single request will ever be sent, but multiple addresses are provided in case
+	// the particular node was unavailable.
+	BlockchainNodeAddresses []string
+
 	// IsProvider specifies whether the server is a provider.
 	// Currently it means it should be able to verify credentials it receives.
 	IsProvider bool
@@ -84,15 +90,6 @@ type Issuer struct {
 
 	// SecretKeyFile specifies the file containing the Coconut Secret Key.
 	SecretKeyFile string
-
-	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
-	// to which the issuer should send all relevant requests.
-	// Note that only a single request will ever be sent, but multiple addresses are provided in case
-	// the particular node was unavailable.
-	BlockchainNodeAddresses []string
-
-	// BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
-	BlockchainKeysFile string
 }
 
 // Provider is the Coconut provider server configuration.
@@ -110,6 +107,9 @@ type Provider struct {
 	// Default = len(IAAddresses).
 	// 0 = no threshold
 	Threshold int
+
+	// BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+	BlockchainKeysFile string
 }
 
 // Debug is the Coconut IA server debug configuration.

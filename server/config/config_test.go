@@ -109,6 +109,7 @@ func TestServer(t *testing.T) {
 			[Server]
 			MaximumAttributes = 5
 			IsIssuer = true
+			DataDir = "/foo"
 			`),
 				makeStringOfAddresses("Addresses", tcpaddrs),
 				makeStringOfAddresses("GRPCAddresses", grpcaddrs),
@@ -137,6 +138,7 @@ func TestIssuer(t *testing.T) {
 	MaximumAttributes = 5
 	IsIssuer = false
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Issuer]
 	SecretKeyFile = "/foo/bar"
 	VerificationKeyFile = "/foo/bar"
@@ -149,6 +151,7 @@ func TestIssuer(t *testing.T) {
 	MaximumAttributes = 5
 	IsIssuer = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	`))
 	assert.Error(t, err)
 
@@ -158,6 +161,7 @@ func TestIssuer(t *testing.T) {
 	MaximumAttributes = 5
 	IsIssuer = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	GRPCAddresses = []
 	[Issuer]
 	SecretKeyFile = "/foo/bar"
@@ -169,6 +173,7 @@ func TestIssuer(t *testing.T) {
 	MaximumAttributes = 5
 	IsIssuer = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	GRPCAddresses = []
 	[Issuer]
 	VerificationKeyFile = "/foo/bar"
@@ -183,6 +188,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = false
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Provider]
 	SecretKeyFile = "/foo/bar"
 	VerificationKeyFile = "/foo/bar"
@@ -195,6 +201,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	`))
 	assert.Error(t, err)
 
@@ -203,6 +210,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Provider]
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22, 332 ]
@@ -221,6 +229,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Provider]
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	IAIDs = [ 19, 22 ]
@@ -233,6 +242,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Provider]
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001" ]
 	IAIDs = [ 19, 22, 332 ]
@@ -245,6 +255,7 @@ func TestProvider(t *testing.T) {
 	MaximumAttributes = 5
 	IsProvider = true
 	Addresses = [ "127.0.0.1:4000" ]
+	DataDir = "/foo"
 	[Provider]
 	IAAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 	`))
