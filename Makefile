@@ -22,7 +22,7 @@ build_servers:
 		cp daemon/server/sampleKeys/coconutkeys/verification1-n=3-t=2.pem build/issuers/issuer2/coconutkeys/ ;\
 		cp daemon/server/sampleKeys/coconutkeys/secret2-n=3-t=2.pem build/issuers/issuer3/coconutkeys/ ;\
 		cp daemon/server/sampleKeys/coconutkeys/verification2-n=3-t=2.pem build/issuers/issuer3/coconutkeys/ ;\
-		cp daemon/server/sampleKeys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json/ ;\
+		cp daemon/server/sampleKeys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json ;\
 	fi
 	docker build -t nym/server -f ./DOCKER/servers/Dockerfile .
 
