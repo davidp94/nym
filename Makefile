@@ -12,6 +12,7 @@ build_servers:
 		mkdir -p build/issuers/issuer1/coconutkeys ;\
 		mkdir -p build/issuers/issuer2/coconutkeys ;\
 		mkdir -p build/issuers/issuer3/coconutkeys ;\
+		mkdir -p build/issuers/issuer1/blockchainkeys ;\
 		cp daemon/server/sampleConfigs/config1.toml build/issuers/issuer1/config.toml ;\
 		cp daemon/server/sampleConfigs/config2.toml build/issuers/issuer2/config.toml ;\
 		cp daemon/server/sampleConfigs/config3.toml build/issuers/issuer3/config.toml ;\
@@ -21,6 +22,7 @@ build_servers:
 		cp daemon/server/sampleKeys/coconutkeys/verification1-n=3-t=2.pem build/issuers/issuer2/coconutkeys/ ;\
 		cp daemon/server/sampleKeys/coconutkeys/secret2-n=3-t=2.pem build/issuers/issuer3/coconutkeys/ ;\
 		cp daemon/server/sampleKeys/coconutkeys/verification2-n=3-t=2.pem build/issuers/issuer3/coconutkeys/ ;\
+		cp daemon/server/sampleKeys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json ;\
 	fi
 	docker build -t nym/server -f ./DOCKER/servers/Dockerfile .
 

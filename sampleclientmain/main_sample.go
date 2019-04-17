@@ -17,6 +17,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"os"
@@ -92,14 +93,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// IAInteractions(cc)
-	// blockchainInteractions(cc)
-	demo(cc)
+	wholeSystem(cc)
 }
 
-func demo(cc *cclient.Client) {
-	tmp := make(chan struct{})
-
+func wholeSystem(cc *cclient.Client) {
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
@@ -136,55 +133,47 @@ func demo(cc *cclient.Client) {
 	if err != nil {
 		panic(err)
 	}
-
-	// fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 	// add some funds
 	res, err = tmclient.Broadcast(transferReq)
 	if err != nil {
 		panic(err)
 	}
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
 
 	b, err := utils.GenerateRandomBytes(10)
 	if err != nil {
 		panic(err)
 	}
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
-	tmclient.Broadcast(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+
+	fmt.Printf("Send some dummy transactions to advance block")
 
 	cred, err := cc.GetCredential(token)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
 
-	fmt.Println("Credential:", cred)
+	addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	if err != nil {
+		panic(err)
+	}
+	// spend credential:
+	didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	if err != nil {
+		panic(err)
+	}
 
-	_ = res
-	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-
-	// <-tmp
-	_ = tmp
-	// cred, err := cc.GetCredential(token)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fmt.Printf("Transfered %v to the holding account\n", token.Value())
-	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
-
-	// addr, err := base64.StdEncoding.DecodeString(providerAcc)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// // spend credential:
-	// didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fmt.Println("Was credential spent: ", didSucceed)
+	fmt.Println("Was credential spent: ", didSucceed)
 }
 
-func IAInteractions(cc *cclient.Client) {
+func basicIA(cc *cclient.Client) {
 	useGRPC := false
 
 	params, _ := coconut.Setup(5)
@@ -226,156 +215,5 @@ func IAInteractions(cc *cclient.Client) {
 		fmt.Println("Is validBlind2:", isValidBlind2)
 		fmt.Println("Is validBlind3:", isValidBlind3)
 	}
-
-}
-
-func blockchainInteractions(cc *cclient.Client) {
-	// decides whether we should wait for tx to be included in a block or just to pass CheckTx
-	waitForCommit := true
-
-	// create new account
-	acc := account.NewAccount()
-	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))
-	if err != nil {
-		panic(err)
-	}
-
-	debugAcc := &account.Account{}
-	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
-
-	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 100)
-	if err != nil {
-		panic(err)
-	}
-
-	params, _ := coconut.Setup(5)
-	G := params.G
-
-	privM := getRandomAttributes(G, 2) // sequence and the key
-
-	token := token.New(privM[0], privM[1], int32(10))
-
-	// sign it as 'normal' set of public/private attributes for now, treat it as the credential
-	// cred, err := cc.GetCredential(token)
-	// fmt.Println(cred)
-	// fmt.Println(err)
-	sig, err := cc.BlindSignAttributes(token.GetPublicAndPrivateSlices())
-	if err != nil {
-		panic(err)
-	}
-
-	log, err := logger.New("", "DEBUG", false)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a logger: %v", err))
-	}
-
-	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
-	}
-
-	if waitForCommit {
-		// send the requests:
-		// new acc
-		res, err := tmclient.Broadcast(newAccReq)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-		// add some funds
-		res, err = tmclient.Broadcast(transferReq)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-
-		_ = sig
-		// err = cc.SpendCredential(token, sig, []byte("foo"))
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// nonce := []byte("foobara")
-		// holdingReq1, err := transaction.CreateNewTransferToHoldingRequest(acc, 42, nonce)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// res, err = tmclient.Broadcast(holdingReq1)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// fmt.Println(res)
-		// fmt.Printf("Transfered to holding. Code: %v, data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-		// holdingReq2, err := transaction.CreateNewTransferToHoldingRequest(acc, 10, nonce)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// res, err = tmclient.Broadcast(holdingReq2)
-		// if err != nil {
-		// 	panic(err)
-		// }
-		// fmt.Printf("Transfered to holding. Code: %v, data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
-		// fmt.Println(res)
-
-		// should succeed
-
-		// should fail (repeated nonce)
-
-	} else {
-		// send the requests:
-		// new acc
-		res, err := tmclient.SendSync(newAccReq)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
-		// add some funds
-
-		res, err = tmclient.SendSync(transferReq)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.Code), string(res.Data))
-	}
-
-	// params, _ := coconut.Setup(5)
-
-	// // generate token
-	// value := int32(1000)
-	// seq := Curve.Randomnum(params.P(), params.G.Rng())
-	// privateKey := Curve.Randomnum(params.P(), params.G.Rng())
-
-	// token := token.New(seq, privateKey, value)
-	// pubM, privM := token.GetPublicAndPrivateSlices()
-
-	// // get credential
-	// sig, _ := cc.BlindSignAttributes(pubM, privM)
-
-	// // get aggregate vk needed for show protocol
-	// avk, _ := cc.GetAggregateVerificationKey()
-
-	// // generate random merchant (abci is set to create new accounts for new merchants)
-	// merchantAddrEC := Curve.G1mul(params.G1(), Curve.Randomnum(params.P(), params.G.Rng()))
-	// merchantAddr := make([]byte, constants.ECPLen)
-	// merchantAddrEC.ToBytes(merchantAddr, true)
-
-	// reqT, err := transaction.CreateNewDepositCoconutCredentialRequest(params, avk, sig, token, merchantAddr)
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// if waitForCommit {
-	// 	res, err := tmclient.Broadcast(reqT)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), res.DeliverTx.Data)
-	// } else {
-	// 	res, err := tmclient.SendSync(reqT)
-	// 	if err != nil {
-	// 		panic(err)
-	// 	}
-	// 	fmt.Printf("Deposited Credential. Code: %v, additional data: %v\n", code.ToString(res.Code), res.Data)
-	// }
 
 }

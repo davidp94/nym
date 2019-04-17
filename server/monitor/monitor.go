@@ -36,6 +36,7 @@ import (
 
 const (
 	maxInterval = time.Second * 30
+
 	// todo: figure out if we want query per tx or per block
 
 	// txs for actual data, block header to know how many should have arrived
@@ -77,11 +78,14 @@ func (b *block) isFull() bool {
 	defer b.Unlock()
 
 	if int64(len(b.Txs)) != b.NumTxs {
+		fmt.Println("not full 1", len(b.Txs), b.NumTxs)
 		return false
 	}
 
 	for i := range b.Txs {
 		if b.Txs[i] == nil {
+			fmt.Println("not full 2", b.Txs, i)
+
 			return false
 		}
 	}
@@ -134,7 +138,7 @@ func startNewTx(txData types.EventDataTx) *tx {
 // FinalizeHeight gets called when all txs from a particular block are processed.
 func (m *Monitor) FinalizeHeight(height int64) {
 	m.log.Debugf("Finalizing height %v", height)
-	// m.log.Debugf("Unprocessed: \n%v\n\n\nProcessed: \n%v", m.unprocessedBlocks, m.processedBlocks)
+	m.log.Debugf("Unprocessed: \n%v\n\n\nProcessed: \n%v", m.unprocessedBlocks, m.processedBlocks)
 	m.Lock()
 	defer m.Unlock()
 	if height == m.latestConsecutiveProcessed+1 {
@@ -156,6 +160,32 @@ func (m *Monitor) FinalizeHeight(height int64) {
 	delete(m.unprocessedBlocks, height)
 }
 
+func (m *Monitor) forceUpdateBlock(height int64) {
+	m.Lock()
+
+	if m.latestConsecutiveProcessed >= height {
+		m.log.Debugf("Another goroutine already added forced %v. Commited.", height)
+		return
+	}
+	if _, ok := m.processedBlocks[height]; ok {
+		m.log.Debugf("Another goroutine already added forced %v. Processed.", height)
+		return
+	}
+	if b, ok := m.unprocessedBlocks[height]; ok && b.creationTime.Add(maxInterval).After(time.Now()) {
+		m.log.Debugf("Another goroutine already added forced %v. Unprocessed.", height)
+		return
+	}
+	m.Unlock()
+
+	m.log.Debugf("Force update height: %v", height)
+	res, err := m.tmClient.BlockResults(&height)
+	if err != nil {
+		m.log.Errorf("Could not obtain results for height: %v", height)
+		return
+	}
+	m.addNewCatchUpBlock(res, true)
+}
+
 // GetLowestFullUnprocessedBlock returns block on lowest height that is currently not being processed.
 // FIXME: it doesn't actually return the lowest, but does it matter?
 func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
@@ -165,7 +195,11 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 		if v.isFull() && !v.beingProcessed { // allows for multiple processors
 			return k, v
 		}
-		m.log.Errorf("Nope %v", k)
+		if !v.isFull() && v.creationTime.Add(maxInterval).Before(time.Now()) {
+			// we've had this block in the queue for a while and didn't get all txs, so let's query for its entirety
+			go m.forceUpdateBlock(k)
+		}
+		// m.log.Errorf("Nope %v, full: %v, processed: %v", k, v.isFull(), v.beingProcessed)
 	}
 	return -1, nil
 }
@@ -220,7 +254,15 @@ func (m *Monitor) addNewCatchUpBlock(res *ctypes.ResultBlockResults, overwrite b
 	m.log.Infof("Catching up on block %v", res.Height)
 
 	// ensure it's not in blocks to be processed or that are processed
-	// TODO: overwrite, etc.
+
+	// we don't care about the current status of this height, whether it's processed or not
+	if overwrite {
+		m.log.Infof("Overwriting block at height %v", res.Height)
+		// according to godocs, if map is nil or element doesn't exist, delete is a no-op so this is fine
+		delete(m.unprocessedBlocks, res.Height)
+		delete(m.processedBlocks, res.Height)
+	}
+
 	if _, ok := m.unprocessedBlocks[res.Height]; !ok && res.Height > m.latestConsecutiveProcessed {
 		if _, ok := m.processedBlocks[res.Height]; !ok {
 
@@ -289,13 +331,13 @@ func (m *Monitor) catchUp(startHeight, endHeight int64) {
 
 func (m *Monitor) resyncWithBlockchain() error {
 	latestStored := m.store.GetHighest()
-	m.log.Debug("Resyncing blocks with the chain")
 	latestBlock, err := m.tmClient.BlockResults(nil)
 	if err != nil {
 		return err
 	}
+	m.log.Debugf("Resyncing blocks with the chain; latestStored: %v, latestBlock: %v", latestStored, latestBlock.Height)
 
-	if latestBlock.Height != latestStored {
+	if latestStored < (latestBlock.Height - 1) {
 		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
 		m.addNewCatchUpBlock(latestBlock, false)
 		m.catchUp(latestStored+1, latestBlock.Height-1)
@@ -349,6 +391,9 @@ func (m *Monitor) resubscribeToBlockchainFull() error {
 
 // for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
+	// TODO: goroutine monitoring processed/unprocessed maps and forcing update of blanks;
+	// alternatively force resync?
+
 	timeoutTicker := time.NewTicker(maxInterval)
 	for {
 		select {

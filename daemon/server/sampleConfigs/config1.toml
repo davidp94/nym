@@ -19,6 +19,12 @@
 	# MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes = 5
 
+	# BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	# to which the issuer should send all relevant requests. 
+	# Note that only a single request will ever be sent, but multiple addresses are provided in case 
+	# the particular node was unavailable.
+	BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
+
   # IsProvider specifies whether the server is a provider.
 	# Currently it means it should be able to verify credentials it receives.
 	IsProvider = true
@@ -37,15 +43,6 @@
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
   SecretKeyFile = "/coconut_server/coconutkeys/secret0-n=3-t=2.pem"
 
-	# BlockchainNodeAddresses specifies addresses of a blockchain nodes
-	# to which the issuer should send all relevant requests. 
-	# Note that only a single request will ever be sent, but multiple addresses are provided in case 
-	# the particular node was unavailable.
-	BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
-
-	# BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
-	# BlockchainKeysFile = "/home/jedrzej/go/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/sampleKeys/blockchainkeys/ia1.json"
-
 [Provider]
 
 	# IAAddresses are the IP address:port combinations of all Authority Servers.
@@ -59,6 +56,8 @@
   # TODO: should it be server or debug property?
   Threshold = 2
 
+	# BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+	BlockchainKeysFile = "/coconut_server/blockchainkeys/provider.json"
 
 [Logging]
 

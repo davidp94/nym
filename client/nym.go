@@ -264,7 +264,7 @@ func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.Publ
 func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
 	spendCredentialResponse := &commands.SpendCredentialResponse{}
 	if err := proto.Unmarshal(packetResponse.Payload(), spendCredentialResponse); err != nil {
-		return false, c.logAndReturnError("parseSpendCredentialResponse: Failed to recover verification result: %v", err)
+		return false, c.logAndReturnError("parseSpendCredentialResponse: Failed to recover spend credential result: %v", err)
 	} else if spendCredentialResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
 		return false, c.logAndReturnError(
 			"parseSpendCredentialResponse: Received invalid response with status: %v. Error: %v",
