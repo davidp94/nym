@@ -1,5 +1,12 @@
 # CoconutGo Changelog
 
+## v0.4.0
+
+* All entities in the system working - full ability to issue and spend credentials.
+* Fixed provider-side handling of Spend Credential
+* Reintroduced blockchain keys for providers
+* Fixed infinite catchup look for issuers
+
 ## v0.3.2
 
 * Client retrying to look up credentials with specified backoff interval
