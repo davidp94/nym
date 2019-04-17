@@ -331,13 +331,13 @@ func (m *Monitor) catchUp(startHeight, endHeight int64) {
 
 func (m *Monitor) resyncWithBlockchain() error {
 	latestStored := m.store.GetHighest()
-	m.log.Debug("Resyncing blocks with the chain")
 	latestBlock, err := m.tmClient.BlockResults(nil)
 	if err != nil {
 		return err
 	}
+	m.log.Debugf("Resyncing blocks with the chain; latestStored: %v, latestBlock: %v", latestStored, latestBlock.Height)
 
-	if latestBlock.Height != latestStored {
+	if latestStored < (latestBlock.Height - 1) {
 		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
 		m.addNewCatchUpBlock(latestBlock, false)
 		m.catchUp(latestStored+1, latestBlock.Height-1)
