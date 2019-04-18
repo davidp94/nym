@@ -21,6 +21,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -202,6 +203,21 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 		// m.log.Errorf("Nope %v, full: %v, processed: %v", k, v.isFull(), v.beingProcessed)
 	}
 	return -1, nil
+}
+
+func (m *Monitor) lowestUnprocessedBlockHeight() int64 {
+	m.Lock()
+	defer m.Unlock()
+	if len(m.unprocessedBlocks) <= 0 {
+		return -1
+	}
+	var lowestHeight int64 = math.MaxInt64
+	for k := range m.unprocessedBlocks {
+		if k < lowestHeight {
+			lowestHeight = k
+		}
+	}
+	return lowestHeight
 }
 
 func (m *Monitor) addNewBlock(b *block) {
@@ -389,18 +405,60 @@ func (m *Monitor) resubscribeToBlockchainFull() error {
 	return nil
 }
 
+// we only care about processed blocks.
+func (m *Monitor) fillBlockGaps() {
+	m.log.Debug("Filling missing blocks")
+	m.Lock()
+	if len(m.processedBlocks) <= 0 {
+		return
+	}
+
+	remainingBlocks := len(m.processedBlocks)
+	gaps := make([]int64, 0)
+	for h := m.latestConsecutiveProcessed + 1; ; h++ {
+		if remainingBlocks == 0 {
+			// no point going past the last processed block
+			break
+		}
+
+		if _, ok := m.processedBlocks[h]; ok {
+			remainingBlocks--
+		} else {
+			if _, ok := m.unprocessedBlocks[h]; !ok {
+				m.log.Debugf("Found gap at height: %v", h)
+				// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
+				gaps = append(gaps, h)
+			}
+		}
+	}
+
+	// give up the lock since we don't need it anymore and other goroutines could do their work, like block processing
+	m.Unlock()
+
+	for _, gap := range gaps {
+		if gap <= 0 {
+			m.log.Errorf("Gap block with invalid height: %v", gap)
+		}
+		m.log.Debugf("Going to fill in the gap at height: %v", gap)
+		m.forceUpdateBlock(gap)
+	}
+}
+
 // for now assume we receive all subscription events and nodes never go down
 func (m *Monitor) worker() {
 	// TODO: goroutine monitoring processed/unprocessed maps and forcing update of blanks;
 	// alternatively force resync?
 
 	timeoutTicker := time.NewTicker(maxInterval)
+	missingBlocksTicker := time.NewTicker(maxInterval)
 	for {
 		select {
 		case e := <-m.headersEventsCh:
 			headerData := e.Data.(types.EventDataNewBlockHeader).Header
 
 			m.log.Noticef("Received header for height : %v", headerData.Height)
+
+			// TODO: update based on new case
 			m.addNewBlock(startNewBlock(headerData))
 			// reset ticker on each successful read
 			timeoutTicker = time.NewTicker(maxInterval)
@@ -409,9 +467,19 @@ func (m *Monitor) worker() {
 			txData := e.Data.(types.EventDataTx)
 
 			m.log.Noticef("Received tx %v height: %v", txData.Index, txData.Height)
+
+			// TODO: update based on new case
 			m.addNewTx(startNewTx(txData))
 			// reset ticker on each successful read
 			timeoutTicker = time.NewTicker(maxInterval)
+
+		case <-missingBlocksTicker.C:
+			// look for gaps in our processed/unprocessed blocks and query for them individually
+			go func() {
+				m.fillBlockGaps()
+				// reset the timer when func returns
+				missingBlocksTicker = time.NewTicker(maxInterval)
+			}()
 
 		case <-timeoutTicker.C:
 			// on target environment we assume regular-ish block intervals with empty blocks if needed.
