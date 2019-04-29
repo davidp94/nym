@@ -32,6 +32,7 @@ localnet-build:
 		mkdir -p build/nodes/node1/config; \
 		mkdir -p build/nodes/node2/config; \
 		mkdir -p build/nodes/node3/config; \
+		chmod g+w -R build; \
 		docker run --rm -v $(CURDIR)/build/nodes:/tendermint:Z tendermint/tendermint testnet --v 4 --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; \
 		sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/node0/config/genesis.json ; \
 		sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/node1/config/genesis.json ; \
