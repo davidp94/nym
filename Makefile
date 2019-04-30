@@ -11,6 +11,8 @@ NUM_NODES=4
 # requires presence of appropriate keys
 THRESHOLD=2
 
+EMPTY_BLOCKS_INTERVAL=\"10s\"
+
 build_servers:
 	@if ! [ -f build/issuers/issuer1/config.toml ]; then \
 		i=1; while [ "$$i" -le $(NUM_ISSUERS) ]; do \
@@ -36,6 +38,8 @@ build_abci:
 	fi
 	docker build -t nym/nymabci -f ./DOCKER/nym_abci/Dockerfile . 
 
+INTERVAL_ORIGINAL=create_empty_blocks_interval = \"0s\"
+INTERVAL_REPLACEMENT=create_empty_blocks_interval = $(EMPTY_BLOCKS_INTERVAL)
 build_tendermint_nodes:
 	@if ! [ -f build/nodes/node0/config/genesis.json ]; then  \
 		i=0; while [ "$$i" -lt $(NUM_NODES) ]; do \
@@ -46,6 +50,7 @@ build_tendermint_nodes:
 		docker run --rm -v $(CURDIR)/build/nodes:/tendermint:Z tendermint/tendermint testnet --v 4 --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; \
 		i=0; while [ "$$i" -lt $(NUM_NODES) ]; do \
 			sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/node$$i/config/genesis.json ; \
+			sed -i -e "s/$(INTERVAL_ORIGINAL)/$(INTERVAL_REPLACEMENT)/g" build/nodes/node$$i/config/config.toml ; \
 			i=$$((i + 1));\
 		done ;\
 	fi
