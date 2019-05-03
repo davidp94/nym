@@ -1,5 +1,10 @@
 # CoconutGo Changelog
 
+## v0.5.0
+
+* Combined tendermint node and nym abci into a single binary to significantly simplify deployment and testing
+* Minor bug fixes
+
 ## v0.4.0
 
 * All entities in the system working - full ability to issue and spend credentials.

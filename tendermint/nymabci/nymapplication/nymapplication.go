@@ -26,7 +26,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -45,6 +45,7 @@ import (
 // TODO:
 const (
 	DBNAME                              = "nymDB"
+	DefaultDbDir                        = "/nymabci"
 	createAccountOnDepositIfDoesntExist = true
 	holdingStartingBalance              = 100000 // entirely for debug purposes
 
@@ -104,6 +105,9 @@ type NymApplication struct {
 
 // NewNymApplication initialises Nym-specific Tendermint ABCI.
 func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication {
+	if dbDir == "" {
+		dbDir = DefaultDbDir
+	}
 	db := dbm.NewDB(DBNAME, dbm.DBBackendType(dbType), dbDir)
 	tree := iavl.NewMutableTree(db, 0)
 	_, err := tree.Load()
