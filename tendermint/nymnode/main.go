@@ -17,6 +17,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -137,10 +138,13 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 }
 
 func main() {
-	cfgFile := "/home/jedrzej/.tendermint/config/config.toml"
-	dataRoot := "/home/jedrzej/.tendermint"
+	cfgFilePtr := flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
+	dataRootPtr := flag.String("dataRoot", "/tendermint", "The data root directory")
+	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks", false, "Flag to indicate whether tendermint should create empty blocks")
+	emptyBlocksIntervalPtr := flag.Duration("emptyBlocksInterval", 0, "(if applicable) used to indicate interval between empty blocks")
+	flag.Parse()
 
-	node, err := createNymNode(cfgFile, dataRoot, false, 0)
+	node, err := createNymNode(*cfgFilePtr, *dataRootPtr, *createEmptyBlocksPtr, *emptyBlocksIntervalPtr)
 	if err != nil {
 		panic(err)
 	}
