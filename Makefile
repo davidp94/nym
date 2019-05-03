@@ -27,6 +27,7 @@ build_servers:
 	fi
 	docker build -t nym/server -f ./DOCKER/servers/Dockerfile .
 
+# DEPRECATED - ABCI AND NODES ARE NOW COMBINED
 # creating directories here for abcis as a workaround. for some reason docker creates them as root user... 
 # and then abcis can't access them. need to fix it.
 build_abci:
@@ -38,6 +39,8 @@ build_abci:
 	fi
 	docker build -t nym/nymabci -f ./DOCKER/nym_abci/Dockerfile . 
 
+# DEPRECATED - ABCI AND NODES ARE NOW COMBINED;
+# BELOW OPTIONS ARE PASED AS FLAGS
 INTERVAL_ORIGINAL=create_empty_blocks_interval = \"0s\"
 INTERVAL_REPLACEMENT=create_empty_blocks_interval = $(EMPTY_BLOCKS_INTERVAL)
 build_tendermint_nodes:
@@ -47,7 +50,7 @@ build_tendermint_nodes:
 			i=$$((i + 1));\
 		done ;\
 		chmod g+w -R build/nodes; \
-		docker run --rm -v $(CURDIR)/build/nodes:/tendermint:Z tendermint/tendermint testnet --v 4 --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; \
+		docker run --rm -v $(CURDIR)/build/nodes:/tendermint:Z tendermint/tendermint testnet --v $(NUM_NODES) --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; \
 		i=0; while [ "$$i" -lt $(NUM_NODES) ]; do \
 			sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/node$$i/config/genesis.json ; \
 			sed -i -e "s/$(INTERVAL_ORIGINAL)/$(INTERVAL_REPLACEMENT)/g" build/nodes/node$$i/config/config.toml ; \
@@ -55,9 +58,23 @@ build_tendermint_nodes:
 		done ;\
 	fi
 
+build_nym_nodes:
+	@if ! [ -f build/nodes/node0/config/genesis.json ]; then  \
+		i=0; while [ "$$i" -lt $(NUM_NODES) ]; do \
+			mkdir -p build/nodes/node$$i/config; \
+			i=$$((i + 1));\
+		done ;\
+		chmod g+w -R build/nodes; \
+		docker run --user $$(id -u $${USER}):$$(id -g $${USER}) --rm -v $(CURDIR)/build/nodes:/tendermint:Z tendermint/tendermint testnet --v $(NUM_NODES) --o . --populate-persistent-peers --starting-ip-address 192.167.10.2 ; \
+	fi	
+	i=0; while [ "$$i" -lt $(NUM_NODES) ]; do \
+		sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/node$$i/config/genesis.json ; \
+		i=$$((i + 1));\
+	done ;\
+	docker build -t nym/nymnode -f ./DOCKER/nym_node/Dockerfile . 
+
 localnet-build:
-	make build_tendermint_nodes
-	make build_abci
+	make build_nym_nodes
 	make build_servers
 
 # Run a 4-node testnet locally
@@ -69,10 +86,9 @@ localnet-start: localnet-stop
 localnet-stop:
 	docker-compose down
 
-# BIG TODO: get rid of the sudo...
 localnet-clear:
 	make localnet-stop
-	sudo rm -rf build
+	rm -rf build
 
 # for debug purposes (assumes the appropriate issuer is already down, tendermint is running, etc.)
 # basically point of it is to remove a lot of overhead after introducing tiny change to issuer
