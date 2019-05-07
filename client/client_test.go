@@ -1,5 +1,5 @@
 // client_test.go - tests for coconut client API
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -21,10 +21,12 @@ package client
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -33,13 +35,15 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server"
 	sconfig "0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymnode/testnode"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 type providerServer struct {
@@ -51,6 +55,7 @@ type providerServer struct {
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
 const clientKeysFolderRelative = "../testdata/clientkeys"
 const thresholdVal = 3 // defined by the pre-generated keys
+const tendermintRPCPort = 36657
 
 var issuersKeysFolder string
 var issuers []*server.Server
@@ -94,7 +99,7 @@ func makeStringOfAddresses(name string, addrs []string) string {
 	return out
 }
 
-func startProvider(addr string, grpcaddr string, threshold bool) *server.Server {
+func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) *server.Server {
 	IAAddressesStr := makeStringOfAddresses("IAAddresses", issuerTCPAddresses)
 	thresholdStr := ""
 	if threshold {
@@ -112,12 +117,16 @@ func startProvider(addr string, grpcaddr string, threshold bool) *server.Server 
 		string(`MaximumAttributes = 5
 IsProvider = true
 `),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "provider", cmn.RandStr(6))),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
+		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
 		"[Provider]\n",
 		thresholdStr,
 		IAAddressesStr,
+		// while BlockchainKeysFile do not matter much here, it will be needed for nym-related tests, so TODO:
 		string(`
+BlockchainKeysFile = "/tmp/foo.json"
 [Logging]
 Disable = true
 Level = "NOTICE"
@@ -134,7 +143,7 @@ Level = "NOTICE"
 	return srv
 }
 
-func startIssuer(n int, addr string, grpcaddr string) *server.Server {
+func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.Server {
 	// it doesn't matter that seed is constant
 	id := strconv.Itoa(rand.Intn(10000))
 	cfgstr := strings.Join([]string{string(`
@@ -144,8 +153,10 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 		string(`MaximumAttributes = 5
 		IsIssuer = true
 		`),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "issuer", cmn.RandStr(6))),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
+		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
 		string(`
 		[Issuer]
 		`),
@@ -154,10 +165,11 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
 		string(`
 		[Logging]
-		Disable = true
-		Level = "Notice"
+		Disable = false
+		Level = "NOTICE"
 		`)}, "")
 
+	// panic(cfgstr)
 	cfg, err := sconfig.LoadBinary([]byte(cfgstr))
 	if err != nil {
 		log.Fatal(err)
@@ -173,9 +185,10 @@ func startIssuer(n int, addr string, grpcaddr string) *server.Server {
 func createBasicClientCfgStr(tcpAddrs []string, gRCPAddr []string) string {
 	cfgStr := `[Nym]
 	AccountKeysFile = "foo.json"
-	BlockchainNodeAddresses = [ "127.0.0.1:46667" ]
-	[Client]
 	`
+	cfgStr += fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort)
+	cfgStr += "[Client]\n"
+
 	if len(gRCPAddr) > 0 {
 		cfgStr += "UseGRPC = true\n"
 		cfgStr += makeStringOfAddresses("IAgRPCAddresses", gRCPAddr)
@@ -2288,21 +2301,35 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	tmpDir, err := ioutil.TempDir("", fmt.Sprintf("test-node-%v", cmn.RandStr(6)))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	node, err := testnode.CreateTestingNymNode(tmpDir, tendermintRPCPort-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := node.Start(); err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(tmpDir)
+
 	issuersKeysFolder = path.Join(dir, issuersKeysFolderRelative)
 	issuers = make([]*server.Server, 0, 5)
 
 	for i := range issuerTCPAddresses {
-		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
+		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i], tmpDir))
 	}
 
-	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true, tmpDir)
 	thresholdProvider = &providerServer{
 		server:      thresholdProviderServer,
 		grpcaddress: providerGRPCAddresses[0],
 		tcpaddress:  providerTCPAddresses[0],
 	}
 
-	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false, tmpDir)
 	nonThresholdProvider = &providerServer{
 		server:      nonThresholdProviderServer,
 		grpcaddress: providerGRPCAddresses[1],
@@ -2313,11 +2340,15 @@ func TestMain(m *testing.M) {
 
 	// cleanly shutdown the servers
 	for _, srv := range issuers {
+		// TODO: blocking issue somewhere
 		srv.Shutdown()
 	}
 
 	thresholdProvider.server.Shutdown()
 	nonThresholdProvider.server.Shutdown()
+
+	node.Stop()
+	os.RemoveAll(tmpDir)
 
 	os.Exit(runTests)
 }
