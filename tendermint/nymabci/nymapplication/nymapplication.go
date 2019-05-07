@@ -148,7 +148,7 @@ func (app *NymApplication) Info(req types.RequestInfo) types.ResponseInfo {
 //
 // Currently I'm not sure where it is called or how to do it.
 func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseSetOption {
-	fmt.Println("SetOption; height: ", app.state.db.Version(), req)
+	app.log.Debug(fmt.Sprintf("SetOption; height: %v", app.state.db.Version()))
 
 	return types.ResponseSetOption{}
 }
@@ -165,7 +165,7 @@ func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
 
 // DeliverTx delivers a tx for full processing.
 func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
-	fmt.Println("DeliverTx; height: ", app.state.db.Version())
+	app.log.Debug(fmt.Sprintf("DeliverTx; height: %v", app.state.db.Version()))
 
 	txType := tx[0]
 	switch txType {
@@ -262,7 +262,7 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 
 // Commit commits the state and returns the application Merkle root hash
 func (app *NymApplication) Commit() types.ResponseCommit {
-	fmt.Println("Commit; height: ", app.state.db.Version())
+	app.log.Debug(fmt.Sprintf("Commit; height: %v", app.state.db.Version()))
 	_, _, err := app.state.db.SaveVersion()
 	if err != nil {
 		app.log.Error(fmt.Sprintf("Error while saving state: %v", err))
@@ -293,9 +293,7 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
 
-	fmt.Println("Query")
-	fmt.Println(req.Path)
-	fmt.Println(req.Data)
+	app.log.Debug(fmt.Sprintf("Query\n; Path: %v\nData:%v\n", req.Path, req.Data))
 
 	return types.ResponseQuery{Code: code.OK}
 }
@@ -418,14 +416,14 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 // BeginBlock is executed at beginning of each block.
 func (app *NymApplication) BeginBlock(req types.RequestBeginBlock) types.ResponseBeginBlock {
-	fmt.Println("BeginBlock")
+	app.log.Debug("BeginBlock")
 
 	return types.ResponseBeginBlock{}
 }
 
 // EndBlock is executed at the end of each block. Used to update validator set.
 func (app *NymApplication) EndBlock(req types.RequestEndBlock) types.ResponseEndBlock {
-	fmt.Println("EndBlock", req.Height)
+	app.log.Debug(fmt.Sprintf("EndBlock; height: %v", req.Height))
 
 	return types.ResponseEndBlock{}
 }
