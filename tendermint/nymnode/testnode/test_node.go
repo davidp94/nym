@@ -128,6 +128,9 @@ func CreateTestingNymNode(tmpDir string, startPort int) (*tmNode.Node, error) {
 	// log := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
 	cfg := tmConfig.DefaultConfig()
 	cfg.RootDir = tmpDir
+	cfg.P2P.RootDir = tmpDir
+	cfg.Mempool.RootDir = tmpDir
+	cfg.Consensus.RootDir = tmpDir
 
 	cfg.P2P.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%v", startPort)
 	cfg.RPC.ListenAddress = fmt.Sprintf("tcp://0.0.0.0:%v", startPort+1)
