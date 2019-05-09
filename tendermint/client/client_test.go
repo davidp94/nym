@@ -17,45 +17,40 @@
 package client
 
 import (
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
 	"sync"
 	"testing"
-	"time"
-
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymnode/testnode"
 	"github.com/stretchr/testify/assert"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
+const tendermintRPCPort = 36657
+
+// TODO: create entire cluster
 var addresses = []string{
 	"localhost:4667",
-
-	"localhost:46657",
-	"localhost:46667",
-	"localhost:46677",
-	"localhost:46687",
+	fmt.Sprintf("localhost:%v", tendermintRPCPort),
 }
 
-func init() {
-	// will startup dummy tendermint nodes
-}
-
-func TestBasic(t *testing.T) {
-	// log, err := logger.New("", "DEBUG", true)
-	log, err := logger.New("", "DEBUG", false)
+// TEST REQUIRES RUNNING WITH --race FLAG
+func TestMultipleQueries(t *testing.T) {
+	log, err := logger.New("", "DEBUG", true)
+	// log, err := logger.New("", "DEBUG", false)
 
 	assert.Nil(t, err)
 
 	nymClient, err := New(addresses, log)
 	assert.Nil(t, err)
 
-	// time for me to kill the node and cause reconnect
-	time.Sleep(time.Second * 15)
-
 	var wg sync.WaitGroup
-
-	numWorkers := 10
-
+	numWorkers := 50
 	wg.Add(numWorkers)
 	for i := 0; i < numWorkers; i++ {
 		go func() {
@@ -64,4 +59,29 @@ func TestBasic(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// TODO: more tests
+
+func TestMain(m *testing.M) {
+	tmpDir, err := ioutil.TempDir("", fmt.Sprintf("test-node-%v", cmn.RandStr(6)))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	node, err := testnode.CreateTestingNymNode(tmpDir, tendermintRPCPort-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := node.Start(); err != nil {
+		log.Fatal(err)
+	}
+	defer os.Remove(tmpDir)
+
+	runTests := m.Run()
+
+	node.Stop()
+	os.RemoveAll(tmpDir)
+
+	os.Exit(runTests)
 }
