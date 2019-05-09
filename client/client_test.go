@@ -23,11 +23,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -108,8 +106,7 @@ func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) 
 		thresholdStr = "Threshold = 0\n"
 	}
 
-	// it doesn't matter that seed is constant
-	id := strconv.Itoa(rand.Intn(10000))
+	id := cmn.RandStr(6)
 	cfgstr := strings.Join([]string{string(`
 [Server]
 `),
@@ -117,7 +114,7 @@ func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) 
 		string(`MaximumAttributes = 5
 IsProvider = true
 `),
-		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "provider", cmn.RandStr(6))),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "provider", id)),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
@@ -144,8 +141,7 @@ Level = "NOTICE"
 }
 
 func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.Server {
-	// it doesn't matter that seed is constant
-	id := strconv.Itoa(rand.Intn(10000))
+	id := cmn.RandStr(6)
 	cfgstr := strings.Join([]string{string(`
 [Server]
 `),
@@ -153,7 +149,7 @@ func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.Ser
 		string(`MaximumAttributes = 5
 		IsIssuer = true
 		`),
-		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "issuer", cmn.RandStr(6))),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "issuer", id)),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
 		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
@@ -162,14 +158,13 @@ func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.Ser
 		`),
 		fmt.Sprintf("ID = %v\n", n+1),
 		fmt.Sprintf("VerificationKeyFile = \"%v/verification%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
-		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
-		string(`
-		[Logging]
-		Disable = false
-		Level = "NOTICE"
-		`)}, "")
+		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n)}, "")
+	cfgstr += string(`
+			[Logging]
+			Disable = true
+			Level = "NOTICE"
+			`)
 
-	// panic(cfgstr)
 	cfg, err := sconfig.LoadBinary([]byte(cfgstr))
 	if err != nil {
 		log.Fatal(err)

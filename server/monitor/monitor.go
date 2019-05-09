@@ -55,7 +55,6 @@ type Monitor struct {
 	subscriberStr              string
 	txsEventsCh                <-chan ctypes.ResultEvent
 	headersEventsCh            <-chan ctypes.ResultEvent
-	haltCh                     chan struct{}
 	latestConsecutiveProcessed int64              // everything up to that point (including it) is already stored on disk
 	processedBlocks            map[int64]struct{} // think of it as a set rather than a hashmap
 	unprocessedBlocks          map[int64]*block
@@ -410,6 +409,7 @@ func (m *Monitor) fillBlockGaps() {
 	m.log.Debug("Filling missing blocks")
 	m.Lock()
 	if len(m.processedBlocks) <= 0 {
+		m.Unlock()
 		return
 	}
 
@@ -425,7 +425,7 @@ func (m *Monitor) fillBlockGaps() {
 			remainingBlocks--
 		} else {
 			if _, ok := m.unprocessedBlocks[h]; !ok {
-				m.log.Debugf("Found gap at height: %v", h)
+				m.log.Debugf("Found gap at height: %v remaining: %v", h, remainingBlocks)
 				// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
 				gaps = append(gaps, h)
 			}
@@ -500,7 +500,7 @@ func (m *Monitor) worker() {
 			// for now do a dummy catchup as in on everything after last stored block.
 			// later improve and do it selectively
 
-		case <-m.haltCh:
+		case <-m.HaltCh():
 			return
 		}
 	}
@@ -509,13 +509,12 @@ func (m *Monitor) worker() {
 // Halt stops the monitor and unsubscribes from any open queries.
 func (m *Monitor) Halt() {
 	m.log.Debugf("Halting the monitor")
-	close(m.haltCh)
+	m.Worker.Halt()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	if err := m.tmClient.UnsubscribeAll(ctx, m.subscriberStr); err != nil {
 		m.log.Noticef("%v", err)
 	}
-	m.Worker.Halt()
 }
 
 // New creates a new monitor.
@@ -534,7 +533,6 @@ func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, i
 		store:                      store,
 		log:                        log,
 		subscriberStr:              subscriberStr,
-		haltCh:                     make(chan struct{}),
 		unprocessedBlocks:          make(map[int64]*block),
 		processedBlocks:            make(map[int64]struct{}),
 		latestConsecutiveProcessed: store.GetHighest(),

@@ -27,7 +27,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
