@@ -144,6 +144,15 @@ type Debug struct {
 	// only applicable to obtain verification keys of all IAs
 	// -1 indicates no limit
 	ProviderMaxRequests int
+
+	// DisableAllBlockchainCommunication allows to disable startup of blockchain client, monitor and processor.
+	// Not to be set in production environment. Only really applicable in tests.
+	DisableAllBlockchainCommunication bool
+
+	// DisableBlockchainMonitoring allows to disable startup of blockchain monitor and processor.
+	// However, it does not disable a blockchain client so that server can still send transactions to the chain.
+	// Not to be set in production environment. Only really applicable in tests.
+	DisableBlockchainMonitoring bool
 }
 
 func (dCfg *Debug) applyDefaults() {

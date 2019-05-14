@@ -249,17 +249,24 @@ func New(cfg *config.Config) (*Server, error) {
 		}
 	}
 
-	nymClient, err := nymclient.New(cfg.Server.BlockchainNodeAddresses, log)
-	if err != nil {
-		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-		serverLog.Error(errStr)
-		return nil, errors.New(errStr)
-	}
+	var nymClient *nymclient.Client
+	var store *storage.Database
 
-	store, err := storage.New(dbName, cfg.Server.DataDir)
-	if err != nil {
-		serverLog.Errorf("Failed to create a data store: %v", err)
-		return nil, err
+	if !cfg.Debug.DisableAllBlockchainCommunication {
+		serverLog.Warning("Blockchain communication is disabled - server will not communicate with blockchain at all")
+		nymClient, err = nymclient.New(cfg.Server.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+
+		// store is currently only used if server is using a monitor
+		store, err = storage.New(dbName, cfg.Server.DataDir)
+		if err != nil {
+			serverLog.Errorf("Failed to create a data store: %v", err)
+			return nil, err
+		}
 	}
 
 	avk := &coconut.VerificationKey{}
@@ -326,23 +333,25 @@ func New(cfg *config.Config) (*Server, error) {
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 	// there's no need for a provider to monitor the chain
 	if cfg.Server.IsIssuer {
-		mon, err = monitor.New(log, nymClient, store, int(IAID))
-		if err != nil {
-			// in theory we could still progress if chain comes back later on.
-			// We will just have to catch up on the blocks
-			serverLog.Errorf("Failed to spawn blockchain monitor")
-		}
-		serverLog.Noticef("Spawned blockchain monitor")
-		for i := 0; i < cfg.Debug.NumProcessors; i++ {
-			processor, err := processor.New(cmdCh.In(), mon, log, i, store)
+		if !cfg.Debug.DisableBlockchainMonitoring && !cfg.Debug.DisableAllBlockchainCommunication {
+			mon, err = monitor.New(log, nymClient, store, int(IAID))
 			if err != nil {
-				// but if we are unable to process the blocks, there's no point of the issuer
-				serverLog.Critical("Failed to spawn blockchain block processor")
-				return nil, err
+				// in theory we could still progress if chain comes back later on.
+				// We will just have to catch up on the blocks
+				serverLog.Errorf("Failed to spawn blockchain monitor")
 			}
-			processors[i] = processor
+			serverLog.Noticef("Spawned blockchain monitor")
+			for i := 0; i < cfg.Debug.NumProcessors; i++ {
+				processor, err := processor.New(cmdCh.In(), mon, log, i, store)
+				if err != nil {
+					// but if we are unable to process the blocks, there's no point of the issuer
+					serverLog.Critical("Failed to spawn blockchain block processor")
+					return nil, err
+				}
+				processors[i] = processor
+			}
+			serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
 		}
-		serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
 	}
 
 	s := &Server{
