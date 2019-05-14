@@ -17,18 +17,20 @@ package server
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
-	"math/rand"
 	"net"
 	"os"
 	"path"
-	"strconv"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymnode/testnode"
 	"github.com/stretchr/testify/assert"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 type providerServer struct {
@@ -39,6 +41,8 @@ type providerServer struct {
 
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
 const thresholdVal = 3 // defined by the pre-generated keys
+const tendermintRPCPort = 36657
+
 var issuersKeysFolder string
 var issuers []*Server
 var thresholdProvider *providerServer
@@ -110,7 +114,7 @@ func dummyServer(res []byte, address string) net.Listener {
 	return l
 }
 
-func startProvider(addr string, grpcaddr string, threshold bool) *Server {
+func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) *Server {
 	IAAddressesStr := makeStringOfAddresses("IAAddresses", issuerTCPAddresses)
 	thresholdStr := ""
 	if threshold {
@@ -119,8 +123,7 @@ func startProvider(addr string, grpcaddr string, threshold bool) *Server {
 		thresholdStr = "Threshold = 0\n"
 	}
 
-	// it doesn't matter that seed is constant
-	id := strconv.Itoa(rand.Intn(10000))
+	id := cmn.RandStr(6)
 	cfgstr := strings.Join([]string{string(`
 [Server]
 `),
@@ -128,17 +131,22 @@ func startProvider(addr string, grpcaddr string, threshold bool) *Server {
 		string(`MaximumAttributes = 5
 IsProvider = true
 `),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "provider", id)),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
+		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
 		"[Provider]\n",
 		thresholdStr,
 		IAAddressesStr,
+		// while BlockchainKeysFile do not matter much here, it will be needed for nym-related tests, so TODO:
 		string(`
+BlockchainKeysFile = "/tmp/foo.json"
 [Logging]
 Disable = true
-Level = "Warning"
+Level = "NOTICE"
 [Debug]
 `),
+		fmt.Sprintf("DisableAllBlockchainCommunication = %v\n", true),
 		fmt.Sprintf("ProviderStartupTimeout = %v\n", providerStartupTimeout),
 		fmt.Sprintf("ProviderStartupRetryInterval = %v\n", providerStartupRetryInterval),
 		fmt.Sprintf("ConnectionTimeout = %v\n", connectionTimeout)}, "")
@@ -151,13 +159,11 @@ Level = "Warning"
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	return srv
 }
 
-func startIssuer(n int, addr string, grpcaddr string) *Server {
-	// it doesn't matter that seed is constant
-	id := strconv.Itoa(rand.Intn(10000))
+func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *Server {
+	id := cmn.RandStr(6)
 	cfgstr := strings.Join([]string{string(`
 [Server]
 `),
@@ -165,18 +171,22 @@ func startIssuer(n int, addr string, grpcaddr string) *Server {
 		string(`MaximumAttributes = 5
 		IsIssuer = true
 		`),
+		fmt.Sprintf("DataDir = \"%v\"\n", filepath.Join(tmpDir, "issuer", id)),
 		fmt.Sprintf("Addresses = [\"%v\"]\n", addr),
 		fmt.Sprintf("GRPCAddresses = [\"%v\"]\n", grpcaddr),
+		fmt.Sprintf("BlockchainNodeAddresses = [ \"127.0.0.1:%v\" ]\n", tendermintRPCPort),
 		string(`
 		[Issuer]
 		`),
+		fmt.Sprintf("ID = %v\n", n+1),
 		fmt.Sprintf("VerificationKeyFile = \"%v/verification%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
-		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n),
-		string(`
-		[Logging]
-		Disable = true
-		Level = "Debug"
-		`)}, "")
+		fmt.Sprintf("SecretKeyFile = \"%v/secret%v-n=5-t=3.pem\"\n", issuersKeysFolder, n)}, "")
+	cfgstr += string(`
+			[Logging]
+			Disable = true
+			Level = "NOTICE"
+			`)
+	cfgstr += fmt.Sprintf("[Debug]\nDisableAllBlockchainCommunication = %v\n", true)
 
 	cfg, err := config.LoadBinary([]byte(cfgstr))
 	if err != nil {
@@ -189,7 +199,7 @@ func startIssuer(n int, addr string, grpcaddr string) *Server {
 	return srv
 }
 
-func startAllIssuers() {
+func startAllIssuers(tmpDir string) {
 	// todo: does it get wd relative to this file or where test command was run?
 	dir, err := os.Getwd()
 	if err != nil {
@@ -199,7 +209,7 @@ func startAllIssuers() {
 	issuers = make([]*Server, 0, 5)
 
 	for i := range issuerTCPAddresses {
-		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i]))
+		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i], tmpDir))
 	}
 }
 
@@ -233,9 +243,16 @@ func TestGetIAsVerificationKeys(t *testing.T) {
 		dummy1.Close()
 		dummy2.Close()
 
+		// doesn't matter that we're using different tmpDir as long as we clean afterwards
+		tmpDir, err := ioutil.TempDir("", fmt.Sprintf("test-issuers-%v", cmn.RandStr(6)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.RemoveAll(tmpDir)
+
 		// start up less than threshold number of 'proper' issuers
-		issuers[0] = startIssuer(0, issuerTCPAddresses[0], issuerGRPCAddresses[0])
-		issuers[1] = startIssuer(1, issuerTCPAddresses[1], issuerGRPCAddresses[1])
+		issuers[0] = startIssuer(0, issuerTCPAddresses[0], issuerGRPCAddresses[0], filepath.Join(tmpDir, "0"))
+		issuers[1] = startIssuer(1, issuerTCPAddresses[1], issuerGRPCAddresses[1], filepath.Join(tmpDir, "1"))
 
 		vks, pp, err = provider.server.getIAsVerificationKeys()
 		assert.Nil(t, vks)
@@ -243,7 +260,7 @@ func TestGetIAsVerificationKeys(t *testing.T) {
 		assert.EqualError(t, err, "Startup timeout")
 
 		// start's up 3rd - threshold - issuer
-		issuers[2] = startIssuer(2, issuerTCPAddresses[2], issuerGRPCAddresses[2])
+		issuers[2] = startIssuer(2, issuerTCPAddresses[2], issuerGRPCAddresses[2], filepath.Join(tmpDir, "2"))
 
 		if strings.Compare(provider.tcpaddress, providerTCPAddresses[0]) == 0 { // if it's non-threshold we ignore this case
 			vks, pp, err = provider.server.getIAsVerificationKeys()
@@ -258,8 +275,8 @@ func TestGetIAsVerificationKeys(t *testing.T) {
 		}
 
 		// restart rest of issuers
-		issuers[3] = startIssuer(3, issuerTCPAddresses[3], issuerGRPCAddresses[3])
-		issuers[4] = startIssuer(4, issuerTCPAddresses[4], issuerGRPCAddresses[4])
+		issuers[3] = startIssuer(3, issuerTCPAddresses[3], issuerGRPCAddresses[3], filepath.Join(tmpDir, "3"))
+		issuers[4] = startIssuer(4, issuerTCPAddresses[4], issuerGRPCAddresses[4], filepath.Join(tmpDir, "4"))
 
 		vks, pp, err = provider.server.getIAsVerificationKeys()
 		assert.True(t, len(vks) >= thresholdVal)
@@ -292,8 +309,15 @@ func TestGetIAsVerificationKeys(t *testing.T) {
 // it is sufficient to test arbitrary malformed requests as all valid cases and valid querys with invalid attributes
 // were tested by client_test.go
 func TestIssuer(t *testing.T) {
+	// doesn't matter that we're using different tmpDir as long as we clean afterwards
+	tmpDir, err := ioutil.TempDir("", fmt.Sprintf("test-issuers-%v", cmn.RandStr(6)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
 	stopAllIssuers() // to ensure all addresses are available
-	startIssuer(1, issuerTCPAddresses[1], issuerGRPCAddresses[1])
+	startIssuer(1, issuerTCPAddresses[1], issuerGRPCAddresses[1], filepath.Join(tmpDir, "1"))
 
 	testAddressTCP := issuerTCPAddresses[1]
 	testAddressGRPC := issuerGRPCAddresses[1]
@@ -330,16 +354,30 @@ func TestIssuer(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	startAllIssuers()
+	tmpDir, err := ioutil.TempDir("", fmt.Sprintf("test-issuers-%v", cmn.RandStr(6)))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
 
-	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true)
+	node, err := testnode.CreateTestingNymNode(tmpDir, tendermintRPCPort-1)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if err := node.Start(); err != nil {
+		log.Fatal(err)
+	}
+
+	startAllIssuers(tmpDir)
+
+	thresholdProviderServer := startProvider(providerTCPAddresses[0], providerGRPCAddresses[0], true, tmpDir)
 	thresholdProvider = &providerServer{
 		server:      thresholdProviderServer,
 		grpcaddress: providerGRPCAddresses[0],
 		tcpaddress:  providerTCPAddresses[0],
 	}
 
-	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false)
+	nonThresholdProviderServer := startProvider(providerTCPAddresses[1], providerGRPCAddresses[1], false, tmpDir)
 	nonThresholdProvider = &providerServer{
 		server:      nonThresholdProviderServer,
 		grpcaddress: providerGRPCAddresses[1],
@@ -355,6 +393,9 @@ func TestMain(m *testing.M) {
 
 	thresholdProvider.server.Shutdown()
 	nonThresholdProvider.server.Shutdown()
+
+	node.Stop()
+	os.RemoveAll(tmpDir)
 
 	os.Exit(runTests)
 }
