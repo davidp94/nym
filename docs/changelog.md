@@ -1,5 +1,15 @@
 # CoconutGo Changelog
 
+## v0.6.0
+
+* Copied the Ethereum watcher codebase to the repository
+* A very initial take on Ethereum client - ability to send Nym tokens to Holding Account
+* Fixed remaining old tests
+
+## v0.5.1
+
+* Fixed monitor/processor deadlock when there are no blocks to be processed.
+
 ## v0.5.0
 
 * Combined tendermint node and nym abci into a single binary to significantly simplify deployment and testing
