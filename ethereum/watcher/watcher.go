@@ -24,14 +24,16 @@ type Watcher struct {
 	cfg *config.Config
 	worker.Worker
 
-	log      *logging.Logger
-	haltedCh chan struct{}
+	log *logging.Logger
+
+	// for the time being the below is redundant
+	// haltedCh chan struct{}
 	haltOnce sync.Once
 }
 
 // Wait waits till the Watcher is terminated for any reason.
 func (w *Watcher) Wait() {
-	<-w.haltedCh
+	<-w.HaltCh()
 }
 
 // Shutdown cleanly shuts down a given Watcher instance.
@@ -47,7 +49,6 @@ func (w *Watcher) halt() {
 	w.Worker.Halt()
 
 	w.log.Notice("Shutdown complete.")
-	close(w.haltedCh)
 }
 
 // TODO: all will need to be made into methods, and split to separate packages
@@ -68,7 +69,7 @@ func (w *Watcher) worker() {
 	// Block on the heartbeat ticker
 	for {
 		select {
-		case <-w.haltedCh:
+		case <-w.HaltCh():
 			return
 		case <-heartbeat.C:
 			latestBlockNumber := w.getLatestBlockNumber()
