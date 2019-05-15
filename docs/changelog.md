@@ -1,5 +1,10 @@
 # CoconutGo Changelog
 
+## v0.6.1
+
+* "Daemon" for Ethereum watcher
+* Semi-split the watcher files
+
 ## v0.6.0
 
 * Copied the Ethereum watcher codebase to the repository
