@@ -26,14 +26,13 @@ type Watcher struct {
 
 	log *logging.Logger
 
-	// for the time being the below is redundant
-	// haltedCh chan struct{}
+	haltedCh chan struct{}
 	haltOnce sync.Once
 }
 
 // Wait waits till the Watcher is terminated for any reason.
 func (w *Watcher) Wait() {
-	<-w.HaltCh()
+	<-w.haltedCh
 }
 
 // Shutdown cleanly shuts down a given Watcher instance.
@@ -49,6 +48,8 @@ func (w *Watcher) halt() {
 	w.Worker.Halt()
 
 	w.log.Notice("Shutdown complete.")
+
+	close(w.haltedCh)
 }
 
 // TODO: all will need to be made into methods, and split to separate packages
@@ -219,8 +220,9 @@ func New(cfg *config.Config) (*Watcher, error) {
 	watcherLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
 	w := &Watcher{
-		cfg: cfg,
-		log: watcherLog,
+		cfg:      cfg,
+		log:      watcherLog,
+		haltedCh: make(chan struct{}),
 	}
 
 	w.Go(w.worker)
