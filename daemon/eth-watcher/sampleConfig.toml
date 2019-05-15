@@ -1,0 +1,31 @@
+# Ethereum Watcher configuration file.
+
+[Watcher]
+
+  # EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
+  # Infura used for the moment. In production should be a fullnode.
+  EthereumNodeAddress = "https://ropsten.infura.io/v3/131453a5470641cd9f64942eecd8add2"
+  # NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
+  NymContract = "0xE80025228D5448A55B995c829B89567ECE5203d3"
+  # PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
+  # It is expected to be provided in hex format.
+  PipeAccount = "0xd6A548f60FB6F98fB29e6226DE1405c20DbbCF52"
+
+[Logging]
+
+  # Disable disables logging entirely.
+  Disable = false
+
+  # File specifies the log file, if omitted stdout will be used.
+  # File = "/var/log/coconutIA.log"
+
+  # Level specifies the log level out of `CRITICAL`, `ERROR`, `WARNING`,
+  # `NOTICE`, `INFO` and `DEBUG`.
+  #
+  # Warning: The `DEBUG` log level is unsafe for production use.
+  Level = "DEBUG"
+
+
+[Debug]
+
+  NumConfirmations = 2

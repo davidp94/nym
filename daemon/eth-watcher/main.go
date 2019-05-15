@@ -3,6 +3,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -10,12 +11,12 @@ import (
 	"syscall"
 
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher"
+	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
 )
 
 func main() {
-	// NOT YET IMPLEMENTED:
-	// cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
-	// flag.Parse()
+	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
+	flag.Parse()
 
 	syscall.Umask(0077)
 
@@ -29,12 +30,11 @@ func main() {
 		}
 	}
 
-	// NOT YET IMPLEMENTED:
-	// cfg, err := config.LoadFile(*cfgFile)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "Failed to load config file '%v': %v\n", *cfgFile, err)
-	// 	os.Exit(-1)
-	// }
+	cfg, err := config.LoadFile(*cfgFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config file '%v': %v\n", *cfgFile, err)
+		os.Exit(-1)
+	}
 
 	// Setup the signal handling.
 	haltCh := make(chan os.Signal)
@@ -42,7 +42,7 @@ func main() {
 	// for now ignore SIGHUP signal, todo: handle it similarly to katzenpost
 
 	// Start up the watcher.
-	watcher, err := watcher.New()
+	watcher, err := watcher.New(cfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to spawn watcher instance: %v\n", err)
 		os.Exit(-1)

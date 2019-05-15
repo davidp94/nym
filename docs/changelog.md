@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## v0.6.2
+
+* Dedicated configuration file for the Ethereum watcher
+
 ## v0.6.1
 
 * "Daemon" for Ethereum watcher
