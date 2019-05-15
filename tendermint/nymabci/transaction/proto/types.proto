@@ -6,6 +6,7 @@ import "crypto/elgamal/proto/types.proto";
 package transaction;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
 
+// DEPRECATED
 message NewAccountRequest {
     // Public Key of the user used to derive account address and validate signature
     bytes PublicKey = 1; 
@@ -15,6 +16,7 @@ message NewAccountRequest {
     bytes Sig = 3; 
 }
 
+// DEPRECATED
 message AccountTransferRequest {
     // Used to validate signature + determine source address
     bytes SourcePublicKey = 1;
@@ -29,6 +31,7 @@ message AccountTransferRequest {
 }
 
 // literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
+// DEPRECATED
 message DepositCoconutCredentialRequest {
     // The actual credential
     coconut.ProtoSignature Sig = 1;
@@ -43,6 +46,7 @@ message DepositCoconutCredentialRequest {
 }
 
 // Initiated by users and sent directly to the chain
+// DEPRECATED
 message TransferToHoldingRequest {
     // Used to validate signature + determine source address
     bytes SourcePublicKey = 1;
@@ -61,6 +65,21 @@ message TransferToHoldingRequest {
     bytes Sig = 7; 
  }
 
+ message CredentialRequest {
+    // Ethereum address of the client
+    bytes ClientAddress = 1;
+    // While right now it's completely unrequired as there is only a single holding account, it might be useful
+    // to have this information in the future if we decided to monitor multiple chains or have multiple holding accounts
+    // for example on epoch changes.
+    bytes HoldingAddress = 2;
+    // All the cryptographic materials required by issuers to perform a blind sign
+    coconut.BlindSignMaterials CryptoMaterials = 3;
+    // Value of the credential. While it is included in a BIG form in CryptoMaterials, it's easier to operate on it,
+    // when it's an int
+    int32 Value = 4;
+    // Signature on entire request with client's ethereum key (so that client's address could be used to verify it)
+    bytes Sig = 5;
+ }
 
 // Old proto definition for when IAs initiated the transfer
 // message TransferToHoldingRequest {
