@@ -62,13 +62,13 @@ func (w *Watcher) Start() {
 	for {
 		select {
 		case <-heartbeat.C:
-			latestBlockNumber := getLatestBlockNumber(w.cfg)
+			latestBlockNumber := w.getLatestBlockNumber()
 			// latestBlockNumber := big.NewInt(int64(5422702)) // TEMP
-			block := getFinalizedBlock(w.cfg, latestBlockNumber)
+			block := w.getFinalizedBlock(latestBlockNumber)
 			for _, tx := range block.Transactions() {
 				if tx.To() != nil {
 					if tx.To().Hex() == nymContract.Hex() { // transaction used the Nym ERC20 contract
-						tr := getTransactionReceipt(w.cfg, tx.Hash())
+						tr := w.getTransactionReceipt(tx.Hash())
 						from, to := erc20decode(*tr.Logs[0])
 						if to.Hex() == pipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
@@ -128,17 +128,17 @@ func erc20decode(log types.Log) (common.Address, common.Address) {
 	return from, to
 }
 
-func getTransactionReceipt(config *config.Config, txHash common.Hash) types.Receipt {
-	tr, err := config.Watcher.Client.TransactionReceipt(context.Background(), txHash)
+func (w *Watcher) getTransactionReceipt(txHash common.Hash) types.Receipt {
+	tr, err := w.cfg.Watcher.Client.TransactionReceipt(context.Background(), txHash)
 	if err != nil {
 		log.Fatalf("Error getting TransactionReceipt: %s", err)
 	}
 	return *tr
 }
 
-func getFinalizedBlock(config *config.Config, latestBlockNumber *big.Int) *types.Block {
-	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(config.Debug.NumConfirmations))
-	block, err := config.Watcher.Client.BlockByNumber(context.Background(), finalizedBlockNumber)
+func (w *Watcher) getFinalizedBlock(latestBlockNumber *big.Int) *types.Block {
+	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(w.cfg.Debug.NumConfirmations))
+	block, err := w.cfg.Watcher.Client.BlockByNumber(context.Background(), finalizedBlockNumber)
 	if err != nil {
 		log.Fatalf("Failed getting block: %s", err)
 	}
@@ -158,10 +158,10 @@ func getFinalizedBlock(config *config.Config, latestBlockNumber *big.Int) *types
 //
 // TODO: put the number of confirmation blocks on a config object instead of
 // using magic numbers, then pass that config object in, alongside the client.
-func getFinalizedBalance(config *config.Config, addr common.Address, latestBlockNumber *big.Int) *big.Int {
-	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(config.Debug.NumConfirmations))
+func (w *Watcher) getFinalizedBalance(addr common.Address, latestBlockNumber *big.Int) *big.Int {
+	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(w.cfg.Debug.NumConfirmations))
 
-	balance, err := config.Watcher.Client.BalanceAt(context.Background(), addr, finalizedBlockNumber)
+	balance, err := w.cfg.Watcher.Client.BalanceAt(context.Background(), addr, finalizedBlockNumber)
 	if err != nil {
 		log.Fatalf("Error getting account balance: %s", err)
 	}
@@ -169,8 +169,8 @@ func getFinalizedBalance(config *config.Config, addr common.Address, latestBlock
 	return balance
 }
 
-func getLatestBlockNumber(config *config.Config) *big.Int {
-	latestHeader, err := config.Watcher.Client.HeaderByNumber(context.Background(), nil)
+func (w *Watcher) getLatestBlockNumber() *big.Int {
+	latestHeader, err := w.cfg.Watcher.Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		log.Fatalf("Error getting latest block header: %s", err)
 	}
@@ -178,8 +178,8 @@ func getLatestBlockNumber(config *config.Config) *big.Int {
 	return latestHeader.Number
 }
 
-func subscribeBlocks(config *config.Config, headers chan *types.Header) ethereum.Subscription {
-	subscription, err := config.Watcher.Client.SubscribeNewHead(context.Background(), headers)
+func (w *Watcher) subscribeBlocks(headers chan *types.Header) ethereum.Subscription {
+	subscription, err := w.cfg.Watcher.Client.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
 		log.Fatalf("Error subscribing to Ethereum blockchain: %s", err)
 	}
@@ -187,12 +187,12 @@ func subscribeBlocks(config *config.Config, headers chan *types.Header) ethereum
 }
 
 // not in use at the moment, I've ditched subscriptions in favour of polling for now
-func subscribeEventLogs(config *config.Config, startBlock *big.Int) (chan types.Log, ethereum.Subscription) {
+func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ethereum.Subscription) {
 	query := ethereum.FilterQuery{
-		Addresses: []common.Address{common.HexToAddress(config.Watcher.PipeAccount)},
+		Addresses: []common.Address{common.HexToAddress(w.cfg.Watcher.PipeAccount)},
 	}
 	logs := make(chan types.Log)
-	sub, err := config.Watcher.Client.SubscribeFilterLogs(context.Background(), query, logs)
+	sub, err := w.cfg.Watcher.Client.SubscribeFilterLogs(context.Background(), query, logs)
 	if err != nil {
 		log.Fatalf("Failed subscribing to event logs: %s", err)
 	}
