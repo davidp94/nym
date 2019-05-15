@@ -11,6 +11,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
 	token "0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/token"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -209,8 +210,16 @@ func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ether
 
 // func New(cfg *config.Config) (*Watcher, error) {
 func New(cfg *config.Config) (*Watcher, error) {
+	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create a logger: %v", err)
+	}
+	watcherLog := log.GetLogger("Client")
+	watcherLog.Noticef("Logging level set to %v", cfg.Logging.Level)
+
 	w := &Watcher{
 		cfg: cfg,
+		log: watcherLog,
 	}
 
 	w.Go(w.worker)
