@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## 0.6.3
+
+* Replaced all function calls in watcher file with methods on watcher object. Config object is no longer passed to them
+* Ability to cleanly shutdown the watcher
+* Fixed watcher logger
+
 ## v0.6.2
 
 * Dedicated configuration file for the Ethereum watcher
