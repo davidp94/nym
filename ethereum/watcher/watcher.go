@@ -11,6 +11,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
 	token "0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/token"
+	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -20,6 +21,7 @@ import (
 
 type Watcher struct {
 	cfg *config.Config
+	worker.Worker
 
 	log      *logging.Logger
 	haltedCh chan struct{}
@@ -36,8 +38,12 @@ func (w *Watcher) Shutdown() {
 	w.haltOnce.Do(func() { w.halt() })
 }
 
+// right now it's only using a single worker so all of this is redundant,
+// but more future proof if we decided to include more workers
 func (w *Watcher) halt() {
 	w.log.Notice("Starting graceful shutdown.")
+
+	w.Worker.Halt()
 
 	w.log.Notice("Shutdown complete.")
 	close(w.haltedCh)
@@ -46,7 +52,7 @@ func (w *Watcher) halt() {
 // TODO: all will need to be made into methods, and split to separate packages
 
 // stop etc are not working
-func (w *Watcher) Start() {
+func (w *Watcher) worker() {
 
 	fmt.Println()
 	fmt.Printf("Watching Ethereum blockchain at: %s \n", w.cfg.Watcher.EthereumNodeAddress)
@@ -61,6 +67,8 @@ func (w *Watcher) Start() {
 	// Block on the heartbeat ticker
 	for {
 		select {
+		case <-w.haltedCh:
+			return
 		case <-heartbeat.C:
 			latestBlockNumber := w.getLatestBlockNumber()
 			// latestBlockNumber := big.NewInt(int64(5422702)) // TEMP
@@ -204,6 +212,8 @@ func New(cfg *config.Config) (*Watcher, error) {
 	w := &Watcher{
 		cfg: cfg,
 	}
+
+	w.Go(w.worker)
 
 	return w, nil
 }

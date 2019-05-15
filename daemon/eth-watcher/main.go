@@ -48,10 +48,9 @@ func main() {
 		os.Exit(-1)
 	}
 
-	watcher.Start() // currently this call is going to block
 	defer watcher.Shutdown()
 
-	// Halt the server gracefully on SIGINT/SIGTERM.
+	// Halt the watcher gracefully on SIGINT/SIGTERM.
 	go func() {
 		<-haltCh
 		watcher.Shutdown()
