@@ -1,0 +1,67 @@
+run:
+  concurrency: 6
+  deadline: 1m
+  issues-exit-code: 1
+  tests: true
+  skip-dirs:
+    - vendor$
+    - build$
+
+  # skip-files:
+    # -
+
+
+linters-settings:
+  errcheck:
+    # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
+    # default is false: such cases aren't reported by default.
+    check-type-assertions: true
+  govet:
+    check-shadowing: true
+  golint:
+    # minimal confidence for issues, default is 0.8
+    min-confidence: 0
+  goimports:
+    local-prefixes: 0xacab.org/jstuczyn/CoconutGo
+  gocyclo:
+    min-complexity: 15
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  depguard:
+    list-type: whitelist
+    include-go-root: false
+    packages:
+      - github.com/tendermint/tendermint
+  misspell:
+    locale: UK
+    # ignore-words:
+    #   - foo
+  lll:
+    line-length: 120
+  unused:
+    check-exported: true
+  unparam:
+    check-exported: true
+  nakedret:
+    # make an issue if func has more lines of code than this setting and it has naked returns; default is 30
+    max-func-lines: 30
+  prealloc:
+    # XXX: we don't recommend using this linter before doing performance profiling.
+    # For most programs usage of prealloc will be a premature optimization.
+    simple: true
+    range-loops: true # Report preallocation suggestions on range loops, true by default
+    for-loops: false # Report preallocation suggestions on for loops, false by default
+
+linters:
+  enable-all: true
+  disable-all: false
+  # disable:
+  #   - maligned
+  #   - prealloc
+  #   - gochecknoglobals
+  fast: false
