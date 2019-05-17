@@ -19,7 +19,9 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
@@ -40,6 +42,8 @@ var defaultLogging = Logging{
 
 // Watcher is the main Ethereum watcher configuration.
 type Watcher struct {
+	// KeyFile defines path to file containing ECDSA private key of the watcher.
+	KeyFile string
 	// EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
 	EthereumNodeAddress string
 	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
@@ -97,6 +101,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if cfg.Watcher.PipeAccount == "" {
 		return errors.New("config: The address of the Pipe/Holding account was not specified")
+	}
+
+	if _, err := os.Stat(cfg.Watcher.KeyFile); err != nil {
+		return fmt.Errorf("config: The specified key file does not seem to exist: %v", err)
 	}
 
 	if cfg.Debug == nil {

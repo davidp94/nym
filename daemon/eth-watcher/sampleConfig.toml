@@ -1,7 +1,9 @@
 # Ethereum Watcher configuration file.
 
 [Watcher]
-
+  # KeyFile defines path to file containing ECDSA private key of the watcher.
+  # This key is a very temporary one so it's not a problem it's being pushed into the repo.
+  KeyFile = "daemon/eth-watcher/private.key"
   # EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
   # Infura used for the moment. In production should be a fullnode.
   EthereumNodeAddress = "https://ropsten.infura.io/v3/131453a5470641cd9f64942eecd8add2"

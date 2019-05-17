@@ -2,6 +2,7 @@ package watcher
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"fmt"
 	"log"
 	"math/big"
@@ -17,17 +18,18 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gopkg.in/op/go-logging.v1"
 )
 
 type Watcher struct {
-	cfg       *config.Config
-	ethClient *ethclient.Client
-	worker.Worker
+	cfg        *config.Config
+	ethClient  *ethclient.Client
+	privateKey *ecdsa.PrivateKey
 
 	log *logging.Logger
-
+	worker.Worker
 	haltedCh chan struct{}
 	haltOnce sync.Once
 }
@@ -225,14 +227,19 @@ func New(cfg *config.Config) (*Watcher, error) {
 	watcherLog := log.GetLogger("watcher")
 	watcherLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
+	privateKey, err := crypto.LoadECDSA(cfg.Watcher.KeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load watcher's key: %v", err)
+	}
+
 	w := &Watcher{
-		cfg:      cfg,
-		log:      watcherLog,
-		haltedCh: make(chan struct{}),
+		cfg:        cfg,
+		privateKey: privateKey,
+		log:        watcherLog,
+		haltedCh:   make(chan struct{}),
 	}
 
 	w.connect(w.cfg.Watcher.EthereumNodeAddress)
-
 	w.Go(w.worker)
 
 	return w, nil
