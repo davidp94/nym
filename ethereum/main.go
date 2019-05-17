@@ -63,7 +63,7 @@ func main() {
 		panic(err)
 	}
 
-	if err := c.SendToHolding(context.TODO(), 1); err != nil {
+	if err := c.TransferERC20Tokens(context.TODO(), 1, nymContract, holdingContract); err != nil {
 		panic(err)
 	}
 }

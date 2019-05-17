@@ -20,22 +20,10 @@ package config
 import (
 	"errors"
 	"io/ioutil"
-	"log"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
-
-// will definitely be moved to the watcher file
-func connect(ethHost string) *ethclient.Client {
-	client, err := ethclient.Dial(ethHost)
-	if err != nil {
-		log.Fatalf("Error connecting to Infura: %s", err)
-	}
-
-	return client
-}
 
 const (
 	defaultLogLevel = "NOTICE"
@@ -52,8 +40,6 @@ var defaultLogging = Logging{
 
 // Watcher is the main Ethereum watcher configuration.
 type Watcher struct {
-	Client *ethclient.Client // TODO: will be moved to Watcher (not the config) struct
-
 	// EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
 	EthereumNodeAddress string
 	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
@@ -136,11 +122,6 @@ func LoadBinary(b []byte) (*Config, error) {
 	if err := cfg.validateAndApplyDefaults(); err != nil {
 		return nil, err
 	}
-
-	// FIXME:
-	// temporary, to be removed in next iteration
-	cfg.Watcher.Client = connect(cfg.Watcher.EthereumNodeAddress)
-
 	return cfg, nil
 }
 

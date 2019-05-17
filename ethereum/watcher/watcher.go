@@ -17,11 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"gopkg.in/op/go-logging.v1"
 )
 
 type Watcher struct {
-	cfg *config.Config
+	cfg       *config.Config
+	ethClient *ethclient.Client
 	worker.Worker
 
 	log *logging.Logger
@@ -56,10 +58,7 @@ func (w *Watcher) halt() {
 
 // stop etc are not working
 func (w *Watcher) worker() {
-
-	fmt.Println()
-	fmt.Printf("Watching Ethereum blockchain at: %s \n", w.cfg.Watcher.EthereumNodeAddress)
-	fmt.Println()
+	w.log.Noticef("Watching Ethereum blockchain at: %s", w.cfg.Watcher.EthereumNodeAddress)
 
 	// again, more temp code
 	pipeAccount := common.HexToAddress(w.cfg.Watcher.PipeAccount)
@@ -83,13 +82,13 @@ func (w *Watcher) worker() {
 						from, to := erc20decode(*tr.Logs[0])
 						if to.Hex() == pipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
-							fmt.Printf("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
+							w.log.Noticef("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
 						}
 						fmt.Println()
 					}
 				}
 			}
-			fmt.Printf("%d ", block.Number())
+			w.log.Debugf("Heartbeat blockNum: %d ", block.Number())
 		}
 	}
 }
@@ -140,7 +139,7 @@ func erc20decode(log types.Log) (common.Address, common.Address) {
 }
 
 func (w *Watcher) getTransactionReceipt(txHash common.Hash) types.Receipt {
-	tr, err := w.cfg.Watcher.Client.TransactionReceipt(context.Background(), txHash)
+	tr, err := w.ethClient.TransactionReceipt(context.Background(), txHash)
 	if err != nil {
 		log.Fatalf("Error getting TransactionReceipt: %s", err)
 	}
@@ -149,7 +148,7 @@ func (w *Watcher) getTransactionReceipt(txHash common.Hash) types.Receipt {
 
 func (w *Watcher) getFinalizedBlock(latestBlockNumber *big.Int) *types.Block {
 	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(w.cfg.Debug.NumConfirmations))
-	block, err := w.cfg.Watcher.Client.BlockByNumber(context.Background(), finalizedBlockNumber)
+	block, err := w.ethClient.BlockByNumber(context.Background(), finalizedBlockNumber)
 	if err != nil {
 		log.Fatalf("Failed getting block: %s", err)
 	}
@@ -166,13 +165,10 @@ func (w *Watcher) getFinalizedBlock(latestBlockNumber *big.Int) *types.Block {
 // TODO: for some reason I can't find the discussion of forks which made me think that
 // 13 confirmations should have a one-in-a-million chance of a fork. Dig this out as
 // a reference.
-//
-// TODO: put the number of confirmation blocks on a config object instead of
-// using magic numbers, then pass that config object in, alongside the client.
 func (w *Watcher) getFinalizedBalance(addr common.Address, latestBlockNumber *big.Int) *big.Int {
 	finalizedBlockNumber := latestBlockNumber.Sub(latestBlockNumber, big.NewInt(w.cfg.Debug.NumConfirmations))
 
-	balance, err := w.cfg.Watcher.Client.BalanceAt(context.Background(), addr, finalizedBlockNumber)
+	balance, err := w.ethClient.BalanceAt(context.Background(), addr, finalizedBlockNumber)
 	if err != nil {
 		log.Fatalf("Error getting account balance: %s", err)
 	}
@@ -181,7 +177,7 @@ func (w *Watcher) getFinalizedBalance(addr common.Address, latestBlockNumber *bi
 }
 
 func (w *Watcher) getLatestBlockNumber() *big.Int {
-	latestHeader, err := w.cfg.Watcher.Client.HeaderByNumber(context.Background(), nil)
+	latestHeader, err := w.ethClient.HeaderByNumber(context.Background(), nil)
 	if err != nil {
 		log.Fatalf("Error getting latest block header: %s", err)
 	}
@@ -190,7 +186,7 @@ func (w *Watcher) getLatestBlockNumber() *big.Int {
 }
 
 func (w *Watcher) subscribeBlocks(headers chan *types.Header) ethereum.Subscription {
-	subscription, err := w.cfg.Watcher.Client.SubscribeNewHead(context.Background(), headers)
+	subscription, err := w.ethClient.SubscribeNewHead(context.Background(), headers)
 	if err != nil {
 		log.Fatalf("Error subscribing to Ethereum blockchain: %s", err)
 	}
@@ -203,11 +199,21 @@ func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ether
 		Addresses: []common.Address{common.HexToAddress(w.cfg.Watcher.PipeAccount)},
 	}
 	logs := make(chan types.Log)
-	sub, err := w.cfg.Watcher.Client.SubscribeFilterLogs(context.Background(), query, logs)
+	sub, err := w.ethClient.SubscribeFilterLogs(context.Background(), query, logs)
 	if err != nil {
 		log.Fatalf("Failed subscribing to event logs: %s", err)
 	}
 	return logs, sub
+}
+
+// will definitely be moved to the watcher file
+func (w *Watcher) connect(ethHost string) {
+	client, err := ethclient.Dial(ethHost)
+	if err != nil {
+		log.Fatalf("Error connecting to Infura: %s", err)
+	}
+
+	w.ethClient = client
 }
 
 // func New(cfg *config.Config) (*Watcher, error) {
@@ -216,7 +222,7 @@ func New(cfg *config.Config) (*Watcher, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create a logger: %v", err)
 	}
-	watcherLog := log.GetLogger("Client")
+	watcherLog := log.GetLogger("watcher")
 	watcherLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
 	w := &Watcher{
@@ -224,6 +230,8 @@ func New(cfg *config.Config) (*Watcher, error) {
 		log:      watcherLog,
 		haltedCh: make(chan struct{}),
 	}
+
+	w.connect(w.cfg.Watcher.EthereumNodeAddress)
 
 	w.Go(w.worker)
 
