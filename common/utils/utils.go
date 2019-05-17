@@ -40,10 +40,10 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 func CompressECPBytes(b []byte) ([]byte, error) {
 	if len(b) != constants.ECPLenUC {
 		return nil,
-			fmt.Errorf("The uncompressed point has an invalid length of %v (expected %v)", len(b), constants.ECPLenUC)
+			fmt.Errorf("the uncompressed point has an invalid length of %v (expected %v)", len(b), constants.ECPLenUC)
 	}
 	if b[0] != 0x04 {
-		return nil, fmt.Errorf("Unknown curve type prefix %x (expected 0x04)", b[0])
+		return nil, fmt.Errorf("unknown curve type prefix %x (expected 0x04)", b[0])
 	}
 
 	comp := make([]byte, constants.ECPLen)

@@ -1,5 +1,9 @@
 # CoconutGo Changelog
 
+## 0.6.4
+
+* A lot of linter-related fixes
+
 ## 0.6.3
 
 * Replaced all function calls in watcher file with methods on watcher object. Config object is no longer passed to them

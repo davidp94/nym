@@ -43,39 +43,42 @@ const issuersKeysFolderRelative = "../testdata/issuerkeys"
 const thresholdVal = 3 // defined by the pre-generated keys
 const tendermintRPCPort = 36657
 
-var issuersKeysFolder string
-var issuers []*Server
-var thresholdProvider *providerServer
-var nonThresholdProvider *providerServer
+//nolint: gochecknoglobals
+var (
+	issuersKeysFolder    string
+	issuers              []*Server
+	thresholdProvider    *providerServer
+	nonThresholdProvider *providerServer
 
-var providerStartupRetryInterval = 1 * 1500
-var providerStartupTimeout = 5 * 1000 // lower it for the test
-var connectionTimeout = 1 * 1000      // to more quickly figure out issuer is down
+	providerStartupRetryInterval = 1 * 1500
+	providerStartupTimeout       = 5 * 1000 // lower it for the test
+	connectionTimeout            = 1 * 1000 // to more quickly figure out issuer is down
 
-var issuerTCPAddresses = []string{
-	"127.0.0.1:6100",
-	"127.0.0.1:6101",
-	"127.0.0.1:6102",
-	"127.0.0.1:6103",
-	"127.0.0.1:6104",
-}
+	issuerTCPAddresses = []string{
+		"127.0.0.1:6100",
+		"127.0.0.1:6101",
+		"127.0.0.1:6102",
+		"127.0.0.1:6103",
+		"127.0.0.1:6104",
+	}
 
-var issuerGRPCAddresses = []string{
-	"127.0.0.1:6200",
-	"127.0.0.1:6201",
-	"127.0.0.1:6202",
-	"127.0.0.1:6203",
-	"127.0.0.1:6204",
-}
+	issuerGRPCAddresses = []string{
+		"127.0.0.1:6200",
+		"127.0.0.1:6201",
+		"127.0.0.1:6202",
+		"127.0.0.1:6203",
+		"127.0.0.1:6204",
+	}
 
-var providerTCPAddresses = []string{
-	"127.0.0.1:7100",
-	"127.0.0.1:7101",
-}
-var providerGRPCAddresses = []string{
-	"127.0.0.1:7200", // threshold
-	"127.0.0.1:7201", // nonthreshold
-}
+	providerTCPAddresses = []string{
+		"127.0.0.1:7100",
+		"127.0.0.1:7101",
+	}
+	providerGRPCAddresses = []string{
+		"127.0.0.1:7200", // threshold
+		"127.0.0.1:7201", // nonthreshold
+	}
+)
 
 func makeStringOfAddresses(name string, addrs []string) string {
 	out := name + " = ["
@@ -90,6 +93,7 @@ func makeStringOfAddresses(name string, addrs []string) string {
 }
 
 // creates a very dummy test server that always returns predefined 'res'
+//nolint: errcheck
 func dummyServer(res []byte, address string) net.Listener {
 	l, err := net.Listen("tcp", address)
 	if err != nil {
@@ -394,7 +398,9 @@ func TestMain(m *testing.M) {
 	thresholdProvider.server.Shutdown()
 	nonThresholdProvider.server.Shutdown()
 
-	node.Stop()
+	if err := node.Stop(); err != nil {
+		fmt.Println("For some reason node was already stopped? - undefined behaviour")
+	}
 	os.RemoveAll(tmpDir)
 
 	os.Exit(runTests)

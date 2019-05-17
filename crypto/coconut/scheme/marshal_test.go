@@ -1,4 +1,4 @@
-// marshal_test.go - tests for marshaling/unmarshaling coconut structures
+// marshal_test.go - tests for marshalling/unmarshalling coconut structures
 // Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -19,10 +19,9 @@ import (
 	"testing"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
@@ -356,8 +355,8 @@ func TestThetaMarshal(t *testing.T) {
 		}
 
 		// sanity checks
-		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, theta, pubBig)))
-		assert.True(t, bool(coconut.BlindVerify(params, vk, sig, recoveredtheta, pubBig)))
+		assert.True(t, coconut.BlindVerify(params, vk, sig, theta, pubBig))
+		assert.True(t, coconut.BlindVerify(params, vk, sig, recoveredtheta, pubBig))
 	}
 }
 
@@ -404,7 +403,7 @@ func TestThetaTumblerMarshal(t *testing.T) {
 
 		addresses := [][]byte{
 			nil,
-			[]byte{1, 2, 3},
+			{1, 2, 3},
 			ucecpb,
 			cecpb,
 		}
@@ -433,8 +432,8 @@ func TestThetaTumblerMarshal(t *testing.T) {
 			}
 
 			// sanity checks
-			assert.True(t, bool(coconut.BlindVerifyTumbler(params, vk, sig, thetaTumbler, pubBig, addr)))
-			assert.True(t, bool(coconut.BlindVerifyTumbler(params, vk, sig, recoveredtheta, pubBig, addr)))
+			assert.True(t, coconut.BlindVerifyTumbler(params, vk, sig, thetaTumbler, pubBig, addr))
+			assert.True(t, coconut.BlindVerifyTumbler(params, vk, sig, recoveredtheta, pubBig, addr))
 		}
 	}
 }

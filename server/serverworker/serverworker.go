@@ -26,7 +26,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
@@ -103,6 +103,7 @@ func (sw *ServerWorker) handleSignRequest(req *commands.SignRequest) *commands.R
 	return response
 }
 
+//nolint: unparam
 func (sw *ServerWorker) handleVerificationKeyRequest(req *commands.VerificationKeyRequest) *commands.Response {
 	response := getDefaultResponse()
 	response.Data = sw.vk
@@ -192,14 +193,16 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 	// but we check if the user says it bound it to our address
 	address := req.MerchantAddress
 
-	if bytes.Compare(address, sw.nymAccount.PublicKey) != 0 {
+	if !bytes.Equal(address, sw.nymAccount.PublicKey) {
 		// check if perhaps our address is in uncompressed form but client bound it to the compressed version
 		var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
 		copy(accountCompressed, sw.nymAccount.PublicKey)
-		// nolint: gosec
-		accountCompressed.Compress()
+		if err := accountCompressed.Compress(); err != nil {
+			sw.log.Critical("Couldn't compress our own account key")
+			// TODO: how to handle it?
+		}
 
-		if bytes.Compare(address, accountCompressed) != 0 {
+		if !bytes.Equal(address, accountCompressed) {
 			b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
 			b64Bind := base64.StdEncoding.EncodeToString(address)
 			errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
@@ -356,7 +359,7 @@ func (sw *ServerWorker) handleLookUpCredentialRequest(req *commands.LookUpCreden
 	}
 
 	credPair := sw.store.GetCredential(req.Height, req.Gamma)
-	if len(credPair.Credential) <= 0 {
+	if len(credPair.Credential) == 0 {
 		errMsg := "Could not lookup the credential using provided arguments"
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
@@ -377,7 +380,7 @@ func (sw *ServerWorker) handleLookUpBlockCredentialsRequest(req *commands.LookUp
 	}
 
 	credPairs := sw.store.GetBlockCredentials(req.Height)
-	if len(credPairs) <= 0 {
+	if len(credPairs) == 0 {
 		errMsg := "Could not lookup the credential using provided arguments. " +
 			"Either there were no valid txs in this block or it wasn't processed yet."
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)

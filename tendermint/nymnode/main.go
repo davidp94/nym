@@ -79,7 +79,7 @@ func createConfig(cfgFile, nodeRootDir string, createEmptyBlocks bool, emptyBloc
 		!cmn.FileExists(cfg.NodeKeyFile()) ||
 		!cmn.FileExists(cfg.PrivValidatorKeyFile()) ||
 		!cmn.FileExists(cfg.PrivValidatorStateFile()) {
-		return nil, errors.New("Node was not initialised - relevant files do not exist.")
+		return nil, errors.New("node was not initialised - relevant files do not exist")
 	}
 
 	cfg.LogLevel = "foo"
@@ -107,7 +107,7 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 	log := createBaseLoger()
 	log.Info("Initialised logger")
 
-	cfg, err := createConfig(cfgFile, dataRoot, false, 0)
+	cfg, err := createConfig(cfgFile, dataRoot, createEmptyBlocks, emptyBlocksInterval)
 	if err != nil {
 		return nil, err
 	}
@@ -140,8 +140,14 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 func main() {
 	cfgFilePtr := flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
 	dataRootPtr := flag.String("dataRoot", "/tendermint", "The data root directory")
-	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks", false, "Flag to indicate whether tendermint should create empty blocks")
-	emptyBlocksIntervalPtr := flag.Duration("emptyBlocksInterval", 0, "(if applicable) used to indicate interval between empty blocks")
+	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks",
+		false,
+		"Flag to indicate whether tendermint should create empty blocks",
+	)
+	emptyBlocksIntervalPtr := flag.Duration("emptyBlocksInterval",
+		0,
+		"(if applicable) used to indicate interval between empty blocks",
+	)
 	flag.Parse()
 
 	node, err := createNymNode(*cfgFilePtr, *dataRootPtr, *createEmptyBlocksPtr, *emptyBlocksIntervalPtr)
@@ -155,10 +161,12 @@ func main() {
 	}
 
 	// Trap signal, run forever.
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	<-c
-	node.Stop()
+	if err := node.Stop(); err != nil {
+		fmt.Println(err)
+	}
 	fmt.Println("Node was stopped")
 }

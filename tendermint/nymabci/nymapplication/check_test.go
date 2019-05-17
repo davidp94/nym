@@ -21,11 +21,10 @@ import (
 	"math"
 	"testing"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -39,9 +38,9 @@ func TestValidateTransfer(t *testing.T) {
 	// create a 'debug' account with bunch of funds
 	bpgroup := bpgroup.New() // for easy access to rng
 	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_1 := Curve.G1mul(bpgroup.Gen1(), x)
+	gRand1 := Curve.G1mul(bpgroup.Gen1(), x)
 	acc1 := make([]byte, constants.ECPLen)
-	g_1.ToBytes(acc1, true)
+	gRand1.ToBytes(acc1, true)
 
 	// need to 'workaround' to set initial balance
 	balance := make([]byte, 8)
@@ -50,22 +49,22 @@ func TestValidateTransfer(t *testing.T) {
 
 	// create some destination account
 	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_2 := Curve.G1mul(bpgroup.Gen1(), y)
+	gRand2 := Curve.G1mul(bpgroup.Gen1(), y)
 	acc2 := make([]byte, constants.ECPLen)
-	g_2.ToBytes(acc2, true)
+	gRand2.ToBytes(acc2, true)
 	app.createNewAccountOp(acc2)
 
 	// create another valid address but don't include it in the db
 	z := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_3 := Curve.G1mul(bpgroup.Gen1(), z)
+	gRand3 := Curve.G1mul(bpgroup.Gen1(), z)
 	acc3 := make([]byte, constants.ECPLen)
-	g_3.ToBytes(acc3, true)
+	gRand3.ToBytes(acc3, true)
 	// is not included in the db
 
 	// first test invalid addresses; validateTransfer should theoretically catch all of those
 	invalidAddresses := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		acc3,
 	}
@@ -125,7 +124,7 @@ func TestCheckNewAccountTx(t *testing.T) {
 
 	var compressedKey account.ECPublicKey = make([]byte, len(acc.PublicKey))
 	copy(compressedKey, acc.PublicKey)
-	compressedKey.Compress()
+	assert.Nil(t, compressedKey.Compress())
 
 	invalidPubReq, err := proto.Marshal(&transaction.NewAccountRequest{
 		PublicKey:  invalidPub,
@@ -166,7 +165,7 @@ func TestCheckNewAccountTx(t *testing.T) {
 
 	invalidReqs := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		emptyReq,
 		invalidPubReq,
@@ -181,7 +180,7 @@ func TestCheckNewAccountTx(t *testing.T) {
 	validReq := validReqTx[1:] // first byte is the prefix indicating type of tx
 
 	acc2 := account.NewAccount()
-	acc2.PublicKey.Compress()
+	assert.Nil(t, acc2.PublicKey.Compress())
 	validReqTx2, err := transaction.CreateNewAccountRequest(acc2, []byte{})
 	assert.Nil(t, err)
 	validReq2 := validReqTx2[1:]
@@ -218,7 +217,7 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 
 	var compressedKey account.ECPublicKey = make([]byte, len(acc.PublicKey))
 	copy(compressedKey, acc.PublicKey)
-	compressedKey.Compress()
+	assert.Nil(t, compressedKey.Compress())
 
 	invalidTarget := make([]byte, len(target))
 	copy(invalidTarget, target)
@@ -285,7 +284,7 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 
 	invalidReqs := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		emptyReq,
 		invalidPubReq,
@@ -303,7 +302,7 @@ func TestCheckTransferBetweenAccountsTx(t *testing.T) {
 
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
-	acc.PublicKey.Compress()
+	assert.Nil(t, acc.PublicKey.Compress())
 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc.PublicKey), balance)
 
 	for _, invalidReq := range append(invalidReqs, validReq) {
@@ -365,6 +364,7 @@ func deepCopyTransferToHoldingRequest(req *transaction.TransferToHoldingRequest)
 	}
 }
 
+//nolint: lll
 func createValidSigOnTransferToHoldingRequest(priv account.ECPrivateKey, req *transaction.TransferToHoldingRequest) []byte {
 	lambdab, _ := proto.Marshal(req.Lambda)
 	egPubb, _ := proto.Marshal(req.EgPub)
@@ -398,7 +398,7 @@ func TestCheckTransferToHolding(t *testing.T) {
 	binary.BigEndian.PutUint64(balance, math.MaxUint64)
 	var accpubcpy account.ECPublicKey = make([]byte, constants.ECPLenUC)
 	copy(accpubcpy, acc.PublicKey)
-	accpubcpy.Compress()
+	assert.Nil(t, accpubcpy.Compress())
 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, accpubcpy), balance)
 
 	// create the holding account
@@ -408,7 +408,7 @@ func TestCheckTransferToHolding(t *testing.T) {
 	acc2 := account.NewAccount()
 	balance = make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 42)
-	acc2.PublicKey.Compress()
+	assert.Nil(t, acc2.PublicKey.Compress())
 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc2.PublicKey), balance)
 
 	reqParams := transaction.TransferToHoldingRequestParams{

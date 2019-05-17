@@ -298,7 +298,7 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 	return types.ResponseQuery{Code: code.OK}
 }
 
-// InitChain initializes blockchain with validators and other info from TendermintCore.
+// InitChain initialises blockchain with validators and other info from TendermintCore.
 // It also populates genesis appstate with information from the genesis block.
 func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseInitChain {
 	genesisState := &GenesisAppState{}
@@ -360,8 +360,8 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	for _, i := range indices {
 		vk := &coconut.VerificationKey{}
-		if err := vk.UnmarshalBinary(genesisState.CoconutProperties.IssuingAuthorities[i].Vk); err != nil {
-			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", err))
+		if uerr := vk.UnmarshalBinary(genesisState.CoconutProperties.IssuingAuthorities[i].Vk); uerr != nil {
+			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", uerr))
 			panic("Failed startup") // Todo: choose new subset
 		}
 

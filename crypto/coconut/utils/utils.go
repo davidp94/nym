@@ -113,22 +113,24 @@ func addHashPadding(sha int, b []byte) []byte {
 // It is based on the amcl implementation: https://github.com/milagro-crypto/amcl/blob/master/version3/go/MPIN.go#L83
 func HashBytes(sha int, b []byte) ([]byte, error) {
 	var R []byte
-	if sha == amcl.SHA256 {
+	switch sha {
+	case amcl.SHA256:
 		H := amcl.NewHASH256()
 		H.Process_array(b)
 		R = H.Hash()
-	} else if sha == amcl.SHA384 {
+	case amcl.SHA384:
 		H := amcl.NewHASH384()
 		H.Process_array(b)
 		R = H.Hash()
-	} else if sha == amcl.SHA512 {
+	case amcl.SHA512:
 		H := amcl.NewHASH512()
 		H.Process_array(b)
 		R = H.Hash()
+	default:
+		return []byte{}, errors.New("unknown sha provided")
 	}
-
 	if R == nil {
-		return []byte{}, errors.New("Nil hash result")
+		return []byte{}, errors.New("nil hash result")
 	}
 	return R, nil
 }
@@ -144,7 +146,7 @@ func HashStringToBig(sha int, m string) (*Curve.BIG, error) {
 func HashBytesToBig(sha int, b []byte) (*Curve.BIG, error) {
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN && sha != amcl.SHA256 {
 		// if curve used is BN254, ensure the used hash is SHA256 as this is what is used by Python implementation
-		return nil, fmt.Errorf("Hashing to BIG on BN254 requires SHA256 (%d), but %d was used instead", amcl.SHA256, sha)
+		return nil, fmt.Errorf("hashing to BIG on BN254 requires SHA256 (%d), but %d was used instead", amcl.SHA256, sha)
 	}
 	R, err := HashBytes(sha, b)
 	if err != nil {
@@ -174,7 +176,7 @@ func HashBytesToG1(sha int, b []byte) (*Curve.ECP, error) {
 	if Curve.CURVE_PAIRING_TYPE == Curve.BN {
 		// temp solution as it depends on George's decision in bplib
 		if sha != amcl.SHA512 {
-			return nil, fmt.Errorf("Hashing to G1 on BN254 requires SHA512 (%d), but %d was used instead", amcl.SHA512, sha)
+			return nil, fmt.Errorf("hashing to G1 on BN254 requires SHA512 (%d), but %d was used instead", amcl.SHA512, sha)
 		}
 
 		p := Curve.NewBIGints(Curve.Modulus)

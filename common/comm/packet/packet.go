@@ -41,7 +41,7 @@ type Packet struct {
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (h *header) UnmarshalBinary(data []byte) error {
 	if len(data) != headerLength {
-		return errors.New("The byte array provided is incomplete")
+		return errors.New("the byte array provided is incomplete")
 	}
 	h.packetLength = binary.BigEndian.Uint32(data)
 	return nil

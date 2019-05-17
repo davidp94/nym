@@ -153,8 +153,8 @@ func NewThetaTumbler(theta *Theta, zeta *Curve.ECP) *ThetaTumbler {
 // CreateBinding creates a binding to given byte sequence by either recovering it's direct value as ECP
 // or by hashing it onto G1.
 func CreateBinding(seq []byte) (*Curve.ECP, error) {
-	if len(seq) <= 0 {
-		return nil, errors.New("Nil or slice of length 0 provided")
+	if len(seq) == 0 {
+		return nil, errors.New("nil or slice of length 0 provided")
 	}
 	var bind *Curve.ECP
 	// if it is a bytes ECP just use that
@@ -180,8 +180,13 @@ func CreateBinding(seq []byte) (*Curve.ECP, error) {
 // Note that the first privM parameter HAS TO be coin's sequence number since the zeta is later revealed.
 // loosely based on: https://github.com/asonnino/coconut-chainspace/blob/master/contracts/tumbler_proofs.py
 // TODO: NEED SOMEBODY TO VERIFY CORECTNESS OF IMPLEMENTATION
-// nolint: lll
-func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG, address []byte) (*TumblerProof, error) {
+func ConstructTumblerProof(params *Params,
+	vk *VerificationKey,
+	sig *Signature,
+	privM []*Curve.BIG,
+	t *Curve.BIG,
+	address []byte,
+) (*TumblerProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
 	// witnesses creation
@@ -196,14 +201,14 @@ func ConstructTumblerProof(params *Params, vk *VerificationKey, sig *Signature, 
 
 	bind, err := CreateBinding(address)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to bind to address: %v", err)
+		return nil, fmt.Errorf("failed to bind to address: %v", err)
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, vk.alpha, Aw, Bw, Cw, bind}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses
@@ -250,7 +255,12 @@ func VerifyTumblerProof(params *Params, vk *VerificationKey, sig *Signature, the
 // It returns kappa, nu and zeta - group elements needed to perform verification
 // and zero-knowledge proof asserting corectness of the above.
 // The proof is bound to the provided address.
-func ShowBlindSignatureTumbler(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, address []byte) (*ThetaTumbler, error) {
+func ShowBlindSignatureTumbler(params *Params,
+	vk *VerificationKey,
+	sig *Signature,
+	privM []*Curve.BIG,
+	address []byte,
+) (*ThetaTumbler, error) {
 	p, rng := params.p, params.G.Rng()
 	t := Curve.Randomnum(p, rng)
 
@@ -282,8 +292,13 @@ func PairingWrapper(g1 *Curve.ECP, g2 *Curve.ECP2) *Curve.FP12 {
 
 // BlindVerifyTumbler verifies the Coconut credential on the private and optional public attributes.
 // It also checks the attached proof. It is designed to work for the tumbler system.
-// nolint: lll
-func BlindVerifyTumbler(params *Params, vk *VerificationKey, sig *Signature, theta *ThetaTumbler, pubM []*Curve.BIG, address []byte) bool {
+func BlindVerifyTumbler(params *Params,
+	vk *VerificationKey,
+	sig *Signature,
+	theta *ThetaTumbler,
+	pubM []*Curve.BIG,
+	address []byte,
+) bool {
 	privateLen := len(theta.proof.rm)
 	if len(pubM)+privateLen > len(vk.beta) || !VerifyTumblerProof(params, vk, sig, theta, address) {
 		return false

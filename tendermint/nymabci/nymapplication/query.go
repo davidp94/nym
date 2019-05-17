@@ -27,7 +27,7 @@ import (
 // returns balance represented uint64 as BiGEndian encoded byte array and the code
 func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
 	// dont perform validation on holding account since it will fail
-	if bytes.Compare(address, tmconst.HoldingAccountAddress) != 0 {
+	if !bytes.Equal(address, tmconst.HoldingAccountAddress) {
 		if !account.ValidateAddress(address) {
 			return nil, code.INVALID_QUERY_PARAMS
 		}

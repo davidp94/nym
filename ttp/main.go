@@ -18,12 +18,13 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
 	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 )
 
 // main takes the arguments passed on command line
@@ -65,7 +66,9 @@ func main() {
 	}
 
 	if _, err := os.Stat(*folder); os.IsNotExist(err) {
-		os.Mkdir(*folder, 0760)
+		if err := os.Mkdir(*folder, 0760); err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	for i := range sks {

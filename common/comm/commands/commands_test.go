@@ -22,7 +22,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
@@ -39,13 +39,13 @@ func getRandomAttributes(G *bpgroup.BpGroup, n int) []*Curve.BIG {
 func TestCommandToMarshaledPacket(t *testing.T) {
 	validCmd, _ := commands.NewVerificationKeyRequest()
 
-	b, err := commands.CommandToMarshaledPacket(validCmd)
+	b, err := commands.CommandToMarshalledPacket(validCmd)
 	assert.NotNil(t, b)
 	assert.Nil(t, err)
 
 	// a command is basically a protobuf message and ProtoLambda implements correct interface
 	invalidCmd := &coconut.ProtoLambda{}
-	b, err = commands.CommandToMarshaledPacket(invalidCmd)
+	b, err = commands.CommandToMarshalledPacket(invalidCmd)
 	assert.Nil(t, b)
 	assert.Error(t, err)
 }
@@ -53,7 +53,7 @@ func TestCommandToMarshaledPacket(t *testing.T) {
 func TestFromBytes(t *testing.T) {
 	validCmd, _ := commands.NewVerificationKeyRequest()
 
-	b, err := commands.CommandToMarshaledPacket(validCmd)
+	b, err := commands.CommandToMarshalledPacket(validCmd)
 	assert.NotNil(t, b)
 	assert.Nil(t, err)
 
@@ -320,6 +320,7 @@ func TestNewSpendCredentialRequest(t *testing.T) {
 	address := []byte("foo")
 
 	for _, validPubM := range validPubMs {
+		//nolint: govet
 		theta, err := coconut.ShowBlindSignatureTumbler(params, vk, validSig, privM, address)
 		assert.Nil(t, err)
 
@@ -341,6 +342,7 @@ func TestNewSpendCredentialRequest(t *testing.T) {
 	}
 
 	for _, invalidPubM := range invalidPubMs {
+		//nolint: govet
 		theta, err := coconut.ShowBlindSignatureTumbler(params, vk, validSig, privM, []byte("foo"))
 		assert.Nil(t, err)
 

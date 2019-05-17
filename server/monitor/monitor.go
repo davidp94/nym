@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package monitor implements the support for monitoring the state of the Tendermint Blockchain
-// (later Ethereum I guess?) to sign all comitted requests.
+// (later Ethereum I guess?) to sign all committed requests.
 package monitor
 
 import (
@@ -188,6 +188,7 @@ func (m *Monitor) forceUpdateBlock(height int64) {
 
 // GetLowestFullUnprocessedBlock returns block on lowest height that is currently not being processed.
 // FIXME: it doesn't actually return the lowest, but does it matter?
+//nolint: golint
 func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	m.Lock()
 	defer m.Unlock()
@@ -204,10 +205,11 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	return -1, nil
 }
 
+// TODO: the method is currently being unused, do we really need it?
 func (m *Monitor) lowestUnprocessedBlockHeight() int64 {
 	m.Lock()
 	defer m.Unlock()
-	if len(m.unprocessedBlocks) <= 0 {
+	if len(m.unprocessedBlocks) == 0 {
 		return -1
 	}
 	var lowestHeight int64 = math.MaxInt64
@@ -353,7 +355,10 @@ func (m *Monitor) resyncWithBlockchain() error {
 	m.log.Debugf("Resyncing blocks with the chain; latestStored: %v, latestBlock: %v", latestStored, latestBlock.Height)
 
 	if latestStored < (latestBlock.Height - 1) {
-		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
+		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v",
+			latestStored,
+			latestBlock.Height,
+		)
 		m.addNewCatchUpBlock(latestBlock, false)
 		m.catchUp(latestStored+1, latestBlock.Height-1)
 	} else {
@@ -408,7 +413,7 @@ func (m *Monitor) resubscribeToBlockchainFull() error {
 func (m *Monitor) fillBlockGaps() {
 	m.log.Debug("Filling missing blocks")
 	m.Lock()
-	if len(m.processedBlocks) <= 0 {
+	if len(m.processedBlocks) == 0 {
 		m.Unlock()
 		return
 	}
@@ -423,12 +428,10 @@ func (m *Monitor) fillBlockGaps() {
 
 		if _, ok := m.processedBlocks[h]; ok {
 			remainingBlocks--
-		} else {
-			if _, ok := m.unprocessedBlocks[h]; !ok {
-				m.log.Debugf("Found gap at height: %v remaining: %v", h, remainingBlocks)
-				// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
-				gaps = append(gaps, h)
-			}
+		} else if _, ok := m.unprocessedBlocks[h]; !ok {
+			m.log.Debugf("Found gap at height: %v remaining: %v", h, remainingBlocks)
+			// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
+			gaps = append(gaps, h)
 		}
 	}
 

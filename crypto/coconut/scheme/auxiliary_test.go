@@ -19,7 +19,7 @@ import (
 	"testing"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,10 +30,13 @@ func TestECPSliceConversion(t *testing.T) {
 
 	slices := [][]*Curve.ECP{
 		nil,
-		[]*Curve.ECP{},
-		[]*Curve.ECP{Curve.G1mul(G1, Curve.Randomnum(p, rng))},
-		[]*Curve.ECP{Curve.G1mul(G1, Curve.Randomnum(p, rng)), Curve.G1mul(G1, Curve.Randomnum(p, rng))},
-		[]*Curve.ECP{Curve.G1mul(G1, Curve.Randomnum(p, rng)), Curve.G1mul(G1, Curve.Randomnum(p, rng)), Curve.G1mul(G1, Curve.Randomnum(p, rng))},
+		{},
+		{Curve.G1mul(G1, Curve.Randomnum(p, rng))},
+		{Curve.G1mul(G1, Curve.Randomnum(p, rng)), Curve.G1mul(G1, Curve.Randomnum(p, rng))},
+		{Curve.G1mul(G1, Curve.Randomnum(p, rng)),
+			Curve.G1mul(G1, Curve.Randomnum(p, rng)),
+			Curve.G1mul(G1, Curve.Randomnum(p, rng)),
+		},
 	}
 
 	for _, s := range slices {
@@ -52,10 +55,10 @@ func TestBIGSliceConversion(t *testing.T) {
 	p, rng := bpG.Order(), bpG.Rng()
 
 	slices := [][]*Curve.BIG{
-		[]*Curve.BIG{},
-		[]*Curve.BIG{Curve.Randomnum(p, rng)},
-		[]*Curve.BIG{Curve.Randomnum(p, rng), Curve.Randomnum(p, rng)},
-		[]*Curve.BIG{Curve.Randomnum(p, rng), Curve.Randomnum(p, rng), Curve.Randomnum(p, rng)},
+		{},
+		{Curve.Randomnum(p, rng)},
+		{Curve.Randomnum(p, rng), Curve.Randomnum(p, rng)},
+		{Curve.Randomnum(p, rng), Curve.Randomnum(p, rng), Curve.Randomnum(p, rng)},
 	}
 
 	for _, s := range slices {

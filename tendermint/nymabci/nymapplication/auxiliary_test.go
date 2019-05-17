@@ -35,8 +35,8 @@ import (
 func TestPrefixKey(t *testing.T) {
 	tests := [][]byte{
 		nil,
-		[]byte{},
-		[]byte{0x00},
+		{},
+		{0x00},
 		[]byte("lorem lipsum"),
 	}
 
@@ -54,13 +54,13 @@ func TestRandomInt(t *testing.T) {
 	randSource := rand.New(rand.NewSource(time.Now().UnixNano()))
 
 	// ensure it won't get stuck in infinite loop when there are no valid choices
-	r := randomInt(map[int]struct{}{1: struct{}{}}, 2, randSource)
+	r := randomInt(map[int]struct{}{1: {}}, 2, randSource)
 	assert.Equal(t, r, -1)
 
 	r = randomInt(map[int]struct{}{}, 1, randSource)
 	assert.Equal(t, r, -1)
 
-	r = randomInt(map[int]struct{}{1: struct{}{}}, 3, randSource)
+	r = randomInt(map[int]struct{}{1: {}}, 3, randSource)
 	assert.Equal(t, r, 2)
 
 	r = randomInt(map[int]struct{}{}, 10, randSource)
@@ -104,7 +104,7 @@ func TestCheckIfAccountExists(t *testing.T) {
 
 	invalidAddresses := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		malformedCompressed,
 	}
@@ -141,7 +141,7 @@ func TestCreateNewAccountOp(t *testing.T) {
 
 	invalidAddresses := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		malformedCompressed,
 	}
@@ -156,7 +156,7 @@ func TestCreateNewAccountOp(t *testing.T) {
 	}
 
 	assert.True(t, app.createNewAccountOp(uncompressed))
-	uncompressed.Compress()
+	assert.Nil(t, uncompressed.Compress())
 	assert.True(t, app.checkIfAccountExists(uncompressed))
 
 	assert.True(t, app.createNewAccountOp(compressed))
@@ -167,9 +167,9 @@ func TestTransferFundsOp(t *testing.T) {
 	// create a 'debug' account with bunch of funds
 	bpgroup := bpgroup.New() // for easy access to rng
 	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_1 := Curve.G1mul(bpgroup.Gen1(), x)
+	gRand1 := Curve.G1mul(bpgroup.Gen1(), x)
 	acc1 := make([]byte, constants.ECPLen)
-	g_1.ToBytes(acc1, true)
+	gRand1.ToBytes(acc1, true)
 
 	// need to 'workaround' to set initial balance
 	balance := make([]byte, 8)
@@ -178,22 +178,22 @@ func TestTransferFundsOp(t *testing.T) {
 
 	// create some destination account
 	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_2 := Curve.G1mul(bpgroup.Gen1(), y)
+	gRand2 := Curve.G1mul(bpgroup.Gen1(), y)
 	acc2 := make([]byte, constants.ECPLen)
-	g_2.ToBytes(acc2, true)
+	gRand2.ToBytes(acc2, true)
 	app.createNewAccountOp(acc2)
 
 	// create another valid address but don't include it in the db
 	z := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g_3 := Curve.G1mul(bpgroup.Gen1(), z)
+	gRand3 := Curve.G1mul(bpgroup.Gen1(), z)
 	acc3 := make([]byte, constants.ECPLen)
-	g_3.ToBytes(acc3, true)
+	gRand3.ToBytes(acc3, true)
 	// is not included in the db
 
 	// first test invalid addresses; validateTransfer should theoretically catch all of those
 	invalidAddresses := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		acc3,
 	}

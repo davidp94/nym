@@ -165,15 +165,16 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		cfg.Client.MaximumAttributes = defaultMaximumAttributes
 	}
 
-	if len(cfg.Client.IAAddresses) <= 0 && !cfg.Client.UseGRPC {
+	if len(cfg.Client.IAAddresses) == 0 && !cfg.Client.UseGRPC {
 		return errors.New("config: No server addresses provided")
 	}
 
-	if len(cfg.Client.IAgRPCAddresses) <= 0 && cfg.Client.UseGRPC {
+	if len(cfg.Client.IAgRPCAddresses) == 0 && cfg.Client.UseGRPC {
 		return errors.New("config: No server gRPC addresses provided")
 	}
 
-	if len(cfg.Client.IAIDs) <= 0 {
+	// TODO: try to perhaps rewrite it as a switch statement
+	if len(cfg.Client.IAIDs) == 0 {
 		var IAIDs []int
 		if cfg.Client.UseGRPC {
 			IAIDs = make([]int, len(cfg.Client.IAgRPCAddresses))
@@ -209,10 +210,10 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Nym == nil {
 		return errors.New("config: No Nym block was present")
 	}
-	if len(cfg.Nym.AccountKeysFile) <= 0 {
+	if len(cfg.Nym.AccountKeysFile) == 0 {
 		return errors.New("config: No key file provided")
 	}
-	if len(cfg.Nym.BlockchainNodeAddresses) <= 0 {
+	if len(cfg.Nym.BlockchainNodeAddresses) == 0 {
 		return errors.New("config: No node addresses provided")
 	}
 

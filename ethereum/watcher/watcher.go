@@ -214,7 +214,7 @@ func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ether
 func New(cfg *config.Config) (*Watcher, error) {
 	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create a logger: %v", err)
+		return nil, fmt.Errorf("failed to create a logger: %v", err)
 	}
 	watcherLog := log.GetLogger("Client")
 	watcherLog.Noticef("Logging level set to %v", cfg.Logging.Level)

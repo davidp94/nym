@@ -157,7 +157,7 @@ func showBlindSignatureT(t *Curve.BIG, witn *witnessesV, params *Params, vk *Ver
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
-// nolint: lll, misspell
+// nolint: lll, misspell, unparam
 func constructSignerProofWitn(witnesses *witnessesS, params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 	attributes := append(privM, pubM...)
@@ -256,7 +256,7 @@ func encryptK(G *bpgroup.BpGroup, k *Curve.BIG, gamma *Curve.ECP, m *Curve.BIG, 
 
 // modified version with additional arguments to remove randomness
 // and allow comparison with python implementation
-// nolint: lll, misspell
+// nolint: lll, misspell, unparam
 func prepareBlindSignR(t *testing.T, r *Curve.BIG, ks []*Curve.BIG, witn *witnessesS, params *Params, gamma *Curve.ECP, pubM []*Curve.BIG, privM []*Curve.BIG) (*Lambda, error) {
 	G, g1, hs := params.G, params.g1, params.hs
 	attributes := append(privM, pubM...)
@@ -347,7 +347,7 @@ func TestBasicOperations(t *testing.T) {
 	if Curve.CURVE_PAIRING_TYPE != Curve.BN {
 		return
 	}
-
+	//nolint: goconst
 	xHex := "076501B5E73FA81B28FAB06EE3F6929E6AE4DB9461A49930C49EF1B28A625DD2"
 	g1MulResHex := "02096d26612159d5339748b78c53000734df70a678f4d2ce389b422b076bf5996b"
 	g2MulResHex := "13b24880cbd8053ce23d5cfc42070fff29cae3bbbecf2c5c519b6bb1574b9e3e20" +
@@ -405,7 +405,7 @@ func TestPointcheval(t *testing.T) {
 	}
 	signature := &Signature{sig1: h, sig2: PointchevalSig}
 	// ensure it actually verifies
-	assert.True(t, bool(Verify(params, vk, []*Curve.BIG{m}, signature)))
+	assert.True(t, Verify(params, vk, []*Curve.BIG{m}, signature))
 }
 
 func TestCoconut(t *testing.T) {
@@ -575,5 +575,5 @@ func TestCoconut(t *testing.T) {
 	assert.Zero(t, Curve.Comp(rtExp, theta.proof.rt))
 
 	// finally for sanity checks ensure the credentials verify
-	assert.True(t, bool(BlindVerify(params, vk, sig, theta, pubM)))
+	assert.True(t, BlindVerify(params, vk, sig, theta, pubM))
 }

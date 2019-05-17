@@ -131,7 +131,7 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
 	}
@@ -192,7 +192,13 @@ Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 
 // 	reqSig := c.createCredentialRequestSig(lambda.Cm(), token)
 
-// 	getCredentialRequest, err := commands.NewGetCredentialRequest(lambda, elGamalPublicKey, token, c.nymAccount.PublicKey, reqSig)
+// getCredentialRequest, err := commands.NewGetCredentialRequest(
+// 	lambda,
+// 	elGamalPublicKey,
+// 	token,
+// 	c.nymAccount.PublicKey,
+// 	reqSig,
+// )
 // 	if err != nil {
 // 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
 // 	}
@@ -255,7 +261,10 @@ func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.Publ
 		return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
 	}
 	if res.DeliverTx.Code != code.OK {
-		return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v", res.DeliverTx.Code, code.ToString(res.DeliverTx.Code))
+		return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v",
+			res.DeliverTx.Code,
+			code.ToString(res.DeliverTx.Code),
+		)
 	}
 
 	return res.Height, nil
@@ -290,7 +299,10 @@ func (c *Client) prepareSpendCredentialRequest(
 		}
 		if err != nil {
 			return nil,
-				c.logAndReturnError("prepareSpendCredentialRequest: Could not obtain aggregate verification key required to create proofs for verification: %v", err)
+				c.logAndReturnError("prepareSpendCredentialRequest: "+
+					"Could not obtain aggregate verification key required to create proofs for verification: %v",
+					err,
+				)
 		}
 	}
 
@@ -310,6 +322,7 @@ func (c *Client) prepareSpendCredentialRequest(
 }
 
 // SpendCredential sends a TCP request to spend an issued credential at a particular provider.
+//nolint: dupl
 func (c *Client) SpendCredential(
 	token *token.Token, // token on which the credential is issued; encapsulates required attributes
 	credential *coconut.Signature, // the credential to be spent
@@ -326,7 +339,7 @@ func (c *Client) SpendCredential(
 		return false, c.logAndReturnError("SpendCredential: Failed to prepare spendCredentialRequest: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(spendCredentialRequest)
+	packetBytes, err := commands.CommandToMarshalledPacket(spendCredentialRequest)
 	if err != nil {
 		return false, c.logAndReturnError("Could not create data packet for spend credential command: %v", err)
 	}

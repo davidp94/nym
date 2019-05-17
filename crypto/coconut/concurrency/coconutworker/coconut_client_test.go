@@ -1,6 +1,7 @@
 package coconutworker_test
 
 import (
+	"os"
 	"testing"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
@@ -14,33 +15,14 @@ import (
 
 // todo: ensure results returned by ccw.Method() are the same as by coconut.Function()
 
-const NUM_WORKERS = 2
+const numWorkers = 6
 
-var workers []*jobworker.JobWorker
-
-var ccw *coconutworker.CoconutWorker
-var log *logger.Logger
-
-func init() {
-	var err error
-	log, err = logger.New("", "DEBUG", true)
-	if err != nil {
-		panic(err)
-	}
-
-	jobqueue := jobqueue.New()
-
-	params, err := coconut.Setup(10)
-	if err != nil {
-		panic(err)
-	}
-
-	ccw = coconutworker.New(jobqueue.In(), params)
-
-	for i := 0; i < NUM_WORKERS; i++ {
-		workers = append(workers, jobworker.New(jobqueue.Out(), uint64(i), log))
-	}
-}
+//nolint: gochecknoglobals
+var (
+	workers []*jobworker.JobWorker
+	ccw     *coconutworker.CoconutWorker
+	log     *logger.Logger
+)
 
 func TestCCWSetup(t *testing.T) {
 	_, err := ccw.Setup(0)
@@ -141,6 +123,31 @@ func TestCCWTumblerProof(t *testing.T) {
 
 func TestSchemeBlindVerifyTumbler(t *testing.T) {
 	TestBlindVerifyTumbler(t, ccw)
+}
+
+func TestMain(m *testing.M) {
+	var err error
+	log, err = logger.New("", "DEBUG", true)
+	if err != nil {
+		panic(err)
+	}
+
+	jobqueue := jobqueue.New()
+
+	params, err := coconut.Setup(10)
+	if err != nil {
+		panic(err)
+	}
+
+	ccw = coconutworker.New(jobqueue.In(), params)
+
+	for i := 0; i < numWorkers; i++ {
+		workers = append(workers, jobworker.New(jobqueue.Out(), uint64(i), log))
+	}
+
+	runTests := m.Run()
+
+	os.Exit(runTests)
 }
 
 // func BenchmarkCCWVerify(b *testing.B) {

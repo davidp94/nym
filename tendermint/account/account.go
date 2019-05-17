@@ -27,11 +27,11 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+//nolint: golint
 // ECDSA_SHA defines sha algorithm used during message signing.
 const ECDSA_SHA = amcl.SHA256
 
@@ -40,7 +40,7 @@ const ECDSA_SHA = amcl.SHA256
 var rng *amcl.RAND
 
 func init() {
-	// todo: use go amino for marshaling?
+	// TODO: use go amino for marshalling?
 	rng = amcl.NewRAND()
 	raw, err := utils.GenerateRandomBytes(constants.NumberOfEntropyBytes)
 	if err != nil {
@@ -101,8 +101,8 @@ func (acc Account) ToJSONFile(f string) error {
 // FromJSONFile reads the key pair from a JSON file at the specified path.
 func (acc *Account) FromJSONFile(f string) error {
 	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		if err := json.Unmarshal(buf, acc); err != nil {
-			return err
+		if jerr := json.Unmarshal(buf, acc); jerr != nil {
+			return jerr
 		}
 	} else if !os.IsNotExist(err) {
 		return err
@@ -160,8 +160,8 @@ func (pk ECPrivateKey) SignBytes(msg []byte) []byte {
 	Curve.ECDH_ECPSP_DSA(ECDSA_SHA, rng, pk, msg, C, D)
 
 	sig := make([]byte, SignatureSize)
-	copy(sig[:], C[:])
-	copy(sig[constants.BIGLen:], D[:])
+	copy(sig, C)
+	copy(sig[constants.BIGLen:], D)
 
 	return sig
 }
@@ -170,8 +170,8 @@ func (pk ECPrivateKey) SignBytes(msg []byte) []byte {
 // It is a wrapper for ECDH_ECPVP_DSA by Milagro.
 func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 	C, D := make([]byte, constants.BIGLen), make([]byte, constants.BIGLen)
-	copy(C[:], sig[:constants.BIGLen])
-	copy(D[:], sig[constants.BIGLen:])
+	copy(C, sig[:constants.BIGLen])
+	copy(D, sig[constants.BIGLen:])
 
 	return Curve.ECDH_ECPVP_DSA(ECDSA_SHA, pub, msg, C, D) == 0
 }
@@ -179,7 +179,7 @@ func (pub ECPublicKey) VerifyBytes(msg []byte, sig []byte) bool {
 // Compress compresses the byte array representing the public key.
 func (pub *ECPublicKey) Compress() error {
 	if pub == nil || !pub.Validate() {
-		return errors.New("The provided key is malformed")
+		return errors.New("the provided key is malformed")
 	}
 	if len(*pub) == PublicKeySize {
 		return nil // key is already compressed

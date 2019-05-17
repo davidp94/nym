@@ -49,7 +49,7 @@ func TestCreateNewAccount(t *testing.T) {
 
 	var compressedKey account.ECPublicKey = make([]byte, len(acc.PublicKey))
 	copy(compressedKey, acc.PublicKey)
-	compressedKey.Compress()
+	assert.Nil(t, compressedKey.Compress())
 
 	invalidPubReq, err := proto.Marshal(&transaction.NewAccountRequest{
 		PublicKey:  invalidPub,
@@ -90,7 +90,7 @@ func TestCreateNewAccount(t *testing.T) {
 
 	invalidReqs := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		emptyReq,
 		invalidPubReq,
@@ -105,7 +105,7 @@ func TestCreateNewAccount(t *testing.T) {
 	validReq := validReqTx[1:] // first byte is the prefix indicating type of tx
 
 	acc2 := account.NewAccount()
-	acc2.PublicKey.Compress()
+	assert.Nil(t, acc2.PublicKey.Compress())
 	validReqTx2, err := transaction.CreateNewAccountRequest(acc2, []byte{})
 	assert.Nil(t, err)
 	validReq2 := validReqTx2[1:]
@@ -142,7 +142,7 @@ func TestTransferFunds(t *testing.T) {
 
 	var compressedKey account.ECPublicKey = make([]byte, len(acc.PublicKey))
 	copy(compressedKey, acc.PublicKey)
-	compressedKey.Compress()
+	assert.Nil(t, compressedKey.Compress())
 
 	invalidTarget := make([]byte, len(target))
 	copy(invalidTarget, target)
@@ -209,7 +209,7 @@ func TestTransferFunds(t *testing.T) {
 
 	invalidReqs := [][]byte{
 		nil,
-		[]byte{},
+		{},
 		[]byte("foo"),
 		emptyReq,
 		invalidPubReq,
@@ -227,7 +227,7 @@ func TestTransferFunds(t *testing.T) {
 
 	balance := make([]byte, 8)
 	binary.BigEndian.PutUint64(balance, 1000)
-	acc.PublicKey.Compress()
+	assert.Nil(t, acc.PublicKey.Compress())
 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc.PublicKey), balance)
 
 	for _, invalidReq := range append(invalidReqs, validReq) {

@@ -21,9 +21,8 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -39,12 +38,12 @@ func (app *NymApplication) verifyCredential(cred []byte) bool {
 
 func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
 	// don't allow transfer when addresses are identical because nothing would happen anyway...
-	if bytes.Compare(inAddr, outAddr) == 0 {
+	if bytes.Equal(inAddr, outAddr) {
 		return code.SELF_TRANSFER, nil
 	}
 
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(inAddr, tmconst.HoldingAccountAddress) != 0 {
+	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
 		if err := inAddr.Compress(); err != nil {
 			// 'normal' address is invalid
 			return code.MALFORMED_ADDRESS, []byte("SOURCE")
@@ -61,7 +60,7 @@ func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey,
 	}
 
 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(outAddr, tmconst.HoldingAccountAddress) != 0 {
+	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
 		if err := outAddr.Compress(); err != nil {
 			// 'normal' address is invalid
 			return code.MALFORMED_ADDRESS, []byte("TARGET")
@@ -218,7 +217,7 @@ func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
 
 	// only recovered to see if an error is thrown
 	egPub := &elgamal.PublicKey{}
-	if err := egPub.FromProto(req.EgPub); err != nil {
+	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
 		return code.INVALID_TX_PARAMS
 	}
 
@@ -231,22 +230,30 @@ func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
 	recoveredHoldingAddress := req.TargetAddress
 
 	// TODO: update once epochs, etc. are introduced
-	if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
+	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
 		return code.MALFORMED_ADDRESS
 	}
 
-	if retCode, _ := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
+	if retCode, _ := app.validateTransfer(
+		sourcePublicKey,
+		recoveredHoldingAddress,
+		uint64(req.Amount),
+	); retCode != code.OK {
 		return retCode
 	}
 
-	msg := make([]byte, len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
+	msg := make([]byte,
+		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
+	)
 	copy(msg, sourcePublicKey)
 	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
 	for i := range req.PubM {
-		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
+		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
+			req.PubM[i],
+		)
 	}
 
 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {

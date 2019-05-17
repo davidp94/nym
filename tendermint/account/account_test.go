@@ -70,7 +70,8 @@ func TestCompressPublicKey(t *testing.T) {
 	assert.Error(t, g.Compress())
 	g[0] = originalPrefix
 
-	g.Compress()
+	assert.Nil(t, g.Compress())
+
 	// should just get ignored
 	assert.Nil(t, g.Compress())
 

@@ -80,7 +80,7 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		return nil, nil, comm.LogAndReturnError(s.log, "Failed to create Vk request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		// should never happen...
 		return nil, nil, comm.LogAndReturnError(s.log, "Could not create VK data packet: %v", err)
@@ -132,7 +132,7 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		select {
 		case <-timeout:
 			s.log.Critical("Timed out while starting up...")
-			return nil, nil, errors.New("Startup timeout")
+			return nil, nil, errors.New("startup timeout")
 		default:
 		}
 	}
@@ -160,12 +160,12 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 func New(cfg *config.Config) (*Server, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {
-		return nil, errors.New("Nil config provided")
+		return nil, errors.New("nil config provided")
 	}
 
 	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create a logger: %v", err)
+		return nil, fmt.Errorf("failed to create a logger: %v", err)
 	}
 	// without this, the servers during tests would have same id and would run into concurrency issues
 	serverLog := log.GetLogger("Server - " + cfg.Server.Identifier)
@@ -200,20 +200,22 @@ func New(cfg *config.Config) (*Server, error) {
 
 			if sk.ToPEMFile(cfg.Issuer.SecretKeyFile) != nil || vk.ToPEMFile(cfg.Issuer.VerificationKeyFile) != nil {
 				serverLog.Error("Couldn't write new keys to the files")
-				return nil, errors.New("Couldn't write new keys to the files")
+				return nil, errors.New("couldn't write new keys to the files")
 			}
 
 			serverLog.Notice("Written new keys to the files")
 		} else {
+			//nolint: govet
 			if err := sk.FromPEMFile(cfg.Issuer.SecretKeyFile); err != nil {
 				return nil, err
 			}
+			//nolint: govet
 			if err := vk.FromPEMFile(cfg.Issuer.VerificationKeyFile); err != nil {
 				return nil, err
 			}
 			if len(sk.Y()) > cfg.Server.MaximumAttributes || !coconut.ValidateKeyPair(sk, vk) {
 				serverLog.Errorf("The loaded keys were invalid")
-				return nil, errors.New("The loaded keys were invalid")
+				return nil, errors.New("the loaded keys were invalid")
 			}
 			serverLog.Notice("Loaded Coconut server keys from the files.")
 
@@ -236,6 +238,7 @@ func New(cfg *config.Config) (*Server, error) {
 	acc := account.Account{}
 	if cfg.Server.IsProvider {
 		if cfg.Provider.BlockchainKeysFile != "" {
+			//nolint: govet
 			if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
 				errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
 				serverLog.Error(errStr)
@@ -243,7 +246,7 @@ func New(cfg *config.Config) (*Server, error) {
 			}
 			serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		} else {
-			errStr := "No keys for the Nym Blockchain were specified while server is a provider"
+			errStr := "no keys for the Nym Blockchain were specified while server is a provider"
 			serverLog.Error(errStr)
 			return nil, errors.New(errStr)
 		}
@@ -287,17 +290,17 @@ func New(cfg *config.Config) (*Server, error) {
 			NymClient:  nymClient,
 			Store:      store,
 		}
-		serverWorker, err := serverworker.New(serverWorkerCfg)
+		serverWorker, nerr := serverworker.New(serverWorkerCfg)
 
-		if err == nil {
+		if nerr == nil {
 			serverWorkers = append(serverWorkers, serverWorker)
 		} else {
-			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, err)
+			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, nerr)
 		}
 	}
 
 	if len(serverWorkers) == 0 {
-		errMsg := "Could not start any server worker"
+		errMsg := "could not start any server worker"
 		serverLog.Critical(errMsg)
 		return nil, errors.New(errMsg)
 	}
@@ -382,7 +385,7 @@ func New(cfg *config.Config) (*Server, error) {
 	} else {
 		vks, pp, err := s.getIAsVerificationKeys()
 		if err != nil {
-			return nil, errors.New("Failed to obtain verification keys of IAs")
+			return nil, errors.New("failed to obtain verification keys of IAs")
 		}
 
 		*avk = *serverWorkers[0].AggregateVerificationKeysWrapper(vks, pp)

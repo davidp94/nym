@@ -21,7 +21,7 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -208,7 +208,7 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 
 	// only recovered to see if an error is thrown
 	egPub := &elgamal.PublicKey{}
-	if err := egPub.FromProto(req.EgPub); err != nil {
+	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
@@ -221,22 +221,29 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 	recoveredHoldingAddress := req.TargetAddress
 
 	// TODO: update once epochs, etc. are introduced
-	if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
+	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
 	}
 
-	if retCode, data := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
+	if retCode, data := app.validateTransfer(sourcePublicKey,
+		recoveredHoldingAddress,
+		uint64(req.Amount),
+	); retCode != code.OK {
 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 	}
 
-	msg := make([]byte, len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
+	msg := make([]byte,
+		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
+	)
 	copy(msg, sourcePublicKey)
 	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
 	for i := range req.PubM {
-		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
+		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
+			req.PubM[i],
+		)
 	}
 
 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
@@ -262,6 +269,8 @@ func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverT
 			return types.ResponseDeliverTx{Code: code.UNKNOWN}
 		}
 
+		// it can't possibly fail as it was already verified
+		//nolint: errcheck
 		sourcePublicKey.Compress()
 		// we need to include slightly more information in the key field in case given user performed
 		// more than 1 transfer in given block. That way he wouldn't need to recreate bsmb to index the tx

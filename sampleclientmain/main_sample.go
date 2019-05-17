@@ -24,12 +24,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"0xacab.org/jstuczyn/CoconutGo/common/utils"
-
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
+	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
@@ -39,11 +38,12 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+const onlyRunBasic = false
 const providerAddress = "127.0.0.1:4000"
 const providerAddressGrpc = "127.0.0.1:5000"
-
 const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0BYcHQIQ=="
 
+//nolint: gochecknoglobals
 var tendermintABCIAddresses = []string{
 	// "tcp://0.0.0.0:12345", // does not exist
 	"tcp://0.0.0.0:26657",
@@ -93,9 +93,14 @@ func main() {
 		os.Exit(-1)
 	}
 
-	wholeSystem(cc)
+	if onlyRunBasic {
+		basicIA(cc)
+	} else {
+		wholeSystem(cc)
+	}
 }
 
+//nolint: errcheck
 func wholeSystem(cc *cclient.Client) {
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
@@ -115,7 +120,9 @@ func wholeSystem(cc *cclient.Client) {
 	}
 
 	debugAcc := &account.Account{}
-	debugAcc.FromJSONFile("../tendermint/debugAccount.json")
+	if lerr := debugAcc.FromJSONFile("../tendermint/debugAccount.json"); lerr != nil {
+		panic(lerr)
+	}
 
 	// transfer some funds to the new account
 	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 20)
@@ -133,13 +140,19 @@ func wholeSystem(cc *cclient.Client) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Created new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	fmt.Printf("Created new account. Code: %v, additional data: %v\n",
+		code.ToString(res.DeliverTx.Code),
+		string(res.DeliverTx.Data),
+	)
 	// add some funds
 	res, err = tmclient.Broadcast(transferReq)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n", code.ToString(res.DeliverTx.Code), string(res.DeliverTx.Data))
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
+		code.ToString(res.DeliverTx.Code),
+		string(res.DeliverTx.Data),
+	)
 
 	b, err := utils.GenerateRandomBytes(10)
 	if err != nil {
@@ -173,6 +186,7 @@ func wholeSystem(cc *cclient.Client) {
 	fmt.Println("Was credential spent: ", didSucceed)
 }
 
+//nolint: dupl, lll
 func basicIA(cc *cclient.Client) {
 	useGRPC := false
 
@@ -215,5 +229,4 @@ func basicIA(cc *cclient.Client) {
 		fmt.Println("Is validBlind2:", isValidBlind2)
 		fmt.Println("Is validBlind3:", isValidBlind3)
 	}
-
 }

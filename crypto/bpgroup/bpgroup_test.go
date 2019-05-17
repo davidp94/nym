@@ -74,6 +74,7 @@ func TestPairing(t *testing.T) {
 	assert.True(t, gt1.Equals(gt2), "e(aP, bQ) != e(P, Q)^ab")
 }
 
+//nolint: gochecknoglobals
 var g1Mulres *Curve.ECP
 
 func BenchmarkG1Mul(b *testing.B) {
@@ -89,10 +90,11 @@ func BenchmarkG1Mul(b *testing.B) {
 		res = Curve.G1mul(rg1, t)
 	}
 	// it is recommended to store results in package level variables,
-	// so that compiler would not try to optimize the benchmark
+	// so that compiler would not try to optimise the benchmark
 	g1Mulres = res
 }
 
+//nolint: gochecknoglobals
 var g2MulRes *Curve.ECP2
 
 func BenchmarkG2Mul(b *testing.B) {
@@ -108,10 +110,11 @@ func BenchmarkG2Mul(b *testing.B) {
 		res = Curve.G2mul(rg2, t)
 	}
 	// it is recommended to store results in package level variables,
-	// so that compiler would not try to optimize the benchmark
+	// so that compiler would not try to optimise the benchmark
 	g2MulRes = res
 }
 
+//nolint: gochecknoglobals
 var pairRes *Curve.FP12
 
 func BenchmarkPairing(b *testing.B) {
@@ -129,6 +132,6 @@ func BenchmarkPairing(b *testing.B) {
 		res = G.Pair(rg1, rg2)
 	}
 	// it is recommended to store results in package level variables,
-	// so that compiler would not try to optimize the benchmark
+	// so that compiler would not try to optimise the benchmark
 	pairRes = res
 }

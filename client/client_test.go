@@ -51,39 +51,44 @@ type providerServer struct {
 }
 
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
-const clientKeysFolderRelative = "../testdata/clientkeys"
+
+// const clientKeysFolderRelative = "../testdata/clientkeys"
 const thresholdVal = 3 // defined by the pre-generated keys
 const tendermintRPCPort = 36657
+const nonExistentProvider = "127.0.0.1:54321"
 
-var issuersKeysFolder string
-var issuers []*server.Server
-var thresholdProvider *providerServer
-var nonThresholdProvider *providerServer
+//nolint: gochecknoglobals
+var (
+	issuersKeysFolder    string
+	issuers              []*server.Server
+	thresholdProvider    *providerServer
+	nonThresholdProvider *providerServer
 
-var issuerTCPAddresses = []string{
-	"127.0.0.1:4100",
-	"127.0.0.1:4101",
-	"127.0.0.1:4102",
-	"127.0.0.1:4103",
-	"127.0.0.1:4104",
-}
+	issuerTCPAddresses = []string{
+		"127.0.0.1:4100",
+		"127.0.0.1:4101",
+		"127.0.0.1:4102",
+		"127.0.0.1:4103",
+		"127.0.0.1:4104",
+	}
 
-var issuerGRPCAddresses = []string{
-	"127.0.0.1:4200",
-	"127.0.0.1:4201",
-	"127.0.0.1:4202",
-	"127.0.0.1:4203",
-	"127.0.0.1:4204",
-}
+	issuerGRPCAddresses = []string{
+		"127.0.0.1:4200",
+		"127.0.0.1:4201",
+		"127.0.0.1:4202",
+		"127.0.0.1:4203",
+		"127.0.0.1:4204",
+	}
 
-var providerTCPAddresses = []string{
-	"127.0.0.1:5100",
-	"127.0.0.1:5101",
-}
-var providerGRPCAddresses = []string{
-	"127.0.0.1:5200", // threshold
-	"127.0.0.1:5201", // nonthreshold
-}
+	providerTCPAddresses = []string{
+		"127.0.0.1:5100",
+		"127.0.0.1:5101",
+	}
+	providerGRPCAddresses = []string{
+		"127.0.0.1:5200", // threshold
+		"127.0.0.1:5201", // nonthreshold
+	}
+)
 
 func makeStringOfAddresses(name string, addrs []string) string {
 	out := name + " = ["
@@ -216,6 +221,7 @@ func TestParseVkResponse(t *testing.T) {
 
 	// completely valid responses with variable size keys
 	for _, i := range []int{1, 3, 5, 10} {
+		//nolint: govet
 		params, err := coconut.Setup(i)
 		assert.Nil(t, err)
 
@@ -259,7 +265,7 @@ func TestParseVkResponse(t *testing.T) {
 			Code:    int32(code),
 			Message: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
 		}
-
+		//nolint: govet
 		params, err := coconut.Setup(5)
 		assert.Nil(t, err)
 
@@ -314,6 +320,7 @@ func TestParseVkResponse(t *testing.T) {
 		}
 
 		// just a single 'corrupted' element:
+		//nolint: govet
 		params, err := coconut.Setup(5)
 		assert.Nil(t, err)
 
@@ -373,6 +380,7 @@ func TestParseVkResponse(t *testing.T) {
 			Status: validStatus,
 		}
 
+		//nolint: govet
 		vk, err := emptyClient.parseVkResponse(response)
 		assert.Nil(t, vk)
 		assert.Error(t, err)
@@ -477,7 +485,7 @@ func TestParseSignResponse(t *testing.T) {
 			Sig:    validProtoSig,
 			Status: invalidStatus,
 		}
-
+		//nolint: govet
 		sig, err := emptyClient.parseSignResponse(response)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
@@ -503,6 +511,7 @@ func TestParseSignResponse(t *testing.T) {
 		invalidSig2 := &coconut.ProtoSignature{Sig2: invalidByte}
 		invalidSig3 := &coconut.ProtoSignature{Sig1: invalidByte, Sig2: invalidByte}
 
+		//nolint: govet
 		invalidSig4, err := validSig.ToProto()
 		assert.Nil(t, err)
 		invalidSig4.Sig1 = invalidByte
@@ -525,6 +534,7 @@ func TestParseSignResponse(t *testing.T) {
 				Status: validStatus,
 			}
 
+			//nolint: govet
 			sig, err := emptyClient.parseSignResponse(response)
 			assert.Nil(t, sig)
 			assert.Error(t, err)
@@ -543,7 +553,7 @@ func TestParseSignResponse(t *testing.T) {
 			Sig:    invSig,
 			Status: validStatus,
 		}
-
+		//nolint: govet
 		sig, err := emptyClient.parseSignResponse(response)
 		assert.Nil(t, sig)
 		assert.Error(t, err)
@@ -662,7 +672,7 @@ Level = "DEBUG"
 				Sig:    validProtoBlindSig,
 				Status: invalidStatus,
 			}
-
+			//nolint: govet
 			sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 			assert.Nil(t, sig)
 			assert.Error(t, err)
@@ -699,6 +709,7 @@ Level = "DEBUG"
 			}
 
 			// just a single 'corrupted' element:
+			//nolint: govet
 			invalidBlindSig4, err := validBlindSig.ToProto()
 			assert.Nil(t, err)
 			invalidBlindSig4.Sig1 = invalidByte
@@ -721,11 +732,12 @@ Level = "DEBUG"
 			}
 
 			for _, invBlindSig := range invalidBlindSigs {
+				//nolint: govet
 				response := &commands.BlindSignResponse{
 					Sig:    invBlindSig,
 					Status: validStatus,
 				}
-
+				//nolint: govet
 				sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 				assert.Nil(t, sig)
 				assert.Error(t, err)
@@ -742,11 +754,12 @@ Level = "DEBUG"
 		}
 
 		for _, invBlindSig := range invalidBlindSigs {
+			//nolint: govet
 			response := &commands.BlindSignResponse{
 				Sig:    invBlindSig,
 				Status: validStatus,
 			}
-
+			//nolint: govet
 			sig, err := client.parseBlindSignResponse(response, elGamalPrivateKey)
 			assert.Nil(t, sig)
 			assert.Error(t, err)
@@ -775,8 +788,12 @@ Level = "DEBUG"
 	}
 }
 
-// nolint: lll
-func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, mock bool) *comm.ServerResponse {
+func makeValidSignServerResponse(t *testing.T,
+	address string,
+	id int,
+	pubM []*Curve.BIG,
+	mock bool,
+) *comm.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
 		assert.Nil(t, err)
@@ -796,7 +813,7 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 	}
 	cmd, err := commands.NewSignRequest(pubM)
 	assert.Nil(t, err)
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
@@ -812,14 +829,21 @@ func makeValidSignServerResponse(t *testing.T, address string, id int, pubM []*C
 		}, log.GetLogger("Foo"))[0]
 }
 
-// nolint: lll
-func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM []*Curve.BIG, privM []*Curve.BIG, egPub *elgamal.PublicKey, mock bool) *comm.ServerResponse {
+func makeValidBlindSignServerResponse(t *testing.T,
+	address string,
+	id int,
+	pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+	egPub *elgamal.PublicKey,
+	mock bool,
+) *comm.ServerResponse {
 	params, err := coconut.Setup(5)
 	assert.Nil(t, err)
 	blindSignMats, err := coconut.PrepareBlindSign(params, egPub, pubM, privM)
 	assert.Nil(t, err)
 
 	if mock {
+		//nolint: govet
 		sk, _, err := coconut.Keygen(params)
 		assert.Nil(t, err)
 		blindSig, err := coconut.BlindSign(params, sk, blindSignMats, egPub, pubM)
@@ -836,7 +860,7 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 	}
 	cmd, err := commands.NewBlindSignRequest(blindSignMats, egPub, pubM)
 	assert.Nil(t, err)
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
@@ -853,7 +877,6 @@ func makeValidBlindSignServerResponse(t *testing.T, address string, id int, pubM
 		}, log.GetLogger("Foo"))[0]
 }
 
-// nolint: lll
 func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) *comm.ServerResponse {
 	if mock {
 		params, err := coconut.Setup(5)
@@ -872,7 +895,7 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 	}
 	cmd, err := commands.NewVerificationKeyRequest()
 	assert.Nil(t, err)
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	assert.Nil(t, err)
 
 	log, err := logger.New("", "DEBUG", true)
@@ -889,7 +912,6 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 		}, log.GetLogger("Foo"))[0]
 }
 
-// nolint: lll
 func TestParseSignatureServerResponses(t *testing.T) {
 	cfgstr := createBasicClientCfgStr(issuerTCPAddresses, nil)
 	cfgstr += string(`PersistentKeys = false
@@ -947,7 +969,9 @@ Level = "DEBUG"
 		makeValidVkServerResponse(t, "127.0.0.1:1234", 1, true),
 		&comm.ServerResponse{},
 		&comm.ServerResponse{MarshaledData: nil, ServerMetadata: &comm.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
-		&comm.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerMetadata: &comm.ServerMetadata{Address: "127.0.0.1:1234", ID: 1}},
+		&comm.ServerResponse{MarshaledData: []byte{1, 2, 3}, ServerMetadata: &comm.ServerMetadata{
+			Address: "127.0.0.1:1234", ID: 1},
+		},
 		// + malformed marshaleddata in different ways
 	)
 
@@ -962,9 +986,23 @@ Level = "DEBUG"
 
 		for i := 0; i < test.validResponses; i++ {
 			if test.isBlind {
-				responsesMock = append(responsesMock, makeValidBlindSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, privM, elGamalPublicKey, false))
+				responsesMock = append(responsesMock,
+					makeValidBlindSignServerResponse(t,
+						issuerTCPAddresses[i],
+						i+1,
+						pubM,
+						privM,
+						elGamalPublicKey,
+						false,
+					))
 			} else {
-				responsesMock = append(responsesMock, makeValidSignServerResponse(t, issuerTCPAddresses[i], i+1, pubM, false))
+				responsesMock = append(responsesMock,
+					makeValidSignServerResponse(t,
+						issuerTCPAddresses[i],
+						i+1,
+						pubM,
+						false,
+					))
 			}
 		}
 
@@ -972,15 +1010,32 @@ Level = "DEBUG"
 		// todo: more cases?
 		invalidResponsesIn := invalidResponses
 		if test.isBlind {
-			sampleValid := makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, elGamalPublicKey, false)
-			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
-			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
-			invalidResponsesIn = append(invalidResponsesIn, makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
+			sampleValid := makeValidBlindSignServerResponse(t,
+				issuerTCPAddresses[0],
+				1,
+				pubM,
+				privM,
+				elGamalPublicKey,
+				false,
+			)
+			invalidResponsesIn = append(invalidResponsesIn,
+				&comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn,
+				&comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{
+					Address: sampleValid.ServerMetadata.Address},
+				})
+			invalidResponsesIn = append(invalidResponsesIn,
+				makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false))
 		} else {
 			sampleValid := makeValidSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, false)
-			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
-			invalidResponsesIn = append(invalidResponsesIn, &comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{Address: sampleValid.ServerMetadata.Address}})
-			invalidResponsesIn = append(invalidResponsesIn, makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, elGamalPublicKey, false))
+			invalidResponsesIn = append(invalidResponsesIn,
+				&comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: nil})
+			invalidResponsesIn = append(invalidResponsesIn,
+				&comm.ServerResponse{MarshaledData: sampleValid.MarshaledData, ServerMetadata: &comm.ServerMetadata{
+					Address: sampleValid.ServerMetadata.Address},
+				})
+			invalidResponsesIn = append(invalidResponsesIn,
+				makeValidBlindSignServerResponse(t, issuerTCPAddresses[0], 1, pubM, privM, elGamalPublicKey, false))
 		}
 
 		for _, invResp := range invalidResponsesIn {
@@ -989,7 +1044,10 @@ Level = "DEBUG"
 				responsesMockIn = append(responsesMockIn, invResp)
 			}
 
-			sigs, pp := client.parseSignatureServerResponses(responsesMockIn, test.isThreshold, test.isBlind, elGamalPrivateKey)
+			sigs, pp := client.parseSignatureServerResponses(responsesMockIn,
+				test.isThreshold,
+				test.isBlind,
+				elGamalPrivateKey)
 
 			if test.isThreshold {
 				assert.True(t, len(sigs) == len(pp.Xs()))
@@ -1149,6 +1207,8 @@ func TestHandleReceivedSignatures(t *testing.T) {
 	}
 }
 
+// we want to have explicitly different tests for sign and sign grpc
+//nolint: dupl
 func TestSignAttributesGrpc(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -1212,6 +1272,7 @@ func TestSignAttributesGrpc(t *testing.T) {
 // those tests could easily be combined with grpc version, however,
 // I think it is worth to keep them sepearate in case implementation diverges significantly.
 // The same applies to remaining TCP vs gRPC methods
+//nolint: dupl
 func TestSignAttributes(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -1441,6 +1502,7 @@ func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
 			assert.True(t, compareVks(vkstcp[0], vkatcp))
 		} else {
 			assert.Len(t, vkstcp, len(issuerTCPAddresses))
+			//nolint: govet
 			params, err := coconut.Setup(5)
 			assert.Nil(t, err)
 			vka := coconut.AggregateVerificationKeys(params, vkstcp, nil)
@@ -1466,6 +1528,7 @@ func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
 			assert.True(t, compareVks(vksgrcp[0], vkagrcp))
 		} else {
 			assert.Len(t, vksgrcp, len(issuerGRPCAddresses))
+			//nolint: govet
 			params, err := coconut.Setup(5)
 			assert.Nil(t, err)
 			vka := coconut.AggregateVerificationKeys(params, vksgrcp, nil)
@@ -1481,6 +1544,8 @@ func TestGetVerificationKeysTCPAndGrpc(t *testing.T) {
 	}
 }
 
+// we want to have explicitly different tests for blind sign and blind sign grpc
+//nolint: dupl
 func TestBlindSignAttributesGrpc(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -1579,6 +1644,8 @@ func TestBlindSignAttributesGrpc(t *testing.T) {
 	}
 }
 
+// we want to have explicitly different tests for blind sign and blind sign grpc
+//nolint: dupl
 func TestBlindSignAttributes(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -1727,7 +1794,6 @@ func TestSendCredentialsForVerificationGrpc(t *testing.T) {
 		assert.False(t, isValid)
 		assert.Error(t, err)
 
-		nonExistentProvider := "127.0.0.1:54321"
 		isValid, err = client.SendCredentialsForVerificationGrpc(validPubM, validSig, nonExistentProvider)
 		assert.False(t, isValid)
 		assert.Error(t, err)
@@ -1834,7 +1900,6 @@ func TestSendCredentialsForVerification(t *testing.T) {
 		assert.False(t, isValid)
 		assert.Error(t, err)
 
-		nonExistentProvider := "127.0.0.1:54321"
 		isValid, err = client.SendCredentialsForVerification(validPubM, validSig, nonExistentProvider)
 		assert.False(t, isValid)
 		assert.Error(t, err)
@@ -1929,6 +1994,7 @@ Level = "DEBUG"
 
 	for _, validPubM := range validPubMs {
 		for _, validPrivM := range validPrivMs {
+			//nolint: govet
 			validSig, err := client.BlindSignAttributes(validPubM, validPrivM)
 			assert.Nil(t, err)
 
@@ -1998,7 +2064,7 @@ Level = "DEBUG"
 	}
 }
 
-// nolint: lll
+// nolint: dupl
 func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -2046,43 +2112,81 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 
 	for _, validPubM := range validPubMs {
 		for _, validPrivM := range validPrivMs {
+			//nolint: govet
 			validThrSig, err := thrClient.BlindSignAttributesGrpc(validPubM, validPrivM)
 			assert.Nil(t, err)
 
 			validSig, err := client.BlindSignAttributesGrpc(validPubM, validPrivM)
 			assert.Nil(t, err)
 
-			isValid, err := tcpclient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, avk)
+			isValid, err := tcpclient.SendCredentialsForBlindVerificationGrpc(
+				validPubM,
+				validPrivM,
+				validSig,
+				thresholdProvider.grpcaddress,
+				avk)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 
-			nonExistentProvider := "127.0.0.1:54321"
-			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, nonExistentProvider, avk)
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validSig,
+				nonExistentProvider,
+				avk,
+			)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 
-			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, nonThresholdProvider.grpcaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validSig,
+				nonThresholdProvider.grpcaddress,
+				avk,
+			)
 			assert.True(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, thresholdProvider.grpcaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validThrSig,
+				thresholdProvider.grpcaddress,
+				thravk,
+			)
 			assert.True(t, isValid)
 			assert.Nil(t, err)
 
 			// sanity checks
-			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validSig,
+				thresholdProvider.grpcaddress,
+				avk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, nonThresholdProvider.grpcaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validThrSig,
+				nonThresholdProvider.grpcaddress,
+				thravk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validThrSig, nonThresholdProvider.grpcaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validThrSig, nonThresholdProvider.grpcaddress,
+				avk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM, validPrivM, validSig, thresholdProvider.grpcaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerificationGrpc(validPubM,
+				validPrivM,
+				validSig, thresholdProvider.grpcaddress,
+				thravk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 		}
@@ -2120,31 +2224,51 @@ func TestSendCredentialsForBlindVerificationGrpc(t *testing.T) {
 
 	// // similarly to before, all those only ensure that nothing crashes while parsing bad attributes
 	for _, invalidPubM := range invalidPubMs {
-		isValid, err := client.SendCredentialsForBlindVerificationGrpc(invalidPubM, validPrivMs[2], validTestSig, nonThresholdProvider.grpcaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(invalidPubM,
+			validPrivMs[2],
+			validTestSig,
+			nonThresholdProvider.grpcaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidPrivM := range invalidPrivMs {
-		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], invalidPrivM, validTestSig, nonThresholdProvider.grpcaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2],
+			invalidPrivM,
+			validTestSig,
+			nonThresholdProvider.grpcaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidSig := range invalidSigs {
-		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], validPrivMs[2], invalidSig, nonThresholdProvider.grpcaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2],
+			validPrivMs[2],
+			invalidSig,
+			nonThresholdProvider.grpcaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidVk := range invalidVks {
-		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.grpcaddress, invalidVk)
+		isValid, err := client.SendCredentialsForBlindVerificationGrpc(validPubMs[2],
+			validPrivMs[2],
+			validTestSig,
+			nonThresholdProvider.grpcaddress,
+			invalidVk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 }
 
-// nolint: lll
+// nolint: dupl
 func TestSendCredentialsForBlindVerification(t *testing.T) {
 	logStr := string(`PersistentKeys = false
 	[Logging]
@@ -2192,43 +2316,77 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 
 	for _, validPubM := range validPubMs {
 		for _, validPrivM := range validPrivMs {
+			//nolint: govet
 			validThrSig, err := thrClient.BlindSignAttributes(validPubM, validPrivM)
 			assert.Nil(t, err)
 
 			validSig, err := client.BlindSignAttributes(validPubM, validPrivM)
 			assert.Nil(t, err)
 
-			isValid, err := grpcClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, avk)
+			isValid, err := grpcClient.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validSig, thresholdProvider.tcpaddress, avk)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 
-			nonExistentProvider := "127.0.0.1:54321"
-			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, nonExistentProvider, avk)
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validSig, nonExistentProvider, avk)
 			assert.False(t, isValid)
 			assert.Error(t, err)
 
-			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, nonThresholdProvider.tcpaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validSig,
+				nonThresholdProvider.tcpaddress,
+				avk,
+			)
 			assert.True(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, thresholdProvider.tcpaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validThrSig,
+				thresholdProvider.tcpaddress,
+				thravk,
+			)
 			assert.True(t, isValid)
 			assert.Nil(t, err)
 
 			// sanity checks
-			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validSig,
+				thresholdProvider.tcpaddress,
+				avk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, nonThresholdProvider.tcpaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validThrSig,
+				nonThresholdProvider.tcpaddress,
+				thravk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = client.SendCredentialsForBlindVerification(validPubM, validPrivM, validThrSig, nonThresholdProvider.tcpaddress, avk)
+			isValid, err = client.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validThrSig,
+				nonThresholdProvider.tcpaddress,
+				avk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 
-			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM, validPrivM, validSig, thresholdProvider.tcpaddress, thravk)
+			isValid, err = thrClient.SendCredentialsForBlindVerification(validPubM,
+				validPrivM,
+				validSig,
+				thresholdProvider.tcpaddress,
+				thravk,
+			)
 			assert.False(t, isValid)
 			assert.Nil(t, err)
 		}
@@ -2266,25 +2424,41 @@ func TestSendCredentialsForBlindVerification(t *testing.T) {
 
 	// // similarly to before, all those only ensure that nothing crashes while parsing bad attributes
 	for _, invalidPubM := range invalidPubMs {
-		isValid, err := client.SendCredentialsForBlindVerification(invalidPubM, validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerification(invalidPubM,
+			validPrivMs[2],
+			validTestSig, nonThresholdProvider.tcpaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidPrivM := range invalidPrivMs {
-		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], invalidPrivM, validTestSig, nonThresholdProvider.tcpaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2],
+			invalidPrivM,
+			validTestSig, nonThresholdProvider.tcpaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidSig := range invalidSigs {
-		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], invalidSig, nonThresholdProvider.tcpaddress, avk)
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2],
+			validPrivMs[2],
+			invalidSig, nonThresholdProvider.tcpaddress,
+			avk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
 
 	for _, invalidVk := range invalidVks {
-		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2], validPrivMs[2], validTestSig, nonThresholdProvider.tcpaddress, invalidVk)
+		isValid, err := client.SendCredentialsForBlindVerification(validPubMs[2],
+			validPrivMs[2],
+			validTestSig, nonThresholdProvider.tcpaddress,
+			invalidVk,
+		)
 		assert.False(t, isValid)
 		assert.Error(t, err)
 	}
@@ -2342,7 +2516,10 @@ func TestMain(m *testing.M) {
 	thresholdProvider.server.Shutdown()
 	nonThresholdProvider.server.Shutdown()
 
-	node.Stop()
+	if err := node.Stop(); err != nil {
+		// node was somehow already stopped?
+		fmt.Println("Undefined behaviour: tendermint node was already stopped")
+	}
 	os.RemoveAll(tmpDir)
 
 	os.Exit(runTests)

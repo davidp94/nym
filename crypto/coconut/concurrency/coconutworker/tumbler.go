@@ -61,14 +61,14 @@ func (cw *CoconutWorker) ConstructTumblerProof(
 
 	bind, err := coconut.CreateBinding(address)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to bind to address: %v", err)
+		return nil, fmt.Errorf("failed to bind to address: %v", err)
 	}
 
 	tmpSlice := []utils.Printable{g1, g2, vk.Alpha(), Aw, Bw, Cw, bind}
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses

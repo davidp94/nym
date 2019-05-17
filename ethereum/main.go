@@ -56,11 +56,14 @@ func main() {
 		panic(err)
 	}
 
-	cfg := client.NewConfig(privateKey, []string{"https://ropsten.infura.io/v3/5607a6494adb4ad4be814ec20f46ec5b"}, nymContract, holdingContract, log)
+	cfg := client.NewConfig(privateKey,
+		[]string{"https://ropsten.infura.io/v3/5607a6494adb4ad4be814ec20f46ec5b"}, nymContract, holdingContract, log)
 	c, err := client.New(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	c.SendToHolding(context.TODO(), 1)
+	if err := c.SendToHolding(context.TODO(), 1); err != nil {
+		panic(err)
+	}
 }

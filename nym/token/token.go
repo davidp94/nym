@@ -18,7 +18,7 @@
 package token
 
 import (
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -29,6 +29,7 @@ import (
 // f, _ := t.FieldByName("f")
 // f.Tag
 
+//nolint: gochecknoglobals
 var (
 	allowedValues = []int{1, 2, 5, 10, 20, 50, 100}
 )

@@ -38,7 +38,7 @@ const (
 	backoffDuration = time.Second * 10
 )
 
-// Processor defines struct containing all data required to sign requests comitted on the blockchain.
+// Processor defines struct containing all data required to sign requests committed on the blockchain.
 type Processor struct {
 	worker.Worker
 	monitor    *monitor.Monitor
@@ -81,7 +81,7 @@ func (p *Processor) worker() {
 		nextBlock.Lock()
 
 		for i, tx := range nextBlock.Txs {
-			if tx.Code != code.OK || len(tx.Tags) <= 0 ||
+			if tx.Code != code.OK || len(tx.Tags) == 0 ||
 				!bytes.HasPrefix(tx.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {
 				p.log.Infof("Tx %v at height %v is not sign request", i, height)
 				continue
@@ -132,7 +132,12 @@ func (p *Processor) Halt() {
 	p.Worker.Halt()
 }
 
-func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger, id int, store *storage.Database) (*Processor, error) {
+func New(inCh chan<- *commands.CommandRequest,
+	monitor *monitor.Monitor,
+	l *logger.Logger,
+	id int,
+	store *storage.Database,
+) (*Processor, error) {
 
 	p := &Processor{
 		monitor:    monitor,

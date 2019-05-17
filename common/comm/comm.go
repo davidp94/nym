@@ -29,7 +29,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"
@@ -52,7 +52,7 @@ type ServerResponse struct {
 // ServerRequest represents raw data sent to a particular server
 // as well as the associated metadata when the request is sent on a TCP socket.
 type ServerRequest struct {
-	MarshaledData  []byte // it's just a marshaled packet, but is kept generic in case the implementation changes
+	MarshaledData  []byte // it's just a marshalled packet, but is kept generic in case the implementation changes
 	ServerMetadata *ServerMetadata
 }
 
@@ -174,8 +174,10 @@ func WaitForServerResponses(rCh <-chan *ServerResponse, responses []*ServerRespo
 
 // ParseVerificationKeyResponses takes a slice containing ServerResponses with marshalled verification keys and
 // processes it accordingly to threshold system parameter.
-// nolint: lll
-func ParseVerificationKeyResponses(responses []*ServerResponse, isThreshold bool, log *logging.Logger) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
+func ParseVerificationKeyResponses(responses []*ServerResponse,
+	isThreshold bool,
+	log *logging.Logger,
+) ([]*coconut.VerificationKey, *coconut.PolynomialPoints) {
 	vks := make([]*coconut.VerificationKey, 0, len(responses))
 	xs := make([]*Curve.BIG, 0, len(responses))
 
@@ -241,16 +243,20 @@ func ValidateIDs(log *logging.Logger, pp *coconut.PolynomialPoints, isThreshold 
 			}
 			seenIds[s] = true
 		}
-	} else {
+	} else if isThreshold {
 		// we assume all sigs are 'valid', but system cannot be threshold
-		if isThreshold {
-			return nil, LogAndReturnError(log, "ValidateIDs: This is a threshold system, yet received no server IDs!")
-		}
+		return nil, LogAndReturnError(log, "ValidateIDs: This is a threshold system, yet received no server IDs!")
 	}
 	return entriesToRemove, nil
 }
 
-func HandleVks(log *logging.Logger, vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, threshold int) ([]*coconut.VerificationKey, *coconut.PolynomialPoints, error) {
+// FIXME:
+//nolint: gocyclo
+func HandleVks(log *logging.Logger,
+	vks []*coconut.VerificationKey,
+	pp *coconut.PolynomialPoints,
+	threshold int,
+) ([]*coconut.VerificationKey, *coconut.PolynomialPoints, error) {
 	if vks == nil {
 		return nil, nil, LogAndReturnError(log, "ParseVks: No verification keys provided")
 	}
@@ -322,8 +328,13 @@ func makeProtoStatus(code commands.StatusCode, message string) *commands.Status 
 }
 
 // ResolveServerRequest awaits for a response from a cryptoworker and acts on it appropriately adding relevant metadata.
-// nolint: lll, gocyclo
-func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, log *logging.Logger, requestTimeout int, provReady bool) proto.Message {
+// nolint: gocyclo
+func ResolveServerRequest(cmd commands.Command,
+	resCh chan *commands.Response,
+	log *logging.Logger,
+	requestTimeout int,
+	provReady bool,
+) proto.Message {
 	timeout := time.After(time.Duration(requestTimeout) * time.Millisecond)
 
 	var data interface{}
@@ -416,6 +427,7 @@ func ResolveServerRequest(cmd commands.Command, resCh chan *commands.Response, l
 				Status: makeProtoStatus(commands.StatusCode_UNAVAILABLE, "The provider has not finished startup yet"),
 			}
 			log.Notice("Blind Verification request to the server, while it has not finished startup (or data was nil)")
+			// FIXME:
 			// log.Critical("HAPPENED DURING CLIENT TESTS - nil data, NEED TO FIX WHEN CREATING SERVER TESTS!! (data is nil)")
 		}
 	case *commands.GetCredentialRequest:

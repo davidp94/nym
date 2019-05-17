@@ -17,8 +17,6 @@
 // Package constants declares system-wide constants.
 package constants
 
-const ()
-
 // nolint: gochecknoglobals
 var (
 	// SpentZetaPrefix represents prefix for each zeta in the database to indicate it has been spent.

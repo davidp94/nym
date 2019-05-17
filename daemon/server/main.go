@@ -1,5 +1,6 @@
 // modified version of katzenpost daemon
 
+//nolint: dupl
 package main
 
 import (

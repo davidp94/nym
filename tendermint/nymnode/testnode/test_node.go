@@ -18,8 +18,6 @@
 // all the files are initialised in a tmp directory so that all is removed upon completion.
 package testnode
 
-// package main
-
 import (
 	"encoding/json"
 	"fmt"
@@ -47,8 +45,12 @@ const (
 // but without checks for file existence because we know those files do NOT exist
 // TODO: for more complex tests allow creating cluster
 func initializeHome(config *tmConfig.Config) error {
-	cmn.EnsureDir(filepath.Join(config.RootDir, "config"), 0700)
-	cmn.EnsureDir(filepath.Join(config.RootDir, "data"), 0700)
+	if err := cmn.EnsureDir(filepath.Join(config.RootDir, "config"), 0700); err != nil {
+		return err
+	}
+	if err := cmn.EnsureDir(filepath.Join(config.RootDir, "data"), 0700); err != nil {
+		return err
+	}
 
 	// private validator
 	privValKeyFile := config.PrivValidatorKeyFile()
@@ -75,6 +77,7 @@ func initializeHome(config *tmConfig.Config) error {
 		Power:   10,
 	}}
 
+	//nolint: lll
 	// TODO: variable issuers, etc
 	genDoc.AppState = json.RawMessage(`{
 		"accounts": [
@@ -137,11 +140,13 @@ func CreateTestingNymNode(tmpDir string, startPort int) (*tmNode.Node, error) {
 	cfg.RPC.GRPCListenAddress = fmt.Sprintf("tcp://0.0.0.0:%v", startPort+2)
 
 	cfg.Consensus.CreateEmptyBlocks = false
-	initializeHome(cfg)
+	if err := initializeHome(cfg); err != nil {
+		return nil, err
+	}
 
 	nodeKey, err := p2p.LoadOrGenNodeKey(cfg.NodeKeyFile())
 	if err != nil {
-		// should have been generated when home was initialized
+		// should have been generated when home was initialised
 		return nil, err
 	}
 

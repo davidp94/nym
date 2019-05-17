@@ -37,12 +37,12 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// Client defines neccessary attributes for establishing communication with an Ethereum blockchain
+// Client defines necessary attributes for establishing communication with an Ethereum blockchain
 // and for performing functions required by the Nym system.
 type Client struct {
 	address          common.Address
 	privateKey       *ecdsa.PrivateKey
-	chainId          *big.Int
+	chainID          *big.Int
 	erc20NymContract common.Address
 	holdingAccount   common.Address
 	ethClient        *ethclient.Client
@@ -57,6 +57,8 @@ const (
 	predefinedGasLimit = 50000
 )
 
+// temp
+//nolint: gochecknoglobals
 var (
 	holding  = common.HexToAddress("0xd6A548f60FB6F98fB29e6226DE1405c20DbbCF52")
 	contract = common.HexToAddress("0xE80025228D5448A55B995c829B89567ECE5203d3")
@@ -66,6 +68,8 @@ var (
 func getTokenDenomination() *big.Int {
 	// return big.NewInt(int64(10) * *18)
 	t := new(big.Int)
+	// look at: https://github.com/securego/gosec/issues/283
+	//nolint: gosec
 	t.Exp(big.NewInt(10), big.NewInt(decimals), nil)
 	return t
 }
@@ -96,7 +100,9 @@ func (c *Client) SendToHolding(ctx context.Context, val int64) error {
 
 	transferFnSignature := []byte("transfer(address,uint256)")
 	hash := sha3.NewLegacyKeccak256()
-	hash.Write(transferFnSignature)
+	if _, herr := hash.Write(transferFnSignature); herr != nil {
+		return c.logAndReturnError("SendToHolding: Failed to obtain transaction hash: %v", herr)
+	}
 	methodID := hash.Sum(nil)[:4]
 	// TODO: it appears the method id is constant since all ERC20 tokens need to use the same one
 	// so can we just hardcode it?
@@ -128,7 +134,7 @@ func (c *Client) SendToHolding(ctx context.Context, val int64) error {
 	gasLimit = predefinedGasLimit
 
 	tx := types.NewTransaction(nonce, contract, value, gasLimit, gasPrice, data)
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(c.chainId), c.privateKey)
+	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(c.chainID), c.privateKey)
 	if err != nil {
 		return c.logAndReturnError("SendToHolding: Failed to sign transaction: %v", err)
 	}
@@ -152,7 +158,7 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 
 	c.ethClient = client
 
-	if c.chainId == nil {
+	if c.chainID == nil {
 		id, err := client.NetworkID(ctx)
 		if err != nil {
 			errMsg := fmt.Sprintf("Failed to obtain networkID: %s", err)
@@ -160,7 +166,7 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 			return errors.New(errMsg)
 		}
 		c.log.Debugf("Obtained network id: %v", id)
-		c.chainId = id
+		c.chainID = id
 	}
 	return nil
 }

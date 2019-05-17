@@ -18,23 +18,18 @@
 package schemetest
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
 	"testing"
-	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 func setupWrapper(cw *coconutworker.CoconutWorker, q int) (coconut.SchemeParams, error) {
 	if cw == nil {
@@ -88,7 +83,6 @@ func randomizeWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemePara
 func aggregateSignaturesWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, sigs []*coconut.Signature, pp *coconut.PolynomialPoints) *coconut.Signature {
 	if cw == nil {
 		return coconut.AggregateSignatures(params.(*coconut.Params), sigs, pp)
-
 	}
 	return cw.AggregateSignatures(params.(*coconutworker.MuxParams), sigs, pp)
 }
@@ -151,7 +145,11 @@ func blindVerifyWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemePa
 }
 
 func randomInt(seen []int, max int) int {
-	candidate := 1 + rand.Intn(max)
+	num, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		panic(err)
+	}
+	candidate := 1 + int(num.Int64())
 	for _, b := range seen {
 		if b == candidate {
 			return randomInt(seen, max)
@@ -173,8 +171,11 @@ func RandomInts(q int, max int) []int {
 }
 
 // TestKeygenProperties checks basic properties of the Coconut keys, such as whether X = g2^x.
-// nolint: lll
-func TestKeygenProperties(t *testing.T, params coconut.SchemeParams, sk *coconut.SecretKey, vk *coconut.VerificationKey) {
+func TestKeygenProperties(t *testing.T,
+	params coconut.SchemeParams,
+	sk *coconut.SecretKey,
+	vk *coconut.VerificationKey,
+) {
 	g2p := params.G2()
 
 	assert.True(t, g2p.Equals(vk.G2()))
@@ -256,8 +257,13 @@ func interpolateRandomSubsetOfKeys(p *Curve.BIG, k int, n int, keys interface{})
 
 // TestTTPKeygenProperties checks whether any 2 subsets of keys when multiplied by appropriate lagrange basis
 // converge to the same values
-// nolint: lll
-func TestTTPKeygenProperties(t *testing.T, params coconut.SchemeParams, sks []*coconut.SecretKey, vks []*coconut.VerificationKey, k int, n int) {
+func TestTTPKeygenProperties(t *testing.T,
+	params coconut.SchemeParams,
+	sks []*coconut.SecretKey,
+	vks []*coconut.VerificationKey,
+	k int,
+	n int,
+) {
 	p := params.P()
 
 	polysSk1 := interpolateRandomSubsetOfKeys(p, k, n, sks)
@@ -373,7 +379,7 @@ func TestVerify(t *testing.T, cw *coconutworker.CoconutWorker) {
 	}
 }
 
-// TestRandomize checks if randomizing a signature still produces a valid coconut signature.
+// TestRandomize checks if randomising a signature still produces a valid coconut signature.
 func TestRandomize(t *testing.T, cw *coconutworker.CoconutWorker) {
 	tests := []struct {
 		attrs []string
@@ -509,6 +515,7 @@ func TestAggregateVerification(t *testing.T, cw *coconutworker.CoconutWorker) {
 			sks = make([]*coconut.SecretKey, test.authorities)
 			vks = make([]*coconut.VerificationKey, test.authorities)
 			for i := 0; i < test.authorities; i++ {
+				// nolint: govet
 				sk, vk, err := keygenWrapper(cw, params)
 				assert.Nil(t, err)
 				sks[i] = sk
@@ -528,9 +535,8 @@ func TestAggregateVerification(t *testing.T, cw *coconutworker.CoconutWorker) {
 
 		signatures := make([]*coconut.Signature, test.authorities)
 		for i := 0; i < test.authorities; i++ {
-
+			// nolint: govet
 			sig, err := signWrapper(cw, params, sks[i], attrsBig)
-
 			signatures[i] = sig
 			assert.Nil(t, err)
 		}
@@ -543,6 +549,7 @@ func TestAggregateVerification(t *testing.T, cw *coconutworker.CoconutWorker) {
 			msks := make([]*coconut.SecretKey, test.maliciousAuth)
 			mvks := make([]*coconut.VerificationKey, test.maliciousAuth)
 			for i := 0; i < test.maliciousAuth; i++ {
+				// nolint: govet
 				sk, vk, err := keygenWrapper(cw, params)
 				assert.Nil(t, err)
 				msks[i] = sk

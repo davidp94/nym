@@ -33,11 +33,11 @@ import (
 var (
 	// ErrConstructSignerCiphertexts indicates that invalid ciphertexts were provided for construction of
 	// proofs for corectness of ciphertexts and cm.
-	ErrConstructSignerCiphertexts = errors.New("Invalid ciphertexts provided")
+	ErrConstructSignerCiphertexts = errors.New("invalid ciphertexts provided")
 
 	// ErrConstructSignerAttrs indicates that invalid attributes (either attributes to sign or params generated at setup)
 	// were provided for construction of proofs for corectness of ciphertexts and cm.
-	ErrConstructSignerAttrs = errors.New("More than specified number of attributes provided")
+	ErrConstructSignerAttrs = errors.New("more than specified number of attributes provided")
 )
 
 // ConstructChallenge construct a BIG num challenge by hashing a number of Eliptic Curve points
@@ -71,13 +71,20 @@ func CreateWitnessResponses(p *Curve.BIG, ws []*Curve.BIG, c *Curve.BIG, xs []*C
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L16
-// nolint: interfacer, lll, gocyclo
-func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*SignerProof, error) {
+func ConstructSignerProof(params *Params,
+	gamma *Curve.ECP,
+	encs []*elgamal.Encryption,
+	cm *Curve.ECP,
+	k []*Curve.BIG,
+	r *Curve.BIG,
+	pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+) (*SignerProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
 	attributes := append(privM, pubM...)
 	// if there are no encryptions it means there are no private attributes and hence blind signature should not be used
-	if len(encs) <= 0 {
+	if len(encs) == 0 {
 		return nil, ErrConstructSignerCiphertexts
 	}
 	if len(encs) != len(k) || len(encs) != len(privM) {
@@ -128,7 +135,7 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 
 	c, err := ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses
@@ -147,7 +154,6 @@ func ConstructSignerProof(params *Params, gamma *Curve.ECP, encs []*elgamal.Encr
 // VerifySignerProof verifies non-interactive zero-knowledge proofs in order to check corectness of ciphertexts and cm.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L41
-// nolint: lll
 func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool {
 	g1, g2, hs := params.g1, params.g2, params.hs
 	cm, encs, proof := signMats.cm, signMats.enc, signMats.proof
@@ -201,7 +207,12 @@ func VerifySignerProof(params *Params, gamma *Curve.ECP, signMats *Lambda) bool 
 	return Curve.Comp(proof.c, c) == 0
 }
 
-func constructKappaNuCommitments(vk *VerificationKey, h *Curve.ECP, wt *Curve.BIG, wm, privM []*Curve.BIG) (*Curve.ECP2, *Curve.ECP) {
+func constructKappaNuCommitments(vk *VerificationKey,
+	h *Curve.ECP,
+	wt *Curve.BIG,
+	wm,
+	privM []*Curve.BIG,
+) (*Curve.ECP2, *Curve.ECP) {
 	g2 := vk.g2
 	Aw := Curve.G2mul(g2, wt) // Aw = (wt * g2)
 	Aw.Add(vk.alpha)          // Aw = (wt * g2) + alpha
@@ -213,7 +224,11 @@ func constructKappaNuCommitments(vk *VerificationKey, h *Curve.ECP, wt *Curve.BI
 	return Aw, Bw
 }
 
-func reconstructKappaNuCommitments(params *Params, vk *VerificationKey, sig *Signature, theta *Theta) (*Curve.ECP2, *Curve.ECP) {
+func reconstructKappaNuCommitments(params *Params,
+	vk *VerificationKey,
+	sig *Signature,
+	theta *Theta,
+) (*Curve.ECP2, *Curve.ECP) {
 	p := params.p
 
 	Aw := Curve.G2mul(theta.kappa, theta.proof.c) // Aw = (c * kappa)
@@ -238,8 +253,12 @@ func reconstructKappaNuCommitments(params *Params, vk *VerificationKey, sig *Sig
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
 // It's based on the original Python implementation:
 // https://github.com/asonnino/coconut/blob/master/coconut/proofs.py#L57
-// nolint: lll
-func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*VerifierProof, error) {
+func ConstructVerifierProof(params *Params,
+	vk *VerificationKey,
+	sig *Signature,
+	privM []*Curve.BIG,
+	t *Curve.BIG,
+) (*VerifierProof, error) {
 	p, g1, g2, hs := params.p, params.g1, params.g2, params.hs
 
 	// witnesses creation
@@ -254,7 +273,7 @@ func ConstructVerifierProof(params *Params, vk *VerificationKey, sig *Signature,
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.beta))
 	c, err := ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses

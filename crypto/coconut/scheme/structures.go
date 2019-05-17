@@ -79,7 +79,7 @@ func (vk *VerificationKey) Validate() bool {
 	if vk == nil || vk.g2 == nil || vk.alpha == nil || vk.beta == nil {
 		return false
 	}
-	if len(vk.beta) <= 0 {
+	if len(vk.beta) == 0 {
 		return false
 	}
 	for i := range vk.beta {

@@ -24,7 +24,7 @@ import (
 	"fmt"
 	"math/rand"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -56,10 +56,10 @@ func randomInt(seen map[int]struct{}, max int, rand *rand.Rand) int {
 // It initialises everything with the provided source to remove all possible sources of non-determinism
 func randomInts(q int, max int, source rand.Source) ([]int, error) {
 	if q >= max || q <= 0 {
-		return nil, errors.New("Can't generate enough random numbers")
+		return nil, errors.New("can't generate enough random numbers")
 	}
 	if source == nil {
-		return nil, errors.New("Nil rng source provided")
+		return nil, errors.New("nil rng source provided")
 	}
 	rand := rand.New(source)
 
@@ -69,7 +69,7 @@ func randomInts(q int, max int, source rand.Source) ([]int, error) {
 		r := randomInt(seen, max, rand)
 		// theoretically should never be thrown due to initial check
 		if r == -1 {
-			return nil, errors.New("Could not generate enough random numbers")
+			return nil, errors.New("could not generate enough random numbers")
 		}
 		ints[i] = r
 		seen[r] = struct{}{}
@@ -86,10 +86,7 @@ func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	key := prefixKey(tmconst.AccountsPrefix, address)
 
 	_, val := app.state.db.Get(key)
-	if val != nil {
-		return true
-	}
-	return false
+	return val != nil
 }
 
 // getSimpleCoconutParams returns params required to perform coconut operations, however, they do not include
@@ -131,13 +128,13 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, 
 		return retCode, data
 	}
 
-	// nolint: gosec
-	if bytes.Compare(inAddr, tmconst.HoldingAccountAddress) != 0 {
+	// nolint: errcheck
+	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
 		inAddr.Compress()
 	}
 
-	// nolint: gosec
-	if bytes.Compare(outAddr, tmconst.HoldingAccountAddress) != 0 {
+	// nolint: errcheck
+	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
 		outAddr.Compress()
 	}
 

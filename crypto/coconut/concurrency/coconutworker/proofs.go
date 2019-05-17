@@ -22,7 +22,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
@@ -30,13 +30,21 @@ import (
 )
 
 // ConstructSignerProof creates a non-interactive zero-knowledge proof to prove corectness of ciphertexts and cm.
-// nolint: lll, gocyclo
-func (cw *CoconutWorker) ConstructSignerProof(params *MuxParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
+// nolint: gocyclo, lll
+func (cw *CoconutWorker) ConstructSignerProof(params *MuxParams,
+	gamma *Curve.ECP,
+	encs []*elgamal.Encryption,
+	cm *Curve.ECP,
+	k []*Curve.BIG,
+	r *Curve.BIG,
+	pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+) (*coconut.SignerProof, error) {
 	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
 
 	attributes := append(privM, pubM...)
 	// if there are no encryptions it means there are no private attributes and hence blind signature should not be used
-	if len(encs) <= 0 {
+	if len(encs) == 0 {
 		return nil, coconut.ErrConstructSignerCiphertexts
 	}
 	if len(encs) != len(k) || len(encs) != len(privM) {
@@ -113,7 +121,7 @@ func (cw *CoconutWorker) ConstructSignerProof(params *MuxParams, gamma *Curve.EC
 
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses
@@ -206,7 +214,12 @@ func (cw *CoconutWorker) VerifySignerProof(params *MuxParams, gamma *Curve.ECP, 
 	return Curve.Comp(proof.C(), c) == 0
 }
 
-func (cw *CoconutWorker) constructKappaNuCommitments(vk *coconut.VerificationKey, h *Curve.ECP, wt *Curve.BIG, wm, privM []*Curve.BIG) (*Curve.ECP2, *Curve.ECP) {
+func (cw *CoconutWorker) constructKappaNuCommitments(vk *coconut.VerificationKey,
+	h *Curve.ECP,
+	wt *Curve.BIG,
+	wm []*Curve.BIG,
+	privM []*Curve.BIG,
+) (*Curve.ECP2, *Curve.ECP) {
 	Aw := Curve.NewECP2()
 	var Bw *Curve.ECP
 
@@ -232,7 +245,11 @@ func (cw *CoconutWorker) constructKappaNuCommitments(vk *coconut.VerificationKey
 	return Aw, Bw
 }
 
-func (cw *CoconutWorker) reconstructKappaNuCommitments(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) (*Curve.ECP2, *Curve.ECP) {
+func (cw *CoconutWorker) reconstructKappaNuCommitments(params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.Theta,
+) (*Curve.ECP2, *Curve.ECP) {
 	p := params.P()
 
 	Aw := Curve.NewECP2()
@@ -270,8 +287,12 @@ func (cw *CoconutWorker) reconstructKappaNuCommitments(params *MuxParams, vk *co
 }
 
 // ConstructVerifierProof creates a non-interactive zero-knowledge proof in order to prove corectness of kappa and nu.
-// nolint: lll
-func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, privM []*Curve.BIG, t *Curve.BIG) (*coconut.VerifierProof, error) {
+func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	privM []*Curve.BIG,
+	t *Curve.BIG,
+) (*coconut.VerifierProof, error) {
 	p, g1, g2, hs := params.P(), params.G1(), params.G2(), params.Hs()
 
 	// witnesses creation
@@ -286,7 +307,7 @@ func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.V
 	ca := utils.CombinePrintables(tmpSlice, utils.ECPSliceToPrintable(hs), utils.ECP2SliceToPrintable(vk.Beta()))
 	c, err := coconut.ConstructChallenge(ca)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to construct challenge: %v", err)
+		return nil, fmt.Errorf("failed to construct challenge: %v", err)
 	}
 
 	// responses
@@ -297,8 +318,11 @@ func (cw *CoconutWorker) ConstructVerifierProof(params *MuxParams, vk *coconut.V
 }
 
 // VerifyVerifierProof verifies non-interactive zero-knowledge proofs in order to check corectness of kappa and nu.
-// nolint: lll
-func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) bool {
+func (cw *CoconutWorker) VerifyVerifierProof(params *MuxParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.Theta,
+) bool {
 	g1, g2, hs := params.G1(), params.G2(), params.Hs()
 
 	Aw, Bw := cw.reconstructKappaNuCommitments(params, vk, sig, theta)

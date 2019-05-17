@@ -34,7 +34,7 @@ import (
 
 var (
 	// ErrUnmarshalLength represents an error thrown during unmarshal when the byte arrays have unexpected lengths.
-	ErrUnmarshalLength = errors.New("The byte array provided is incomplete")
+	ErrUnmarshalLength = errors.New("the byte array provided is incomplete")
 )
 
 // PublicKey represents an ElGamal public key.
@@ -154,6 +154,7 @@ func (pub *PublicKey) ToPEMFile(f string) error {
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
+// TODO: the dupl issue of sk and vk
 func (pub *PublicKey) FromPEMFile(f string) error {
 	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
 		blk, rest := pem.Decode(buf)
@@ -245,6 +246,7 @@ func (pk *PrivateKey) FromProto(ppk *ProtoPrivateKey) error {
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
+// TODO: the dupl issue of sk and vk
 func (pk *PrivateKey) FromPEMFile(f string) error {
 	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
 		blk, rest := pem.Decode(buf)

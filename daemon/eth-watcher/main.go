@@ -1,5 +1,6 @@
 // modified version of katzenpost daemon
 
+//nolint: dupl
 package main
 
 import (
@@ -15,7 +16,7 @@ import (
 )
 
 func main() {
-	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
+	cfgFile := flag.String("f", "config.toml", "Path to the watcher config file.")
 	flag.Parse()
 
 	syscall.Umask(0077)

@@ -34,6 +34,7 @@ import (
 const tendermintRPCPort = 36657
 
 // TODO: create entire cluster
+//nolint: gochecknoglobals
 var addresses = []string{
 	"localhost:4667",
 	fmt.Sprintf("localhost:%v", tendermintRPCPort),
@@ -80,7 +81,9 @@ func TestMain(m *testing.M) {
 
 	runTests := m.Run()
 
-	node.Stop()
+	if err := node.Stop(); err != nil {
+		fmt.Println("Undefined behaviour - node was somehow already stopped")
+	}
 	os.RemoveAll(tmpDir)
 
 	os.Exit(runTests)

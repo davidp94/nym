@@ -143,7 +143,7 @@ func CreateNewDepositCoconutCredentialRequest(
 	return b, nil
 }
 
-// TransferToHoldingRequestParams encapsulates parameteres required for the CreateNewTransferToHoldingRequest function.
+// TransferToHoldingRequestParams encapsulates parameters required for the CreateNewTransferToHoldingRequest function.
 type TransferToHoldingRequestParams struct {
 	Acc    account.Account
 	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
@@ -160,11 +160,11 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([
 	holdingAddress := tmconst.HoldingAccountAddress
 
 	if params.Amount < 0 {
-		return nil, errors.New("Negative Amount of the credential")
+		return nil, errors.New("negative value of the credential")
 	}
 
 	if len(params.PubM) < 1 || Curve.Comp(params.PubM[0], Curve.NewBIGint(int(params.Amount))) != 0 {
-		return nil, errors.New("Invalid public parameters")
+		return nil, errors.New("invalid public parameters")
 	}
 
 	protoLambda, err := params.Lambda.ToProto()
@@ -192,7 +192,9 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([
 		return nil, err
 	}
 
-	msg := make([]byte, len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb))
+	msg := make([]byte,
+		len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
+	)
 	copy(msg, params.Acc.PublicKey)
 	copy(msg[len(params.Acc.PublicKey):], holdingAddress)
 	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(holdingAddress):], uint32(params.Amount))
@@ -217,7 +219,7 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([
 	return marshalRequest(req, TxTransferToHolding)
 }
 
-// DEPRECATED; but left temporarly for reference sake
+// DEPRECATED; but left temporarily for reference sake
 // // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from client's account
 // // to the holding account.
 // // It is designed to be executed by an issuing authority.

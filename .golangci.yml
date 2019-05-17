@@ -12,31 +12,37 @@ run:
 
 
 linters-settings:
-  errcheck:
-    # report about not checking of errors in type assetions: `a := b.(MyStruct)`;
-    # default is false: such cases aren't reported by default.
-    check-type-assertions: true
   govet:
     check-shadowing: true
   golint:
     # minimal confidence for issues, default is 0.8
     min-confidence: 0
-  goimports:
-    local-prefixes: 0xacab.org/jstuczyn/CoconutGo
   gocyclo:
-    min-complexity: 15
+    min-complexity: 20
   maligned:
     suggest-new: true
   dupl:
     threshold: 100
   goconst:
-    min-len: 2
-    min-occurrences: 2
+    min-len: 3
+    min-occurrences: 3
   depguard:
     list-type: whitelist
     include-go-root: false
     packages:
+      - 0xacab.org/jstuczyn/CoconutGo
+      - github.com/jstuczyn/amcl
       - github.com/tendermint/tendermint
+      - github.com/tendermint/iavl
+      - github.com/ethereum/go-ethereum
+      - github.com/stretchr/testify
+      - google.golang.org/grpc
+      - gopkg.in/op/go-logging.v1
+      - golang.org/x/crypto/sha3
+      - github.com/golang/protobuf
+      - github.com/BurntSushi/toml
+      - github.com/spf13/viper
+      - github.com/syndtr/goleveldb
   misspell:
     locale: UK
     # ignore-words:
@@ -44,9 +50,9 @@ linters-settings:
   lll:
     line-length: 120
   unused:
-    check-exported: true
+    check-exported: false
   unparam:
-    check-exported: true
+    check-exported: false
   nakedret:
     # make an issue if func has more lines of code than this setting and it has naked returns; default is 30
     max-func-lines: 30
@@ -56,6 +62,9 @@ linters-settings:
     simple: true
     range-loops: true # Report preallocation suggestions on range loops, true by default
     for-loops: false # Report preallocation suggestions on for loops, false by default
+  gocritic:
+    disabled-checks:
+      - captLocal
 
 linters:
   enable-all: true

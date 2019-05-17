@@ -1,4 +1,4 @@
-// marshal.go - defines methods for marshaling and unmarshaling coconut structures.
+// marshal.go - defines methods for marshalling and unmarshalling coconut structures.
 // Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -214,7 +214,7 @@ func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
 // unmarshals its attributes.
 func (vk *VerificationKey) FromProto(pvk *ProtoVerificationKey) error {
 	ec2len := constants.ECP2Len
-	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) <= 0 {
+	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) == 0 {
 		return errors.New("invalid proto verification key")
 	}
 	g2 := Curve.ECP2_fromBytes(pvk.G2)

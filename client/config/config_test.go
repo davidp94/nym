@@ -47,6 +47,7 @@ func TestEmpty(t *testing.T) {
 	assert.Error(t, err)
 }
 
+//nolint: dupl
 func TestGRPCIDs(t *testing.T) {
 	cfgStr := `[Client]
 	UseGRPC = true
@@ -117,6 +118,7 @@ func TestGRPCIDs(t *testing.T) {
 	}
 }
 
+//nolint: dupl
 func TestTCPIDs(t *testing.T) {
 	cfgStr := `[Client]
 	UseGRPC = false

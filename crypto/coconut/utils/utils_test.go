@@ -16,23 +16,17 @@
 package utils
 
 import (
+	"crypto/rand"
 	"encoding/hex"
-	"math/rand"
+	"math/big"
 	"testing"
-	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-
-	"github.com/stretchr/testify/assert"
-
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
+	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
 
 // nolint: lll
 func TestPolyEval(t *testing.T) {
@@ -150,12 +144,18 @@ func TestToCoconutString(t *testing.T) {
 	assert.Empty(t, ToCoconutString(f))
 }
 
+//nolint: lll
 func randomString(n int) string {
 	var letter = []rune(" !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~")
 
 	b := make([]rune, n)
 	for i := range b {
-		b[i] = letter[rand.Intn(len(letter))]
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(letter))))
+		if err != nil {
+			panic(err)
+		}
+		index := int(num.Int64())
+		b[i] = letter[index]
 	}
 	return string(b)
 }
@@ -171,6 +171,7 @@ func TestHashToBIG(t *testing.T) {
 			r1, err1 := HashStringToBig(sha, m)
 			r2, err2 := HashBytesToBig(sha, []byte(m))
 			hash, _ := HashBytes(sha, []byte(m))
+			// TODO: FIXME: try to change the ifelse-chain into a switch
 			if sha != amcl.SHA256 && sha != amcl.SHA384 && sha != amcl.SHA512 {
 				assert.Nil(t, r1)
 				assert.Nil(t, r2)
@@ -214,6 +215,7 @@ func TestHashToG1(t *testing.T) {
 			r1, err1 := HashStringToG1(sha, m)
 			r2, err2 := HashBytesToG1(sha, []byte(m))
 			hash, _ := HashBytes(sha, []byte(m))
+			// TODO: FIXME: try to change the ifelse-chain into a switch
 			if sha != amcl.SHA256 && sha != amcl.SHA384 && sha != amcl.SHA512 {
 				assert.Nil(t, r1)
 				assert.Nil(t, r2)
