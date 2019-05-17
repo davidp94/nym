@@ -1,5 +1,5 @@
 // client.go - Ethereum client
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -26,14 +26,14 @@ import (
 	"fmt"
 	"math/big"
 
+	"0xacab.org/jstuczyn/CoconutGo/ethereum/erc20/constants"
+
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"golang.org/x/crypto/sha3"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -53,19 +53,12 @@ type Client struct {
 
 const (
 	// Nym specific
-	decimals           = 18
+	defaultDecimals    = 18 // TODO: move this one to erc20.constants?
 	predefinedGasLimit = 50000
 )
 
-// temp
-//nolint: gochecknoglobals
-var (
-	holding  = common.HexToAddress("0xd6A548f60FB6F98fB29e6226DE1405c20DbbCF52")
-	contract = common.HexToAddress("0xE80025228D5448A55B995c829B89567ECE5203d3")
-)
-
 // TODO: move to separate token-related package
-func getTokenDenomination() *big.Int {
+func getTokenDenomination(decimals int64) *big.Int {
 	// return big.NewInt(int64(10) * *18)
 	t := new(big.Int)
 	// look at: https://github.com/securego/gosec/issues/283
@@ -84,37 +77,40 @@ func (c *Client) logAndReturnError(fmtString string, a ...interface{}) error {
 	return errors.New(errstr)
 }
 
-// SendToHolding sends specified amount of tokens to the holding account.
-func (c *Client) SendToHolding(ctx context.Context, val int64) error {
+// TransferERC20Tokens sends specified amount of ERC20 tokens to given account.
+func (c *Client) TransferERC20Tokens(ctx context.Context,
+	amount int64,
+	tokenContract common.Address,
+	targetAddress common.Address,
+	tokenDecimals ...int,
+) error {
 	fromAddress := c.address
 	nonce, err := c.ethClient.PendingNonceAt(ctx, fromAddress)
 	if err != nil {
-		return c.logAndReturnError("SendToHolding: Failed to obtain nonce: %v", err)
+		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain nonce: %v", err)
 	}
 
-	value := big.NewInt(0)
 	gasPrice, err := c.ethClient.SuggestGasPrice(ctx)
 	if err != nil {
-		return c.logAndReturnError("SendToHolding: Failed to obtain gas price: %v", err)
+		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain gas price: %v", err)
 	}
 
-	transferFnSignature := []byte("transfer(address,uint256)")
-	hash := sha3.NewLegacyKeccak256()
-	if _, herr := hash.Write(transferFnSignature); herr != nil {
-		return c.logAndReturnError("SendToHolding: Failed to obtain transaction hash: %v", herr)
-	}
-	methodID := hash.Sum(nil)[:4]
-	// TODO: it appears the method id is constant since all ERC20 tokens need to use the same one
-	// so can we just hardcode it?
-	c.log.Debugf("Transfer methodID: %v", hexutil.Encode(methodID)) // 0xa9059cbb
+	methodID := constants.MustMethodIDBytes(constants.TransferMethodID)
 
+	var decimals int64
+	if len(tokenDecimals) != 1 {
+		decimals = defaultDecimals
+		c.log.Infof("Assuming target token is using %v decimals", decimals)
+	} else {
+		decimals = int64(tokenDecimals[0])
+		c.log.Infof("Using %v decimals for the token", decimals)
+	}
 	// padded arguments:
-	paddedAddress := common.LeftPadBytes(c.holdingAccount.Bytes(), 32)
-	c.log.Infof("Assuming Nym is using %v decimals", decimals)
-	amount := new(big.Int)
-	amount.Mul(getTokenDenomination(), big.NewInt(val))
+	paddedAddress := common.LeftPadBytes(targetAddress.Bytes(), 32)
+	tokenAmount := new(big.Int)
+	tokenAmount.Mul(getTokenDenomination(decimals), big.NewInt(amount))
 
-	paddedAmount := common.LeftPadBytes(amount.Bytes(), 32)
+	paddedAmount := common.LeftPadBytes(tokenAmount.Bytes(), 32)
 
 	data := make([]byte, len(methodID)+len(paddedAddress)+len(paddedAmount))
 	copy(data, methodID)
@@ -124,22 +120,22 @@ func (c *Client) SendToHolding(ctx context.Context, val int64) error {
 	// from my limited experience the estimation was always lower than what was actually required, so temporarily
 	// i've just hardcoded some value, but for future we should probably use the estimation to derive our limit
 	gasLimit, err := c.ethClient.EstimateGas(context.Background(), ethereum.CallMsg{
-		To:   &holding,
+		To:   &targetAddress,
 		Data: data,
 	})
 	if err != nil {
-		return c.logAndReturnError("SendToHolding: Failed to obtain gas estimation: %v", err)
+		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain gas estimation: %v", err)
 	}
-	c.log.Debugf("Estimated gasLimit: %v", gasLimit)
+	c.log.Debugf("Estimated gasLimit: %v, using %v instead", gasLimit, predefinedGasLimit)
 	gasLimit = predefinedGasLimit
 
-	tx := types.NewTransaction(nonce, contract, value, gasLimit, gasPrice, data)
+	tx := types.NewTransaction(nonce, tokenContract, big.NewInt(0), gasLimit, gasPrice, data)
 	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(c.chainID), c.privateKey)
 	if err != nil {
-		return c.logAndReturnError("SendToHolding: Failed to sign transaction: %v", err)
+		return c.logAndReturnError("TransferERC20Tokens: Failed to sign transaction: %v", err)
 	}
 	if err := c.ethClient.SendTransaction(ctx, signedTx); err != nil {
-		return c.logAndReturnError("SendToHolding: Failed to send transaction: %v", err)
+		return c.logAndReturnError("TransferERC20Tokens: Failed to send transaction: %v", err)
 	}
 	c.log.Noticef("Sent Transaction with hash: %v", signedTx.Hash().Hex())
 	// TODO: perhaps some wait loop to wait for transaction to be accepted/rejected?
