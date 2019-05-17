@@ -65,7 +65,25 @@ message TransferToHoldingRequest {
     bytes Sig = 7; 
  }
 
- message CredentialRequest {
+message TransferToHoldingNotification {
+    // Derived from public key; used to identify the particular watcher
+    bytes WatcherAddress = 1;
+    // Ethereum address of the client
+    bytes ClientAddress = 2;
+    // While right now it's completely unrequired as there is only a single holding account, it might be useful
+    // to have this information in the future if we decided to monitor multiple chains or have multiple holding accounts
+    // for example on epoch changes.
+    bytes HoldingAddress = 3;
+    // Amount transferred by the client to the holding account.
+    int64 Amount = 4;
+    // Hash of the transaction in which the transfer occured. 
+    // Used to distinguish from multiple transfers the client might have done.
+    bytes TxHash = 5;
+    // Signature on the entire message done with the watcher's key.
+    bytes Sig = 6;
+}
+
+message CredentialRequest {
     // Ethereum address of the client
     bytes ClientAddress = 1;
     // While right now it's completely unrequired as there is only a single holding account, it might be useful
@@ -79,7 +97,7 @@ message TransferToHoldingRequest {
     int32 Value = 4;
     // Signature on entire request with client's ethereum key (so that client's address could be used to verify it)
     bytes Sig = 5;
- }
+}
 
 // Old proto definition for when IAs initiated the transfer
 // message TransferToHoldingRequest {

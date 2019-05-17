@@ -18,6 +18,8 @@
 // It uses a very similar structure to Tendermint Node IDs
 package account
 
+// TODO: replace all keys, signatures, etc. with crypto/ecdsa
+
 import (
 	"encoding/json"
 	"errors"

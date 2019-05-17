@@ -9,6 +9,8 @@ import (
 	fmt "fmt"
 	proto "github.com/golang/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -106,6 +108,20 @@ type IssuerServer interface {
 	GetVerificationKey(context.Context, *commands.VerificationKeyRequest) (*commands.VerificationKeyResponse, error)
 	SignAttributes(context.Context, *commands.SignRequest) (*commands.SignResponse, error)
 	BlindSignAttributes(context.Context, *commands.BlindSignRequest) (*commands.BlindSignResponse, error)
+}
+
+// UnimplementedIssuerServer can be embedded to have forward compatible implementations.
+type UnimplementedIssuerServer struct {
+}
+
+func (*UnimplementedIssuerServer) GetVerificationKey(ctx context.Context, req *commands.VerificationKeyRequest) (*commands.VerificationKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetVerificationKey not implemented")
+}
+func (*UnimplementedIssuerServer) SignAttributes(ctx context.Context, req *commands.SignRequest) (*commands.SignResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignAttributes not implemented")
+}
+func (*UnimplementedIssuerServer) BlindSignAttributes(ctx context.Context, req *commands.BlindSignRequest) (*commands.BlindSignResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlindSignAttributes not implemented")
 }
 
 func RegisterIssuerServer(s *grpc.Server, srv IssuerServer) {
@@ -225,6 +241,17 @@ func (c *providerClient) BlindVerifyCredentials(ctx context.Context, in *command
 type ProviderServer interface {
 	VerifyCredentials(context.Context, *commands.VerifyRequest) (*commands.VerifyResponse, error)
 	BlindVerifyCredentials(context.Context, *commands.BlindVerifyRequest) (*commands.BlindVerifyResponse, error)
+}
+
+// UnimplementedProviderServer can be embedded to have forward compatible implementations.
+type UnimplementedProviderServer struct {
+}
+
+func (*UnimplementedProviderServer) VerifyCredentials(ctx context.Context, req *commands.VerifyRequest) (*commands.VerifyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method VerifyCredentials not implemented")
+}
+func (*UnimplementedProviderServer) BlindVerifyCredentials(ctx context.Context, req *commands.BlindVerifyRequest) (*commands.BlindVerifyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method BlindVerifyCredentials not implemented")
 }
 
 func RegisterProviderServer(s *grpc.Server, srv ProviderServer) {

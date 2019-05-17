@@ -18,14 +18,17 @@
 package transaction
 
 import (
+	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
+	fmt "fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -41,6 +44,9 @@ const (
 	TxTransferToHolding byte = 0x04
 	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
+	// TxTransferToHoldingNotification is byte prefix for transaction notifying tendermint nodes about
+	// transfer to holding account that happened on ethereum chain
+	TxTransferToHoldingNotification byte = 0xa1
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
@@ -152,11 +158,13 @@ type TransferToHoldingRequestParams struct {
 	PubM   []*Curve.BIG
 }
 
+// DEPRECATED
 // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
 // to the holding account. It also writes the required cryptographic material for the blind sign onto the chain,
 // so that the IAs monitoring it could issue the partial credentials.
 // The function is designed to be executed by the user.
 func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([]byte, error) {
+	fmt.Println("DEPRECATED")
 	holdingAddress := tmconst.HoldingAccountAddress
 
 	if params.Amount < 0 {
@@ -217,6 +225,12 @@ func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([
 	}
 
 	return marshalRequest(req, TxTransferToHolding)
+}
+
+func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey, tx *ethtypes.Transaction) ([]byte, error) {
+
+	req := &TransferToHoldingNotification{}
+	return marshalRequest(req, TxTransferToHoldingNotification)
 }
 
 // DEPRECATED; but left temporarily for reference sake
