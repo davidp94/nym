@@ -27,7 +27,6 @@ import (
 	"math/rand"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
@@ -49,36 +48,12 @@ const (
 	createAccountOnDepositIfDoesntExist = true
 	holdingStartingBalance              = 100000 // entirely for debug purposes
 
+	// ProtocolVersion defines version of the protocol used.
 	ProtocolVersion version.Protocol = 0x1
 )
 
 // nolint: gochecknoglobals
-var (
-
-// TODO: will need to store all vks
-
-// ProtocolVersion defines version of the protocol used.
-)
-
-// todo: validator updates etc
-
 var _ types.Application = (*NymApplication)(nil)
-
-// GenesisAppState defines the json structure of the the AppState in the Genesis block. This allows parsing it
-// and applying appropriate changes to the state upon InitChain.
-// Currently it includes list of genesis accounts and Coconut properties required for credential validation.
-type GenesisAppState struct {
-	Accounts          []account.GenesisAccount `json:"accounts"`
-	CoconutProperties struct {
-		MaxAttrs           int `json:"q"`
-		Threshold          int `json:"threshold"`
-		IssuingAuthorities []struct {
-			ID        uint32 `json:"id"`
-			Vk        []byte `json:"vk"`
-			PublicKey []byte `json:"pub_key"`
-		} `json:"issuingAuthorities"`
-	} `json:"coconutProperties"`
-}
 
 // State defines ABCI app state. Currently it is a iavl tree. Reason for the choice: it was recurring case in example.
 // It provides height (changes after each save -> perfect for blockchain) + fast hash which is also needed.
@@ -336,7 +311,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.log.Info(fmt.Sprintf("Created holdingAccount: %v with starting balance: %v", b64name, holdingStartingBalance))
 
 	// import vk of IAs
-	numIAs := len(genesisState.CoconutProperties.IssuingAuthorities)
+	numIAs := len(genesisState.Issuers)
 	threshold := genesisState.CoconutProperties.Threshold
 	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
 	if threshold > numIAs {
@@ -347,6 +322,9 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	// choose pseudorandomly set of keys to use. Each node will produce same result due to constant seed
 	// Note: the Time used is that of creation of genesis block, NOT CURRENT TIME AT THE TIME OF CALLING THIS FUNCTION
+	//
+	// But to be fair even if different subsets were chosen,
+	// they should produce the same results since those are threshold keys
 	randSource := rand.NewSource(req.Time.UnixNano())
 	indices, err := randomInts(threshold, numIAs, randSource)
 	if err != nil {
@@ -360,17 +338,17 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	for _, i := range indices {
 		vk := &coconut.VerificationKey{}
-		if uerr := vk.UnmarshalBinary(genesisState.CoconutProperties.IssuingAuthorities[i].Vk); uerr != nil {
+		if uerr := vk.UnmarshalBinary(genesisState.Issuers[i].VerificationKey); uerr != nil {
 			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", uerr))
 			panic("Failed startup") // Todo: choose new subset
 		}
 
 		vks = append(vks, vk)
-		xs = append(xs, Curve.NewBIGint(int(genesisState.CoconutProperties.IssuingAuthorities[i].ID)))
+		xs = append(xs, Curve.NewBIGint(int(genesisState.Issuers[i].ID)))
 	}
 
 	// generate coconut params required for credential verification later on
-	params, err := coconut.Setup(genesisState.CoconutProperties.MaxAttrs)
+	params, err := coconut.Setup(genesisState.CoconutProperties.MaximumAttributes)
 	if err != nil {
 		// there's no alternative but panic now
 		panic(err)
@@ -399,7 +377,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
 	// finally save pubkeys of ias (used to verify requests for transferring to holding account)
-	for _, ia := range genesisState.CoconutProperties.IssuingAuthorities {
+	for _, ia := range genesisState.Issuers {
 		idb := make([]byte, 4)
 		binary.BigEndian.PutUint32(idb, ia.ID)
 
