@@ -1,5 +1,12 @@
 # CoconutGo Changelog
 
+## 0.6.5
+
+* Introduced constants file with method signatures for ERC20 token functions
+* Generalised Ethereum's client transfer function so rather than being hardcoded to transferring to the holding account using Nym contract, both of those attributes can be specified
+* Introduced ECDSA keypair to Ethereum watcher
+* Protobuf definitions for notifications watcher sends to Tendermint chain
+
 ## 0.6.4
 
 * A lot of linter-related fixes
