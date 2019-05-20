@@ -17,6 +17,8 @@
 // Package constants declares system-wide constants.
 package constants
 
+// TODO: requires major cleanup and removing unused entries
+
 // nolint: gochecknoglobals
 var (
 	// SpentZetaPrefix represents prefix for each zeta in the database to indicate it has been spent.
@@ -31,6 +33,9 @@ var (
 
 	// IaKeyPrefix represents the prefix for particular issuing authority to store their keys.
 	IaKeyPrefix = []byte("IssuingAuthority")
+
+	// EthereumWatcherKeyPrefix represents the prefix for storing public keys of trusted watchers.
+	EthereumWatcherKeyPrefix = []byte("EthereumWatcher")
 
 	// CommitmentsPrefix (TO BE REMOVED) represents prefix for each commitment in the database to indicate
 	// it was already sent and hence funds were moved

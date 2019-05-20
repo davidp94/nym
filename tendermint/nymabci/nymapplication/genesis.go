@@ -17,7 +17,6 @@
 package nymapplication
 
 import (
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account" // TODO: will need replacing
 	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
@@ -54,10 +53,10 @@ type GenesisAccount struct {
 // and applying appropriate changes to the state upon InitChain.
 // Currently it includes list of genesis accounts and Coconut properties required for credential validation.
 type GenesisAppState struct {
-	Accounts          []account.GenesisAccount `json:"accounts"`
-	CoconutProperties CoconutProperties        `json:"coconutProperties"`
-	Issuers           []Issuer                 `json:"issuingAuthorities"`
-	EthereumWatchers  []Watcher                `json:"ethereumWatchers"`
+	Accounts          []GenesisAccount  `json:"accounts"`
+	CoconutProperties CoconutProperties `json:"coconutProperties"`
+	Issuers           []Issuer          `json:"issuingAuthorities"`
+	EthereumWatchers  []Watcher         `json:"ethereumWatchers"`
 
 	// CoconutProperties struct {
 	// 	MaxAttrs           int `json:"q"`

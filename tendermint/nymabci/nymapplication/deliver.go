@@ -16,276 +16,259 @@
 
 package nymapplication
 
-import (
-	"bytes"
-	"encoding/binary"
-
-	"0xacab.org/jstuczyn/CoconutGo/constants"
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-	proto "github.com/golang/protobuf/proto"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
-	"github.com/tendermint/tendermint/abci/types"
-	cmn "github.com/tendermint/tendermint/libs/common"
-)
-
 const (
 	startingBalance uint64 = 0 // this is for purely debug purposes. It will always be 0
 )
 
-// tx prefix was already removed
-func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
-	req := &transaction.NewAccountRequest{}
+// // tx prefix was already removed
+// func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
+// 	req := &transaction.NewAccountRequest{}
 
-	if err := proto.Unmarshal(reqb, req); err != nil {
-		app.log.Info("Failed to unmarshal request")
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	if err := proto.Unmarshal(reqb, req); err != nil {
+// 		app.log.Info("Failed to unmarshal request")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	var publicKey account.ECPublicKey = req.PublicKey
+// 	var publicKey account.ECPublicKey = req.PublicKey
 
-	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
-		len(req.Sig) != account.SignatureSize {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
+// 		len(req.Sig) != account.SignatureSize {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	if !app.verifyCredential(req.Credential) {
-		app.log.Info("Failed to verify IP credential")
-		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-	}
+// 	if !app.verifyCredential(req.Credential) {
+// 		app.log.Info("Failed to verify IP credential")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
+// 	}
 
-	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
-	copy(msg, req.PublicKey)
-	copy(msg[len(req.PublicKey):], req.Credential)
+// 	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
+// 	copy(msg, req.PublicKey)
+// 	copy(msg[len(req.PublicKey):], req.Credential)
 
-	if !publicKey.VerifyBytes(msg, req.Sig) {
-		app.log.Info("Failed to verify signature on request")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
+// 	if !publicKey.VerifyBytes(msg, req.Sig) {
+// 		app.log.Info("Failed to verify signature on request")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+// 	}
 
-	didSucceed := app.createNewAccountOp(publicKey)
-	if didSucceed {
-		return types.ResponseDeliverTx{Code: code.OK}
-	}
-	return types.ResponseDeliverTx{Code: code.UNKNOWN}
-}
+// 	didSucceed := app.createNewAccountOp(publicKey)
+// 	if didSucceed {
+// 		return types.ResponseDeliverTx{Code: code.OK}
+// 	}
+// 	return types.ResponseDeliverTx{Code: code.UNKNOWN}
+// }
 
-// Currently and possibly only for debug purposes
-// to freely transfer tokens between accounts to setup different scenarios.
-func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
-	req := &transaction.AccountTransferRequest{}
+// // Currently and possibly only for debug purposes
+// // to freely transfer tokens between accounts to setup different scenarios.
+// func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
+// 	req := &transaction.AccountTransferRequest{}
 
-	if err := proto.Unmarshal(reqb, req); err != nil {
-		app.log.Info("Failed to unmarshal request")
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	if err := proto.Unmarshal(reqb, req); err != nil {
+// 		app.log.Info("Failed to unmarshal request")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+// 	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
 
-	if retCode, data := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
-		return types.ResponseDeliverTx{Code: retCode, Data: data}
-	}
+// 	if retCode, data := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
+// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
+// 	}
 
-	amountB := make([]byte, 8)
-	binary.BigEndian.PutUint64(amountB, req.Amount)
+// 	amountB := make([]byte, 8)
+// 	binary.BigEndian.PutUint64(amountB, req.Amount)
 
-	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
-	copy(msg, sourcePublicKey)
-	copy(msg[len(sourcePublicKey):], targetPublicKey)
-	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
+// 	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
+// 	copy(msg, sourcePublicKey)
+// 	copy(msg[len(sourcePublicKey):], targetPublicKey)
+// 	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
 
-	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-		app.log.Info("Failed to verify signature on request")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
+// 	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+// 		app.log.Info("Failed to verify signature on request")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+// 	}
 
-	retCode, data := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
+// 	retCode, data := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
 
-	return types.ResponseDeliverTx{Code: retCode, Data: data}
-}
+// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
+// }
 
-func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
-	req := &transaction.DepositCoconutCredentialRequest{}
+// func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
+// 	req := &transaction.DepositCoconutCredentialRequest{}
 
-	if err := proto.Unmarshal(reqb, req); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	if err := proto.Unmarshal(reqb, req); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	var merchantAddress account.ECPublicKey = req.MerchantAddress
+// 	var merchantAddress account.ECPublicKey = req.MerchantAddress
 
-	// start with checking for double spending -
-	// if credential was already spent, there is no point in any further checks
-	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
-	_, zetaStatus := app.state.db.Get(dbZetaEntry)
-	if zetaStatus != nil {
-		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
-	}
+// 	// start with checking for double spending -
+// 	// if credential was already spent, there is no point in any further checks
+// 	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
+// 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
+// 	if zetaStatus != nil {
+// 		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
+// 	}
 
-	cred := &coconut.Signature{}
-	if err := cred.FromProto(req.Sig); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	cred := &coconut.Signature{}
+// 	if err := cred.FromProto(req.Sig); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	theta := &coconut.ThetaTumbler{}
-	if err := theta.FromProto(req.Theta); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	theta := &coconut.ThetaTumbler{}
+// 	if err := theta.FromProto(req.Theta); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	pubM := coconut.BigSliceFromByteSlices(req.PubM)
-	if !coconut.ValidateBigSlice(pubM) {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	pubM := coconut.BigSliceFromByteSlices(req.PubM)
+// 	if !coconut.ValidateBigSlice(pubM) {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	// check if the merchant address is correctly formed
-	if err := merchantAddress.Compress(); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
-	}
+// 	// check if the merchant address is correctly formed
+// 	if err := merchantAddress.Compress(); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
+// 	}
 
-	if !app.checkIfAccountExists(merchantAddress) {
-		if !createAccountOnDepositIfDoesntExist {
-			app.log.Error("Merchant's account doesnt exist")
-			return types.ResponseDeliverTx{Code: code.MERCHANT_DOES_NOT_EXIST}
-		}
+// 	if !app.checkIfAccountExists(merchantAddress) {
+// 		if !createAccountOnDepositIfDoesntExist {
+// 			app.log.Error("Merchant's account doesnt exist")
+// 			return types.ResponseDeliverTx{Code: code.MERCHANT_DOES_NOT_EXIST}
+// 		}
 
-		didSucceed := app.createNewAccountOp(merchantAddress)
-		if !didSucceed {
-			app.log.Error("Could not create account for the merchant")
-			return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
-		}
-	}
+// 		didSucceed := app.createNewAccountOp(merchantAddress)
+// 		if !didSucceed {
+// 			app.log.Error("Could not create account for the merchant")
+// 			return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
+// 		}
+// 	}
 
-	_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
-	avk := &coconut.VerificationKey{}
-	if err := avk.UnmarshalBinary(avkb); err != nil {
-		app.log.Error("Failed to unarsmahl vk...")
-		return types.ResponseDeliverTx{Code: code.UNKNOWN}
-	}
+// 	_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
+// 	avk := &coconut.VerificationKey{}
+// 	if err := avk.UnmarshalBinary(avkb); err != nil {
+// 		app.log.Error("Failed to unarsmahl vk...")
+// 		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+// 	}
 
-	// basically gets params without bpgroup
-	params := app.getSimpleCoconutParams()
-	// verify the credential
-	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
+// 	// basically gets params without bpgroup
+// 	params := app.getSimpleCoconutParams()
+// 	// verify the credential
+// 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
-	if isValid {
-		retCode, data := app.transferFundsOp(tmconst.HoldingAccountAddress, merchantAddress, uint64(req.Value))
-		// store the used credential
-		app.state.db.Set(dbZetaEntry, tmconst.SpentZetaPrefix)
-		return types.ResponseDeliverTx{Code: retCode, Data: data}
-	}
-	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-}
+// 	if isValid {
+// 		retCode, data := app.transferFundsOp(tmconst.HoldingAccountAddress, merchantAddress, uint64(req.Value))
+// 		// store the used credential
+// 		app.state.db.Set(dbZetaEntry, tmconst.SpentZetaPrefix)
+// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
+// 	}
+// 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
+// }
 
-// transfers funds from the given user's account to the holding account. It makes sure it's only done once per
-// particular credential request.
-// TODO: wait on deicison on implementation
-func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
-	req := &transaction.TransferToHoldingRequest{}
-	if err := proto.Unmarshal(reqb, req); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// // transfers funds from the given user's account to the holding account. It makes sure it's only done once per
+// // particular credential request.
+// // TODO: wait on deicison on implementation
+// func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
+// 	req := &transaction.TransferToHoldingRequest{}
+// 	if err := proto.Unmarshal(reqb, req); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	if len(req.PubM) < 1 ||
-		len(req.PubM[0]) != constants.BIGLen ||
-		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	if len(req.PubM) < 1 ||
+// 		len(req.PubM[0]) != constants.BIGLen ||
+// 		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	// only recovered to see if an error is thrown
-	lambda := &coconut.Lambda{}
-	if err := lambda.FromProto(req.Lambda); err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	// only recovered to see if an error is thrown
+// 	lambda := &coconut.Lambda{}
+// 	if err := lambda.FromProto(req.Lambda); err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	lambdab, err := proto.Marshal(req.Lambda)
-	if err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	lambdab, err := proto.Marshal(req.Lambda)
+// 	if err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	// only recovered to see if an error is thrown
-	egPub := &elgamal.PublicKey{}
-	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	// only recovered to see if an error is thrown
+// 	egPub := &elgamal.PublicKey{}
+// 	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	egPubb, err := proto.Marshal(req.EgPub)
-	if err != nil {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
+// 	egPubb, err := proto.Marshal(req.EgPub)
+// 	if err != nil {
+// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+// 	}
 
-	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-	recoveredHoldingAddress := req.TargetAddress
+// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
+// 	recoveredHoldingAddress := req.TargetAddress
 
-	// TODO: update once epochs, etc. are introduced
-	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
-		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
-	}
+// 	// TODO: update once epochs, etc. are introduced
+// 	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
+// 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
+// 	}
 
-	if retCode, data := app.validateTransfer(sourcePublicKey,
-		recoveredHoldingAddress,
-		uint64(req.Amount),
-	); retCode != code.OK {
-		return types.ResponseDeliverTx{Code: retCode, Data: data}
-	}
+// 	if retCode, data := app.validateTransfer(sourcePublicKey,
+// 		recoveredHoldingAddress,
+// 		uint64(req.Amount),
+// 	); retCode != code.OK {
+// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
+// 	}
 
-	msg := make([]byte,
-		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
-	)
-	copy(msg, sourcePublicKey)
-	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
-	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
-	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
-	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
-	for i := range req.PubM {
-		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
-			req.PubM[i],
-		)
-	}
+// 	msg := make([]byte,
+// 		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
+// 	)
+// 	copy(msg, sourcePublicKey)
+// 	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
+// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
+// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
+// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
+// 	for i := range req.PubM {
+// 		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
+// 			req.PubM[i],
+// 		)
+// 	}
 
-	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-		app.log.Info("Failed to verify signature on request")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
+// 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+// 		app.log.Info("Failed to verify signature on request")
+// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+// 	}
 
-	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
-	if retCode == code.OK {
-		// lambda, egpub, pubm
-		blindSignMaterials := &coconut.BlindSignMaterials{
-			Lambda: req.Lambda,
-			EgPub:  req.EgPub,
-			PubM:   req.PubM,
-		}
+// 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
+// 	if retCode == code.OK {
+// 		// lambda, egpub, pubm
+// 		blindSignMaterials := &coconut.BlindSignMaterials{
+// 			Lambda: req.Lambda,
+// 			EgPub:  req.EgPub,
+// 			PubM:   req.PubM,
+// 		}
 
-		bsmb, err := proto.Marshal(blindSignMaterials)
-		if err != nil {
-			// it's really impossible for this to fail, but if it somehow does, it's client's fault for providing
-			// such weirdly malformed data
-			app.log.Error("Proto error after transfer already occured")
-			// TODO: possibly revert operation?
-			return types.ResponseDeliverTx{Code: code.UNKNOWN}
-		}
+// 		bsmb, err := proto.Marshal(blindSignMaterials)
+// 		if err != nil {
+// 			// it's really impossible for this to fail, but if it somehow does, it's client's fault for providing
+// 			// such weirdly malformed data
+// 			app.log.Error("Proto error after transfer already occured")
+// 			// TODO: possibly revert operation?
+// 			return types.ResponseDeliverTx{Code: code.UNKNOWN}
+// 		}
 
-		// it can't possibly fail as it was already verified
-		//nolint: errcheck
-		sourcePublicKey.Compress()
-		// we need to include slightly more information in the key field in case given user performed
-		// more than 1 transfer in given block. That way he wouldn't need to recreate bsmb to index the tx
-		key := make([]byte, len(sourcePublicKey)+constants.ECPLen+len(tmconst.CredentialRequestKeyPrefix))
-		copy(key, tmconst.CredentialRequestKeyPrefix)
-		copy(key[len(tmconst.CredentialRequestKeyPrefix):], sourcePublicKey)
+// 		// it can't possibly fail as it was already verified
+// 		//nolint: errcheck
+// 		sourcePublicKey.Compress()
+// 		// we need to include slightly more information in the key field in case given user performed
+// 		// more than 1 transfer in given block. That way he wouldn't need to recreate bsmb to index the tx
+// 		key := make([]byte, len(sourcePublicKey)+constants.ECPLen+len(tmconst.CredentialRequestKeyPrefix))
+// 		copy(key, tmconst.CredentialRequestKeyPrefix)
+// 		copy(key[len(tmconst.CredentialRequestKeyPrefix):], sourcePublicKey)
 
-		// gamma is unique per credential request;
-		// it's client's fault if he intentionally reuses is and is up to him to distinguish correct credentials
-		egPub.Gamma().ToBytes((key[len(tmconst.CredentialRequestKeyPrefix)+len(sourcePublicKey):]), true)
+// 		// gamma is unique per credential request;
+// 		// it's client's fault if he intentionally reuses is and is up to him to distinguish correct credentials
+// 		egPub.Gamma().ToBytes((key[len(tmconst.CredentialRequestKeyPrefix)+len(sourcePublicKey):]), true)
 
-		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: bsmb}}}
-	}
-	return types.ResponseDeliverTx{Code: retCode, Data: data}
-}
+// 		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: bsmb}}}
+// 	}
+// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
+// }
 
 // req := &transaction.TransferToHoldingRequest{}
 

@@ -18,17 +18,10 @@ package nymapplication
 
 import (
 	"bytes"
-	"encoding/binary"
 	"math/rand"
 	"testing"
 	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -87,148 +80,148 @@ func TestRandomInts(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestCheckIfAccountExists(t *testing.T) {
-	bpgroup := bpgroup.New() // for easy access to rng
-	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g := Curve.G1mul(bpgroup.Gen1(), x)
+// func TestCheckIfAccountExists(t *testing.T) {
+// 	bpgroup := bpgroup.New() // for easy access to rng
+// 	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+// 	g := Curve.G1mul(bpgroup.Gen1(), x)
 
-	uncompressed := make([]byte, constants.ECPLenUC)
-	compressed := make([]byte, constants.ECPLen)
+// 	uncompressed := make([]byte, constants.ECPLenUC)
+// 	compressed := make([]byte, constants.ECPLen)
 
-	g.ToBytes(uncompressed, false)
-	g.ToBytes(compressed, true)
+// 	g.ToBytes(uncompressed, false)
+// 	g.ToBytes(compressed, true)
 
-	malformedCompressed := make([]byte, len(compressed))
-	copy(malformedCompressed, compressed)
-	malformedCompressed[0] = 0x01
+// 	malformedCompressed := make([]byte, len(compressed))
+// 	copy(malformedCompressed, compressed)
+// 	malformedCompressed[0] = 0x01
 
-	invalidAddresses := [][]byte{
-		nil,
-		{},
-		[]byte("foo"),
-		malformedCompressed,
-	}
+// 	invalidAddresses := [][]byte{
+// 		nil,
+// 		{},
+// 		[]byte("foo"),
+// 		malformedCompressed,
+// 	}
 
-	// before address is added, all need to fail
-	for _, addr := range append(invalidAddresses, compressed, uncompressed) {
-		assert.False(t, app.checkIfAccountExists(addr))
-	}
+// 	// before address is added, all need to fail
+// 	for _, addr := range append(invalidAddresses, compressed, uncompressed) {
+// 		assert.False(t, app.checkIfAccountExists(addr))
+// 	}
 
-	// will be tested below, for now we use address we know is 100% valid
-	app.createNewAccountOp(compressed)
+// 	// will be tested below, for now we use address we know is 100% valid
+// 	app.createNewAccountOp(compressed)
 
-	for _, addr := range append(invalidAddresses, uncompressed) {
-		assert.False(t, app.checkIfAccountExists(addr))
-	}
+// 	for _, addr := range append(invalidAddresses, uncompressed) {
+// 		assert.False(t, app.checkIfAccountExists(addr))
+// 	}
 
-	assert.True(t, app.checkIfAccountExists(compressed))
-}
+// 	assert.True(t, app.checkIfAccountExists(compressed))
+// }
 
-func TestCreateNewAccountOp(t *testing.T) {
-	bpgroup := bpgroup.New() // for easy access to rng
-	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	g := Curve.G1mul(bpgroup.Gen1(), x)
+// func TestCreateNewAccountOp(t *testing.T) {
+// 	bpgroup := bpgroup.New() // for easy access to rng
+// 	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+// 	g := Curve.G1mul(bpgroup.Gen1(), x)
 
-	var uncompressed account.ECPublicKey = make([]byte, constants.ECPLenUC)
-	var compressed account.ECPublicKey = make([]byte, constants.ECPLen)
+// 	var uncompressed account.ECPublicKey = make([]byte, constants.ECPLenUC)
+// 	var compressed account.ECPublicKey = make([]byte, constants.ECPLen)
 
-	g.ToBytes(uncompressed, false)
-	g.ToBytes(compressed, true)
+// 	g.ToBytes(uncompressed, false)
+// 	g.ToBytes(compressed, true)
 
-	malformedCompressed := make([]byte, len(compressed))
-	copy(malformedCompressed, compressed)
-	malformedCompressed[0] = 0x01
+// 	malformedCompressed := make([]byte, len(compressed))
+// 	copy(malformedCompressed, compressed)
+// 	malformedCompressed[0] = 0x01
 
-	invalidAddresses := [][]byte{
-		nil,
-		{},
-		[]byte("foo"),
-		malformedCompressed,
-	}
+// 	invalidAddresses := [][]byte{
+// 		nil,
+// 		{},
+// 		[]byte("foo"),
+// 		malformedCompressed,
+// 	}
 
-	// while this might not be a 100% valid point on the curve, it's sufficient for that test as we don't want
-	// overlapping compressed results
-	compressed[8] ^= 1
+// 	// while this might not be a 100% valid point on the curve, it's sufficient for that test as we don't want
+// 	// overlapping compressed results
+// 	compressed[8] ^= 1
 
-	for _, addr := range invalidAddresses {
-		assert.False(t, app.createNewAccountOp(addr))
-		assert.False(t, app.checkIfAccountExists(addr)) // make sure it didn't fail silently
-	}
+// 	for _, addr := range invalidAddresses {
+// 		assert.False(t, app.createNewAccountOp(addr))
+// 		assert.False(t, app.checkIfAccountExists(addr)) // make sure it didn't fail silently
+// 	}
 
-	assert.True(t, app.createNewAccountOp(uncompressed))
-	assert.Nil(t, uncompressed.Compress())
-	assert.True(t, app.checkIfAccountExists(uncompressed))
+// 	assert.True(t, app.createNewAccountOp(uncompressed))
+// 	assert.Nil(t, uncompressed.Compress())
+// 	assert.True(t, app.checkIfAccountExists(uncompressed))
 
-	assert.True(t, app.createNewAccountOp(compressed))
-	assert.True(t, app.checkIfAccountExists(compressed))
-}
+// 	assert.True(t, app.createNewAccountOp(compressed))
+// 	assert.True(t, app.checkIfAccountExists(compressed))
+// }
 
-func TestTransferFundsOp(t *testing.T) {
-	// create a 'debug' account with bunch of funds
-	bpgroup := bpgroup.New() // for easy access to rng
-	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	gRand1 := Curve.G1mul(bpgroup.Gen1(), x)
-	acc1 := make([]byte, constants.ECPLen)
-	gRand1.ToBytes(acc1, true)
+// func TestTransferFundsOp(t *testing.T) {
+// 	// create a 'debug' account with bunch of funds
+// 	bpgroup := bpgroup.New() // for easy access to rng
+// 	x := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+// 	gRand1 := Curve.G1mul(bpgroup.Gen1(), x)
+// 	acc1 := make([]byte, constants.ECPLen)
+// 	gRand1.ToBytes(acc1, true)
 
-	// need to 'workaround' to set initial balance
-	balance := make([]byte, 8)
-	binary.BigEndian.PutUint64(balance, 1000)
-	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc1), balance)
+// 	// need to 'workaround' to set initial balance
+// 	balance := make([]byte, 8)
+// 	binary.BigEndian.PutUint64(balance, 1000)
+// 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc1), balance)
 
-	// create some destination account
-	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	gRand2 := Curve.G1mul(bpgroup.Gen1(), y)
-	acc2 := make([]byte, constants.ECPLen)
-	gRand2.ToBytes(acc2, true)
-	app.createNewAccountOp(acc2)
+// 	// create some destination account
+// 	y := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+// 	gRand2 := Curve.G1mul(bpgroup.Gen1(), y)
+// 	acc2 := make([]byte, constants.ECPLen)
+// 	gRand2.ToBytes(acc2, true)
+// 	app.createNewAccountOp(acc2)
 
-	// create another valid address but don't include it in the db
-	z := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
-	gRand3 := Curve.G1mul(bpgroup.Gen1(), z)
-	acc3 := make([]byte, constants.ECPLen)
-	gRand3.ToBytes(acc3, true)
-	// is not included in the db
+// 	// create another valid address but don't include it in the db
+// 	z := Curve.Randomnum(bpgroup.Order(), bpgroup.Rng())
+// 	gRand3 := Curve.G1mul(bpgroup.Gen1(), z)
+// 	acc3 := make([]byte, constants.ECPLen)
+// 	gRand3.ToBytes(acc3, true)
+// 	// is not included in the db
 
-	// first test invalid addresses; validateTransfer should theoretically catch all of those
-	invalidAddresses := [][]byte{
-		nil,
-		{},
-		[]byte("foo"),
-		acc3,
-	}
+// 	// first test invalid addresses; validateTransfer should theoretically catch all of those
+// 	invalidAddresses := [][]byte{
+// 		nil,
+// 		{},
+// 		[]byte("foo"),
+// 		acc3,
+// 	}
 
-	for _, invalidAddr := range invalidAddresses {
-		retCode, _ := app.transferFundsOp(invalidAddr, acc1, 42)
-		assert.NotEqual(t, code.OK, retCode)
-	}
+// 	for _, invalidAddr := range invalidAddresses {
+// 		retCode, _ := app.transferFundsOp(invalidAddr, acc1, 42)
+// 		assert.NotEqual(t, code.OK, retCode)
+// 	}
 
-	for _, invalidAddr := range invalidAddresses {
-		retCode, _ := app.transferFundsOp(acc1, invalidAddr, 42)
-		assert.NotEqual(t, code.OK, retCode)
-	}
+// 	for _, invalidAddr := range invalidAddresses {
+// 		retCode, _ := app.transferFundsOp(acc1, invalidAddr, 42)
+// 		assert.NotEqual(t, code.OK, retCode)
+// 	}
 
-	// empty source
-	retCode, _ := app.transferFundsOp(acc2, acc1, 42)
-	assert.NotEqual(t, code.OK, retCode)
-	// not enough funds on source
-	retCode, _ = app.transferFundsOp(acc1, acc2, 100000000)
-	assert.NotEqual(t, code.OK, retCode)
+// 	// empty source
+// 	retCode, _ := app.transferFundsOp(acc2, acc1, 42)
+// 	assert.NotEqual(t, code.OK, retCode)
+// 	// not enough funds on source
+// 	retCode, _ = app.transferFundsOp(acc1, acc2, 100000000)
+// 	assert.NotEqual(t, code.OK, retCode)
 
-	// dest doesnt exist
-	retCode, _ = app.transferFundsOp(acc1, acc3, 42)
-	assert.NotEqual(t, code.OK, retCode)
-	assert.False(t, app.checkIfAccountExists(acc3)) // make sure it wasn't created...
+// 	// dest doesnt exist
+// 	retCode, _ = app.transferFundsOp(acc1, acc3, 42)
+// 	assert.NotEqual(t, code.OK, retCode)
+// 	assert.False(t, app.checkIfAccountExists(acc3)) // make sure it wasn't created...
 
-	// a valid transfer
-	retCode, _ = app.transferFundsOp(acc1, acc2, 42)
-	assert.Equal(t, code.OK, retCode)
+// 	// a valid transfer
+// 	retCode, _ = app.transferFundsOp(acc1, acc2, 42)
+// 	assert.Equal(t, code.OK, retCode)
 
-	acc1B, _ := app.queryBalance(acc1)
-	acc2B, _ := app.queryBalance(acc2)
+// 	acc1B, _ := app.queryBalance(acc1)
+// 	acc2B, _ := app.queryBalance(acc2)
 
-	acc1Balance := binary.BigEndian.Uint64(acc1B)
-	acc2Balance := binary.BigEndian.Uint64(acc2B)
-	assert.Equal(t, uint64(1000-42), acc1Balance)
-	assert.Equal(t, uint64(42), acc2Balance)
-}
+// 	acc1Balance := binary.BigEndian.Uint64(acc1B)
+// 	acc2Balance := binary.BigEndian.Uint64(acc2B)
+// 	assert.Equal(t, uint64(1000-42), acc1Balance)
+// 	assert.Equal(t, uint64(42), acc2Balance)
+// }

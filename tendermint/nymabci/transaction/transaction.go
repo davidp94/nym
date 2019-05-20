@@ -19,15 +19,8 @@ package transaction
 
 import (
 	"crypto/ecdsa"
-	"encoding/binary"
-	"errors"
-	fmt "fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -74,158 +67,158 @@ func NewLookUpZetaTx(zeta *Curve.ECP) []byte {
 }
 
 // CreateNewAccountRequest creates new request for tx for new account creation.
-func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte, error) {
-	msg := make([]byte, len(account.PublicKey)+len(credential))
-	copy(msg, account.PublicKey)
-	copy(msg[len(account.PublicKey):], credential)
-	sig := account.PrivateKey.SignBytes(msg)
-	req := &NewAccountRequest{
-		PublicKey:  account.PublicKey,
-		Credential: credential,
-		Sig:        sig,
-	}
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
-	b[0] = TxNewAccount
-	copy(b[1:], protob)
-	return b, nil
-}
+// func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte, error) {
+// 	msg := make([]byte, len(account.PublicKey)+len(credential))
+// 	copy(msg, account.PublicKey)
+// 	copy(msg[len(account.PublicKey):], credential)
+// 	sig := account.PrivateKey.SignBytes(msg)
+// 	req := &NewAccountRequest{
+// 		PublicKey:  account.PublicKey,
+// 		Credential: credential,
+// 		Sig:        sig,
+// 	}
+// 	protob, err := proto.Marshal(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	b := make([]byte, len(protob)+1)
+// 	b[0] = TxNewAccount
+// 	copy(b[1:], protob)
+// 	return b, nil
+// }
 
-// CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
-// Currently and possibly only for debug purposes
-// to freely transfer tokens between accounts to setup different scenarios.
-func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, amount uint64) ([]byte, error) {
-	msg := make([]byte, len(account.PublicKey)+len(target)+8)
-	copy(msg, account.PublicKey)
-	copy(msg[len(account.PublicKey):], target)
-	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], amount)
+// // CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
+// // Currently and possibly only for debug purposes
+// // to freely transfer tokens between accounts to setup different scenarios.
+// func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, amount uint64) ([]byte, error) {
+// 	msg := make([]byte, len(account.PublicKey)+len(target)+8)
+// 	copy(msg, account.PublicKey)
+// 	copy(msg[len(account.PublicKey):], target)
+// 	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], amount)
 
-	sig := account.PrivateKey.SignBytes(msg)
-	req := &AccountTransferRequest{
-		SourcePublicKey: account.PublicKey,
-		TargetPublicKey: target,
-		Amount:          amount,
-		Sig:             sig,
-	}
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
-	b[0] = TxTransferBetweenAccounts
-	copy(b[1:], protob)
-	return b, nil
-}
+// 	sig := account.PrivateKey.SignBytes(msg)
+// 	req := &AccountTransferRequest{
+// 		SourcePublicKey: account.PublicKey,
+// 		TargetPublicKey: target,
+// 		Amount:          amount,
+// 		Sig:             sig,
+// 	}
+// 	protob, err := proto.Marshal(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	b := make([]byte, len(protob)+1)
+// 	b[0] = TxTransferBetweenAccounts
+// 	copy(b[1:], protob)
+// 	return b, nil
+// }
 
-// CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
-// (that is bound to particular merchant address) to be spent.
-func CreateNewDepositCoconutCredentialRequest(
-	protoSig *coconut.ProtoSignature,
-	pubMb [][]byte,
-	protoThetaTumbler *coconut.ProtoThetaTumbler,
-	value int32,
-	address []byte,
-) ([]byte, error) {
+// // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
+// // (that is bound to particular merchant address) to be spent.
+// func CreateNewDepositCoconutCredentialRequest(
+// 	protoSig *coconut.ProtoSignature,
+// 	pubMb [][]byte,
+// 	protoThetaTumbler *coconut.ProtoThetaTumbler,
+// 	value int32,
+// 	address []byte,
+// ) ([]byte, error) {
 
-	req := &DepositCoconutCredentialRequest{
-		Sig:             protoSig,
-		PubM:            pubMb,
-		Theta:           protoThetaTumbler,
-		Value:           value,
-		MerchantAddress: address,
-	}
+// 	req := &DepositCoconutCredentialRequest{
+// 		Sig:             protoSig,
+// 		PubM:            pubMb,
+// 		Theta:           protoThetaTumbler,
+// 		Value:           value,
+// 		MerchantAddress: address,
+// 	}
 
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
+// 	protob, err := proto.Marshal(req)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	b := make([]byte, len(protob)+1)
 
-	b[0] = TxDepositCoconutCredential
-	copy(b[1:], protob)
-	return b, nil
-}
+// 	b[0] = TxDepositCoconutCredential
+// 	copy(b[1:], protob)
+// 	return b, nil
+// }
 
-// TransferToHoldingRequestParams encapsulates parameters required for the CreateNewTransferToHoldingRequest function.
-type TransferToHoldingRequestParams struct {
-	Acc    account.Account
-	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
-	EgPub  *elgamal.PublicKey
-	Lambda *coconut.Lambda
-	PubM   []*Curve.BIG
-}
+// // TransferToHoldingRequestParams encapsulates parameters required for the CreateNewTransferToHoldingRequest function.
+// type TransferToHoldingRequestParams struct {
+// 	Acc    account.Account
+// 	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
+// 	EgPub  *elgamal.PublicKey
+// 	Lambda *coconut.Lambda
+// 	PubM   []*Curve.BIG
+// }
 
-// DEPRECATED
-// CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
-// to the holding account. It also writes the required cryptographic material for the blind sign onto the chain,
-// so that the IAs monitoring it could issue the partial credentials.
-// The function is designed to be executed by the user.
-func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([]byte, error) {
-	fmt.Println("DEPRECATED")
-	holdingAddress := tmconst.HoldingAccountAddress
+// // DEPRECATED
+// // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
+// // to the holding account. It also writes the required cryptographic material for the blind sign onto the chain,
+// // so that the IAs monitoring it could issue the partial credentials.
+// // The function is designed to be executed by the user.
+// func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([]byte, error) {
+// 	fmt.Println("DEPRECATED")
+// 	holdingAddress := tmconst.HoldingAccountAddress
 
-	if params.Amount < 0 {
-		return nil, errors.New("negative value of the credential")
-	}
+// 	if params.Amount < 0 {
+// 		return nil, errors.New("negative value of the credential")
+// 	}
 
-	if len(params.PubM) < 1 || Curve.Comp(params.PubM[0], Curve.NewBIGint(int(params.Amount))) != 0 {
-		return nil, errors.New("invalid public parameters")
-	}
+// 	if len(params.PubM) < 1 || Curve.Comp(params.PubM[0], Curve.NewBIGint(int(params.Amount))) != 0 {
+// 		return nil, errors.New("invalid public parameters")
+// 	}
 
-	protoLambda, err := params.Lambda.ToProto()
-	if err != nil {
-		return nil, err
-	}
+// 	protoLambda, err := params.Lambda.ToProto()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	lambdab, err := proto.Marshal(protoLambda)
-	if err != nil {
-		return nil, err
-	}
+// 	lambdab, err := proto.Marshal(protoLambda)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	protoEgPub, err := params.EgPub.ToProto()
-	if err != nil {
-		return nil, err
-	}
+// 	protoEgPub, err := params.EgPub.ToProto()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	egPubb, err := proto.Marshal(protoEgPub)
-	if err != nil {
-		return nil, err
-	}
+// 	egPubb, err := proto.Marshal(protoEgPub)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	pubMb, err := coconut.BigSliceToByteSlices(params.PubM)
-	if err != nil {
-		return nil, err
-	}
+// 	pubMb, err := coconut.BigSliceToByteSlices(params.PubM)
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	msg := make([]byte,
-		len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
-	)
-	copy(msg, params.Acc.PublicKey)
-	copy(msg[len(params.Acc.PublicKey):], holdingAddress)
-	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(holdingAddress):], uint32(params.Amount))
-	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4:], egPubb)
-	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb):], lambdab)
-	for i := range pubMb {
-		copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
-	}
+// 	msg := make([]byte,
+// 		len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
+// 	)
+// 	copy(msg, params.Acc.PublicKey)
+// 	copy(msg[len(params.Acc.PublicKey):], holdingAddress)
+// 	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(holdingAddress):], uint32(params.Amount))
+// 	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4:], egPubb)
+// 	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb):], lambdab)
+// 	for i := range pubMb {
+// 		copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
+// 	}
 
-	sig := params.Acc.PrivateKey.SignBytes(msg)
+// 	sig := params.Acc.PrivateKey.SignBytes(msg)
 
-	req := &TransferToHoldingRequest{
-		SourcePublicKey: params.Acc.PublicKey,
-		TargetAddress:   holdingAddress,
-		Amount:          params.Amount,
-		EgPub:           protoEgPub,
-		Lambda:          protoLambda,
-		PubM:            pubMb,
-		Sig:             sig,
-	}
+// 	req := &TransferToHoldingRequest{
+// 		SourcePublicKey: params.Acc.PublicKey,
+// 		TargetAddress:   holdingAddress,
+// 		Amount:          params.Amount,
+// 		EgPub:           protoEgPub,
+// 		Lambda:          protoLambda,
+// 		PubM:            pubMb,
+// 		Sig:             sig,
+// 	}
 
-	return marshalRequest(req, TxTransferToHolding)
-}
+// 	return marshalRequest(req, TxTransferToHolding)
+// }
 
 func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey, tx *ethtypes.Transaction) ([]byte, error) {
 

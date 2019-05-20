@@ -17,16 +17,10 @@
 package nymapplication
 
 import (
-	"bytes"
-	"encoding/base64"
-	"encoding/binary"
 	"errors"
-	"fmt"
 	"math/rand"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -80,9 +74,9 @@ func randomInts(q int, max int, source rand.Source) ([]int, error) {
 // checks if account with given address exists in the database
 // it WILL NOT try to compress address (even if possible) in case there was ever need to store uncompressed addresses
 func (app *NymApplication) checkIfAccountExists(address []byte) bool {
-	if !account.ValidateAddress(address) {
-		return false
-	}
+	// if !account.ValidateAddress(address) {
+	// 	return false
+	// }
 	key := prefixKey(tmconst.AccountsPrefix, address)
 
 	_, val := app.state.db.Get(key)
@@ -101,69 +95,69 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	return coconut.NewParams(nil, p, g1, g2, hs)
 }
 
-// returns bool to indicate if the operation was successful
-func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
-	// Compress also performs basic validation
-	if err := publicKey.Compress(); err != nil {
-		return false
-	}
+// // returns bool to indicate if the operation was successful
+// func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
+// 	// Compress also performs basic validation
+// 	if err := publicKey.Compress(); err != nil {
+// 		return false
+// 	}
 
-	value := make([]byte, 8)
-	binary.BigEndian.PutUint64(value, startingBalance)
+// 	value := make([]byte, 8)
+// 	binary.BigEndian.PutUint64(value, startingBalance)
 
-	dbEntry := prefixKey(tmconst.AccountsPrefix, publicKey)
-	app.state.db.Set(dbEntry, value)
+// 	dbEntry := prefixKey(tmconst.AccountsPrefix, publicKey)
+// 	app.state.db.Set(dbEntry, value)
 
-	b64name := base64.StdEncoding.EncodeToString(publicKey)
-	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, startingBalance))
-	return true
-}
+// 	b64name := base64.StdEncoding.EncodeToString(publicKey)
+// 	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, startingBalance))
+// 	return true
+// }
 
-// returns code to indicate if the operation was successful and, if applicable, how it failed
-// Simple bool would not provide enough information
-// also returns any additional data
-// TODO: also limit transaction value to signed int32?
-func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
-	if retCode, data := app.validateTransfer(inAddr, outAddr, amount); retCode != code.OK {
-		return retCode, data
-	}
+// // returns code to indicate if the operation was successful and, if applicable, how it failed
+// // Simple bool would not provide enough information
+// // also returns any additional data
+// // TODO: also limit transaction value to signed int32?
+// func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
+// 	if retCode, data := app.validateTransfer(inAddr, outAddr, amount); retCode != code.OK {
+// 		return retCode, data
+// 	}
 
-	// nolint: errcheck
-	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
-		inAddr.Compress()
-	}
+// 	// nolint: errcheck
+// 	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
+// 		inAddr.Compress()
+// 	}
 
-	// nolint: errcheck
-	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
-		outAddr.Compress()
-	}
+// 	// nolint: errcheck
+// 	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
+// 		outAddr.Compress()
+// 	}
 
-	// we already know it will succeed
-	sourceBalanceB, _ := app.queryBalance(inAddr)
-	targetBalanceB, _ := app.queryBalance(outAddr)
+// 	// we already know it will succeed
+// 	sourceBalanceB, _ := app.queryBalance(inAddr)
+// 	targetBalanceB, _ := app.queryBalance(outAddr)
 
-	// TODO: replace it with some fancy byte operations to get rid of two conversions
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
+// 	// TODO: replace it with some fancy byte operations to get rid of two conversions
+// 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+// 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
 
-	// finally initiate the transfer
-	sourceResult := sourceBalance - amount
-	targetResult := targetBalance + amount
+// 	// finally initiate the transfer
+// 	sourceResult := sourceBalance - amount
+// 	targetResult := targetBalance + amount
 
-	sourceResultB := make([]byte, 8)
-	targetResultB := make([]byte, 8)
+// 	sourceResultB := make([]byte, 8)
+// 	targetResultB := make([]byte, 8)
 
-	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
-	binary.BigEndian.PutUint64(targetResultB, targetResult)
+// 	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
+// 	binary.BigEndian.PutUint64(targetResultB, targetResult)
 
-	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
-	app.state.db.Set(sourceDbEntry, sourceResultB)
+// 	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
+// 	app.state.db.Set(sourceDbEntry, sourceResultB)
 
-	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
-	app.state.db.Set(targetDbEntry, targetResultB)
+// 	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
+// 	app.state.db.Set(targetDbEntry, targetResultB)
 
-	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
-		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
+// 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
+// 		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
 
-	return code.OK, nil
-}
+// 	return code.OK, nil
+// }

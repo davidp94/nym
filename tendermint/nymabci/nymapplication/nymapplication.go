@@ -20,11 +20,11 @@
 package nymapplication
 
 import (
-	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"time"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -40,8 +40,9 @@ import (
 	"github.com/tendermint/tendermint/version"
 )
 
-// TODO: possible speed-up down the line: store all ECP in uncompressed form - it will take less time to recover them
-// TODO:
+// TODO: FIXME: considering tendermint blockchain will no longer have to verify coconut credentials,
+// do we still need to keep any information regarding issuers?
+
 const (
 	DBNAME                              = "nymDB"
 	DefaultDbDir                        = "/nymabci"
@@ -153,19 +154,19 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxNewAccount:
 		// creates new account
 		app.log.Info("New Account tx")
-		return app.createNewAccount(tx[1:])
+		// return app.createNewAccount(tx[1:])
 	case transaction.TxTransferBetweenAccounts:
 		// DEBUG: transfer funds from account X to account Y
 		app.log.Info("Transfer tx")
-		return app.transferFunds(tx[1:])
+		// return app.transferFunds(tx[1:])
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
-		return app.depositCoconutCredential(tx[1:])
+		// return app.depositCoconutCredential(tx[1:])
 	case transaction.TxTransferToHolding:
 		// transfer given amount of client's funds to the holding account
 		app.log.Info("Transfer to Holding")
-		return app.transferToHolding(tx[1:])
+		// return app.transferToHolding(tx[1:])
 	case transaction.TxAdvanceBlock:
 		// purely for debug purposes to populate the state and advance the blocks
 		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
@@ -177,6 +178,8 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 
 		return types.ResponseDeliverTx{Code: code.UNKNOWN}
 	}
+
+	return types.ResponseDeliverTx{Code: code.UNKNOWN}
 }
 
 // CheckTx validates tx in the mempool to discard obviously invalid ones so they would not be included in the block.
@@ -189,41 +192,41 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	case transaction.TxNewAccount:
 		app.log.Debug("CheckTx for TxNewAccount")
 
-		checkCode := app.checkNewAccountTx(tx[1:])
-		if checkCode != code.OK {
-			app.log.Info(fmt.Sprintf("checkTx for TxNewAccount failed with code: %v - %v",
-				checkCode, code.ToString(checkCode)))
-		}
-		return types.ResponseCheckTx{Code: checkCode}
+		// checkCode := app.checkNewAccountTx(tx[1:])
+		// if checkCode != code.OK {
+		// 	app.log.Info(fmt.Sprintf("checkTx for TxNewAccount failed with code: %v - %v",
+		// 		checkCode, code.ToString(checkCode)))
+		// }
+		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
 
-		checkCode := app.checkTransferBetweenAccountsTx(tx[1:])
-		if checkCode != code.OK {
-			app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
-				checkCode, code.ToString(checkCode)))
-		}
-		return types.ResponseCheckTx{Code: checkCode}
+		// checkCode := app.checkTransferBetweenAccountsTx(tx[1:])
+		// if checkCode != code.OK {
+		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
+		// 		checkCode, code.ToString(checkCode)))
+		// }
+		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxDepositCoconutCredential:
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
 
-		checkCode := app.checkDepositCoconutCredentialTx(tx[1:])
-		if checkCode != code.OK {
-			app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
-				checkCode, code.ToString(checkCode)))
-		}
-		return types.ResponseCheckTx{Code: checkCode}
+		// checkCode := app.checkDepositCoconutCredentialTx(tx[1:])
+		// if checkCode != code.OK {
+		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
+		// 		checkCode, code.ToString(checkCode)))
+		// }
+		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
 	case transaction.TxTransferToHolding:
 		app.log.Debug("CheckTx for TxTransferToHolding")
 
-		checkCode := app.checkTxTransferToHolding(tx[1:])
-		if checkCode != code.OK {
-			app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
-				checkCode, code.ToString(checkCode)))
-		}
-		return types.ResponseCheckTx{Code: checkCode}
+		// checkCode := app.checkTxTransferToHolding(tx[1:])
+		// if checkCode != code.OK {
+		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
+		// 		checkCode, code.ToString(checkCode)))
+		// }
+		// return types.ResponseCheckTx{Code: checkCode}
 	default:
 		app.log.Error("Unknown Tx")
 		return types.ResponseCheckTx{Code: code.INVALID_TX_PARAMS}
@@ -285,52 +288,31 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	// create genesis accounts
 	for _, acc := range genesisState.Accounts {
-		// always store account pubkey in compressed form, but accept any in the genesis file
-		if err := acc.PublicKey.Compress(); err != nil {
-			app.log.Error("Failed to compress the key")
-			panic(err)
-		}
-
 		balance := make([]byte, 8)
 		binary.BigEndian.PutUint64(balance, acc.Balance)
 
-		dbEntry := prefixKey(tmconst.AccountsPrefix, acc.PublicKey)
+		dbEntry := prefixKey(tmconst.AccountsPrefix, acc.Address[:])
 		app.state.db.Set(dbEntry, balance)
 
-		b64name := base64.StdEncoding.EncodeToString(acc.PublicKey)
-		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, acc.Balance))
+		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", acc.Address.Hex(), acc.Balance))
 	}
-
-	// create holdingAccount
-	holdingBalance := make([]byte, 8)
-	binary.BigEndian.PutUint64(holdingBalance, holdingStartingBalance)
-	dbEntry := prefixKey(tmconst.AccountsPrefix, tmconst.HoldingAccountAddress)
-	app.state.db.Set(dbEntry, holdingBalance)
-
-	b64name := base64.StdEncoding.EncodeToString(tmconst.HoldingAccountAddress)
-	app.log.Info(fmt.Sprintf("Created holdingAccount: %v with starting balance: %v", b64name, holdingStartingBalance))
 
 	// import vk of IAs
 	numIAs := len(genesisState.Issuers)
 	threshold := genesisState.CoconutProperties.Threshold
-	// do not terminate as it is possible (TODO: actually implement it) to add IAs in txs
+	// In future do not terminate here as it will be possible (TODO: actually implement it) to add IAs in txs
 	if threshold > numIAs {
 		app.log.Error(fmt.Sprintf("Only %v Issuing Authorities declared in the genesis block out of minimum %v",
 			numIAs, threshold))
-		return types.ResponseInitChain{}
+		panic("Insufficient number of issuers declared in the genesis block")
 	}
 
-	// choose pseudorandomly set of keys to use. Each node will produce same result due to constant seed
-	// Note: the Time used is that of creation of genesis block, NOT CURRENT TIME AT THE TIME OF CALLING THIS FUNCTION
-	//
-	// But to be fair even if different subsets were chosen,
-	// they should produce the same results since those are threshold keys
-	randSource := rand.NewSource(req.Time.UnixNano())
+	// The seed is not constants between multiple nodes, however, it's not a problem and actually it's a good thing.
+	// The nodes should produce the same resultant aggregate verification key regardless of keys used.
+	randSource := rand.NewSource(time.Now().UnixNano())
 	indices, err := randomInts(threshold, numIAs, randSource)
 	if err != nil {
-		app.log.Error("Not enough IAs provided")
-		// TODO: should we allow startup without sufficient number of them?
-		return types.ResponseInitChain{}
+		panic(err) // shouldn't happen due to previous panic
 	}
 
 	vks := make([]*coconut.VerificationKey, 0, threshold)
@@ -340,13 +322,14 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		vk := &coconut.VerificationKey{}
 		if uerr := vk.UnmarshalBinary(genesisState.Issuers[i].VerificationKey); uerr != nil {
 			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", uerr))
-			panic("Failed startup") // Todo: choose new subset
+			panic("Failed while unmarshaling genesis verification keys")
 		}
 
 		vks = append(vks, vk)
 		xs = append(xs, Curve.NewBIGint(int(genesisState.Issuers[i].ID)))
 	}
 
+	// TODO: again, do we still need coconut params at this point?
 	// generate coconut params required for credential verification later on
 	params, err := coconut.Setup(genesisState.CoconutProperties.MaximumAttributes)
 	if err != nil {
@@ -376,7 +359,6 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.db.Set(tmconst.AggregateVkKey, avkb)
 	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
 
-	// finally save pubkeys of ias (used to verify requests for transferring to holding account)
 	for _, ia := range genesisState.Issuers {
 		idb := make([]byte, 4)
 		binary.BigEndian.PutUint32(idb, ia.ID)
@@ -385,6 +367,12 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		app.state.db.Set(dbEntry, ia.PublicKey)
 	}
 	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))
+
+	for _, watcher := range genesisState.EthereumWatchers {
+		dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, watcher.PublicKey)
+		// do we even need to set any meaningful value here?
+		app.state.db.Set(dbEntry, watcher.PublicKey)
+	}
 
 	// saving app state here causes replay issues, so if app crashes before 1st block is committed it has to
 	// redo initchain
