@@ -6,6 +6,8 @@ package resourcemanager
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
@@ -13,7 +15,6 @@ import (
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -25,7 +26,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Folder lifecycle states.
 type Folder_LifecycleState int32
@@ -969,7 +970,7 @@ type FoldersClient interface {
 	// If the failure occurs synchronously then the PreconditionFailure
 	// will be returned via the Status.details field and if it occurs
 	// asynchronously then the PreconditionFailure will be returned
-	// via the the Operation.error field.
+	// via the Operation.error field.
 	//
 	// The caller must have `resourcemanager.folders.create` permission on the
 	// identified parent.
@@ -1195,7 +1196,7 @@ type FoldersServer interface {
 	// If the failure occurs synchronously then the PreconditionFailure
 	// will be returned via the Status.details field and if it occurs
 	// asynchronously then the PreconditionFailure will be returned
-	// via the the Operation.error field.
+	// via the Operation.error field.
 	//
 	// The caller must have `resourcemanager.folders.create` permission on the
 	// identified parent.

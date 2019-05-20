@@ -5,11 +5,12 @@ package remoteworkers
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	status "google.golang.org/genproto/googleapis/rpc/status"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Describes a shell-style task to execute, suitable for providing as the Bots
 // interface's `Lease.payload` field.
@@ -651,7 +652,8 @@ func (m *FileMetadata) GetIsExecutable() bool {
 // The metadata for a directory. Similar to the equivalent message in the Remote
 // Execution API.
 type DirectoryMetadata struct {
-	// The path of the directory, as in [FileMetadata.path][google.devtools.remoteworkers.v1test2.FileMetadata.path].
+	// The path of the directory, as in
+	// [FileMetadata.path][google.devtools.remoteworkers.v1test2.FileMetadata.path].
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	// A pointer to the contents of the directory, in the form of a marshalled
 	// Directory message.

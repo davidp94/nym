@@ -5,10 +5,11 @@ package vision
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -20,14 +21,15 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Parameters for a product search request.
 type ProductSearchParams struct {
 	// The bounding polygon around the area of interest in the image.
 	// Optional. If it is not specified, system discretion will be applied.
 	BoundingPoly *BoundingPoly `protobuf:"bytes,9,opt,name=bounding_poly,json=boundingPoly,proto3" json:"bounding_poly,omitempty"`
-	// The resource name of a [ProductSet][google.cloud.vision.v1.ProductSet] to be searched for similar images.
+	// The resource name of a [ProductSet][google.cloud.vision.v1.ProductSet] to
+	// be searched for similar images.
 	//
 	// Format is:
 	// `projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID`.
@@ -38,10 +40,12 @@ type ProductSearchParams struct {
 	ProductCategories []string `protobuf:"bytes,7,rep,name=product_categories,json=productCategories,proto3" json:"product_categories,omitempty"`
 	// The filtering expression. This can be used to restrict search results based
 	// on Product labels. We currently support an AND of OR of key-value
-	// expressions, where each expression within an OR must have the same key.
+	// expressions, where each expression within an OR must have the same key. An
+	// '=' should be used to connect the key and value.
 	//
 	// For example, "(color = red OR color = blue) AND brand = Google" is
-	// acceptable, but not "(color = red OR brand = Google)" or "color: red".
+	// acceptable, but "(color = red OR brand = Google)" is not acceptable.
+	// "color: red" is not acceptable because it uses a ':' instead of an '='.
 	Filter               string   `protobuf:"bytes,8,opt,name=filter,proto3" json:"filter,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -103,8 +107,9 @@ func (m *ProductSearchParams) GetFilter() string {
 
 // Results for a product search request.
 type ProductSearchResults struct {
-	// Timestamp of the index which provided these results. Changes made after
-	// this time are not reflected in the current results.
+	// Timestamp of the index which provided these results. Products added to the
+	// product set and products removed from the product set after this time are
+	// not reflected in the current results.
 	IndexTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=index_time,json=indexTime,proto3" json:"index_time,omitempty"`
 	// List of results, one for each product match.
 	Results []*ProductSearchResults_Result `protobuf:"bytes,5,rep,name=results,proto3" json:"results,omitempty"`

@@ -6,6 +6,8 @@ package admin
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -13,7 +15,6 @@ import (
 	v1 "google.golang.org/genproto/googleapis/iam/v1"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -25,7 +26,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Supported key algorithms.
 type ServiceAccountKeyAlgorithm int32
@@ -433,8 +434,8 @@ type CreateServiceAccountRequest struct {
 	// must be 6-30 characters long, and match the regular expression
 	// `[a-z]([-a-z0-9]*[a-z0-9])` to comply with RFC1035.
 	AccountId string `protobuf:"bytes,2,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	// The [ServiceAccount][google.iam.admin.v1.ServiceAccount] resource to create.
-	// Currently, only the following values are user assignable:
+	// The [ServiceAccount][google.iam.admin.v1.ServiceAccount] resource to
+	// create. Currently, only the following values are user assignable:
 	// `display_name` .
 	ServiceAccount       *ServiceAccount `protobuf:"bytes,3,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}        `json:"-"`

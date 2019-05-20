@@ -6,12 +6,13 @@ package storagetransfer
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Request passed to GetGoogleServiceAccount.
 type GetGoogleServiceAccountRequest struct {
@@ -249,9 +250,9 @@ type ListTransferJobsRequest struct {
 	// "job_names":["jobid1","jobid2",...],
 	// "job_statuses":["status1","status2",...]}.
 	// Since `job_names` and `job_statuses` support multiple values, their values
-	// must be specified with array notation. `project_id` is required. `job_names`
-	// and `job_statuses` are optional.  The valid values for `job_statuses` are
-	// case-insensitive: `ENABLED`, `DISABLED`, and `DELETED`.
+	// must be specified with array notation. `project_id` is required.
+	// `job_names` and `job_statuses` are optional.  The valid values for
+	// `job_statuses` are case-insensitive: `ENABLED`, `DISABLED`, and `DELETED`.
 	Filter string `protobuf:"bytes,1,opt,name=filter,proto3" json:"filter,omitempty"`
 	// The list page size. The max allowed value is 256.
 	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`

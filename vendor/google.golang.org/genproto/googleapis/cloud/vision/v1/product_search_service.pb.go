@@ -6,6 +6,8 @@ package vision
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -14,7 +16,6 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -26,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Enumerates the possible states that the batch request can be in.
 type BatchOperationMetadata_State int32
@@ -234,7 +235,8 @@ type ProductSet struct {
 	DisplayName string `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// Output only. The time at which this ProductSet was last indexed. Query
 	// results will reflect all updates before this time. If this ProductSet has
-	// never been indexed, this field is 0.
+	// never been indexed, this timestamp is the default value
+	// "1970-01-01T00:00:00Z".
 	//
 	// This field is ignored when creating a ProductSet.
 	IndexTime *timestamp.Timestamp `protobuf:"bytes,3,opt,name=index_time,json=indexTime,proto3" json:"index_time,omitempty"`
@@ -1549,15 +1551,17 @@ type ImportProductSetsGcsSource struct {
 	// `product-display-name` column refers to
 	// [display_name][google.cloud.vision.v1.Product.display_name], the
 	// `product-category` column refers to
-	// [product_category][google.cloud.vision.v1.Product.product_category], and the
-	// `labels` column refers to [product_labels][google.cloud.vision.v1.Product.product_labels].
+	// [product_category][google.cloud.vision.v1.Product.product_category], and
+	// the `labels` column refers to
+	// [product_labels][google.cloud.vision.v1.Product.product_labels].
 	//
 	// The `image-id` column is optional but must be unique if provided. If it is
 	// empty, the system will automatically assign a unique id to the image.
 	//
 	// The `product-display-name` column is optional. If it is empty, the system
-	// sets the [display_name][google.cloud.vision.v1.Product.display_name] field for the product to a
-	// space (" "). You can update the `display_name` later by using the API.
+	// sets the [display_name][google.cloud.vision.v1.Product.display_name] field
+	// for the product to a space (" "). You can update the `display_name` later
+	// by using the API.
 	//
 	// If a `Product` with the specified `product-id` already exists, then the
 	// system ignores the `product-display-name`, `product-category`, and `labels`
@@ -1684,59 +1688,11 @@ func (m *ImportProductSetsInputConfig) GetGcsSource() *ImportProductSetsGcsSourc
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*ImportProductSetsInputConfig) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _ImportProductSetsInputConfig_OneofMarshaler, _ImportProductSetsInputConfig_OneofUnmarshaler, _ImportProductSetsInputConfig_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ImportProductSetsInputConfig) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*ImportProductSetsInputConfig_GcsSource)(nil),
 	}
-}
-
-func _ImportProductSetsInputConfig_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*ImportProductSetsInputConfig)
-	// source
-	switch x := m.Source.(type) {
-	case *ImportProductSetsInputConfig_GcsSource:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.GcsSource); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("ImportProductSetsInputConfig.Source has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _ImportProductSetsInputConfig_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*ImportProductSetsInputConfig)
-	switch tag {
-	case 1: // source.gcs_source
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ImportProductSetsGcsSource)
-		err := b.DecodeMessage(msg)
-		m.Source = &ImportProductSetsInputConfig_GcsSource{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _ImportProductSetsInputConfig_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*ImportProductSetsInputConfig)
-	// source
-	switch x := m.Source.(type) {
-	case *ImportProductSetsInputConfig_GcsSource:
-		s := proto.Size(x.GcsSource)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Request message for the `ImportProductSets` method.
@@ -1794,8 +1750,10 @@ func (m *ImportProductSetsRequest) GetInputConfig() *ImportProductSetsInputConfi
 // Response message for the `ImportProductSets` method.
 //
 // This message is returned by the
-// [google.longrunning.Operations.GetOperation][google.longrunning.Operations.GetOperation] method in the returned
-// [google.longrunning.Operation.response][google.longrunning.Operation.response] field.
+// [google.longrunning.Operations.GetOperation][google.longrunning.Operations.GetOperation]
+// method in the returned
+// [google.longrunning.Operation.response][google.longrunning.Operation.response]
+// field.
 type ImportProductSetsResponse struct {
 	// The list of reference_images that are imported successfully.
 	ReferenceImages []*ReferenceImage `protobuf:"bytes,1,rep,name=reference_images,json=referenceImages,proto3" json:"reference_images,omitempty"`
@@ -1860,7 +1818,8 @@ type BatchOperationMetadata struct {
 	// The time when the batch request was submitted to the server.
 	SubmitTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=submit_time,json=submitTime,proto3" json:"submit_time,omitempty"`
 	// The time when the batch request is finished and
-	// [google.longrunning.Operation.done][google.longrunning.Operation.done] is set to true.
+	// [google.longrunning.Operation.done][google.longrunning.Operation.done] is
+	// set to true.
 	EndTime              *timestamp.Timestamp `protobuf:"bytes,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
@@ -2112,14 +2071,10 @@ type ProductSearchClient interface {
 	// * Returns INVALID_ARGUMENT if display_name is present in update_mask but
 	//   missing from the request or longer than 4096 characters.
 	UpdateProductSet(ctx context.Context, in *UpdateProductSetRequest, opts ...grpc.CallOption) (*ProductSet, error)
-	// Permanently deletes a ProductSet. All Products and ReferenceImages in the
-	// ProductSet will be deleted.
+	// Permanently deletes a ProductSet. Products and ReferenceImages in the
+	// ProductSet are not deleted.
 	//
 	// The actual image files are not deleted from Google Cloud Storage.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the ProductSet does not exist.
 	DeleteProductSet(ctx context.Context, in *DeleteProductSetRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Creates and returns a new product resource.
 	//
@@ -2163,10 +2118,6 @@ type ProductSearchClient interface {
 	// Metadata of the product and all its images will be deleted right away, but
 	// search queries against ProductSets containing the product may still work
 	// until all related caches are refreshed.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the product does not exist.
 	DeleteProduct(ctx context.Context, in *DeleteProductRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Creates and returns a new ReferenceImage resource.
 	//
@@ -2195,10 +2146,6 @@ type ProductSearchClient interface {
 	// caches are refreshed.
 	//
 	// The actual image files are not deleted from Google Cloud Storage.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the reference image does not exist.
 	DeleteReferenceImage(ctx context.Context, in *DeleteReferenceImageRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Lists reference images.
 	//
@@ -2224,10 +2171,6 @@ type ProductSearchClient interface {
 	// * Returns NOT_FOUND if the Product or the ProductSet doesn't exist.
 	AddProductToProductSet(ctx context.Context, in *AddProductToProductSetRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Removes a Product from the specified ProductSet.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND If the Product is not found under the ProductSet.
 	RemoveProductFromProductSet(ctx context.Context, in *RemoveProductFromProductSetRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Lists the Products in a ProductSet, in an unspecified order. If the
 	// ProductSet does not exist, the products field of the response will be
@@ -2240,8 +2183,8 @@ type ProductSearchClient interface {
 	// Asynchronous API that imports a list of reference images to specified
 	// product sets based on a list of image information.
 	//
-	// The [google.longrunning.Operation][google.longrunning.Operation] API can be used to keep track of the
-	// progress and results of the request.
+	// The [google.longrunning.Operation][google.longrunning.Operation] API can be
+	// used to keep track of the progress and results of the request.
 	// `Operation.metadata` contains `BatchOperationMetadata`. (progress)
 	// `Operation.response` contains `ImportProductSetsResponse`. (results)
 	//
@@ -2452,14 +2395,10 @@ type ProductSearchServer interface {
 	// * Returns INVALID_ARGUMENT if display_name is present in update_mask but
 	//   missing from the request or longer than 4096 characters.
 	UpdateProductSet(context.Context, *UpdateProductSetRequest) (*ProductSet, error)
-	// Permanently deletes a ProductSet. All Products and ReferenceImages in the
-	// ProductSet will be deleted.
+	// Permanently deletes a ProductSet. Products and ReferenceImages in the
+	// ProductSet are not deleted.
 	//
 	// The actual image files are not deleted from Google Cloud Storage.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the ProductSet does not exist.
 	DeleteProductSet(context.Context, *DeleteProductSetRequest) (*empty.Empty, error)
 	// Creates and returns a new product resource.
 	//
@@ -2503,10 +2442,6 @@ type ProductSearchServer interface {
 	// Metadata of the product and all its images will be deleted right away, but
 	// search queries against ProductSets containing the product may still work
 	// until all related caches are refreshed.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the product does not exist.
 	DeleteProduct(context.Context, *DeleteProductRequest) (*empty.Empty, error)
 	// Creates and returns a new ReferenceImage resource.
 	//
@@ -2535,10 +2470,6 @@ type ProductSearchServer interface {
 	// caches are refreshed.
 	//
 	// The actual image files are not deleted from Google Cloud Storage.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND if the reference image does not exist.
 	DeleteReferenceImage(context.Context, *DeleteReferenceImageRequest) (*empty.Empty, error)
 	// Lists reference images.
 	//
@@ -2564,10 +2495,6 @@ type ProductSearchServer interface {
 	// * Returns NOT_FOUND if the Product or the ProductSet doesn't exist.
 	AddProductToProductSet(context.Context, *AddProductToProductSetRequest) (*empty.Empty, error)
 	// Removes a Product from the specified ProductSet.
-	//
-	// Possible errors:
-	//
-	// * Returns NOT_FOUND If the Product is not found under the ProductSet.
 	RemoveProductFromProductSet(context.Context, *RemoveProductFromProductSetRequest) (*empty.Empty, error)
 	// Lists the Products in a ProductSet, in an unspecified order. If the
 	// ProductSet does not exist, the products field of the response will be
@@ -2580,8 +2507,8 @@ type ProductSearchServer interface {
 	// Asynchronous API that imports a list of reference images to specified
 	// product sets based on a list of image information.
 	//
-	// The [google.longrunning.Operation][google.longrunning.Operation] API can be used to keep track of the
-	// progress and results of the request.
+	// The [google.longrunning.Operation][google.longrunning.Operation] API can be
+	// used to keep track of the progress and results of the request.
 	// `Operation.metadata` contains `BatchOperationMetadata`. (progress)
 	// `Operation.response` contains `ImportProductSetsResponse`. (results)
 	//

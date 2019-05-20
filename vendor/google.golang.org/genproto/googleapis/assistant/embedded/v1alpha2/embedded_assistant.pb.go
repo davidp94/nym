@@ -6,11 +6,12 @@ package embedded
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	latlng "google.golang.org/genproto/googleapis/type/latlng"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +23,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Indicates the type of event.
 type AssistResponse_EventType int32
@@ -318,74 +319,12 @@ func (m *AssistRequest) GetAudioIn() []byte {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*AssistRequest) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _AssistRequest_OneofMarshaler, _AssistRequest_OneofUnmarshaler, _AssistRequest_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*AssistRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*AssistRequest_Config)(nil),
 		(*AssistRequest_AudioIn)(nil),
 	}
-}
-
-func _AssistRequest_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*AssistRequest)
-	// type
-	switch x := m.Type.(type) {
-	case *AssistRequest_Config:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Config); err != nil {
-			return err
-		}
-	case *AssistRequest_AudioIn:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		b.EncodeRawBytes(x.AudioIn)
-	case nil:
-	default:
-		return fmt.Errorf("AssistRequest.Type has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _AssistRequest_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*AssistRequest)
-	switch tag {
-	case 1: // type.config
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(AssistConfig)
-		err := b.DecodeMessage(msg)
-		m.Type = &AssistRequest_Config{msg}
-		return true, err
-	case 2: // type.audio_in
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.Type = &AssistRequest_AudioIn{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _AssistRequest_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*AssistRequest)
-	// type
-	switch x := m.Type.(type) {
-	case *AssistRequest_Config:
-		s := proto.Size(x.Config)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *AssistRequest_AudioIn:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.AudioIn)))
-		n += len(x.AudioIn)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // The top-level message received by the client. A series of one or more
@@ -657,79 +596,18 @@ func (m *AssistConfig) GetDebugConfig() *DebugConfig {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*AssistConfig) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _AssistConfig_OneofMarshaler, _AssistConfig_OneofUnmarshaler, _AssistConfig_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*AssistConfig) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*AssistConfig_AudioInConfig)(nil),
 		(*AssistConfig_TextQuery)(nil),
 	}
 }
 
-func _AssistConfig_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*AssistConfig)
-	// type
-	switch x := m.Type.(type) {
-	case *AssistConfig_AudioInConfig:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.AudioInConfig); err != nil {
-			return err
-		}
-	case *AssistConfig_TextQuery:
-		b.EncodeVarint(6<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.TextQuery)
-	case nil:
-	default:
-		return fmt.Errorf("AssistConfig.Type has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _AssistConfig_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*AssistConfig)
-	switch tag {
-	case 1: // type.audio_in_config
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(AudioInConfig)
-		err := b.DecodeMessage(msg)
-		m.Type = &AssistConfig_AudioInConfig{msg}
-		return true, err
-	case 6: // type.text_query
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Type = &AssistConfig_TextQuery{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _AssistConfig_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*AssistConfig)
-	// type
-	switch x := m.Type.(type) {
-	case *AssistConfig_AudioInConfig:
-		s := proto.Size(x.AudioInConfig)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *AssistConfig_TextQuery:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.TextQuery)))
-		n += len(x.TextQuery)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
 // Specifies how to process the `audio_in` data that will be provided in
 // subsequent requests. For recommended settings, see the Google Assistant SDK
-// [best practices](https://developers.google.com/assistant/sdk/guides/service/python/best-practices/audio).
+// [best
+// practices](https://developers.google.com/assistant/sdk/guides/service/python/best-practices/audio).
 type AudioInConfig struct {
 	// *Required* Encoding of audio data sent in all `audio_in` messages.
 	Encoding AudioInConfig_Encoding `protobuf:"varint,1,opt,name=encoding,proto3,enum=google.assistant.embedded.v1alpha2.AudioInConfig_Encoding" json:"encoding,omitempty"`
@@ -891,16 +769,19 @@ func (m *ScreenOutConfig) GetScreenMode() ScreenOutConfig_ScreenMode {
 // Provides information about the current dialog state.
 type DialogStateIn struct {
 	// *Required* This field must always be set to the
-	// [DialogStateOut.conversation_state][google.assistant.embedded.v1alpha2.DialogStateOut.conversation_state] value that was returned in the prior
-	// `Assist` RPC. It should only be omitted (field not set) if there was no
-	// prior `Assist` RPC because this is the first `Assist` RPC made by this
-	// device after it was first setup and/or a factory-default reset.
+	// [DialogStateOut.conversation_state][google.assistant.embedded.v1alpha2.DialogStateOut.conversation_state]
+	// value that was returned in the prior `Assist` RPC. It should only be
+	// omitted (field not set) if there was no prior `Assist` RPC because this is
+	// the first `Assist` RPC made by this device after it was first setup and/or
+	// a factory-default reset.
 	ConversationState []byte `protobuf:"bytes,1,opt,name=conversation_state,json=conversationState,proto3" json:"conversation_state,omitempty"`
 	// *Required* Language of the request in
 	// [IETF BCP 47 syntax](https://tools.ietf.org/html/bcp47) (for example,
-	// "en-US"). See [Language Support](https://developers.google.com/assistant/sdk/reference/rpc/languages)
+	// "en-US"). See [Language
+	// Support](https://developers.google.com/assistant/sdk/reference/rpc/languages)
 	// for more information. If you have selected a language for this `device_id`
-	// using the [Settings](https://developers.google.com/assistant/sdk/reference/assistant-app/assistant-settings)
+	// using the
+	// [Settings](https://developers.google.com/assistant/sdk/reference/assistant-app/assistant-settings)
 	// menu in your phone's Google Assistant app, that selection will override
 	// this value.
 	LanguageCode string `protobuf:"bytes,2,opt,name=language_code,json=languageCode,proto3" json:"language_code,omitempty"`
@@ -1428,59 +1309,11 @@ func (m *DeviceLocation) GetCoordinates() *latlng.LatLng {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*DeviceLocation) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _DeviceLocation_OneofMarshaler, _DeviceLocation_OneofUnmarshaler, _DeviceLocation_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*DeviceLocation) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*DeviceLocation_Coordinates)(nil),
 	}
-}
-
-func _DeviceLocation_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*DeviceLocation)
-	// type
-	switch x := m.Type.(type) {
-	case *DeviceLocation_Coordinates:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Coordinates); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("DeviceLocation.Type has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _DeviceLocation_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*DeviceLocation)
-	switch tag {
-	case 1: // type.coordinates
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(latlng.LatLng)
-		err := b.DecodeMessage(msg)
-		m.Type = &DeviceLocation_Coordinates{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _DeviceLocation_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*DeviceLocation)
-	// type
-	switch x := m.Type.(type) {
-	case *DeviceLocation_Coordinates:
-		s := proto.Size(x.Coordinates)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 func init() {

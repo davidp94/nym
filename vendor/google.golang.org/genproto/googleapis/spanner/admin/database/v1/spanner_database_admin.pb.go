@@ -6,6 +6,8 @@ package database
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -13,7 +15,6 @@ import (
 	v1 "google.golang.org/genproto/googleapis/iam/v1"
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -25,7 +26,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Indicates the current state of the database.
 type Database_State int32
@@ -114,7 +115,8 @@ func (m *Database) GetState() Database_State {
 	return Database_STATE_UNSPECIFIED
 }
 
-// The request for [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases].
+// The request for
+// [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases].
 type ListDatabasesRequest struct {
 	// Required. The instance whose databases should be listed.
 	// Values are of the form `projects/<project>/instances/<instance>`.
@@ -123,8 +125,9 @@ type ListDatabasesRequest struct {
 	// defaults to the server's maximum allowed page size.
 	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// If non-empty, `page_token` should contain a
-	// [next_page_token][google.spanner.admin.database.v1.ListDatabasesResponse.next_page_token] from a
-	// previous [ListDatabasesResponse][google.spanner.admin.database.v1.ListDatabasesResponse].
+	// [next_page_token][google.spanner.admin.database.v1.ListDatabasesResponse.next_page_token]
+	// from a previous
+	// [ListDatabasesResponse][google.spanner.admin.database.v1.ListDatabasesResponse].
 	PageToken            string   `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -177,13 +180,14 @@ func (m *ListDatabasesRequest) GetPageToken() string {
 	return ""
 }
 
-// The response for [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases].
+// The response for
+// [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases].
 type ListDatabasesResponse struct {
 	// Databases that matched the request.
 	Databases []*Database `protobuf:"bytes,1,rep,name=databases,proto3" json:"databases,omitempty"`
 	// `next_page_token` can be sent in a subsequent
-	// [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases] call to fetch more
-	// of the matching databases.
+	// [ListDatabases][google.spanner.admin.database.v1.DatabaseAdmin.ListDatabases]
+	// call to fetch more of the matching databases.
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -229,7 +233,8 @@ func (m *ListDatabasesResponse) GetNextPageToken() string {
 	return ""
 }
 
-// The request for [CreateDatabase][google.spanner.admin.database.v1.DatabaseAdmin.CreateDatabase].
+// The request for
+// [CreateDatabase][google.spanner.admin.database.v1.DatabaseAdmin.CreateDatabase].
 type CreateDatabaseRequest struct {
 	// Required. The name of the instance that will serve the new database.
 	// Values are of the form `projects/<project>/instances/<instance>`.
@@ -338,7 +343,8 @@ func (m *CreateDatabaseMetadata) GetDatabase() string {
 	return ""
 }
 
-// The request for [GetDatabase][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabase].
+// The request for
+// [GetDatabase][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabase].
 type GetDatabaseRequest struct {
 	// Required. The name of the requested database. Values are of the form
 	// `projects/<project>/instances/<instance>/databases/<database>`.
@@ -394,8 +400,8 @@ func (m *GetDatabaseRequest) GetName() string {
 // Each batch of statements is assigned a name which can be used with
 // the [Operations][google.longrunning.Operations] API to monitor
 // progress. See the
-// [operation_id][google.spanner.admin.database.v1.UpdateDatabaseDdlRequest.operation_id] field for more
-// details.
+// [operation_id][google.spanner.admin.database.v1.UpdateDatabaseDdlRequest.operation_id]
+// field for more details.
 type UpdateDatabaseDdlRequest struct {
 	// Required. The database to update.
 	Database string `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
@@ -408,18 +414,20 @@ type UpdateDatabaseDdlRequest struct {
 	//
 	// Specifying an explicit operation ID simplifies determining
 	// whether the statements were executed in the event that the
-	// [UpdateDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.UpdateDatabaseDdl] call is replayed,
-	// or the return value is otherwise lost: the [database][google.spanner.admin.database.v1.UpdateDatabaseDdlRequest.database] and
-	// `operation_id` fields can be combined to form the
+	// [UpdateDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.UpdateDatabaseDdl]
+	// call is replayed, or the return value is otherwise lost: the
+	// [database][google.spanner.admin.database.v1.UpdateDatabaseDdlRequest.database]
+	// and `operation_id` fields can be combined to form the
 	// [name][google.longrunning.Operation.name] of the resulting
-	// [longrunning.Operation][google.longrunning.Operation]: `<database>/operations/<operation_id>`.
+	// [longrunning.Operation][google.longrunning.Operation]:
+	// `<database>/operations/<operation_id>`.
 	//
 	// `operation_id` should be unique within the database, and must be
 	// a valid identifier: `[a-z][a-z0-9_]*`. Note that
 	// automatically-generated operation IDs always begin with an
 	// underscore. If the named operation already exists,
-	// [UpdateDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.UpdateDatabaseDdl] returns
-	// `ALREADY_EXISTS`.
+	// [UpdateDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.UpdateDatabaseDdl]
+	// returns `ALREADY_EXISTS`.
 	OperationId          string   `protobuf:"bytes,3,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -535,7 +543,8 @@ func (m *UpdateDatabaseDdlMetadata) GetCommitTimestamps() []*timestamp.Timestamp
 	return nil
 }
 
-// The request for [DropDatabase][google.spanner.admin.database.v1.DatabaseAdmin.DropDatabase].
+// The request for
+// [DropDatabase][google.spanner.admin.database.v1.DatabaseAdmin.DropDatabase].
 type DropDatabaseRequest struct {
 	// Required. The database to be dropped.
 	Database             string   `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
@@ -576,7 +585,8 @@ func (m *DropDatabaseRequest) GetDatabase() string {
 	return ""
 }
 
-// The request for [GetDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabaseDdl].
+// The request for
+// [GetDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabaseDdl].
 type GetDatabaseDdlRequest struct {
 	// Required. The database whose schema we wish to get.
 	Database             string   `protobuf:"bytes,1,opt,name=database,proto3" json:"database,omitempty"`
@@ -617,7 +627,8 @@ func (m *GetDatabaseDdlRequest) GetDatabase() string {
 	return ""
 }
 
-// The response for [GetDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabaseDdl].
+// The response for
+// [GetDatabaseDdl][google.spanner.admin.database.v1.DatabaseAdmin.GetDatabaseDdl].
 type GetDatabaseDdlResponse struct {
 	// A list of formatted DDL statements defining the schema of the database
 	// specified in the request.
@@ -766,8 +777,8 @@ type DatabaseAdminClient interface {
 	// have a name of the format `<database_name>/operations/<operation_id>` and
 	// can be used to track preparation of the database. The
 	// [metadata][google.longrunning.Operation.metadata] field type is
-	// [CreateDatabaseMetadata][google.spanner.admin.database.v1.CreateDatabaseMetadata]. The
-	// [response][google.longrunning.Operation.response] field type is
+	// [CreateDatabaseMetadata][google.spanner.admin.database.v1.CreateDatabaseMetadata].
+	// The [response][google.longrunning.Operation.response] field type is
 	// [Database][google.spanner.admin.database.v1.Database], if successful.
 	CreateDatabase(ctx context.Context, in *CreateDatabaseRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
 	// Gets the state of a Cloud Spanner database.
@@ -778,7 +789,8 @@ type DatabaseAdminClient interface {
 	// the format `<database_name>/operations/<operation_id>` and can be used to
 	// track execution of the schema change(s). The
 	// [metadata][google.longrunning.Operation.metadata] field type is
-	// [UpdateDatabaseDdlMetadata][google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata].  The operation has no response.
+	// [UpdateDatabaseDdlMetadata][google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata].
+	// The operation has no response.
 	UpdateDatabaseDdl(ctx context.Context, in *UpdateDatabaseDdlRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
 	// Drops (aka deletes) a Cloud Spanner database.
 	DropDatabase(ctx context.Context, in *DropDatabaseRequest, opts ...grpc.CallOption) (*empty.Empty, error)
@@ -905,8 +917,8 @@ type DatabaseAdminServer interface {
 	// have a name of the format `<database_name>/operations/<operation_id>` and
 	// can be used to track preparation of the database. The
 	// [metadata][google.longrunning.Operation.metadata] field type is
-	// [CreateDatabaseMetadata][google.spanner.admin.database.v1.CreateDatabaseMetadata]. The
-	// [response][google.longrunning.Operation.response] field type is
+	// [CreateDatabaseMetadata][google.spanner.admin.database.v1.CreateDatabaseMetadata].
+	// The [response][google.longrunning.Operation.response] field type is
 	// [Database][google.spanner.admin.database.v1.Database], if successful.
 	CreateDatabase(context.Context, *CreateDatabaseRequest) (*longrunning.Operation, error)
 	// Gets the state of a Cloud Spanner database.
@@ -917,7 +929,8 @@ type DatabaseAdminServer interface {
 	// the format `<database_name>/operations/<operation_id>` and can be used to
 	// track execution of the schema change(s). The
 	// [metadata][google.longrunning.Operation.metadata] field type is
-	// [UpdateDatabaseDdlMetadata][google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata].  The operation has no response.
+	// [UpdateDatabaseDdlMetadata][google.spanner.admin.database.v1.UpdateDatabaseDdlMetadata].
+	// The operation has no response.
 	UpdateDatabaseDdl(context.Context, *UpdateDatabaseDdlRequest) (*longrunning.Operation, error)
 	// Drops (aka deletes) a Cloud Spanner database.
 	DropDatabase(context.Context, *DropDatabaseRequest) (*empty.Empty, error)

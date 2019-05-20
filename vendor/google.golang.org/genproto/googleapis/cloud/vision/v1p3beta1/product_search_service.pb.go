@@ -6,6 +6,8 @@ package vision
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -14,7 +16,6 @@ import (
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -26,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Enumerates the possible states that the batch request can be in.
 type BatchOperationMetadata_State int32
@@ -1555,9 +1556,11 @@ type ImportProductSetsGcsSource struct {
 	// product_display_name, product_category and labels are ignored.
 	//
 	// If a Product doesn't exist and needs to be created on the fly, the
-	// product_display_name field refers to [Product.display_name][google.cloud.vision.v1p3beta1.Product.display_name], the
-	// product_category field refers to [Product.product_category][google.cloud.vision.v1p3beta1.Product.product_category], and the
-	// labels field refers to [Product.labels][].
+	// product_display_name field refers to
+	// [Product.display_name][google.cloud.vision.v1p3beta1.Product.display_name],
+	// the product_category field refers to
+	// [Product.product_category][google.cloud.vision.v1p3beta1.Product.product_category],
+	// and the labels field refers to [Product.labels][].
 	//
 	// Labels (optional) should be a line containing a list of comma-separated
 	// key-value pairs, with the format
@@ -1678,59 +1681,11 @@ func (m *ImportProductSetsInputConfig) GetGcsSource() *ImportProductSetsGcsSourc
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*ImportProductSetsInputConfig) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _ImportProductSetsInputConfig_OneofMarshaler, _ImportProductSetsInputConfig_OneofUnmarshaler, _ImportProductSetsInputConfig_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*ImportProductSetsInputConfig) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*ImportProductSetsInputConfig_GcsSource)(nil),
 	}
-}
-
-func _ImportProductSetsInputConfig_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*ImportProductSetsInputConfig)
-	// source
-	switch x := m.Source.(type) {
-	case *ImportProductSetsInputConfig_GcsSource:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.GcsSource); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("ImportProductSetsInputConfig.Source has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _ImportProductSetsInputConfig_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*ImportProductSetsInputConfig)
-	switch tag {
-	case 1: // source.gcs_source
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ImportProductSetsGcsSource)
-		err := b.DecodeMessage(msg)
-		m.Source = &ImportProductSetsInputConfig_GcsSource{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _ImportProductSetsInputConfig_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*ImportProductSetsInputConfig)
-	// source
-	switch x := m.Source.(type) {
-	case *ImportProductSetsInputConfig_GcsSource:
-		s := proto.Size(x.GcsSource)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Request message for the `ImportProductSets` method.
@@ -1788,8 +1743,10 @@ func (m *ImportProductSetsRequest) GetInputConfig() *ImportProductSetsInputConfi
 // Response message for the `ImportProductSets` method.
 //
 // This message is returned by the
-// [google.longrunning.Operations.GetOperation][google.longrunning.Operations.GetOperation] method in the returned
-// [google.longrunning.Operation.response][google.longrunning.Operation.response] field.
+// [google.longrunning.Operations.GetOperation][google.longrunning.Operations.GetOperation]
+// method in the returned
+// [google.longrunning.Operation.response][google.longrunning.Operation.response]
+// field.
 type ImportProductSetsResponse struct {
 	// The list of reference_images that are imported successfully.
 	ReferenceImages []*ReferenceImage `protobuf:"bytes,1,rep,name=reference_images,json=referenceImages,proto3" json:"reference_images,omitempty"`
@@ -1854,7 +1811,8 @@ type BatchOperationMetadata struct {
 	// The time when the batch request was submitted to the server.
 	SubmitTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=submit_time,json=submitTime,proto3" json:"submit_time,omitempty"`
 	// The time when the batch request is finished and
-	// [google.longrunning.Operation.done][google.longrunning.Operation.done] is set to true.
+	// [google.longrunning.Operation.done][google.longrunning.Operation.done] is
+	// set to true.
 	EndTime              *timestamp.Timestamp `protobuf:"bytes,3,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
@@ -2234,8 +2192,8 @@ type ProductSearchClient interface {
 	// Asynchronous API that imports a list of reference images to specified
 	// product sets based on a list of image information.
 	//
-	// The [google.longrunning.Operation][google.longrunning.Operation] API can be used to keep track of the
-	// progress and results of the request.
+	// The [google.longrunning.Operation][google.longrunning.Operation] API can be
+	// used to keep track of the progress and results of the request.
 	// `Operation.metadata` contains `BatchOperationMetadata`. (progress)
 	// `Operation.response` contains `ImportProductSetsResponse`. (results)
 	//
@@ -2573,8 +2531,8 @@ type ProductSearchServer interface {
 	// Asynchronous API that imports a list of reference images to specified
 	// product sets based on a list of image information.
 	//
-	// The [google.longrunning.Operation][google.longrunning.Operation] API can be used to keep track of the
-	// progress and results of the request.
+	// The [google.longrunning.Operation][google.longrunning.Operation] API can be
+	// used to keep track of the progress and results of the request.
 	// `Operation.metadata` contains `BatchOperationMetadata`. (progress)
 	// `Operation.response` contains `ImportProductSetsResponse`. (results)
 	//

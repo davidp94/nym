@@ -6,13 +6,14 @@ package vision
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	color "google.golang.org/genproto/googleapis/type/color"
 	latlng "google.golang.org/genproto/googleapis/type/latlng"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -24,7 +25,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // A bucketized representation of likelihood, which is intended to give clients
 // highly stable results across model upgrades.
@@ -817,7 +818,8 @@ func (m *Property) GetUint64Value() uint64 {
 // Set of detected entity features.
 type EntityAnnotation struct {
 	// Opaque entity ID. Some IDs may be available in
-	// [Google Knowledge Graph Search API](https://developers.google.com/knowledge-graph/).
+	// [Google Knowledge Graph Search
+	// API](https://developers.google.com/knowledge-graph/).
 	Mid string `protobuf:"bytes,1,opt,name=mid,proto3" json:"mid,omitempty"`
 	// The language code for the locale in which the entity textual
 	// `description` is expressed.

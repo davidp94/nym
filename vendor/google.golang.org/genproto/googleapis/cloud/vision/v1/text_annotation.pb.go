@@ -5,9 +5,10 @@ package vision
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -19,7 +20,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Enum to denote the type of break found. New line, space etc.
 type TextAnnotation_DetectedBreak_BreakType int32
@@ -115,8 +116,9 @@ func (Block_BlockType) EnumDescriptor() ([]byte, []int) {
 //     TextAnnotation -> Page -> Block -> Paragraph -> Word -> Symbol
 // Each structural component, starting from Page, may further have their own
 // properties. Properties describe detected languages, breaks etc.. Please refer
-// to the [TextAnnotation.TextProperty][google.cloud.vision.v1.TextAnnotation.TextProperty] message definition below for more
-// detail.
+// to the
+// [TextAnnotation.TextProperty][google.cloud.vision.v1.TextAnnotation.TextProperty]
+// message definition below for more detail.
 type TextAnnotation struct {
 	// List of pages detected by OCR.
 	Pages []*Page `protobuf:"bytes,1,rep,name=pages,proto3" json:"pages,omitempty"`
@@ -420,7 +422,7 @@ type Block struct {
 	//         |    |
 	//         1----0
 	//
-	//   and the vertice order will still be (0, 1, 2, 3).
+	//   and the vertex order will still be (0, 1, 2, 3).
 	BoundingBox *BoundingPoly `protobuf:"bytes,2,opt,name=bounding_box,json=boundingBox,proto3" json:"bounding_box,omitempty"`
 	// List of paragraphs in this block (if this blocks is of type text).
 	Paragraphs []*Paragraph `protobuf:"bytes,3,rep,name=paragraphs,proto3" json:"paragraphs,omitempty"`
@@ -511,7 +513,7 @@ type Paragraph struct {
 	//      2----3
 	//      |    |
 	//      1----0
-	//   and the vertice order will still be (0, 1, 2, 3).
+	//   and the vertex order will still be (0, 1, 2, 3).
 	BoundingBox *BoundingPoly `protobuf:"bytes,2,opt,name=bounding_box,json=boundingBox,proto3" json:"bounding_box,omitempty"`
 	// List of words in this paragraph.
 	Words []*Word `protobuf:"bytes,3,rep,name=words,proto3" json:"words,omitempty"`
@@ -593,7 +595,7 @@ type Word struct {
 	//      2----3
 	//      |    |
 	//      1----0
-	//   and the vertice order will still be (0, 1, 2, 3).
+	//   and the vertex order will still be (0, 1, 2, 3).
 	BoundingBox *BoundingPoly `protobuf:"bytes,2,opt,name=bounding_box,json=boundingBox,proto3" json:"bounding_box,omitempty"`
 	// List of symbols in the word.
 	// The order of the symbols follows the natural reading order.

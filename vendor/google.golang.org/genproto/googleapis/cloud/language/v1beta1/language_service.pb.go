@@ -6,10 +6,11 @@ package language
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Represents the text encoding that the caller uses to process the output.
 // Providing an `EncodingType` is recommended because the API provides the
@@ -1106,11 +1107,11 @@ type Document struct {
 	// The language of the document (if not specified, the language is
 	// automatically detected). Both ISO and BCP-47 language codes are
 	// accepted.<br>
-	// [Language Support](https://cloud.google.com/natural-language/docs/languages)
-	// lists currently supported languages for each API method.
-	// If the language (either specified by the caller or automatically detected)
-	// is not supported by the called API method, an `INVALID_ARGUMENT` error
-	// is returned.
+	// [Language
+	// Support](https://cloud.google.com/natural-language/docs/languages) lists
+	// currently supported languages for each API method. If the language (either
+	// specified by the caller or automatically detected) is not supported by the
+	// called API method, an `INVALID_ARGUMENT` error is returned.
 	Language             string   `protobuf:"bytes,4,opt,name=language,proto3" json:"language,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1193,70 +1194,12 @@ func (m *Document) GetLanguage() string {
 	return ""
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Document) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Document_OneofMarshaler, _Document_OneofUnmarshaler, _Document_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*Document) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*Document_Content)(nil),
 		(*Document_GcsContentUri)(nil),
 	}
-}
-
-func _Document_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Document)
-	// source
-	switch x := m.Source.(type) {
-	case *Document_Content:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.Content)
-	case *Document_GcsContentUri:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		b.EncodeStringBytes(x.GcsContentUri)
-	case nil:
-	default:
-		return fmt.Errorf("Document.Source has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Document_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Document)
-	switch tag {
-	case 2: // source.content
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Source = &Document_Content{x}
-		return true, err
-	case 3: // source.gcs_content_uri
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeStringBytes()
-		m.Source = &Document_GcsContentUri{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Document_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Document)
-	// source
-	switch x := m.Source.(type) {
-	case *Document_Content:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Content)))
-		n += len(x.Content)
-	case *Document_GcsContentUri:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.GcsContentUri)))
-		n += len(x.GcsContentUri)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Represents a sentence in the input document.
@@ -1264,8 +1207,8 @@ type Sentence struct {
 	// The sentence text.
 	Text *TextSpan `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
 	// For calls to [AnalyzeSentiment][] or if
-	// [AnnotateTextRequest.Features.extract_document_sentiment][google.cloud.language.v1beta1.AnnotateTextRequest.Features.extract_document_sentiment] is set to
-	// true, this field will contain the sentiment for the sentence.
+	// [AnnotateTextRequest.Features.extract_document_sentiment][google.cloud.language.v1beta1.AnnotateTextRequest.Features.extract_document_sentiment]
+	// is set to true, this field will contain the sentiment for the sentence.
 	Sentiment            *Sentiment `protobuf:"bytes,2,opt,name=sentiment,proto3" json:"sentiment,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -1782,7 +1725,9 @@ type TextSpan struct {
 	// The content of the output text.
 	Content string `protobuf:"bytes,1,opt,name=content,proto3" json:"content,omitempty"`
 	// The API calculates the beginning offset of the content in the original
-	// document according to the [EncodingType][google.cloud.language.v1beta1.EncodingType] specified in the API request.
+	// document according to the
+	// [EncodingType][google.cloud.language.v1beta1.EncodingType] specified in the
+	// API request.
 	BeginOffset          int32    `protobuf:"varint,2,opt,name=begin_offset,json=beginOffset,proto3" json:"begin_offset,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1885,7 +1830,8 @@ type AnalyzeSentimentResponse struct {
 	DocumentSentiment *Sentiment `protobuf:"bytes,1,opt,name=document_sentiment,json=documentSentiment,proto3" json:"document_sentiment,omitempty"`
 	// The language of the text, which will be the same as the language specified
 	// in the request or, if not specified, the automatically-detected language.
-	// See [Document.language][google.cloud.language.v1beta1.Document.language] field for more details.
+	// See [Document.language][google.cloud.language.v1beta1.Document.language]
+	// field for more details.
 	Language string `protobuf:"bytes,2,opt,name=language,proto3" json:"language,omitempty"`
 	// The sentiment for all the sentences in the document.
 	Sentences            []*Sentence `protobuf:"bytes,3,rep,name=sentences,proto3" json:"sentences,omitempty"`
@@ -1996,7 +1942,8 @@ type AnalyzeEntitiesResponse struct {
 	Entities []*Entity `protobuf:"bytes,1,rep,name=entities,proto3" json:"entities,omitempty"`
 	// The language of the text, which will be the same as the language specified
 	// in the request or, if not specified, the automatically-detected language.
-	// See [Document.language][google.cloud.language.v1beta1.Document.language] field for more details.
+	// See [Document.language][google.cloud.language.v1beta1.Document.language]
+	// field for more details.
 	Language             string   `protobuf:"bytes,2,opt,name=language,proto3" json:"language,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -2100,7 +2047,8 @@ type AnalyzeSyntaxResponse struct {
 	Tokens []*Token `protobuf:"bytes,2,rep,name=tokens,proto3" json:"tokens,omitempty"`
 	// The language of the text, which will be the same as the language specified
 	// in the request or, if not specified, the automatically-detected language.
-	// See [Document.language][google.cloud.language.v1beta1.Document.language] field for more details.
+	// See [Document.language][google.cloud.language.v1beta1.Document.language]
+	// field for more details.
 	Language             string   `protobuf:"bytes,3,opt,name=language,proto3" json:"language,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -2291,7 +2239,8 @@ type AnnotateTextResponse struct {
 	DocumentSentiment *Sentiment `protobuf:"bytes,4,opt,name=document_sentiment,json=documentSentiment,proto3" json:"document_sentiment,omitempty"`
 	// The language of the text, which will be the same as the language specified
 	// in the request or, if not specified, the automatically-detected language.
-	// See [Document.language][google.cloud.language.v1beta1.Document.language] field for more details.
+	// See [Document.language][google.cloud.language.v1beta1.Document.language]
+	// field for more details.
 	Language             string   `protobuf:"bytes,5,opt,name=language,proto3" json:"language,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

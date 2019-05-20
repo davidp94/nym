@@ -5,11 +5,12 @@ package datastore
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	wrappers "github.com/golang/protobuf/ptypes/wrappers"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	_ "google.golang.org/genproto/googleapis/type/latlng"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Specifies what data the 'entity' field contains.
 // A `ResultType` is either implied (for example, in `LookupResponse.missing`
@@ -219,12 +220,13 @@ type EntityResult struct {
 	// The version of the entity, a strictly positive number that monotonically
 	// increases with changes to the entity.
 	//
-	// This field is set for [`FULL`][google.datastore.v1beta3.EntityResult.ResultType.FULL] entity
+	// This field is set for
+	// [`FULL`][google.datastore.v1beta3.EntityResult.ResultType.FULL] entity
 	// results.
 	//
-	// For [missing][google.datastore.v1beta3.LookupResponse.missing] entities in `LookupResponse`, this
-	// is the version of the snapshot that was used to look up the entity, and it
-	// is always set except for eventually consistent reads.
+	// For [missing][google.datastore.v1beta3.LookupResponse.missing] entities in
+	// `LookupResponse`, this is the version of the snapshot that was used to look
+	// up the entity, and it is always set except for eventually consistent reads.
 	Version int64 `protobuf:"varint,4,opt,name=version,proto3" json:"version,omitempty"`
 	// A cursor that points to the position after the result entity.
 	// Set only when the `EntityResult` is part of a `QueryResultBatch` message.
@@ -297,11 +299,13 @@ type Query struct {
 	DistinctOn []*PropertyReference `protobuf:"bytes,6,rep,name=distinct_on,json=distinctOn,proto3" json:"distinct_on,omitempty"`
 	// A starting point for the query results. Query cursors are
 	// returned in query result batches and
-	// [can only be used to continue the same query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
+	// [can only be used to continue the same
+	// query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
 	StartCursor []byte `protobuf:"bytes,7,opt,name=start_cursor,json=startCursor,proto3" json:"start_cursor,omitempty"`
 	// An ending point for the query results. Query cursors are
 	// returned in query result batches and
-	// [can only be used to limit the same query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
+	// [can only be used to limit the same
+	// query](https://cloud.google.com/datastore/docs/concepts/queries#cursors_limits_and_offsets).
 	EndCursor []byte `protobuf:"bytes,8,opt,name=end_cursor,json=endCursor,proto3" json:"end_cursor,omitempty"`
 	// The number of results to skip. Applies before limit, but after all other
 	// constraints. Optional. Must be >= 0 if specified.
@@ -653,78 +657,12 @@ func (m *Filter) GetPropertyFilter() *PropertyFilter {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Filter) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Filter_OneofMarshaler, _Filter_OneofUnmarshaler, _Filter_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*Filter) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*Filter_CompositeFilter)(nil),
 		(*Filter_PropertyFilter)(nil),
 	}
-}
-
-func _Filter_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Filter)
-	// filter_type
-	switch x := m.FilterType.(type) {
-	case *Filter_CompositeFilter:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.CompositeFilter); err != nil {
-			return err
-		}
-	case *Filter_PropertyFilter:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.PropertyFilter); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("Filter.FilterType has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Filter_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Filter)
-	switch tag {
-	case 1: // filter_type.composite_filter
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(CompositeFilter)
-		err := b.DecodeMessage(msg)
-		m.FilterType = &Filter_CompositeFilter{msg}
-		return true, err
-	case 2: // filter_type.property_filter
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(PropertyFilter)
-		err := b.DecodeMessage(msg)
-		m.FilterType = &Filter_PropertyFilter{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Filter_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Filter)
-	// filter_type
-	switch x := m.FilterType.(type) {
-	case *Filter_CompositeFilter:
-		s := proto.Size(x.CompositeFilter)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Filter_PropertyFilter:
-		s := proto.Size(x.PropertyFilter)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // A filter that merges multiple other filters using the given operator.
@@ -837,7 +775,8 @@ func (m *PropertyFilter) GetValue() *Value {
 	return nil
 }
 
-// A [GQL query](https://cloud.google.com/datastore/docs/apis/gql/gql_reference).
+// A [GQL
+// query](https://cloud.google.com/datastore/docs/apis/gql/gql_reference).
 type GqlQuery struct {
 	// A string of the format described
 	// [here](https://cloud.google.com/datastore/docs/apis/gql/gql_reference).
@@ -992,74 +931,12 @@ func (m *GqlQueryParameter) GetCursor() []byte {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*GqlQueryParameter) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _GqlQueryParameter_OneofMarshaler, _GqlQueryParameter_OneofUnmarshaler, _GqlQueryParameter_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*GqlQueryParameter) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*GqlQueryParameter_Value)(nil),
 		(*GqlQueryParameter_Cursor)(nil),
 	}
-}
-
-func _GqlQueryParameter_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*GqlQueryParameter)
-	// parameter_type
-	switch x := m.ParameterType.(type) {
-	case *GqlQueryParameter_Value:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Value); err != nil {
-			return err
-		}
-	case *GqlQueryParameter_Cursor:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		b.EncodeRawBytes(x.Cursor)
-	case nil:
-	default:
-		return fmt.Errorf("GqlQueryParameter.ParameterType has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _GqlQueryParameter_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*GqlQueryParameter)
-	switch tag {
-	case 2: // parameter_type.value
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(Value)
-		err := b.DecodeMessage(msg)
-		m.ParameterType = &GqlQueryParameter_Value{msg}
-		return true, err
-	case 3: // parameter_type.cursor
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		x, err := b.DecodeRawBytes(true)
-		m.ParameterType = &GqlQueryParameter_Cursor{x}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _GqlQueryParameter_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*GqlQueryParameter)
-	// parameter_type
-	switch x := m.ParameterType.(type) {
-	case *GqlQueryParameter_Value:
-		s := proto.Size(x.Value)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *GqlQueryParameter_Cursor:
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(len(x.Cursor)))
-		n += len(x.Cursor)
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // A batch of results produced by a query.

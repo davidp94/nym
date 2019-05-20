@@ -6,10 +6,11 @@ package servicecontrol
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Supported quota modes.
 type QuotaOperation_QuotaMode int32
@@ -122,7 +123,8 @@ type AllocateQuotaRequest struct {
 	// Name of the service as specified in the service configuration. For example,
 	// `"pubsub.googleapis.com"`.
 	//
-	// See [google.api.Service][google.api.Service] for the definition of a service name.
+	// See [google.api.Service][google.api.Service] for the definition of a
+	// service name.
 	ServiceName string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	// Operation that describes the quota allocation.
 	AllocateOperation *QuotaOperation `protobuf:"bytes,2,opt,name=allocate_operation,json=allocateOperation,proto3" json:"allocate_operation,omitempty"`
@@ -372,7 +374,8 @@ func (m *AllocateQuotaResponse) GetServiceConfigId() string {
 	return ""
 }
 
-// Represents error information for [QuotaOperation][google.api.servicecontrol.v1.QuotaOperation].
+// Represents error information for
+// [QuotaOperation][google.api.servicecontrol.v1.QuotaOperation].
 type QuotaError struct {
 	// Error code.
 	Code QuotaError_Code `protobuf:"varint,1,opt,name=code,proto3,enum=google.api.servicecontrol.v1.QuotaError_Code" json:"code,omitempty"`

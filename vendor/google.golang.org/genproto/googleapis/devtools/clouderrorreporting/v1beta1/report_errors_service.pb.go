@@ -6,11 +6,12 @@ package clouderrorreporting
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,14 +23,15 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // A request for reporting an individual error event.
 type ReportErrorEventRequest struct {
 	// [Required] The resource name of the Google Cloud Platform project. Written
 	// as `projects/` plus the
-	// [Google Cloud Platform project ID](https://support.google.com/cloud/answer/6158840).
-	// Example: `projects/my-project-123`.
+	// [Google Cloud Platform project
+	// ID](https://support.google.com/cloud/answer/6158840). Example:
+	// `projects/my-project-123`.
 	ProjectName string `protobuf:"bytes,1,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
 	// [Required] The error event to be reported.
 	Event                *ReportedErrorEvent `protobuf:"bytes,2,opt,name=event,proto3" json:"event,omitempty"`
@@ -247,7 +249,8 @@ type ReportErrorsServiceClient interface {
 	// <a href="https://support.google.com/cloud/answer/6158862">API key</a>
 	// for authentication. To use an API key, append it to the URL as the value of
 	// a `key` parameter. For example:
-	// <pre>POST https://clouderrorreporting.googleapis.com/v1beta1/projects/example-project/events:report?key=123ABC456</pre>
+	// <pre>POST
+	// https://clouderrorreporting.googleapis.com/v1beta1/projects/example-project/events:report?key=123ABC456</pre>
 	ReportErrorEvent(ctx context.Context, in *ReportErrorEventRequest, opts ...grpc.CallOption) (*ReportErrorEventResponse, error)
 }
 
@@ -277,7 +280,8 @@ type ReportErrorsServiceServer interface {
 	// <a href="https://support.google.com/cloud/answer/6158862">API key</a>
 	// for authentication. To use an API key, append it to the URL as the value of
 	// a `key` parameter. For example:
-	// <pre>POST https://clouderrorreporting.googleapis.com/v1beta1/projects/example-project/events:report?key=123ABC456</pre>
+	// <pre>POST
+	// https://clouderrorreporting.googleapis.com/v1beta1/projects/example-project/events:report?key=123ABC456</pre>
 	ReportErrorEvent(context.Context, *ReportErrorEventRequest) (*ReportErrorEventResponse, error)
 }
 

@@ -5,8 +5,9 @@ package serviceconfig
 
 import (
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
 	math "math"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -18,7 +19,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // `Documentation` provides the information for describing a service.
 //
@@ -171,14 +172,14 @@ type DocumentationRule struct {
 	// The selector is a comma-separated list of patterns. Each pattern is a
 	// qualified name of the element which may end in "*", indicating a wildcard.
 	// Wildcards are only allowed at the end and for a whole component of the
-	// qualified name, i.e. "foo.*" is ok, but not "foo.b*" or "foo.*.bar". To
-	// specify a default for all applicable elements, the whole pattern "*"
-	// is used.
+	// qualified name, i.e. "foo.*" is ok, but not "foo.b*" or "foo.*.bar". A
+	// wildcard will match one or more components. To specify a default for all
+	// applicable elements, the whole pattern "*" is used.
 	Selector string `protobuf:"bytes,1,opt,name=selector,proto3" json:"selector,omitempty"`
 	// Description of the selected API(s).
 	Description string `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	// Deprecation description of the selected element(s). It can be provided if an
-	// element is marked as `deprecated`.
+	// Deprecation description of the selected element(s). It can be provided if
+	// an element is marked as `deprecated`.
 	DeprecationDescription string   `protobuf:"bytes,3,opt,name=deprecation_description,json=deprecationDescription,proto3" json:"deprecation_description,omitempty"`
 	XXX_NoUnkeyedLiteral   struct{} `json:"-"`
 	XXX_unrecognized       []byte   `json:"-"`
@@ -249,8 +250,8 @@ type Page struct {
 	// You can reference `Java` page using Markdown reference link syntax:
 	// `[Java][Tutorial.Java]`.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The Markdown content of the page. You can use <code>&#40;== include {path} ==&#41;</code>
-	// to include content from a Markdown file.
+	// The Markdown content of the page. You can use <code>&#40;== include {path}
+	// ==&#41;</code> to include content from a Markdown file.
 	Content string `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
 	// Subpages of this page. The order of subpages specified here will be
 	// honored in the generated docset.

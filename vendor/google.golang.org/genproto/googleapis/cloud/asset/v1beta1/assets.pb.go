@@ -5,13 +5,14 @@ package asset
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/golang/protobuf/ptypes/any"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	v1 "google.golang.org/genproto/googleapis/iam/v1"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Temporal asset. In addition to the asset, the temporal asset includes the
 // status of the asset and valid from and to time of it.
@@ -85,11 +86,11 @@ func (m *TemporalAsset) GetAsset() *Asset {
 	return nil
 }
 
-// A time window of [start_time, end_time).
+// A time window of (start_time, end_time].
 type TimeWindow struct {
-	// Start time of the time window (inclusive).
+	// Start time of the time window (exclusive).
 	StartTime *timestamp.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
-	// End time of the time window (exclusive).
+	// End time of the time window (inclusive).
 	// Current timestamp if not specified.
 	EndTime              *timestamp.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
@@ -139,16 +140,18 @@ func (m *TimeWindow) GetEndTime() *timestamp.Timestamp {
 // Cloud asset. This includes all Google Cloud Platform resources,
 // Cloud IAM policies, and other non-GCP assets.
 type Asset struct {
-	// The full name of the asset. For example: `//compute.googleapis.com/projects/my_project_123/zones/zone1/instances/instance1`.
-	// See [Resource Names](https://cloud.google.com/apis/design/resource_names#full_resource_name)
+	// The full name of the asset. For example:
+	// `//compute.googleapis.com/projects/my_project_123/zones/zone1/instances/instance1`.
+	// See [Resource
+	// Names](https://cloud.google.com/apis/design/resource_names#full_resource_name)
 	// for more information.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Type of the asset. Example: "google.compute.disk".
+	// Type of the asset. Example: "google.compute.Disk".
 	AssetType string `protobuf:"bytes,2,opt,name=asset_type,json=assetType,proto3" json:"asset_type,omitempty"`
 	// Representation of the resource.
 	Resource *Resource `protobuf:"bytes,3,opt,name=resource,proto3" json:"resource,omitempty"`
-	// Representation of the actual Cloud IAM policy set on a cloud resource. For each
-	// resource, there must be at most one Cloud IAM policy set on it.
+	// Representation of the actual Cloud IAM policy set on a cloud resource. For
+	// each resource, there must be at most one Cloud IAM policy set on it.
 	IamPolicy            *v1.Policy `protobuf:"bytes,4,opt,name=iam_policy,json=iamPolicy,proto3" json:"iam_policy,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}   `json:"-"`
 	XXX_unrecognized     []byte     `json:"-"`
@@ -229,12 +232,14 @@ type Resource struct {
 	// It will be left unspecified for resources without a REST API.
 	ResourceUrl string `protobuf:"bytes,4,opt,name=resource_url,json=resourceUrl,proto3" json:"resource_url,omitempty"`
 	// The full name of the immediate parent of this resource. See
-	// [Resource Names](https://cloud.google.com/apis/design/resource_names#full_resource_name)
+	// [Resource
+	// Names](https://cloud.google.com/apis/design/resource_names#full_resource_name)
 	// for more information.
 	//
 	// For GCP assets, it is the parent resource defined in the [Cloud IAM policy
 	// hierarchy](https://cloud.google.com/iam/docs/overview#policy_hierarchy).
-	// For example: `"//cloudresourcemanager.googleapis.com/projects/my_project_123"`.
+	// For example:
+	// `"//cloudresourcemanager.googleapis.com/projects/my_project_123"`.
 	//
 	// For third-party assets, it is up to the users to define.
 	Parent string `protobuf:"bytes,5,opt,name=parent,proto3" json:"parent,omitempty"`

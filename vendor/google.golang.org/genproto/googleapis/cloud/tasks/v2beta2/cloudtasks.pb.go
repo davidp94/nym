@@ -6,6 +6,8 @@ package tasks
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	empty "github.com/golang/protobuf/ptypes/empty"
@@ -15,7 +17,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/rpc/code"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -27,20 +28,21 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// Request message for [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues].
+// Request message for
+// [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues].
 type ListQueuesRequest struct {
 	// Required.
 	//
 	// The location name.
 	// For example: `projects/PROJECT_ID/locations/LOCATION_ID`
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	// `filter` can be used to specify a subset of queues. Any [Queue][google.cloud.tasks.v2beta2.Queue]
-	// field can be used as a filter and several operators as supported.
-	// For example: `<=, <, >=, >, !=, =, :`. The filter syntax is the same as
-	// described in
-	// [Stackdriver's Advanced Logs Filters](https://cloud.google.com/logging/docs/view/advanced_filters).
+	// `filter` can be used to specify a subset of queues. Any
+	// [Queue][google.cloud.tasks.v2beta2.Queue] field can be used as a filter and
+	// several operators as supported. For example: `<=, <, >=, >, !=, =, :`. The
+	// filter syntax is the same as described in [Stackdriver's Advanced Logs
+	// Filters](https://cloud.google.com/logging/docs/view/advanced_filters).
 	//
 	// Sample filter "app_engine_http_target: *".
 	//
@@ -52,17 +54,19 @@ type ListQueuesRequest struct {
 	// The maximum page size is 9800. If unspecified, the page size will
 	// be the maximum. Fewer queues than requested might be returned,
 	// even if more queues exist; use the
-	// [next_page_token][google.cloud.tasks.v2beta2.ListQueuesResponse.next_page_token] in the
-	// response to determine if more queues exist.
+	// [next_page_token][google.cloud.tasks.v2beta2.ListQueuesResponse.next_page_token]
+	// in the response to determine if more queues exist.
 	PageSize int32 `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// A token identifying the page of results to return.
 	//
 	// To request the first page results, page_token must be empty. To
 	// request the next page of results, page_token must be the value of
-	// [next_page_token][google.cloud.tasks.v2beta2.ListQueuesResponse.next_page_token] returned
-	// from the previous call to [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues]
-	// method. It is an error to switch the value of the
-	// [filter][google.cloud.tasks.v2beta2.ListQueuesRequest.filter] while iterating through pages.
+	// [next_page_token][google.cloud.tasks.v2beta2.ListQueuesResponse.next_page_token]
+	// returned from the previous call to
+	// [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues] method. It
+	// is an error to switch the value of the
+	// [filter][google.cloud.tasks.v2beta2.ListQueuesRequest.filter] while
+	// iterating through pages.
 	PageToken            string   `protobuf:"bytes,4,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -122,14 +126,16 @@ func (m *ListQueuesRequest) GetPageToken() string {
 	return ""
 }
 
-// Response message for [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues].
+// Response message for
+// [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues].
 type ListQueuesResponse struct {
 	// The list of queues.
 	Queues []*Queue `protobuf:"bytes,1,rep,name=queues,proto3" json:"queues,omitempty"`
 	// A token to retrieve next page of results.
 	//
 	// To return the next page of results, call
-	// [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues] with this value as the
+	// [ListQueues][google.cloud.tasks.v2beta2.CloudTasks.ListQueues] with this
+	// value as the
 	// [page_token][google.cloud.tasks.v2beta2.ListQueuesRequest.page_token].
 	//
 	// If the next_page_token is empty, there are no more results.
@@ -180,7 +186,8 @@ func (m *ListQueuesResponse) GetNextPageToken() string {
 	return ""
 }
 
-// Request message for [GetQueue][google.cloud.tasks.v2beta2.CloudTasks.GetQueue].
+// Request message for
+// [GetQueue][google.cloud.tasks.v2beta2.CloudTasks.GetQueue].
 type GetQueueRequest struct {
 	// Required.
 	//
@@ -224,7 +231,8 @@ func (m *GetQueueRequest) GetName() string {
 	return ""
 }
 
-// Request message for [CreateQueue][google.cloud.tasks.v2beta2.CloudTasks.CreateQueue].
+// Request message for
+// [CreateQueue][google.cloud.tasks.v2beta2.CloudTasks.CreateQueue].
 type CreateQueueRequest struct {
 	// Required.
 	//
@@ -239,7 +247,8 @@ type CreateQueueRequest struct {
 	//
 	// The queue to create.
 	//
-	// [Queue's name][google.cloud.tasks.v2beta2.Queue.name] cannot be the same as an existing queue.
+	// [Queue's name][google.cloud.tasks.v2beta2.Queue.name] cannot be the same as
+	// an existing queue.
 	Queue                *Queue   `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -285,17 +294,20 @@ func (m *CreateQueueRequest) GetQueue() *Queue {
 	return nil
 }
 
-// Request message for [UpdateQueue][google.cloud.tasks.v2beta2.CloudTasks.UpdateQueue].
+// Request message for
+// [UpdateQueue][google.cloud.tasks.v2beta2.CloudTasks.UpdateQueue].
 type UpdateQueueRequest struct {
 	// Required.
 	//
 	// The queue to create or update.
 	//
-	// The queue's [name][google.cloud.tasks.v2beta2.Queue.name] must be specified.
+	// The queue's [name][google.cloud.tasks.v2beta2.Queue.name] must be
+	// specified.
 	//
 	// Output only fields cannot be modified using UpdateQueue.
 	// Any value specified for an output only field will be ignored.
-	// The queue's [name][google.cloud.tasks.v2beta2.Queue.name] cannot be changed.
+	// The queue's [name][google.cloud.tasks.v2beta2.Queue.name] cannot be
+	// changed.
 	Queue *Queue `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
 	// A mask used to specify which fields of the queue are being updated.
 	//
@@ -345,7 +357,8 @@ func (m *UpdateQueueRequest) GetUpdateMask() *field_mask.FieldMask {
 	return nil
 }
 
-// Request message for [DeleteQueue][google.cloud.tasks.v2beta2.CloudTasks.DeleteQueue].
+// Request message for
+// [DeleteQueue][google.cloud.tasks.v2beta2.CloudTasks.DeleteQueue].
 type DeleteQueueRequest struct {
 	// Required.
 	//
@@ -389,7 +402,8 @@ func (m *DeleteQueueRequest) GetName() string {
 	return ""
 }
 
-// Request message for [PurgeQueue][google.cloud.tasks.v2beta2.CloudTasks.PurgeQueue].
+// Request message for
+// [PurgeQueue][google.cloud.tasks.v2beta2.CloudTasks.PurgeQueue].
 type PurgeQueueRequest struct {
 	// Required.
 	//
@@ -433,7 +447,8 @@ func (m *PurgeQueueRequest) GetName() string {
 	return ""
 }
 
-// Request message for [PauseQueue][google.cloud.tasks.v2beta2.CloudTasks.PauseQueue].
+// Request message for
+// [PauseQueue][google.cloud.tasks.v2beta2.CloudTasks.PauseQueue].
 type PauseQueueRequest struct {
 	// Required.
 	//
@@ -477,7 +492,8 @@ func (m *PauseQueueRequest) GetName() string {
 	return ""
 }
 
-// Request message for [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue].
+// Request message for
+// [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue].
 type ResumeQueueRequest struct {
 	// Required.
 	//
@@ -521,41 +537,43 @@ func (m *ResumeQueueRequest) GetName() string {
 	return ""
 }
 
-// Request message for listing tasks using [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks].
+// Request message for listing tasks using
+// [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks].
 type ListTasksRequest struct {
 	// Required.
 	//
 	// The queue name. For example:
 	// `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID`
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView Task_View `protobuf:"varint,2,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	// Requested page size. Fewer tasks than requested might be returned.
 	//
 	// The maximum page size is 1000. If unspecified, the page size will
 	// be the maximum. Fewer tasks than requested might be returned,
 	// even if more tasks exist; use
-	// [next_page_token][google.cloud.tasks.v2beta2.ListTasksResponse.next_page_token] in the
-	// response to determine if more tasks exist.
+	// [next_page_token][google.cloud.tasks.v2beta2.ListTasksResponse.next_page_token]
+	// in the response to determine if more tasks exist.
 	PageSize int32 `protobuf:"varint,4,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// A token identifying the page of results to return.
 	//
 	// To request the first page results, page_token must be empty. To
 	// request the next page of results, page_token must be the value of
-	// [next_page_token][google.cloud.tasks.v2beta2.ListTasksResponse.next_page_token] returned
-	// from the previous call to [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks]
-	// method.
+	// [next_page_token][google.cloud.tasks.v2beta2.ListTasksResponse.next_page_token]
+	// returned from the previous call to
+	// [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks] method.
 	//
 	// The page token is valid for only 2 hours.
 	PageToken            string   `protobuf:"bytes,5,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
@@ -617,14 +635,16 @@ func (m *ListTasksRequest) GetPageToken() string {
 	return ""
 }
 
-// Response message for listing tasks using [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks].
+// Response message for listing tasks using
+// [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks].
 type ListTasksResponse struct {
 	// The list of tasks.
 	Tasks []*Task `protobuf:"bytes,1,rep,name=tasks,proto3" json:"tasks,omitempty"`
 	// A token to retrieve next page of results.
 	//
 	// To return the next page of results, call
-	// [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks] with this value as the
+	// [ListTasks][google.cloud.tasks.v2beta2.CloudTasks.ListTasks] with this
+	// value as the
 	// [page_token][google.cloud.tasks.v2beta2.ListTasksRequest.page_token].
 	//
 	// If the next_page_token is empty, there are no more results.
@@ -673,25 +693,27 @@ func (m *ListTasksResponse) GetNextPageToken() string {
 	return ""
 }
 
-// Request message for getting a task using [GetTask][google.cloud.tasks.v2beta2.CloudTasks.GetTask].
+// Request message for getting a task using
+// [GetTask][google.cloud.tasks.v2beta2.CloudTasks.GetTask].
 type GetTaskRequest struct {
 	// Required.
 	//
 	// The task name. For example:
 	// `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID/tasks/TASK_ID`
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView         Task_View `protobuf:"varint,2,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -737,7 +759,8 @@ func (m *GetTaskRequest) GetResponseView() Task_View {
 	return Task_VIEW_UNSPECIFIED
 }
 
-// Request message for [CreateTask][google.cloud.tasks.v2beta2.CloudTasks.CreateTask].
+// Request message for
+// [CreateTask][google.cloud.tasks.v2beta2.CloudTasks.CreateTask].
 type CreateTaskRequest struct {
 	// Required.
 	//
@@ -752,13 +775,13 @@ type CreateTaskRequest struct {
 	//
 	// Task names have the following format:
 	// `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID/tasks/TASK_ID`.
-	// The user can optionally specify a task [name][google.cloud.tasks.v2beta2.Task.name]. If a
-	// name is not specified then the system will generate a random
-	// unique task id, which will be set in the task returned in the
-	// [response][google.cloud.tasks.v2beta2.Task.name].
+	// The user can optionally specify a task
+	// [name][google.cloud.tasks.v2beta2.Task.name]. If a name is not specified
+	// then the system will generate a random unique task id, which will be set in
+	// the task returned in the [response][google.cloud.tasks.v2beta2.Task.name].
 	//
-	// If [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] is not set or is in the
-	// past then Cloud Tasks will set it to the current time.
+	// If [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] is not
+	// set or is in the past then Cloud Tasks will set it to the current time.
 	//
 	// Task De-duplication:
 	//
@@ -773,27 +796,28 @@ type CreateTaskRequest struct {
 	// for ~9days after the original task was deleted or completed.
 	//
 	// Because there is an extra lookup cost to identify duplicate task
-	// names, these [CreateTask][google.cloud.tasks.v2beta2.CloudTasks.CreateTask] calls have significantly
-	// increased latency. Using hashed strings for the task id or for
-	// the prefix of the task id is recommended. Choosing task ids that
-	// are sequential or have sequential prefixes, for example using a
+	// names, these [CreateTask][google.cloud.tasks.v2beta2.CloudTasks.CreateTask]
+	// calls have significantly increased latency. Using hashed strings for the
+	// task id or for the prefix of the task id is recommended. Choosing task ids
+	// that are sequential or have sequential prefixes, for example using a
 	// timestamp, causes an increase in latency and error rates in all
 	// task commands. The infrastructure relies on an approximately
 	// uniform distribution of task ids to store and serve tasks
 	// efficiently.
 	Task *Task `protobuf:"bytes,2,opt,name=task,proto3" json:"task,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView         Task_View `protobuf:"varint,3,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -891,7 +915,8 @@ func (m *DeleteTaskRequest) GetName() string {
 	return ""
 }
 
-// Request message for leasing tasks using [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
+// Request message for leasing tasks using
+// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
 type LeaseTasksRequest struct {
 	// Required.
 	//
@@ -908,37 +933,40 @@ type LeaseTasksRequest struct {
 	//
 	// After the worker has successfully finished the work associated
 	// with the task, the worker must call via
-	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask] before the
-	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time]. Otherwise the task will be
-	// returned to a later [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] call so
-	// that another worker can retry it.
+	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask]
+	// before the [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time].
+	// Otherwise the task will be returned to a later
+	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] call so that
+	// another worker can retry it.
 	//
 	// The maximum lease duration is 1 week.
 	// `lease_duration` will be truncated to the nearest second.
 	LeaseDuration *duration.Duration `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView Task_View `protobuf:"varint,4,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	// `filter` can be used to specify a subset of tasks to lease.
 	//
 	// When `filter` is set to `tag=<my-tag>` then the
-	// [response][google.cloud.tasks.v2beta2.LeaseTasksResponse] will contain only tasks whose
-	// [tag][google.cloud.tasks.v2beta2.PullMessage.tag] is equal to `<my-tag>`. `<my-tag>` must be
-	// less than 500 characters.
+	// [response][google.cloud.tasks.v2beta2.LeaseTasksResponse] will contain only
+	// tasks whose [tag][google.cloud.tasks.v2beta2.PullMessage.tag] is equal to
+	// `<my-tag>`. `<my-tag>` must be less than 500 characters.
 	//
 	// When `filter` is set to `tag_function=oldest_tag()`, only tasks which have
 	// the same tag as the task with the oldest
-	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be returned.
+	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be
+	// returned.
 	//
 	// Grammar Syntax:
 	//
@@ -956,8 +984,9 @@ type LeaseTasksRequest struct {
 	// [bytes](https://cloud.google.com/appengine/docs/standard/java/javadoc/com/google/appengine/api/taskqueue/TaskOptions.html#tag-byte:A-),
 	// only UTF-8 encoded tags can be used in Cloud Tasks. Tag which
 	// aren't UTF-8 encoded can't be used in the
-	// [filter][google.cloud.tasks.v2beta2.LeaseTasksRequest.filter] and the task's
-	// [tag][google.cloud.tasks.v2beta2.PullMessage.tag] will be displayed as empty in Cloud Tasks.
+	// [filter][google.cloud.tasks.v2beta2.LeaseTasksRequest.filter] and the
+	// task's [tag][google.cloud.tasks.v2beta2.PullMessage.tag] will be displayed
+	// as empty in Cloud Tasks.
 	Filter               string   `protobuf:"bytes,5,opt,name=filter,proto3" json:"filter,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -1024,7 +1053,8 @@ func (m *LeaseTasksRequest) GetFilter() string {
 	return ""
 }
 
-// Response message for leasing tasks using [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
+// Response message for leasing tasks using
+// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
 type LeaseTasksResponse struct {
 	// The leased tasks.
 	Tasks                []*Task  `protobuf:"bytes,1,rep,name=tasks,proto3" json:"tasks,omitempty"`
@@ -1078,8 +1108,8 @@ type AcknowledgeTaskRequest struct {
 	// The task's current schedule time, available in the
 	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] returned by
 	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] response or
-	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response. This restriction is
-	// to ensure that your worker currently holds the lease.
+	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response.
+	// This restriction is to ensure that your worker currently holds the lease.
 	ScheduleTime         *timestamp.Timestamp `protobuf:"bytes,2,opt,name=schedule_time,json=scheduleTime,proto3" json:"schedule_time,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
 	XXX_unrecognized     []byte               `json:"-"`
@@ -1138,8 +1168,8 @@ type RenewLeaseRequest struct {
 	// The task's current schedule time, available in the
 	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] returned by
 	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] response or
-	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response. This restriction is
-	// to ensure that your worker currently holds the lease.
+	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response.
+	// This restriction is to ensure that your worker currently holds the lease.
 	ScheduleTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=schedule_time,json=scheduleTime,proto3" json:"schedule_time,omitempty"`
 	// Required.
 	//
@@ -1149,18 +1179,19 @@ type RenewLeaseRequest struct {
 	// The maximum lease duration is 1 week.
 	// `lease_duration` will be truncated to the nearest second.
 	LeaseDuration *duration.Duration `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView         Task_View `protobuf:"varint,4,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -1233,21 +1264,22 @@ type CancelLeaseRequest struct {
 	// The task's current schedule time, available in the
 	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] returned by
 	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] response or
-	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response. This restriction is
-	// to ensure that your worker currently holds the lease.
+	// [RenewLease][google.cloud.tasks.v2beta2.CloudTasks.RenewLease] response.
+	// This restriction is to ensure that your worker currently holds the lease.
 	ScheduleTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=schedule_time,json=scheduleTime,proto3" json:"schedule_time,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView         Task_View `protobuf:"varint,3,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -1308,18 +1340,19 @@ type RunTaskRequest struct {
 	// The task name. For example:
 	// `projects/PROJECT_ID/locations/LOCATION_ID/queues/QUEUE_ID/tasks/TASK_ID`
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The response_view specifies which subset of the [Task][google.cloud.tasks.v2beta2.Task] will be
-	// returned.
+	// The response_view specifies which subset of the
+	// [Task][google.cloud.tasks.v2beta2.Task] will be returned.
 	//
-	// By default response_view is [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all
-	// information is retrieved by default because some data, such as
-	// payloads, might be desirable to return only when needed because
-	// of its large size or because of the sensitivity of data that it
-	// contains.
+	// By default response_view is
+	// [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]; not all information is
+	// retrieved by default because some data, such as payloads, might be
+	// desirable to return only when needed because of its large size or because
+	// of the sensitivity of data that it contains.
 	//
-	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL] requires
-	// `cloudtasks.tasks.fullView` [Google IAM](https://cloud.google.com/iam/)
-	// permission on the [Task][google.cloud.tasks.v2beta2.Task] resource.
+	// Authorization for [FULL][google.cloud.tasks.v2beta2.Task.View.FULL]
+	// requires `cloudtasks.tasks.fullView` [Google
+	// IAM](https://cloud.google.com/iam/) permission on the
+	// [Task][google.cloud.tasks.v2beta2.Task] resource.
 	ResponseView         Task_View `protobuf:"varint,2,opt,name=response_view,json=responseView,proto3,enum=google.cloud.tasks.v2beta2.Task_View" json:"response_view,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`
@@ -1504,14 +1537,15 @@ type CloudTasksClient interface {
 	// Creates a queue.
 	//
 	// Queues created with this method allow tasks to live for a maximum of 31
-	// days. After a task is 31 days old, the task will be deleted regardless of whether
-	// it was dispatched or not.
+	// days. After a task is 31 days old, the task will be deleted regardless of
+	// whether it was dispatched or not.
 	//
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	CreateQueue(ctx context.Context, in *CreateQueueRequest, opts ...grpc.CallOption) (*Queue, error)
 	// Updates a queue.
 	//
@@ -1519,14 +1553,15 @@ type CloudTasksClient interface {
 	// the queue if it does exist.
 	//
 	// Queues created with this method allow tasks to live for a maximum of 31
-	// days. After a task is 31 days old, the task will be deleted regardless of whether
-	// it was dispatched or not.
+	// days. After a task is 31 days old, the task will be deleted regardless of
+	// whether it was dispatched or not.
 	//
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	UpdateQueue(ctx context.Context, in *UpdateQueueRequest, opts ...grpc.CallOption) (*Queue, error)
 	// Deletes a queue.
 	//
@@ -1538,8 +1573,9 @@ type CloudTasksClient interface {
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	DeleteQueue(ctx context.Context, in *DeleteQueueRequest, opts ...grpc.CallOption) (*empty.Empty, error)
 	// Purges a queue by deleting all of its tasks.
 	//
@@ -1552,26 +1588,30 @@ type CloudTasksClient interface {
 	//
 	// If a queue is paused then the system will stop dispatching tasks
 	// until the queue is resumed via
-	// [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue]. Tasks can still be added
-	// when the queue is paused. A queue is paused if its
-	// [state][google.cloud.tasks.v2beta2.Queue.state] is [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
+	// [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue]. Tasks can
+	// still be added when the queue is paused. A queue is paused if its
+	// [state][google.cloud.tasks.v2beta2.Queue.state] is
+	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
 	PauseQueue(ctx context.Context, in *PauseQueueRequest, opts ...grpc.CallOption) (*Queue, error)
 	// Resume a queue.
 	//
 	// This method resumes a queue after it has been
 	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED] or
-	// [DISABLED][google.cloud.tasks.v2beta2.Queue.State.DISABLED]. The state of a queue is stored
-	// in the queue's [state][google.cloud.tasks.v2beta2.Queue.state]; after calling this method it
-	// will be set to [RUNNING][google.cloud.tasks.v2beta2.Queue.State.RUNNING].
+	// [DISABLED][google.cloud.tasks.v2beta2.Queue.State.DISABLED]. The state of a
+	// queue is stored in the queue's
+	// [state][google.cloud.tasks.v2beta2.Queue.state]; after calling this method
+	// it will be set to
+	// [RUNNING][google.cloud.tasks.v2beta2.Queue.State.RUNNING].
 	//
 	// WARNING: Resuming many high-QPS queues at the same time can
 	// lead to target overloading. If you are resuming high-QPS
 	// queues, follow the 500/50/5 pattern described in
-	// [Managing Cloud Tasks Scaling Risks](https://cloud.google.com/tasks/docs/manage-cloud-task-scaling).
+	// [Managing Cloud Tasks Scaling
+	// Risks](https://cloud.google.com/tasks/docs/manage-cloud-task-scaling).
 	ResumeQueue(ctx context.Context, in *ResumeQueueRequest, opts ...grpc.CallOption) (*Queue, error)
-	// Gets the access control policy for a [Queue][google.cloud.tasks.v2beta2.Queue].
-	// Returns an empty policy if the resource exists and does not have a policy
-	// set.
+	// Gets the access control policy for a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. Returns an empty policy if the
+	// resource exists and does not have a policy set.
 	//
 	// Authorization requires the following
 	// [Google IAM](https://cloud.google.com/iam) permission on the specified
@@ -1579,8 +1619,8 @@ type CloudTasksClient interface {
 	//
 	// * `cloudtasks.queues.getIamPolicy`
 	GetIamPolicy(ctx context.Context, in *v1.GetIamPolicyRequest, opts ...grpc.CallOption) (*v1.Policy, error)
-	// Sets the access control policy for a [Queue][google.cloud.tasks.v2beta2.Queue]. Replaces any existing
-	// policy.
+	// Sets the access control policy for a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. Replaces any existing policy.
 	//
 	// Note: The Cloud Console does not check queue-level IAM permissions yet.
 	// Project-level permissions are required to use the Cloud Console.
@@ -1591,9 +1631,10 @@ type CloudTasksClient interface {
 	//
 	// * `cloudtasks.queues.setIamPolicy`
 	SetIamPolicy(ctx context.Context, in *v1.SetIamPolicyRequest, opts ...grpc.CallOption) (*v1.Policy, error)
-	// Returns permissions that a caller has on a [Queue][google.cloud.tasks.v2beta2.Queue].
-	// If the resource does not exist, this will return an empty set of
-	// permissions, not a [NOT_FOUND][google.rpc.Code.NOT_FOUND] error.
+	// Returns permissions that a caller has on a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. If the resource does not exist,
+	// this will return an empty set of permissions, not a
+	// [NOT_FOUND][google.rpc.Code.NOT_FOUND] error.
 	//
 	// Note: This operation is designed to be used for building permission-aware
 	// UIs and command-line tools, not for authorization checking. This operation
@@ -1601,10 +1642,10 @@ type CloudTasksClient interface {
 	TestIamPermissions(ctx context.Context, in *v1.TestIamPermissionsRequest, opts ...grpc.CallOption) (*v1.TestIamPermissionsResponse, error)
 	// Lists the tasks in a queue.
 	//
-	// By default, only the [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC] view is retrieved
-	// due to performance considerations;
-	// [response_view][google.cloud.tasks.v2beta2.ListTasksRequest.response_view] controls the
-	// subset of information which is returned.
+	// By default, only the [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]
+	// view is retrieved due to performance considerations;
+	// [response_view][google.cloud.tasks.v2beta2.ListTasksRequest.response_view]
+	// controls the subset of information which is returned.
 	//
 	// The tasks may be returned in any order. The ordering may change at any
 	// time.
@@ -1615,9 +1656,11 @@ type CloudTasksClient interface {
 	//
 	// Tasks cannot be updated after creation; there is no UpdateTask command.
 	//
-	// * For [App Engine queues][google.cloud.tasks.v2beta2.AppEngineHttpTarget], the maximum task size is
+	// * For [App Engine queues][google.cloud.tasks.v2beta2.AppEngineHttpTarget],
+	// the maximum task size is
 	//   100KB.
-	// * For [pull queues][google.cloud.tasks.v2beta2.PullTarget], the maximum task size is 1MB.
+	// * For [pull queues][google.cloud.tasks.v2beta2.PullTarget], the maximum
+	// task size is 1MB.
 	CreateTask(ctx context.Context, in *CreateTaskRequest, opts ...grpc.CallOption) (*Task, error)
 	// Deletes a task.
 	//
@@ -1630,18 +1673,19 @@ type CloudTasksClient interface {
 	//
 	// This method is invoked by the worker to obtain a lease. The
 	// worker must acknowledge the task via
-	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask] after they have
-	// performed the work associated with the task.
+	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask]
+	// after they have performed the work associated with the task.
 	//
-	// The [payload][google.cloud.tasks.v2beta2.PullMessage.payload] is intended to store data that
-	// the worker needs to perform the work associated with the task. To
-	// return the payloads in the [response][google.cloud.tasks.v2beta2.LeaseTasksResponse], set
-	// [response_view][google.cloud.tasks.v2beta2.LeaseTasksRequest.response_view] to
-	// [FULL][google.cloud.tasks.v2beta2.Task.View.FULL].
+	// The [payload][google.cloud.tasks.v2beta2.PullMessage.payload] is intended
+	// to store data that the worker needs to perform the work associated with the
+	// task. To return the payloads in the
+	// [response][google.cloud.tasks.v2beta2.LeaseTasksResponse], set
+	// [response_view][google.cloud.tasks.v2beta2.LeaseTasksRequest.response_view]
+	// to [FULL][google.cloud.tasks.v2beta2.Task.View.FULL].
 	//
-	// A maximum of 10 qps of [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks]
-	// requests are allowed per
-	// queue. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
+	// A maximum of 10 qps of
+	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] requests are
+	// allowed per queue. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
 	// is returned when this limit is
 	// exceeded. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
 	// is also returned when
@@ -1651,12 +1695,13 @@ type CloudTasksClient interface {
 	// Acknowledges a pull task.
 	//
 	// The worker, that is, the entity that
-	// [leased][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] this task must call this method
-	// to indicate that the work associated with the task has finished.
+	// [leased][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] this task must
+	// call this method to indicate that the work associated with the task has
+	// finished.
 	//
 	// The worker must acknowledge a task within the
-	// [lease_duration][google.cloud.tasks.v2beta2.LeaseTasksRequest.lease_duration] or the lease
-	// will expire and the task will become available to be leased
+	// [lease_duration][google.cloud.tasks.v2beta2.LeaseTasksRequest.lease_duration]
+	// or the lease will expire and the task will become available to be leased
 	// again. After the task is acknowledged, it will not be returned
 	// by a later [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks],
 	// [GetTask][google.cloud.tasks.v2beta2.CloudTasks.GetTask], or
@@ -1666,42 +1711,46 @@ type CloudTasksClient interface {
 	//
 	// The worker can use this method to extend the lease by a new
 	// duration, starting from now. The new task lease will be
-	// returned in the task's [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time].
+	// returned in the task's
+	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time].
 	RenewLease(ctx context.Context, in *RenewLeaseRequest, opts ...grpc.CallOption) (*Task, error)
 	// Cancel a pull task's lease.
 	//
 	// The worker can use this method to cancel a task's lease by
-	// setting its [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] to now. This will
-	// make the task available to be leased to the next caller of
-	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
+	// setting its [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time]
+	// to now. This will make the task available to be leased to the next caller
+	// of [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
 	CancelLease(ctx context.Context, in *CancelLeaseRequest, opts ...grpc.CallOption) (*Task, error)
 	// Forces a task to run now.
 	//
 	// When this method is called, Cloud Tasks will dispatch the task, even if
-	// the task is already running, the queue has reached its [RateLimits][google.cloud.tasks.v2beta2.RateLimits] or
-	// is [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
+	// the task is already running, the queue has reached its
+	// [RateLimits][google.cloud.tasks.v2beta2.RateLimits] or is
+	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
 	//
 	// This command is meant to be used for manual debugging. For
-	// example, [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] can be used to retry a failed
-	// task after a fix has been made or to manually force a task to be
-	// dispatched now.
+	// example, [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] can be
+	// used to retry a failed task after a fix has been made or to manually force
+	// a task to be dispatched now.
 	//
 	// The dispatched task is returned. That is, the task that is returned
-	// contains the [status][google.cloud.tasks.v2beta2.Task.status] after the task is dispatched but
-	// before the task is received by its target.
+	// contains the [status][google.cloud.tasks.v2beta2.Task.status] after the
+	// task is dispatched but before the task is received by its target.
 	//
 	// If Cloud Tasks receives a successful response from the task's
 	// target, then the task will be deleted; otherwise the task's
-	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be reset to the time that
-	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] was called plus the retry delay specified
-	// in the queue's [RetryConfig][google.cloud.tasks.v2beta2.RetryConfig].
+	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be
+	// reset to the time that
+	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] was called plus
+	// the retry delay specified in the queue's
+	// [RetryConfig][google.cloud.tasks.v2beta2.RetryConfig].
 	//
 	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] returns
 	// [NOT_FOUND][google.rpc.Code.NOT_FOUND] when it is called on a
 	// task that has already succeeded or permanently failed.
 	//
-	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] cannot be called on a
-	// [pull task][google.cloud.tasks.v2beta2.PullMessage].
+	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] cannot be called
+	// on a [pull task][google.cloud.tasks.v2beta2.PullMessage].
 	RunTask(ctx context.Context, in *RunTaskRequest, opts ...grpc.CallOption) (*Task, error)
 }
 
@@ -1904,14 +1953,15 @@ type CloudTasksServer interface {
 	// Creates a queue.
 	//
 	// Queues created with this method allow tasks to live for a maximum of 31
-	// days. After a task is 31 days old, the task will be deleted regardless of whether
-	// it was dispatched or not.
+	// days. After a task is 31 days old, the task will be deleted regardless of
+	// whether it was dispatched or not.
 	//
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	CreateQueue(context.Context, *CreateQueueRequest) (*Queue, error)
 	// Updates a queue.
 	//
@@ -1919,14 +1969,15 @@ type CloudTasksServer interface {
 	// the queue if it does exist.
 	//
 	// Queues created with this method allow tasks to live for a maximum of 31
-	// days. After a task is 31 days old, the task will be deleted regardless of whether
-	// it was dispatched or not.
+	// days. After a task is 31 days old, the task will be deleted regardless of
+	// whether it was dispatched or not.
 	//
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	UpdateQueue(context.Context, *UpdateQueueRequest) (*Queue, error)
 	// Deletes a queue.
 	//
@@ -1938,8 +1989,9 @@ type CloudTasksServer interface {
 	// WARNING: Using this method may have unintended side effects if you are
 	// using an App Engine `queue.yaml` or `queue.xml` file to manage your queues.
 	// Read
-	// [Overview of Queue Management and queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml)
-	// before using this method.
+	// [Overview of Queue Management and
+	// queue.yaml](https://cloud.google.com/tasks/docs/queue-yaml) before using
+	// this method.
 	DeleteQueue(context.Context, *DeleteQueueRequest) (*empty.Empty, error)
 	// Purges a queue by deleting all of its tasks.
 	//
@@ -1952,26 +2004,30 @@ type CloudTasksServer interface {
 	//
 	// If a queue is paused then the system will stop dispatching tasks
 	// until the queue is resumed via
-	// [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue]. Tasks can still be added
-	// when the queue is paused. A queue is paused if its
-	// [state][google.cloud.tasks.v2beta2.Queue.state] is [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
+	// [ResumeQueue][google.cloud.tasks.v2beta2.CloudTasks.ResumeQueue]. Tasks can
+	// still be added when the queue is paused. A queue is paused if its
+	// [state][google.cloud.tasks.v2beta2.Queue.state] is
+	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
 	PauseQueue(context.Context, *PauseQueueRequest) (*Queue, error)
 	// Resume a queue.
 	//
 	// This method resumes a queue after it has been
 	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED] or
-	// [DISABLED][google.cloud.tasks.v2beta2.Queue.State.DISABLED]. The state of a queue is stored
-	// in the queue's [state][google.cloud.tasks.v2beta2.Queue.state]; after calling this method it
-	// will be set to [RUNNING][google.cloud.tasks.v2beta2.Queue.State.RUNNING].
+	// [DISABLED][google.cloud.tasks.v2beta2.Queue.State.DISABLED]. The state of a
+	// queue is stored in the queue's
+	// [state][google.cloud.tasks.v2beta2.Queue.state]; after calling this method
+	// it will be set to
+	// [RUNNING][google.cloud.tasks.v2beta2.Queue.State.RUNNING].
 	//
 	// WARNING: Resuming many high-QPS queues at the same time can
 	// lead to target overloading. If you are resuming high-QPS
 	// queues, follow the 500/50/5 pattern described in
-	// [Managing Cloud Tasks Scaling Risks](https://cloud.google.com/tasks/docs/manage-cloud-task-scaling).
+	// [Managing Cloud Tasks Scaling
+	// Risks](https://cloud.google.com/tasks/docs/manage-cloud-task-scaling).
 	ResumeQueue(context.Context, *ResumeQueueRequest) (*Queue, error)
-	// Gets the access control policy for a [Queue][google.cloud.tasks.v2beta2.Queue].
-	// Returns an empty policy if the resource exists and does not have a policy
-	// set.
+	// Gets the access control policy for a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. Returns an empty policy if the
+	// resource exists and does not have a policy set.
 	//
 	// Authorization requires the following
 	// [Google IAM](https://cloud.google.com/iam) permission on the specified
@@ -1979,8 +2035,8 @@ type CloudTasksServer interface {
 	//
 	// * `cloudtasks.queues.getIamPolicy`
 	GetIamPolicy(context.Context, *v1.GetIamPolicyRequest) (*v1.Policy, error)
-	// Sets the access control policy for a [Queue][google.cloud.tasks.v2beta2.Queue]. Replaces any existing
-	// policy.
+	// Sets the access control policy for a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. Replaces any existing policy.
 	//
 	// Note: The Cloud Console does not check queue-level IAM permissions yet.
 	// Project-level permissions are required to use the Cloud Console.
@@ -1991,9 +2047,10 @@ type CloudTasksServer interface {
 	//
 	// * `cloudtasks.queues.setIamPolicy`
 	SetIamPolicy(context.Context, *v1.SetIamPolicyRequest) (*v1.Policy, error)
-	// Returns permissions that a caller has on a [Queue][google.cloud.tasks.v2beta2.Queue].
-	// If the resource does not exist, this will return an empty set of
-	// permissions, not a [NOT_FOUND][google.rpc.Code.NOT_FOUND] error.
+	// Returns permissions that a caller has on a
+	// [Queue][google.cloud.tasks.v2beta2.Queue]. If the resource does not exist,
+	// this will return an empty set of permissions, not a
+	// [NOT_FOUND][google.rpc.Code.NOT_FOUND] error.
 	//
 	// Note: This operation is designed to be used for building permission-aware
 	// UIs and command-line tools, not for authorization checking. This operation
@@ -2001,10 +2058,10 @@ type CloudTasksServer interface {
 	TestIamPermissions(context.Context, *v1.TestIamPermissionsRequest) (*v1.TestIamPermissionsResponse, error)
 	// Lists the tasks in a queue.
 	//
-	// By default, only the [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC] view is retrieved
-	// due to performance considerations;
-	// [response_view][google.cloud.tasks.v2beta2.ListTasksRequest.response_view] controls the
-	// subset of information which is returned.
+	// By default, only the [BASIC][google.cloud.tasks.v2beta2.Task.View.BASIC]
+	// view is retrieved due to performance considerations;
+	// [response_view][google.cloud.tasks.v2beta2.ListTasksRequest.response_view]
+	// controls the subset of information which is returned.
 	//
 	// The tasks may be returned in any order. The ordering may change at any
 	// time.
@@ -2015,9 +2072,11 @@ type CloudTasksServer interface {
 	//
 	// Tasks cannot be updated after creation; there is no UpdateTask command.
 	//
-	// * For [App Engine queues][google.cloud.tasks.v2beta2.AppEngineHttpTarget], the maximum task size is
+	// * For [App Engine queues][google.cloud.tasks.v2beta2.AppEngineHttpTarget],
+	// the maximum task size is
 	//   100KB.
-	// * For [pull queues][google.cloud.tasks.v2beta2.PullTarget], the maximum task size is 1MB.
+	// * For [pull queues][google.cloud.tasks.v2beta2.PullTarget], the maximum
+	// task size is 1MB.
 	CreateTask(context.Context, *CreateTaskRequest) (*Task, error)
 	// Deletes a task.
 	//
@@ -2030,18 +2089,19 @@ type CloudTasksServer interface {
 	//
 	// This method is invoked by the worker to obtain a lease. The
 	// worker must acknowledge the task via
-	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask] after they have
-	// performed the work associated with the task.
+	// [AcknowledgeTask][google.cloud.tasks.v2beta2.CloudTasks.AcknowledgeTask]
+	// after they have performed the work associated with the task.
 	//
-	// The [payload][google.cloud.tasks.v2beta2.PullMessage.payload] is intended to store data that
-	// the worker needs to perform the work associated with the task. To
-	// return the payloads in the [response][google.cloud.tasks.v2beta2.LeaseTasksResponse], set
-	// [response_view][google.cloud.tasks.v2beta2.LeaseTasksRequest.response_view] to
-	// [FULL][google.cloud.tasks.v2beta2.Task.View.FULL].
+	// The [payload][google.cloud.tasks.v2beta2.PullMessage.payload] is intended
+	// to store data that the worker needs to perform the work associated with the
+	// task. To return the payloads in the
+	// [response][google.cloud.tasks.v2beta2.LeaseTasksResponse], set
+	// [response_view][google.cloud.tasks.v2beta2.LeaseTasksRequest.response_view]
+	// to [FULL][google.cloud.tasks.v2beta2.Task.View.FULL].
 	//
-	// A maximum of 10 qps of [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks]
-	// requests are allowed per
-	// queue. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
+	// A maximum of 10 qps of
+	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] requests are
+	// allowed per queue. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
 	// is returned when this limit is
 	// exceeded. [RESOURCE_EXHAUSTED][google.rpc.Code.RESOURCE_EXHAUSTED]
 	// is also returned when
@@ -2051,12 +2111,13 @@ type CloudTasksServer interface {
 	// Acknowledges a pull task.
 	//
 	// The worker, that is, the entity that
-	// [leased][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] this task must call this method
-	// to indicate that the work associated with the task has finished.
+	// [leased][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks] this task must
+	// call this method to indicate that the work associated with the task has
+	// finished.
 	//
 	// The worker must acknowledge a task within the
-	// [lease_duration][google.cloud.tasks.v2beta2.LeaseTasksRequest.lease_duration] or the lease
-	// will expire and the task will become available to be leased
+	// [lease_duration][google.cloud.tasks.v2beta2.LeaseTasksRequest.lease_duration]
+	// or the lease will expire and the task will become available to be leased
 	// again. After the task is acknowledged, it will not be returned
 	// by a later [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks],
 	// [GetTask][google.cloud.tasks.v2beta2.CloudTasks.GetTask], or
@@ -2066,42 +2127,46 @@ type CloudTasksServer interface {
 	//
 	// The worker can use this method to extend the lease by a new
 	// duration, starting from now. The new task lease will be
-	// returned in the task's [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time].
+	// returned in the task's
+	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time].
 	RenewLease(context.Context, *RenewLeaseRequest) (*Task, error)
 	// Cancel a pull task's lease.
 	//
 	// The worker can use this method to cancel a task's lease by
-	// setting its [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] to now. This will
-	// make the task available to be leased to the next caller of
-	// [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
+	// setting its [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time]
+	// to now. This will make the task available to be leased to the next caller
+	// of [LeaseTasks][google.cloud.tasks.v2beta2.CloudTasks.LeaseTasks].
 	CancelLease(context.Context, *CancelLeaseRequest) (*Task, error)
 	// Forces a task to run now.
 	//
 	// When this method is called, Cloud Tasks will dispatch the task, even if
-	// the task is already running, the queue has reached its [RateLimits][google.cloud.tasks.v2beta2.RateLimits] or
-	// is [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
+	// the task is already running, the queue has reached its
+	// [RateLimits][google.cloud.tasks.v2beta2.RateLimits] or is
+	// [PAUSED][google.cloud.tasks.v2beta2.Queue.State.PAUSED].
 	//
 	// This command is meant to be used for manual debugging. For
-	// example, [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] can be used to retry a failed
-	// task after a fix has been made or to manually force a task to be
-	// dispatched now.
+	// example, [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] can be
+	// used to retry a failed task after a fix has been made or to manually force
+	// a task to be dispatched now.
 	//
 	// The dispatched task is returned. That is, the task that is returned
-	// contains the [status][google.cloud.tasks.v2beta2.Task.status] after the task is dispatched but
-	// before the task is received by its target.
+	// contains the [status][google.cloud.tasks.v2beta2.Task.status] after the
+	// task is dispatched but before the task is received by its target.
 	//
 	// If Cloud Tasks receives a successful response from the task's
 	// target, then the task will be deleted; otherwise the task's
-	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be reset to the time that
-	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] was called plus the retry delay specified
-	// in the queue's [RetryConfig][google.cloud.tasks.v2beta2.RetryConfig].
+	// [schedule_time][google.cloud.tasks.v2beta2.Task.schedule_time] will be
+	// reset to the time that
+	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] was called plus
+	// the retry delay specified in the queue's
+	// [RetryConfig][google.cloud.tasks.v2beta2.RetryConfig].
 	//
 	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] returns
 	// [NOT_FOUND][google.rpc.Code.NOT_FOUND] when it is called on a
 	// task that has already succeeded or permanently failed.
 	//
-	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] cannot be called on a
-	// [pull task][google.cloud.tasks.v2beta2.PullMessage].
+	// [RunTask][google.cloud.tasks.v2beta2.CloudTasks.RunTask] cannot be called
+	// on a [pull task][google.cloud.tasks.v2beta2.PullMessage].
 	RunTask(context.Context, *RunTaskRequest) (*Task, error)
 }
 

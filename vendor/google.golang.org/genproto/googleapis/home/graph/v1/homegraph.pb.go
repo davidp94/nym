@@ -6,12 +6,13 @@ package graph
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	_struct "github.com/golang/protobuf/ptypes/struct"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Request type for RequestSyncDevices call.
 type RequestSyncDevicesRequest struct {
@@ -115,7 +116,7 @@ var xxx_messageInfo_RequestSyncDevicesResponse proto.InternalMessageInfo
 // defined per device_id (eg: "123" and "456" in the following example):
 // {
 //   "requestId": "ff36a3cc-ec34-11e6-b1a0-64510650abcf",
-//   "agent_user_id": "1234",
+//   "agentUserId": "1234",
 //   "payload": {
 //     "devices": {
 //       "states": {
@@ -992,9 +993,10 @@ type HomeGraphApiServiceClient interface {
 	//
 	//
 	// Third-party user's identity is passed in as agent_user_id.
-	// (see [RequestSyncDevicesRequest][google.home.graph.v1.RequestSyncDevicesRequest]) and forwarded back to the agent.
-	// Agent is identified by the API key or JWT signed by the partner's service
-	// account.
+	// (see
+	// [RequestSyncDevicesRequest][google.home.graph.v1.RequestSyncDevicesRequest])
+	// and forwarded back to the agent. Agent is identified by the API key or JWT
+	// signed by the partner's service account.
 	RequestSyncDevices(ctx context.Context, in *RequestSyncDevicesRequest, opts ...grpc.CallOption) (*RequestSyncDevicesResponse, error)
 	// Reports device state and optionally sends device notifications. Called by
 	// an agent when the device state of a third-party changes or the agent wants
@@ -1100,9 +1102,10 @@ type HomeGraphApiServiceServer interface {
 	//
 	//
 	// Third-party user's identity is passed in as agent_user_id.
-	// (see [RequestSyncDevicesRequest][google.home.graph.v1.RequestSyncDevicesRequest]) and forwarded back to the agent.
-	// Agent is identified by the API key or JWT signed by the partner's service
-	// account.
+	// (see
+	// [RequestSyncDevicesRequest][google.home.graph.v1.RequestSyncDevicesRequest])
+	// and forwarded back to the agent. Agent is identified by the API key or JWT
+	// signed by the partner's service account.
 	RequestSyncDevices(context.Context, *RequestSyncDevicesRequest) (*RequestSyncDevicesResponse, error)
 	// Reports device state and optionally sends device notifications. Called by
 	// an agent when the device state of a third-party changes or the agent wants

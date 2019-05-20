@@ -5,11 +5,12 @@ package appengine
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -21,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Available inbound services.
 type InboundServiceType int32
@@ -197,7 +198,8 @@ type Version struct {
 	// Only returned in `GET` requests if `view=FULL` is set.
 	Libraries []*Library `protobuf:"bytes,102,rep,name=libraries,proto3" json:"libraries,omitempty"`
 	// Serving configuration for
-	// [Google Cloud Endpoints](https://cloud.google.com/appengine/docs/python/endpoints/).
+	// [Google Cloud
+	// Endpoints](https://cloud.google.com/appengine/docs/python/endpoints/).
 	//
 	// Only returned in `GET` requests if `view=FULL` is set.
 	ApiConfig *ApiConfigHandler `protobuf:"bytes,103,opt,name=api_config,json=apiConfig,proto3" json:"api_config,omitempty"`
@@ -487,97 +489,13 @@ func (m *Version) GetVersionUrl() string {
 	return ""
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*Version) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _Version_OneofMarshaler, _Version_OneofUnmarshaler, _Version_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*Version) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*Version_AutomaticScaling)(nil),
 		(*Version_BasicScaling)(nil),
 		(*Version_ManualScaling)(nil),
 	}
-}
-
-func _Version_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*Version)
-	// scaling
-	switch x := m.Scaling.(type) {
-	case *Version_AutomaticScaling:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.AutomaticScaling); err != nil {
-			return err
-		}
-	case *Version_BasicScaling:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.BasicScaling); err != nil {
-			return err
-		}
-	case *Version_ManualScaling:
-		b.EncodeVarint(5<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.ManualScaling); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("Version.Scaling has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _Version_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*Version)
-	switch tag {
-	case 3: // scaling.automatic_scaling
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(AutomaticScaling)
-		err := b.DecodeMessage(msg)
-		m.Scaling = &Version_AutomaticScaling{msg}
-		return true, err
-	case 4: // scaling.basic_scaling
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(BasicScaling)
-		err := b.DecodeMessage(msg)
-		m.Scaling = &Version_BasicScaling{msg}
-		return true, err
-	case 5: // scaling.manual_scaling
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(ManualScaling)
-		err := b.DecodeMessage(msg)
-		m.Scaling = &Version_ManualScaling{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _Version_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*Version)
-	// scaling
-	switch x := m.Scaling.(type) {
-	case *Version_AutomaticScaling:
-		s := proto.Size(x.AutomaticScaling)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Version_BasicScaling:
-		s := proto.Size(x.BasicScaling)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *Version_ManualScaling:
-		s := proto.Size(x.ManualScaling)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Automatic scaling is based on request rate, response latencies, and other
@@ -790,7 +708,8 @@ func (m *BasicScaling) GetMaxInstances() int32 {
 type ManualScaling struct {
 	// Number of instances to assign to the service at the start. This number
 	// can later be altered by using the
-	// [Modules API](https://cloud.google.com/appengine/docs/python/modules/functions)
+	// [Modules
+	// API](https://cloud.google.com/appengine/docs/python/modules/functions)
 	// `set_num_instances()` function.
 	Instances            int32    `protobuf:"varint,1,opt,name=instances,proto3" json:"instances,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
