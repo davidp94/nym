@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## 0.6.6
+
+* Updated Nym Node genesis state to include Ethereum watchers
+* Modified the nymnode dockerfile to allow include gcc required by Ethereum build process
+* Updates all dependencies
+
 ## 0.6.5
 
 * Introduced constants file with method signatures for ERC20 token functions
