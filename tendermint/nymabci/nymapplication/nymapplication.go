@@ -158,8 +158,13 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 
 	case transaction.TxTransferBetweenAccounts:
 		// DEBUG: transfer funds from account X to account Y
+		if !tmconst.DebugMode {
+			app.log.Info("Trying to use TxTransferBetweenAccounts not in debug mode")
+			break
+		}
 		app.log.Info("Transfer tx")
-		// return app.transferFunds(tx[1:])
+		return app.transferFunds(tx[1:])
+
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
@@ -253,6 +258,8 @@ func (app *NymApplication) Commit() types.ResponseCommit {
 
 // Query queries App State. It is not guaranteed to always give the freshest entries as it is not ordered like txs are.
 func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
+	app.log.Debug(fmt.Sprintf("Query\n; Path: %v\nData:%v\n", req.Path, req.Data))
+
 	switch req.Path {
 	case query.QueryCheckBalancePath:
 		val, code := app.queryBalance(req.Data)
@@ -261,28 +268,22 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 	case query.DEBUG_printVk:
 		if !tmconst.DebugMode {
 			app.log.Info("Trying to use printVk not in debug mode")
-			goto defaultcase
+			break
 		}
-		{
-			_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
-			avk := &coconut.VerificationKey{}
-			err := avk.UnmarshalBinary(avkb)
-			if err != nil {
-				app.log.Error("Couldnt unmarshal avk")
-				return types.ResponseQuery{Code: code.UNKNOWN}
-			}
-			fmt.Println(avk)
+		_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
+		avk := &coconut.VerificationKey{}
+		err := avk.UnmarshalBinary(avkb)
+		if err != nil {
+			app.log.Error("Couldnt unmarshal avk")
+			return types.ResponseQuery{Code: code.UNKNOWN}
 		}
+		fmt.Println(avk)
 		return types.ResponseQuery{Code: code.OK}
-	defaultcase:
-		fallthrough
 	default:
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
 
-	app.log.Debug(fmt.Sprintf("Query\n; Path: %v\nData:%v\n", req.Path, req.Data))
-
-	return types.ResponseQuery{Code: code.OK}
+	return types.ResponseQuery{Code: code.INVALID_QUERY_PARAMS}
 }
 
 // InitChain initialises blockchain with validators and other info from TendermintCore.
