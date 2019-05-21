@@ -19,6 +19,7 @@ package client
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"net"
@@ -35,8 +36,8 @@ import (
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -53,7 +54,8 @@ type Client struct {
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
 
-	nymAccount account.Account
+	// nymAccount account.Account
+	privateKey *ecdsa.PrivateKey
 	nymClient  *nymclient.Client
 }
 
@@ -993,31 +995,29 @@ func New(cfg *config.Config) (*Client, error) {
 	clientLog := log.GetLogger("Client")
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
-	acc := account.Account{}
-	var nymClient *nymclient.Client
+	if cfg.Nym == nil || cfg.Nym.AccountKeysFile == "" {
+		clientLog.Error("No keys for the Nym Blockchain were specified.")
+		return nil, errors.New("could not load blockchain keys")
+	}
 
-	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
-		if loadErr := acc.FromJSONFile(cfg.Nym.AccountKeysFile); loadErr != nil {
-			errStr := fmt.Sprintf("Failed to load Nym keys: %v", loadErr)
-			clientLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
-		clientLog.Notice("Loaded Nym Blochain keys from the file.")
+	privateKey, loadErr := ethcrypto.LoadECDSA(cfg.Nym.AccountKeysFile)
+	if loadErr != nil {
+		errStr := fmt.Sprintf("Failed to load Nym keys: %v", loadErr)
+		clientLog.Error(errStr)
+		return nil, errors.New(errStr)
+	}
+	clientLog.Notice("Loaded Nym Blochain keys from the file.")
 
-		nymClient, err = nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-			clientLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
-
-	} else {
-		clientLog.Notice("No keys for the Nym Blockchain were specified.")
+	nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+	if err != nil {
+		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+		clientLog.Error(errStr)
+		return nil, errors.New(errStr)
 	}
 
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
-		return nil, errors.New("error while generating params")
+		return nil, errors.New("error while generating coconut params")
 	}
 
 	cryptoworker := cryptoworker.New(uint64(1), log, params, cfg.Debug.NumJobWorkers)
@@ -1033,7 +1033,7 @@ func New(cfg *config.Config) (*Client, error) {
 			grpc.WithInsecure(),
 		},
 
-		nymAccount: acc,
+		privateKey: privateKey,
 		nymClient:  nymClient,
 	}
 

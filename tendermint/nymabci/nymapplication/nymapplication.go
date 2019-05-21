@@ -154,7 +154,8 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxNewAccount:
 		// creates new account
 		app.log.Info("New Account tx")
-		// return app.createNewAccount(tx[1:])
+		return app.createNewAccount(tx[1:])
+
 	case transaction.TxTransferBetweenAccounts:
 		// DEBUG: transfer funds from account X to account Y
 		app.log.Info("Transfer tx")
@@ -163,10 +164,10 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
 		// return app.depositCoconutCredential(tx[1:])
-	case transaction.TxTransferToHolding:
-		// transfer given amount of client's funds to the holding account
-		app.log.Info("Transfer to Holding")
-		// return app.transferToHolding(tx[1:])
+	// case transaction.TxTransferToHolding:
+	// 	// transfer given amount of client's funds to the holding account
+	// 	app.log.Info("Transfer to Holding")
+	// return app.transferToHolding(tx[1:])
 	case transaction.TxAdvanceBlock:
 		// purely for debug purposes to populate the state and advance the blocks
 		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
@@ -191,13 +192,13 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	switch txType {
 	case transaction.TxNewAccount:
 		app.log.Debug("CheckTx for TxNewAccount")
+		checkCode := app.checkNewAccountTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxNewAccount failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 
-		// checkCode := app.checkNewAccountTx(tx[1:])
-		// if checkCode != code.OK {
-		// 	app.log.Info(fmt.Sprintf("checkTx for TxNewAccount failed with code: %v - %v",
-		// 		checkCode, code.ToString(checkCode)))
-		// }
-		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
 
@@ -218,15 +219,15 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
-	case transaction.TxTransferToHolding:
-		app.log.Debug("CheckTx for TxTransferToHolding")
+	// case transaction.TxTransferToHolding:
+	// 	app.log.Debug("CheckTx for TxTransferToHolding")
 
-		// checkCode := app.checkTxTransferToHolding(tx[1:])
-		// if checkCode != code.OK {
-		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
-		// 		checkCode, code.ToString(checkCode)))
-		// }
-		// return types.ResponseCheckTx{Code: checkCode}
+	// checkCode := app.checkTxTransferToHolding(tx[1:])
+	// if checkCode != code.OK {
+	// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
+	// 		checkCode, code.ToString(checkCode)))
+	// }
+	// return types.ResponseCheckTx{Code: checkCode}
 	default:
 		app.log.Error("Unknown Tx")
 		return types.ResponseCheckTx{Code: code.INVALID_TX_PARAMS}

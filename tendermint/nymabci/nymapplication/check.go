@@ -16,6 +16,17 @@
 
 package nymapplication
 
+import (
+	"bytes"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/gogo/protobuf/proto"
+)
+
 // implementation will be IP-specific
 func (app *NymApplication) verifyCredential(cred []byte) bool {
 	return true
@@ -59,40 +70,43 @@ func (app *NymApplication) verifyCredential(cred []byte) bool {
 // 	return code.OK, nil
 // }
 
-// // the tx prefix was removed
-// func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
-// 	req := &transaction.NewAccountRequest{}
+// the tx prefix was removed
+func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
+	req := &transaction.NewAccountRequest{}
 
-// 	if err := proto.Unmarshal(tx, req); err != nil {
-// 		app.log.Info("Failed to unmarshal request")
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if err := proto.Unmarshal(tx, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	var publicKey account.ECPublicKey = req.PublicKey
+	if len(req.Address) != ethcommon.AddressLength {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
-// 		len(req.Sig) != account.SignatureSize {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if !app.verifyCredential(req.Credential) {
+		app.log.Info("Failed to verify IP credential")
+		return code.INVALID_CREDENTIAL
+	}
 
-// 	if !app.verifyCredential(req.Credential) {
-// 		app.log.Info("Failed to verify IP credential")
-// 		return code.INVALID_CREDENTIAL
-// 	}
+	msg := make([]byte, len(req.Address)+len(req.Credential))
+	copy(msg, req.Address)
+	copy(msg[len(req.Address):], req.Credential)
 
-// 	publicKey = req.PublicKey
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
-// 	copy(msg, req.PublicKey)
-// 	copy(msg[len(req.PublicKey):], req.Credential)
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.Address) {
+		app.log.Info("Failed to verify signature on request")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	if !publicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return code.INVALID_SIGNATURE
-// 	}
+	return code.OK
 
-// 	return code.OK
-// }
+}
 
 // func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 // 	req := &transaction.AccountTransferRequest{}

@@ -17,11 +17,14 @@
 package nymapplication
 
 import (
+	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/rand"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -95,23 +98,20 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	return coconut.NewParams(nil, p, g1, g2, hs)
 }
 
-// // returns bool to indicate if the operation was successful
-// func (app *NymApplication) createNewAccountOp(publicKey account.ECPublicKey) bool {
-// 	// Compress also performs basic validation
-// 	if err := publicKey.Compress(); err != nil {
-// 		return false
-// 	}
+// returns bool to indicate if the operation was successful
+func (app *NymApplication) createNewAccountOp(address ethcommon.Address) bool {
+	value := make([]byte, 8)
+	binary.BigEndian.PutUint64(value, startingBalance)
+	if startingBalance != 0 {
+		app.log.Error("THE APPLICATION IS IN DEBUG MODE")
+	}
 
-// 	value := make([]byte, 8)
-// 	binary.BigEndian.PutUint64(value, startingBalance)
+	dbEntry := prefixKey(tmconst.AccountsPrefix, address[:])
+	app.state.db.Set(dbEntry, value)
 
-// 	dbEntry := prefixKey(tmconst.AccountsPrefix, publicKey)
-// 	app.state.db.Set(dbEntry, value)
-
-// 	b64name := base64.StdEncoding.EncodeToString(publicKey)
-// 	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", b64name, startingBalance))
-// 	return true
-// }
+	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", address.Hex(), startingBalance))
+	return true
+}
 
 // // returns code to indicate if the operation was successful and, if applicable, how it failed
 // // Simple bool would not provide enough information

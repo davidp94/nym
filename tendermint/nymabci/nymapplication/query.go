@@ -17,19 +17,16 @@
 package nymapplication
 
 import (
+	"fmt"
+
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 // returns balance represented uint64 as BiGEndian encoded byte array and the code
 func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
-	// // dont perform validation on holding account since it will fail
-	// if !bytes.Equal(address, tmconst.HoldingAccountAddress) {
-	// 	if !account.ValidateAddress(address) {
-	// 		return nil, code.INVALID_QUERY_PARAMS
-	// 	}
-	// }
-
+	app.log.Debug(fmt.Sprintf("Checking balance for: %v", ethcommon.BytesToAddress(address).Hash()))
 	key := prefixKey(tmconst.AccountsPrefix, address)
 
 	_, val := app.state.db.Get(key)

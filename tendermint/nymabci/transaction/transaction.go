@@ -21,7 +21,9 @@ import (
 	"crypto/ecdsa"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -33,8 +35,8 @@ const (
 	TxNewAccount byte = 0x02
 	// TxTransferBetweenAccounts is byte prefix for transaction to transfer funds between 2 accounts. for debug
 	TxTransferBetweenAccounts byte = 0x03
-	// TxTransferToHolding is byte prefix for transaction to transfer client's funds to holding account.
-	TxTransferToHolding byte = 0x04
+	// // TxTransferToHolding is byte prefix for transaction to transfer client's funds to holding account.
+	// TxTransferToHolding byte = 0x04
 	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
 	// TxTransferToHoldingNotification is byte prefix for transaction notifying tendermint nodes about
@@ -67,25 +69,30 @@ func NewLookUpZetaTx(zeta *Curve.ECP) []byte {
 }
 
 // CreateNewAccountRequest creates new request for tx for new account creation.
-// func CreateNewAccountRequest(account account.Account, credential []byte) ([]byte, error) {
-// 	msg := make([]byte, len(account.PublicKey)+len(credential))
-// 	copy(msg, account.PublicKey)
-// 	copy(msg[len(account.PublicKey):], credential)
-// 	sig := account.PrivateKey.SignBytes(msg)
-// 	req := &NewAccountRequest{
-// 		PublicKey:  account.PublicKey,
-// 		Credential: credential,
-// 		Sig:        sig,
-// 	}
-// 	protob, err := proto.Marshal(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	b := make([]byte, len(protob)+1)
-// 	b[0] = TxNewAccount
-// 	copy(b[1:], protob)
-// 	return b, nil
-// }
+func CreateNewAccountRequest(privateKey *ecdsa.PrivateKey, credential []byte) ([]byte, error) {
+	addr := ethcrypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey))
+	msg := make([]byte, len(addr)+len(credential))
+	copy(msg, addr[:])
+	copy(msg[len(addr):], credential)
+	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &NewAccountRequest{
+		Address:    addr[:],
+		Credential: credential,
+		Sig:        sig,
+	}
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = TxNewAccount
+	copy(b[1:], protob)
+	return b, nil
+}
 
 // // CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
 // // Currently and possibly only for debug purposes

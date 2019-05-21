@@ -97,3 +97,21 @@ restart_single_issuer:
 	-docker stop testissuer3
 	make build_servers
 	docker run -it --rm -p 4002:4000 -p 5002:5000 --name=testissuer3 --network=coconutgo_localnet -v $(CURDIR)/build/issuers/issuer3:/coconut_server:Z nym/server -f /coconut_server/config.toml
+
+
+start_over_single_node:
+	-docker stop testsinglenode
+	rm -rf build/nodes/singlenode
+	mkdir -p build/nodes/singlenode/config
+	docker run --user $$(id -u $${USER}):$$(id -g $${USER}) --rm -v $(CURDIR)/build/nodes/singlenode:/tendermint:Z tendermint/tendermint:v0.31.5 init
+	sed -i -e "s/$(APP_STATE_ORIGINAL)/$(APP_STATE_REPLACEMENT)/g" build/nodes/singlenode/config/genesis.json
+
+
+# also for debug purposes; 
+# simpler to test tiny changes rather than having to restart entire cluster
+restart_single_node:
+	go run tendermint/nymnode/main.go -cfgFile build/nodes/singlenode/config/config.toml -dataRoot build/nodes/singlenode
+
+	# -docker stop testsinglenode
+	# docker build -t nym/nymnode -f ./DOCKER/nym_node/Dockerfile . 	
+	# docker run -it --rm -p 46656:26656 -p 46657:46657 --name=testsinglenode -v $(CURDIR)/build/nodes/singlenode:/tendermint:Z nym/nymnode

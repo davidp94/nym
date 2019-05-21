@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/ecdsa"
+	"encoding/base64"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/client"
@@ -17,10 +18,17 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(pk)
-	// if err := crypto.SaveECDSA("foo.tmp", pk); err != nil {
-	// 	panic(err)
-	// }
+	// fmt.Println(pk)
+	if err := crypto.SaveECDSA("watcher2.key", pk); err != nil {
+		panic(err)
+	}
+
+	pubK := pk.Public().(*ecdsa.PublicKey)
+	b := crypto.FromECDSAPub(pubK)
+
+	fmt.Println(base64.StdEncoding.EncodeToString(b))
+
+	return
 
 	msg := []byte("foo")
 	hash := crypto.Keccak256(msg)

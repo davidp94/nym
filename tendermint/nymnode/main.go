@@ -82,7 +82,7 @@ func createConfig(cfgFile, nodeRootDir string, createEmptyBlocks bool, emptyBloc
 		return nil, errors.New("node was not initialised - relevant files do not exist")
 	}
 
-	cfg.LogLevel = "foo"
+	cfg.LogLevel = tmConfig.DefaultPackageLogLevels()
 
 	if err := cfg.ValidateBasic(); err != nil {
 		panic(err)
@@ -104,6 +104,8 @@ func createBaseLoger(writer ...io.Writer) log.Logger {
 
 func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocksInterval time.Duration,
 ) (*tmNode.Node, error) {
+	nilLog := log.NewNopLogger()
+
 	log := createBaseLoger()
 	log.Info("Initialised logger")
 
@@ -126,7 +128,7 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 		tmNode.DefaultGenesisDocProviderFunc(cfg),
 		tmNode.DefaultDBProvider,
 		tmNode.DefaultMetricsProvider(cfg.Instrumentation),
-		log,
+		nilLog, // TODO: LOGGER THAT DOESNT LOG EVERYTHING
 	)
 
 	if err != nil {

@@ -6,10 +6,9 @@ import "crypto/elgamal/proto/types.proto";
 package transaction;
 option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction";
 
-// DEPRECATED
 message NewAccountRequest {
     // Public Key of the user used to derive account address and validate signature
-    bytes PublicKey = 1; 
+    bytes Address = 1; 
     // represents some optional credential from an IP if required
     bytes Credential = 2; 
     // Signature on request to confirm its validity + asserts knowledge of private key
@@ -19,51 +18,50 @@ message NewAccountRequest {
 // DEPRECATED
 message AccountTransferRequest {
     // Used to validate signature + determine source address
-    bytes SourcePublicKey = 1;
+    bytes SourceAddress = 1;
     // Used to determine target address
-    bytes TargetPublicKey = 2; 
+    bytes TargetAddress = 2; 
     // Amount to be transferred 
     uint64 Amount = 3; 
-    // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
     // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
     // Signature on request to confirm its validitiy
     bytes Sig = 4; 
 }
 
-// literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
-// DEPRECATED
-message DepositCoconutCredentialRequest {
-    // The actual credential
-    coconut.ProtoSignature Sig = 1;
-    // The public attributes in credential. Note that pubM[0] = BIG(value)
-    repeated bytes PubM = 2;
-    // Crypto materials to verify the credential + required NIZK
-    coconut.ProtoThetaTumbler Theta = 3;
-    // Value of the credential
-    int32 Value = 4;
-    // Address of the merchant to which the proof is bound
-    bytes MerchantAddress = 5;
-}
+// // literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
+// // DEPRECATED
+// message DepositCoconutCredentialRequest {
+//     // The actual credential
+//     coconut.ProtoSignature Sig = 1;
+//     // The public attributes in credential. Note that pubM[0] = BIG(value)
+//     repeated bytes PubM = 2;
+//     // Crypto materials to verify the credential + required NIZK
+//     coconut.ProtoThetaTumbler Theta = 3;
+//     // Value of the credential
+//     int32 Value = 4;
+//     // Address of the merchant to which the proof is bound
+//     bytes MerchantAddress = 5;
+// }
 
-// Initiated by users and sent directly to the chain
-// DEPRECATED
-message TransferToHoldingRequest {
-    // Used to validate signature + determine source address
-    bytes SourcePublicKey = 1;
-    // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
-    // in case wanted to change it
-    bytes TargetAddress = 2; 
-    // Amount to be transferred / Value of the desired credential
-    int32 Amount = 3; 
-    // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
-    elgamal.ProtoPublicKey EgPub = 4;
-    // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
-    coconut.ProtoLambda Lambda = 5;
-    // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
-    repeated bytes PubM = 6;
-    // Signature on request to confirm its validitiy
-    bytes Sig = 7; 
- }
+// // Initiated by users and sent directly to the chain
+// // DEPRECATED
+// message TransferToHoldingRequest {
+//     // Used to validate signature + determine source address
+//     bytes SourcePublicKey = 1;
+//     // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
+//     // in case wanted to change it
+//     bytes TargetAddress = 2; 
+//     // Amount to be transferred / Value of the desired credential
+//     int32 Amount = 3; 
+//     // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+//     elgamal.ProtoPublicKey EgPub = 4;
+//     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+//     coconut.ProtoLambda Lambda = 5;
+//     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
+//     repeated bytes PubM = 6;
+//     // Signature on request to confirm its validitiy
+//     bytes Sig = 7; 
+//  }
 
 message TransferToHoldingNotification {
     // Derived from public key; used to identify the particular watcher

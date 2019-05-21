@@ -17,6 +17,10 @@
 // Package constants declares system-wide constants.
 package constants
 
+import (
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+)
+
 // TODO: requires major cleanup and removing unused entries
 
 // nolint: gochecknoglobals
@@ -54,4 +58,7 @@ var (
 	// CredentialRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
 	// to a successful request to transfer tokents to a holding account.
 	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
+
+	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
+	HashFunction = ethcrypto.Keccak256
 )

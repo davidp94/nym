@@ -16,46 +16,63 @@
 
 package nymapplication
 
-const (
-	startingBalance uint64 = 0 // this is for purely debug purposes. It will always be 0
+import (
+	"bytes"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/golang/protobuf/proto"
+	"github.com/tendermint/tendermint/abci/types"
 )
 
-// // tx prefix was already removed
-// func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
-// 	req := &transaction.NewAccountRequest{}
+const (
+	startingBalance uint64 = 10 // this is for purely debug purposes. It will always be 0
+)
 
-// 	if err := proto.Unmarshal(reqb, req); err != nil {
-// 		app.log.Info("Failed to unmarshal request")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+// tx prefix was already removed
+func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.NewAccountRequest{}
 
-// 	var publicKey account.ECPublicKey = req.PublicKey
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
-// 	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
-// 		len(req.Sig) != account.SignatureSize {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	if len(req.Address) != ethcommon.AddressLength {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
-// 	if !app.verifyCredential(req.Credential) {
-// 		app.log.Info("Failed to verify IP credential")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-// 	}
+	if !app.verifyCredential(req.Credential) {
+		app.log.Info("Failed to verify IP credential")
+		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
+	}
 
-// 	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
-// 	copy(msg, req.PublicKey)
-// 	copy(msg[len(req.PublicKey):], req.Credential)
+	msg := make([]byte, len(req.Address)+len(req.Credential))
+	copy(msg, req.Address)
+	copy(msg[len(req.Address):], req.Credential)
 
-// 	if !publicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-// 	}
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
 
-// 	didSucceed := app.createNewAccountOp(publicKey)
-// 	if didSucceed {
-// 		return types.ResponseDeliverTx{Code: code.OK}
-// 	}
-// 	return types.ResponseDeliverTx{Code: code.UNKNOWN}
-// }
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.Address) {
+		app.log.Info("Failed to verify signature on request")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
+
+	// we already know recAddr is identical to the address sent
+	didSucceed := app.createNewAccountOp(recAddr)
+	if didSucceed {
+		return types.ResponseDeliverTx{Code: code.OK}
+	}
+	return types.ResponseDeliverTx{Code: code.UNKNOWN}
+}
 
 // // Currently and possibly only for debug purposes
 // // to freely transfer tokens between accounts to setup different scenarios.

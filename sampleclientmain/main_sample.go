@@ -17,24 +17,25 @@
 package main
 
 import (
-	"encoding/base64"
+	"crypto/ecdsa"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
-	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -113,28 +114,16 @@ func wholeSystem(cc *cclient.Client) {
 	}
 
 	// create new account
-	acc := account.NewAccount()
-	newAccReq, err := transaction.CreateNewAccountRequest(acc, []byte("foo"))
+	pk, err := ethcrypto.GenerateKey()
+	if err != nil {
+		panic(err)
+	}
+	newAccReq, err := transaction.CreateNewAccountRequest(pk, []byte("foo"))
 	if err != nil {
 		panic(err)
 	}
 
-	debugAcc := &account.Account{}
-	if lerr := debugAcc.FromJSONFile("../tendermint/debugAccount.json"); lerr != nil {
-		panic(lerr)
-	}
-
-	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 20)
-	if err != nil {
-		panic(err)
-	}
-
-	params, _ := coconut.Setup(5)
-	G := params.G
-	privM := getRandomAttributes(G, 2) // sequence and the key
-	token := token.New(privM[0], privM[1], int32(1))
-	_ = token
+	address := ethcrypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
 
 	res, err := tmclient.Broadcast(newAccReq)
 	if err != nil {
@@ -144,46 +133,79 @@ func wholeSystem(cc *cclient.Client) {
 		code.ToString(res.DeliverTx.Code),
 		string(res.DeliverTx.Data),
 	)
-	// add some funds
-	res, err = tmclient.Broadcast(transferReq)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
-		code.ToString(res.DeliverTx.Code),
-		string(res.DeliverTx.Data),
-	)
 
-	b, err := utils.GenerateRandomBytes(10)
-	if err != nil {
-		panic(err)
-	}
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
-	tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
-
-	fmt.Printf("Send some dummy transactions to advance block")
-
-	cred, err := cc.GetCredential(token)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Transfered %v to the holding account\n", token.Value())
-	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
-
-	addr, err := base64.StdEncoding.DecodeString(providerAcc)
-	if err != nil {
-		panic(err)
-	}
-	// spend credential:
-	didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	queryRes, err := tmclient.Query(query.QueryCheckBalancePath, address[:])
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Was credential spent: ", didSucceed)
+	fmt.Println("balance: ", binary.BigEndian.Uint64(queryRes.Response.Value))
+
+	// debugAcc := &account.Account{}
+	// if lerr := debugAcc.FromJSONFile("../tendermint/debugAccount.json"); lerr != nil {
+	// 	panic(lerr)
+	// }
+
+	// // transfer some funds to the new account
+	// transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 20)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// params, _ := coconut.Setup(5)
+	// G := params.G
+	// privM := getRandomAttributes(G, 2) // sequence and the key
+	// token := token.New(privM[0], privM[1], int32(1))
+	// _ = token
+
+	// res, err := tmclient.Broadcast(newAccReq)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("Created new account. Code: %v, additional data: %v\n",
+	// 	code.ToString(res.DeliverTx.Code),
+	// 	string(res.DeliverTx.Data),
+	// )
+	// // add some funds
+	// res, err = tmclient.Broadcast(transferReq)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
+	// 	code.ToString(res.DeliverTx.Code),
+	// 	string(res.DeliverTx.Data),
+	// )
+
+	// b, err := utils.GenerateRandomBytes(10)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+
+	// fmt.Printf("Send some dummy transactions to advance block")
+
+	// cred, err := cc.GetCredential(token)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+
+	// addr, err := base64.StdEncoding.DecodeString(providerAcc)
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// // spend credential:
+	// didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Println("Was credential spent: ", didSucceed)
 }
 
 //nolint: dupl, lll
