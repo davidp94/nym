@@ -102,8 +102,9 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 func (app *NymApplication) createNewAccountOp(address ethcommon.Address) bool {
 	value := make([]byte, 8)
 	binary.BigEndian.PutUint64(value, startingBalance)
-	if startingBalance != 0 {
-		app.log.Error("THE APPLICATION IS IN DEBUG MODE")
+	if startingBalance != 0 && !tmconst.DebugMode {
+		app.log.Error("Trying to set starting balance different than 0 while the app is not in debug mode")
+		return false
 	}
 
 	dbEntry := prefixKey(tmconst.AccountsPrefix, address[:])

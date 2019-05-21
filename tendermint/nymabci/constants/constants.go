@@ -21,6 +21,12 @@ import (
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
+const (
+	// DebugMode is a flag to indicate whether the application is in debug mode.
+	// If disabled some options won't be available
+	DebugMode = true
+)
+
 // TODO: requires major cleanup and removing unused entries
 
 // nolint: gochecknoglobals

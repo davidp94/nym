@@ -259,15 +259,23 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 		// TODO: include index (as found in the db)?
 		return types.ResponseQuery{Code: code, Key: req.Data, Value: val}
 	case query.DEBUG_printVk:
-		_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
-		avk := &coconut.VerificationKey{}
-		err := avk.UnmarshalBinary(avkb)
-		if err != nil {
-			app.log.Error("Couldnt unmarshal avk")
-			return types.ResponseQuery{Code: code.UNKNOWN}
+		if !tmconst.DebugMode {
+			app.log.Info("Trying to use printVk not in debug mode")
+			goto defaultcase
 		}
-		fmt.Println(avk)
+		{
+			_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
+			avk := &coconut.VerificationKey{}
+			err := avk.UnmarshalBinary(avkb)
+			if err != nil {
+				app.log.Error("Couldnt unmarshal avk")
+				return types.ResponseQuery{Code: code.UNKNOWN}
+			}
+			fmt.Println(avk)
+		}
 		return types.ResponseQuery{Code: code.OK}
+	defaultcase:
+		fallthrough
 	default:
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
