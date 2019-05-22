@@ -29,6 +29,12 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+func balanceToBytes(balance uint64) []byte {
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, balance)
+	return b
+}
+
 func prefixKey(prefix []byte, key []byte) []byte {
 	b := make([]byte, len(key)+len(prefix))
 	copy(b, prefix)
@@ -76,32 +82,9 @@ func randomInts(q int, max int, source rand.Source) ([]int, error) {
 }
 
 // checks if account with given address exists in the database
-// it WILL NOT try to compress address (even if possible) in case there was ever need to store uncompressed addresses
 func (app *NymApplication) checkIfAccountExists(address []byte) bool {
-	// if !account.ValidateAddress(address) {
-	// 	return false
-	// }
-	key := prefixKey(tmconst.AccountsPrefix, address)
-
-	_, val := app.state.db.Get(key)
-	return val != nil
-}
-
-// checks if given (random) nonce was already seen before for the particular address
-func (app *NymApplication) checkNonce(nonce, address []byte) bool {
-	if len(nonce) != tmconst.NonceLength || len(address) != ethcommon.AddressLength {
-		return true
-	}
-
-	// [PREFIX || NONCE || ADDRESS]
-	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
-	_, val := app.state.db.Get(key)
-	return val != nil
-}
-
-func (app *NymApplication) setNonce(nonce, address []byte) {
-	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
-	app.state.db.Set(key, tmconst.SeenNoncePrefix)
+	_, err := app.retrieveAccountBalance(address)
+	return err != nil
 }
 
 // getSimpleCoconutParams returns params required to perform coconut operations, however, they do not include
@@ -110,23 +93,21 @@ func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
 	p := Curve.NewBIGints(Curve.CURVE_Order)
 	g1 := Curve.ECP_generator()
 	g2 := Curve.ECP2_generator()
-	_, hsb := app.state.db.Get(tmconst.CoconutHsKey)
-	hs := coconut.CompressedBytesToECPSlice(hsb)
+	hs, err := app.retrieveHs()
+	if err != nil {
+		return nil
+	}
 
 	return coconut.NewParams(nil, p, g1, g2, hs)
 }
 
 // returns bool to indicate if the operation was successful
 func (app *NymApplication) createNewAccountOp(address ethcommon.Address) bool {
-	value := make([]byte, 8)
-	binary.BigEndian.PutUint64(value, startingBalance)
 	if startingBalance != 0 && !tmconst.DebugMode {
 		app.log.Error("Trying to set starting balance different than 0 while the app is not in debug mode")
 		return false
 	}
-
-	dbEntry := prefixKey(tmconst.AccountsPrefix, address[:])
-	app.state.db.Set(dbEntry, value)
+	app.setAccountBalance(address[:], startingBalance)
 
 	app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", address.Hex(), startingBalance))
 	return true
@@ -141,29 +122,21 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr []byte, amount uint64
 		return retCode, data
 	}
 
-	// we already know it will succeed
-	sourceBalanceB, _ := app.queryBalance(inAddr)
-	targetBalanceB, _ := app.queryBalance(outAddr)
+	sourceBalance, err := app.retrieveAccountBalance(inAddr)
+	if err != nil {
+		// this is undefined behaviour as account was already checked in validate transfer
+		// so something malicious must have happened
+		panic(err)
+	}
+	targetBalance, err := app.retrieveAccountBalance(outAddr)
+	if err != nil {
+		// this is undefined behaviour as account was already checked in validate transfer
+		// so something malicious must have happened
+		panic(err)
+	}
 
-	// TODO: replace it with some fancy byte operations to get rid of two conversions
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
-
-	// finally initiate the transfer
-	sourceResult := sourceBalance - amount
-	targetResult := targetBalance + amount
-
-	sourceResultB := make([]byte, 8)
-	targetResultB := make([]byte, 8)
-
-	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
-	binary.BigEndian.PutUint64(targetResultB, targetResult)
-
-	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
-	app.state.db.Set(sourceDbEntry, sourceResultB)
-
-	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
-	app.state.db.Set(targetDbEntry, targetResultB)
+	app.setAccountBalance(inAddr, sourceBalance-amount)
+	app.setAccountBalance(outAddr, targetBalance+amount)
 
 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
 		amount, ethcommon.BytesToAddress(inAddr).Hex(), ethcommon.BytesToAddress(outAddr).Hex()))

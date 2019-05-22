@@ -21,17 +21,26 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
-	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/tendermint/tendermint/abci/types"
 )
 
-// returns balance represented uint64 as BiGEndian encoded byte array and the code
-func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
-	app.log.Debug(fmt.Sprintf("Checking balance for: %v", ethcommon.BytesToAddress(address).Hash()))
-	key := prefixKey(tmconst.AccountsPrefix, address)
-
-	_, val := app.state.db.Get(key)
-	if val != nil {
-		return val, code.OK
+func (app *NymApplication) checkAccountBalanceQuery(req types.RequestQuery) types.ResponseQuery {
+	val, err := app.retrieveAccountBalance(req.Data)
+	if err != nil {
+		return types.ResponseQuery{Code: code.ACCOUNT_DOES_NOT_EXIST}
 	}
-	return nil, code.ACCOUNT_DOES_NOT_EXIST
+	return types.ResponseQuery{Code: code.OK, Key: req.Data, Value: balanceToBytes(val)}
+}
+
+func (app *NymApplication) printVk(req types.RequestQuery) (types.ResponseQuery, error) {
+	if !tmconst.DebugMode {
+		app.log.Info("Trying to use printVk not in debug mode")
+		return types.ResponseQuery{}, tmconst.ErrNotInDebug
+	}
+	avk, err := app.retrieveAggregateVerificationKey()
+	if err != nil {
+		return types.ResponseQuery{Code: code.UNKNOWN}, err
+	}
+	fmt.Println(avk)
+	return types.ResponseQuery{Code: code.OK}, nil
 }

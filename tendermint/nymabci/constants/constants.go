@@ -18,6 +18,8 @@
 package constants
 
 import (
+	"errors"
+
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -70,4 +72,7 @@ var (
 
 	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
 	HashFunction = ethcrypto.Keccak256
+
+	// ErrNotInDebug indicates error thrown when trying to access functionalities only available in debug mode
+	ErrNotInDebug = errors.New("could not proceed with request. App is not in debug mode")
 )

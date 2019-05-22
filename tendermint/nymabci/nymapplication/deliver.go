@@ -118,6 +118,19 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
 
+func (app *NymApplication) handleTransferToHolding(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.TransferToHoldingNotification{}
+
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	_ = req
+
+	return types.ResponseDeliverTx{Code: code.OK}
+}
+
 // func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
 // 	req := &transaction.DepositCoconutCredentialRequest{}
 
@@ -425,4 +438,14 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 // app.state.db.Set(dbKey, retCodeB)
 
 // return types.ResponseDeliverTx{Code: transferRetCode, Data: data}
+// }
+
+// // currently for debug purposes to check if given g^s is in the spent set
+// func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
+// 	_, val := app.state.db.Get(zeta)
+
+// 	if val != nil {
+// 		return []byte{1}
+// 	}
+// 	return []byte{}
 // }

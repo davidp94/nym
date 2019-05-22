@@ -20,7 +20,6 @@
 package nymapplication
 
 import (
-	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -47,7 +46,6 @@ const (
 	DBNAME                              = "nymDB"
 	DefaultDbDir                        = "/nymabci"
 	createAccountOnDepositIfDoesntExist = true
-	holdingStartingBalance              = 100000 // entirely for debug purposes
 
 	// ProtocolVersion defines version of the protocol used.
 	ProtocolVersion version.Protocol = 0x1
@@ -56,18 +54,11 @@ const (
 // nolint: gochecknoglobals
 var _ types.Application = (*NymApplication)(nil)
 
-// State defines ABCI app state. Currently it is a iavl tree. Reason for the choice: it was recurring case in example.
-// It provides height (changes after each save -> perfect for blockchain) + fast hash which is also needed.
-type State struct {
-	db *iavl.MutableTree // hash and height (version) are obtained from the tree methods
-}
-
 // NymApplication defines basic structure for the Nym-specific ABCI.
 type NymApplication struct {
 	types.BaseApplication
 	state State
-
-	log log.Logger
+	log   log.Logger
 
 	// Version is the semantic version of the ABCI library used.
 	Version string
@@ -129,16 +120,6 @@ func (app *NymApplication) SetOption(req types.RequestSetOption) types.ResponseS
 	return types.ResponseSetOption{}
 }
 
-// currently for debug purposes to check if given g^s is in the spent set
-func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
-	_, val := app.state.db.Get(zeta)
-
-	if val != nil {
-		return []byte{1}
-	}
-	return []byte{}
-}
-
 // DeliverTx delivers a tx for full processing.
 func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	app.log.Debug(fmt.Sprintf("DeliverTx; height: %v", app.state.db.Version()))
@@ -148,8 +129,8 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	// currently for debug purposes to check if given g^s is in the spent set
 	case transaction.TxTypeLookUpZeta:
 		app.log.Info("DeliverTx for lookup zeta")
-		app.log.Info(fmt.Sprintf("looking up %v", tx[1:]))
-		return types.ResponseDeliverTx{Code: code.OK, Data: app.lookUpZeta(tx[1:])}
+		// app.log.Info(fmt.Sprintf("looking up %v", tx[1:]))
+		// return types.ResponseDeliverTx{Code: code.OK, Data: app.lookUpZeta(tx[1:])}
 
 	case transaction.TxNewAccount:
 		// creates new account
@@ -177,6 +158,10 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	// return app.transferToHolding(tx[1:])
 	case transaction.TxAdvanceBlock:
 		// purely for debug purposes to populate the state and advance the blocks
+		if !tmconst.DebugMode {
+			app.log.Info("Trying to use TxAdvanceBlock not in debug mode")
+			break
+		}
 		app.log.Info(fmt.Sprintf("storing up %v", tx[1:]))
 		app.state.db.Set(tx[1:], []byte{1})
 
@@ -272,23 +257,13 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 
 	switch req.Path {
 	case query.QueryCheckBalancePath:
-		val, code := app.queryBalance(req.Data)
-		// TODO: include index (as found in the db)?
-		return types.ResponseQuery{Code: code, Key: req.Data, Value: val}
+		return app.checkAccountBalanceQuery(req)
 	case query.DEBUG_printVk:
-		if !tmconst.DebugMode {
-			app.log.Info("Trying to use printVk not in debug mode")
+		res, err := app.printVk(req)
+		if err == tmconst.ErrNotInDebug {
 			break
 		}
-		_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
-		avk := &coconut.VerificationKey{}
-		err := avk.UnmarshalBinary(avkb)
-		if err != nil {
-			app.log.Error("Couldnt unmarshal avk")
-			return types.ResponseQuery{Code: code.UNKNOWN}
-		}
-		fmt.Println(avk)
-		return types.ResponseQuery{Code: code.OK}
+		return res
 	default:
 		app.log.Info(fmt.Sprintf("Unknown Query Path: %v", req.Path))
 	}
@@ -308,12 +283,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	// create genesis accounts
 	for _, acc := range genesisState.Accounts {
-		balance := make([]byte, 8)
-		binary.BigEndian.PutUint64(balance, acc.Balance)
-
-		dbEntry := prefixKey(tmconst.AccountsPrefix, acc.Address[:])
-		app.state.db.Set(dbEntry, balance)
-
+		app.setAccountBalance(acc.Address[:], acc.Balance)
 		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", acc.Address.Hex(), acc.Balance))
 	}
 
@@ -327,9 +297,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	}
 
 	for _, watcher := range genesisState.EthereumWatchers {
-		dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, watcher.PublicKey)
-		// TODO: do we even need to set any meaningful value here?
-		app.state.db.Set(dbEntry, tmconst.EthereumWatcherKeyPrefix)
+		app.storeWatcherKey(watcher)
 	}
 
 	// import vk of IAs
@@ -375,31 +343,17 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// BUT IF IT WAS USED ITS UNDETERMINISTIC
 	params.G = nil
 
-	// we will need to have access to g1, g2 and hs in order to verify credentials
-	// while we can get g1 and g2 from curve params, hs depends on number of attributes
-	// so store them; the point are always compressed
-	hsb := coconut.ECPSliceToCompressedBytes(params.Hs())
-	app.state.db.Set(tmconst.CoconutHsKey, hsb)
-	app.log.Info(fmt.Sprintf("Stored hs in DB"))
+	app.storeHs(params.Hs())
 
 	// aggregate the verification keys
 	pp := coconut.NewPP(xs)
 	avk := coconut.AggregateVerificationKeys(params, vks, pp)
-	avkb, err := avk.MarshalBinary()
-	if err != nil {
-		// there's no alternative but panic now
-		panic(err)
-	}
-
-	app.state.db.Set(tmconst.AggregateVkKey, avkb)
-	app.log.Info(fmt.Sprintf("Stored Aggregate Verification Key in DB"))
+	// TODO: IF we decide nym nodes are going to be verifying credentials,
+	// should we also store individual verification keys of all issuers?
+	app.storeAggregateVerificationKey(avk)
 
 	for _, ia := range genesisState.Issuers {
-		idb := make([]byte, 4)
-		binary.BigEndian.PutUint32(idb, ia.ID)
-
-		dbEntry := prefixKey(tmconst.IaKeyPrefix, idb)
-		app.state.db.Set(dbEntry, ia.PublicKey)
+		app.storeIssuerKey(ia)
 	}
 	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))
 

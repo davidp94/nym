@@ -45,17 +45,16 @@ func (app *NymApplication) validateTransfer(inAddr, outAddr []byte, amount uint6
 		return code.SELF_TRANSFER, nil
 	}
 
-	sourceBalanceB, retCode := app.queryBalance(inAddr)
-	if retCode != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
+	sourceBalance, err := app.retrieveAccountBalance(inAddr)
+	if err != nil {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOUCE")
 	}
 
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
 	if sourceBalance < amount { // + some gas?
 		return code.INSUFFICIENT_BALANCE, nil
 	}
 
-	if _, retCodeT := app.queryBalance(outAddr); retCodeT != code.OK {
+	if _, err := app.retrieveAccountBalance(outAddr); err != nil {
 		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
 	}
 
@@ -134,6 +133,10 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 		return code.INVALID_SIGNATURE
 	}
 
+	return code.OK
+}
+
+func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint32 {
 	return code.OK
 }
 
