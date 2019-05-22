@@ -164,7 +164,9 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		}
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
-
+	case transaction.TxTransferToHoldingNotification:
+		app.log.Info("Transfer to holding notification")
+		app.handleTransferToHolding(tx[1:])
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
@@ -206,13 +208,21 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 
 	case transaction.TxTransferBetweenAccounts:
 		app.log.Debug("CheckTx for TxTransferBetweenAccounts")
+		checkCode := app.checkTransferBetweenAccountsTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
+	case transaction.TxTransferToHoldingNotification:
+		app.log.Debug("CheckTx for TxTransferToHoldingNotification")
+		checkCode := app.checkTransferToHoldingNotificationTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferToHoldingNotification failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 
-		// checkCode := app.checkTransferBetweenAccountsTx(tx[1:])
-		// if checkCode != code.OK {
-		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
-		// 		checkCode, code.ToString(checkCode)))
-		// }
-		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxDepositCoconutCredential:
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
 
@@ -307,9 +317,24 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		app.log.Info(fmt.Sprintf("Created new account: %v with starting balance: %v", acc.Address.Hex(), acc.Balance))
 	}
 
+	numWatchers := len(genesisState.EthereumWatchers)
+	watcherThreshold := genesisState.SystemProperties.WatcherThreshold
+	// In future do not terminate here as it will be possible (TODO: actually implement it) to add IAs in txs
+	if watcherThreshold > numWatchers {
+		app.log.Error(fmt.Sprintf("Only %v watchers declared in the genesis block out of minimum %v",
+			numWatchers, watcherThreshold))
+		panic("Insufficient number of issuers declared in the genesis block")
+	}
+
+	for _, watcher := range genesisState.EthereumWatchers {
+		dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, watcher.PublicKey)
+		// TODO: do we even need to set any meaningful value here?
+		app.state.db.Set(dbEntry, tmconst.EthereumWatcherKeyPrefix)
+	}
+
 	// import vk of IAs
 	numIAs := len(genesisState.Issuers)
-	threshold := genesisState.CoconutProperties.Threshold
+	threshold := genesisState.SystemProperties.CoconutProperties.Threshold
 	// In future do not terminate here as it will be possible (TODO: actually implement it) to add IAs in txs
 	if threshold > numIAs {
 		app.log.Error(fmt.Sprintf("Only %v Issuing Authorities declared in the genesis block out of minimum %v",
@@ -341,7 +366,7 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	// TODO: again, do we still need coconut params at this point?
 	// generate coconut params required for credential verification later on
-	params, err := coconut.Setup(genesisState.CoconutProperties.MaximumAttributes)
+	params, err := coconut.Setup(genesisState.SystemProperties.CoconutProperties.MaximumAttributes)
 	if err != nil {
 		// there's no alternative but panic now
 		panic(err)
@@ -377,12 +402,6 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		app.state.db.Set(dbEntry, ia.PublicKey)
 	}
 	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))
-
-	for _, watcher := range genesisState.EthereumWatchers {
-		dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, watcher.PublicKey)
-		// do we even need to set any meaningful value here?
-		app.state.db.Set(dbEntry, watcher.PublicKey)
-	}
 
 	// saving app state here causes replay issues, so if app crashes before 1st block is committed it has to
 	// redo initchain

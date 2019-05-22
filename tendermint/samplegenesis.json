@@ -41,6 +41,13 @@
   ],
   "app_hash": "",
   "app_state": {
+    "systemProperties" : {
+      "watcherThreshold": 2,
+      "coconutProperties": {
+        "q": 5,
+        "threshold": 2
+      }
+    }, 
     "accounts": [
       { 
         "address": "0x382527A35984E3DC79E239294cdA10138C161686",
@@ -51,10 +58,6 @@
         "balance": 42
       }
     ],
-    "coconutProperties": {
-      "q": 5,
-      "threshold": 2
-    },
     "issuingAuthorities": [
       {
         "id": 1,
