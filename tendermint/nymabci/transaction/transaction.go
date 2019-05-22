@@ -19,9 +19,12 @@ package transaction
 
 import (
 	"crypto/ecdsa"
+	"encoding/binary"
 
+	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	proto "github.com/golang/protobuf/proto"
@@ -94,31 +97,48 @@ func CreateNewAccountRequest(privateKey *ecdsa.PrivateKey, credential []byte) ([
 	return b, nil
 }
 
-// // CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
-// // Currently and possibly only for debug purposes
-// // to freely transfer tokens between accounts to setup different scenarios.
-// func CreateNewTransferRequest(account account.Account, target account.ECPublicKey, amount uint64) ([]byte, error) {
-// 	msg := make([]byte, len(account.PublicKey)+len(target)+8)
-// 	copy(msg, account.PublicKey)
-// 	copy(msg[len(account.PublicKey):], target)
-// 	binary.BigEndian.PutUint64(msg[len(account.PublicKey)+len(target):], amount)
+// CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
+// Currently and possibly only for debug purposes
+// to freely transfer tokens between accounts to setup different scenarios.
+func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
+	targetAddress ethcommon.Address,
+	amount uint64,
+) ([]byte, error) {
 
-// 	sig := account.PrivateKey.SignBytes(msg)
-// 	req := &AccountTransferRequest{
-// 		SourcePublicKey: account.PublicKey,
-// 		TargetPublicKey: target,
-// 		Amount:          amount,
-// 		Sig:             sig,
-// 	}
-// 	protob, err := proto.Marshal(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	b := make([]byte, len(protob)+1)
-// 	b[0] = TxTransferBetweenAccounts
-// 	copy(b[1:], protob)
-// 	return b, nil
-// }
+	nonce, err := utils.GenerateRandomBytes(tmconst.NonceLength)
+	if err != nil {
+		return nil, err
+	}
+
+	sourceAddress := ethcrypto.PubkeyToAddress(*sourcePrivateKey.Public().(*ecdsa.PublicKey))
+
+	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
+	copy(msg, sourceAddress[:])
+	copy(msg[ethcommon.AddressLength:], targetAddress[:])
+	binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], amount)
+	copy(msg[2*ethcommon.AddressLength+8:], nonce)
+
+	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), sourcePrivateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &AccountTransferRequest{
+		SourceAddress: sourceAddress[:],
+		TargetAddress: targetAddress[:],
+		Amount:        amount,
+		Nonce:         nonce,
+		Sig:           sig,
+	}
+	protob, err := proto.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	b := make([]byte, len(protob)+1)
+	b[0] = TxTransferBetweenAccounts
+	copy(b[1:], protob)
+	return b, nil
+}
 
 // // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
 // // (that is bound to particular merchant address) to be spent.

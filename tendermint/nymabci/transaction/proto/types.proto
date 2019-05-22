@@ -15,7 +15,7 @@ message NewAccountRequest {
     bytes Sig = 3; 
 }
 
-// DEPRECATED
+// DEBUG
 message AccountTransferRequest {
     // Used to validate signature + determine source address
     bytes SourceAddress = 1;
@@ -23,9 +23,12 @@ message AccountTransferRequest {
     bytes TargetAddress = 2; 
     // Amount to be transferred 
     uint64 Amount = 3; 
-    // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
+    // While this function will only be available in debug and hence a nonce is really not needed,
+    // I figured I should include it anyway as it's a good practice + will need to figure out a proper
+    // nonce system anyway.
+    bytes Nonce = 4;
     // Signature on request to confirm its validitiy
-    bytes Sig = 4; 
+    bytes Sig = 5; 
 }
 
 // // literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes

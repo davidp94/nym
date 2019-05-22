@@ -23,6 +23,7 @@ import (
 	"math/rand"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -86,6 +87,23 @@ func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	return val != nil
 }
 
+// checks if given (random) nonce was already seen before for the particular address
+func (app *NymApplication) checkNonce(nonce, address []byte) bool {
+	if len(nonce) != tmconst.NonceLength || len(address) != ethcommon.AddressLength {
+		return true
+	}
+
+	// [PREFIX || NONCE || ADDRESS]
+	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
+	_, val := app.state.db.Get(key)
+	return val != nil
+}
+
+func (app *NymApplication) setNonce(nonce, address []byte) {
+	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
+	app.state.db.Set(key, tmconst.SeenNoncePrefix)
+}
+
 // getSimpleCoconutParams returns params required to perform coconut operations, however, they do not include
 // the bpgroup that is required for generating random numbers. However, this is not required by the abci.
 func (app *NymApplication) getSimpleCoconutParams() *coconut.Params {
@@ -114,51 +132,41 @@ func (app *NymApplication) createNewAccountOp(address ethcommon.Address) bool {
 	return true
 }
 
-// // returns code to indicate if the operation was successful and, if applicable, how it failed
-// // Simple bool would not provide enough information
-// // also returns any additional data
-// // TODO: also limit transaction value to signed int32?
-// func (app *NymApplication) transferFundsOp(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
-// 	if retCode, data := app.validateTransfer(inAddr, outAddr, amount); retCode != code.OK {
-// 		return retCode, data
-// 	}
+// returns code to indicate if the operation was successful and, if applicable, how it failed
+// Simple bool would not provide enough information
+// also returns any additional data
+// TODO: also limit transaction value to signed int32?
+func (app *NymApplication) transferFundsOp(inAddr, outAddr []byte, amount uint64) (uint32, []byte) {
+	if retCode, data := app.validateTransfer(inAddr, outAddr, amount); retCode != code.OK {
+		return retCode, data
+	}
 
-// 	// nolint: errcheck
-// 	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
-// 		inAddr.Compress()
-// 	}
+	// we already know it will succeed
+	sourceBalanceB, _ := app.queryBalance(inAddr)
+	targetBalanceB, _ := app.queryBalance(outAddr)
 
-// 	// nolint: errcheck
-// 	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
-// 		outAddr.Compress()
-// 	}
+	// TODO: replace it with some fancy byte operations to get rid of two conversions
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
 
-// 	// we already know it will succeed
-// 	sourceBalanceB, _ := app.queryBalance(inAddr)
-// 	targetBalanceB, _ := app.queryBalance(outAddr)
+	// finally initiate the transfer
+	sourceResult := sourceBalance - amount
+	targetResult := targetBalance + amount
 
-// 	// TODO: replace it with some fancy byte operations to get rid of two conversions
-// 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-// 	targetBalance := binary.BigEndian.Uint64(targetBalanceB)
+	sourceResultB := make([]byte, 8)
+	targetResultB := make([]byte, 8)
 
-// 	// finally initiate the transfer
-// 	sourceResult := sourceBalance - amount
-// 	targetResult := targetBalance + amount
+	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
+	binary.BigEndian.PutUint64(targetResultB, targetResult)
 
-// 	sourceResultB := make([]byte, 8)
-// 	targetResultB := make([]byte, 8)
+	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
+	app.state.db.Set(sourceDbEntry, sourceResultB)
 
-// 	binary.BigEndian.PutUint64(sourceResultB, sourceResult)
-// 	binary.BigEndian.PutUint64(targetResultB, targetResult)
+	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
+	app.state.db.Set(targetDbEntry, targetResultB)
 
-// 	sourceDbEntry := prefixKey(tmconst.AccountsPrefix, inAddr)
-// 	app.state.db.Set(sourceDbEntry, sourceResultB)
+	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
+		amount, ethcommon.BytesToAddress(inAddr).Hex(), ethcommon.BytesToAddress(outAddr).Hex()))
 
-// 	targetDbEntry := prefixKey(tmconst.AccountsPrefix, outAddr)
-// 	app.state.db.Set(targetDbEntry, targetResultB)
-
-// 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
-// 		amount, base64.StdEncoding.EncodeToString(inAddr), base64.StdEncoding.EncodeToString(outAddr)))
-
-// 	return code.OK, nil
-// }
+	return code.OK, nil
+}

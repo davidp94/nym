@@ -123,8 +123,6 @@ func wholeSystem(cc *cclient.Client) {
 		panic(err)
 	}
 
-	address := ethcrypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
-
 	res, err := tmclient.Broadcast(newAccReq)
 	if err != nil {
 		panic(err)
@@ -134,23 +132,26 @@ func wholeSystem(cc *cclient.Client) {
 		string(res.DeliverTx.Data),
 	)
 
-	queryRes, err := tmclient.Query(query.QueryCheckBalancePath, address[:])
+	debugAcc, lerr := ethcrypto.LoadECDSA("../tendermint/debugAccount.key")
+	if lerr != nil {
+		panic(lerr)
+	}
+
+	newAccAddress := ethcrypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
+	debugAccAddress := ethcrypto.PubkeyToAddress(*debugAcc.Public().(*ecdsa.PublicKey))
+
+	queryRes, err := tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("balance: ", binary.BigEndian.Uint64(queryRes.Response.Value))
+	fmt.Println("Debug Account Balance: ", binary.BigEndian.Uint64(queryRes.Response.Value))
 
-	// debugAcc := &account.Account{}
-	// if lerr := debugAcc.FromJSONFile("../tendermint/debugAccount.json"); lerr != nil {
-	// 	panic(lerr)
-	// }
-
-	// // transfer some funds to the new account
-	// transferReq, err := transaction.CreateNewTransferRequest(*debugAcc, acc.PublicKey, 20)
-	// if err != nil {
-	// 	panic(err)
-	// }
+	// transfer some funds to the new account
+	transferReq, err := transaction.CreateNewTransferRequest(debugAcc, newAccAddress, 42)
+	if err != nil {
+		panic(err)
+	}
 
 	// params, _ := coconut.Setup(5)
 	// G := params.G
@@ -158,23 +159,22 @@ func wholeSystem(cc *cclient.Client) {
 	// token := token.New(privM[0], privM[1], int32(1))
 	// _ = token
 
-	// res, err := tmclient.Broadcast(newAccReq)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("Created new account. Code: %v, additional data: %v\n",
-	// 	code.ToString(res.DeliverTx.Code),
-	// 	string(res.DeliverTx.Data),
-	// )
-	// // add some funds
-	// res, err = tmclient.Broadcast(transferReq)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
-	// 	code.ToString(res.DeliverTx.Code),
-	// 	string(res.DeliverTx.Data),
-	// )
+	// add some funds
+	res, err = tmclient.Broadcast(transferReq)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
+		code.ToString(res.DeliverTx.Code),
+		string(res.DeliverTx.Data),
+	)
+
+	queryRes, err = tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Debug Account Balance after transfer: ", binary.BigEndian.Uint64(queryRes.Response.Value))
 
 	// b, err := utils.GenerateRandomBytes(10)
 	// if err != nil {
@@ -192,7 +192,7 @@ func wholeSystem(cc *cclient.Client) {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	// fmt.Printf("Transfered %v to the holding account\n", token.Value())
+	// fmt.Printf("Transferred %v to the holding account\n", token.Value())
 	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
 
 	// addr, err := base64.StdEncoding.DecodeString(providerAcc)

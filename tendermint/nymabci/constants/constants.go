@@ -25,6 +25,9 @@ const (
 	// DebugMode is a flag to indicate whether the application is in debug mode.
 	// If disabled some options won't be available
 	DebugMode = true
+
+	// NonceLength indicates number of bytes used for any nonces.
+	NonceLength = 16 // 128 bits - should be more than enough
 )
 
 // TODO: requires major cleanup and removing unused entries

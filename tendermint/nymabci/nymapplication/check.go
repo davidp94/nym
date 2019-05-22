@@ -18,13 +18,14 @@ package nymapplication
 
 import (
 	"bytes"
+	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 // implementation will be IP-specific
@@ -32,43 +33,34 @@ func (app *NymApplication) verifyCredential(cred []byte) bool {
 	return true
 }
 
-// func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
-// 	// don't allow transfer when addresses are identical because nothing would happen anyway...
-// 	if bytes.Equal(inAddr, outAddr) {
-// 		return code.SELF_TRANSFER, nil
-// 	}
+func (app *NymApplication) validateTransfer(inAddr, outAddr []byte, amount uint64) (uint32, []byte) {
+	if len(inAddr) != ethcommon.AddressLength {
+		return code.MALFORMED_ADDRESS, []byte("SOURCE")
+	}
+	if len(outAddr) != ethcommon.AddressLength {
+		return code.MALFORMED_ADDRESS, []byte("TARGET")
+	}
+	// don't allow transfer when addresses are identical because nothing would happen anyway...
+	if bytes.Equal(inAddr, outAddr) {
+		return code.SELF_TRANSFER, nil
+	}
 
-// 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-// 	if !bytes.Equal(inAddr, tmconst.HoldingAccountAddress) {
-// 		if err := inAddr.Compress(); err != nil {
-// 			// 'normal' address is invalid
-// 			return code.MALFORMED_ADDRESS, []byte("SOURCE")
-// 		}
-// 	}
-// 	sourceBalanceB, retCode := app.queryBalance(inAddr)
-// 	if retCode != code.OK {
-// 		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
-// 	}
+	sourceBalanceB, retCode := app.queryBalance(inAddr)
+	if retCode != code.OK {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
+	}
 
-// 	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
-// 	if sourceBalance < amount { // + some gas?
-// 		return code.INSUFFICIENT_BALANCE, nil
-// 	}
+	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
+	if sourceBalance < amount { // + some gas?
+		return code.INSUFFICIENT_BALANCE, nil
+	}
 
-// 	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-// 	if !bytes.Equal(outAddr, tmconst.HoldingAccountAddress) {
-// 		if err := outAddr.Compress(); err != nil {
-// 			// 'normal' address is invalid
-// 			return code.MALFORMED_ADDRESS, []byte("TARGET")
-// 		}
-// 	}
+	if _, retCodeT := app.queryBalance(outAddr); retCodeT != code.OK {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
+	}
 
-// 	if _, retCodeT := app.queryBalance(outAddr); retCodeT != code.OK {
-// 		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
-// 	}
-
-// 	return code.OK, nil
-// }
+	return code.OK, nil
+}
 
 // the tx prefix was removed
 func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
@@ -108,36 +100,42 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 
 }
 
-// func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
-// 	req := &transaction.AccountTransferRequest{}
+func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
+	req := &transaction.AccountTransferRequest{}
 
-// 	if err := proto.Unmarshal(tx, req); err != nil {
-// 		app.log.Info("Failed to unmarshal request")
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if err := proto.Unmarshal(tx, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+	if app.checkNonce(req.Nonce, req.SourceAddress) {
+		return code.REPLAY_ATTACK_ATTEMPT
+	}
 
-// 	if retCode, _ := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
-// 		return retCode
-// 	}
+	if retCode, _ := app.validateTransfer(req.SourceAddress, req.TargetAddress, req.Amount); retCode != code.OK {
+		return retCode
+	}
 
-// 	amountB := make([]byte, 8)
-// 	binary.BigEndian.PutUint64(amountB, req.Amount)
+	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
+	copy(msg, req.SourceAddress)
+	copy(msg[ethcommon.AddressLength:], req.TargetAddress)
+	binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], req.Amount)
+	copy(msg[2*ethcommon.AddressLength+8:], req.Nonce)
 
-// 	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
-// 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], targetPublicKey)
-// 	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return code.INVALID_SIGNATURE
-// 	}
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.SourceAddress) {
+		app.log.Info("Failed to verify signature on request")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	return code.OK
-// }
+	return code.OK
+}
 
 // func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
 // 	req := &transaction.DepositCoconutCredentialRequest{}

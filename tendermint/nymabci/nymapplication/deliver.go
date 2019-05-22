@@ -18,6 +18,7 @@ package nymapplication
 
 import (
 	"bytes"
+	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -74,40 +75,48 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 	return types.ResponseDeliverTx{Code: code.UNKNOWN}
 }
 
-// // Currently and possibly only for debug purposes
-// // to freely transfer tokens between accounts to setup different scenarios.
-// func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
-// 	req := &transaction.AccountTransferRequest{}
+// Currently and possibly only for debug purposes
+// to freely transfer tokens between accounts to setup different scenarios.
+func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.AccountTransferRequest{}
 
-// 	if err := proto.Unmarshal(reqb, req); err != nil {
-// 		app.log.Info("Failed to unmarshal request")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
-// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+	if app.checkNonce(req.Nonce, req.SourceAddress) {
+		return types.ResponseDeliverTx{Code: code.REPLAY_ATTACK_ATTEMPT}
+	}
 
-// 	if retCode, data := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
-// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
-// 	}
+	if retCode, _ := app.validateTransfer(req.SourceAddress, req.TargetAddress, req.Amount); retCode != code.OK {
+		return types.ResponseDeliverTx{Code: retCode}
+	}
 
-// 	amountB := make([]byte, 8)
-// 	binary.BigEndian.PutUint64(amountB, req.Amount)
+	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
+	copy(msg, req.SourceAddress)
+	copy(msg[ethcommon.AddressLength:], req.TargetAddress)
+	binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], req.Amount)
+	copy(msg[2*ethcommon.AddressLength+8:], req.Nonce)
 
-// 	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
-// 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], targetPublicKey)
-// 	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
 
-// 	if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-// 	}
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.SourceAddress) {
+		app.log.Info("Failed to verify signature on request")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
 
-// 	retCode, data := app.transferFundsOp(sourcePublicKey, targetPublicKey, req.Amount)
-
-// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
-// }
+	retCode, data := app.transferFundsOp(req.SourceAddress, req.TargetAddress, req.Amount)
+	if retCode == code.OK {
+		app.setNonce(req.Nonce, req.SourceAddress)
+	}
+	return types.ResponseDeliverTx{Code: retCode, Data: data}
+}
 
 // func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
 // 	req := &transaction.DepositCoconutCredentialRequest{}
