@@ -67,8 +67,8 @@ message AccountTransferRequest {
 //  }
 
 message TransferToHoldingNotification {
-    // Derived from public key; used to identify the particular watcher
-    bytes WatcherAddress = 1;
+    // Used to identify the particular watcher and to verify signature
+    bytes WatcherPublicKey = 1;
     // Ethereum address of the client
     bytes ClientAddress = 2;
     // While right now it's completely unrequired as there is only a single holding account, it might be useful
@@ -76,7 +76,7 @@ message TransferToHoldingNotification {
     // for example on epoch changes.
     bytes HoldingAddress = 3;
     // Amount transferred by the client to the holding account.
-    int64 Amount = 4;
+    uint64 Amount = 4;
     // Hash of the transaction in which the transfer occured. 
     // Used to distinguish from multiple transfers the client might have done.
     bytes TxHash = 5;

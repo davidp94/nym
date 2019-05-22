@@ -25,7 +25,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -87,14 +87,7 @@ func CreateNewAccountRequest(privateKey *ecdsa.PrivateKey, credential []byte) ([
 		Credential: credential,
 		Sig:        sig,
 	}
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
-	b[0] = TxNewAccount
-	copy(b[1:], protob)
-	return b, nil
+	return marshalRequest(req, TxNewAccount)
 }
 
 // CreateNewTransferRequest creates new request for tx to transfer funds from one account to another.
@@ -130,14 +123,7 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 		Nonce:         nonce,
 		Sig:           sig,
 	}
-	protob, err := proto.Marshal(req)
-	if err != nil {
-		return nil, err
-	}
-	b := make([]byte, len(protob)+1)
-	b[0] = TxTransferBetweenAccounts
-	copy(b[1:], protob)
-	return b, nil
+	return marshalRequest(req, TxTransferBetweenAccounts)
 }
 
 // // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
@@ -247,9 +233,36 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 // 	return marshalRequest(req, TxTransferToHolding)
 // }
 
-func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey, tx *ethtypes.Transaction) ([]byte, error) {
+func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
+	clientAddress ethcommon.Address,
+	holdingAddress ethcommon.Address,
+	amount uint64,
+	txHash ethcommon.Hash,
+) ([]byte, error) {
 
-	req := &TransferToHoldingNotification{}
+	publicKey := privateKey.Public().(*ecdsa.PublicKey)
+	publicKeyBytes := crypto.FromECDSAPub(publicKey)
+
+	msg := make([]byte, len(publicKeyBytes)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
+	copy(msg, publicKeyBytes)
+	copy(msg[len(publicKeyBytes):], clientAddress[:])
+	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength:], holdingAddress[:])
+	binary.BigEndian.PutUint64(msg[len(publicKeyBytes)+2*ethcommon.AddressLength:], amount)
+	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength+8:], txHash[:])
+
+	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &TransferToHoldingNotification{
+		WatcherPublicKey: publicKeyBytes,
+		ClientAddress:    clientAddress[:],
+		HoldingAddress:   holdingAddress[:],
+		Amount:           amount,
+		TxHash:           txHash[:],
+		Sig:              sig,
+	}
 	return marshalRequest(req, TxTransferToHoldingNotification)
 }
 
