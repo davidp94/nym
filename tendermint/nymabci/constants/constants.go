@@ -33,6 +33,7 @@ const (
 )
 
 // TODO: requires major cleanup and removing unused entries
+// TODO: change all prefixes to say only length of 8 bytes?
 
 // nolint: gochecknoglobals
 var (
@@ -69,6 +70,13 @@ var (
 	// CredentialRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
 	// to a successful request to transfer tokents to a holding account.
 	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
+
+	// EthereumWatcherNotificationPrefix represents prefix for database entry
+	// to indicate given watcher has already notified about particular transfer.
+	EthereumWatcherNotificationPrefix = []byte("HOLDTRANSFNOTIF")
+
+	// HoldingTransferNotificationCountKey represents prefix for the key for number of watchers confirming given transfer
+	HoldingTransferNotificationCountKeyPrefix = []byte("COUNT HODLTRANSFNOTIF")
 
 	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
 	HashFunction = ethcrypto.Keccak256

@@ -43,9 +43,10 @@ import (
 // do we still need to keep any information regarding issuers?
 
 const (
-	DBNAME                              = "nymDB"
-	DefaultDbDir                        = "/nymabci"
-	createAccountOnDepositIfDoesntExist = true
+	DBNAME                                      = "nymDB"
+	DefaultDbDir                                = "/nymabci"
+	createAccountOnDepositIfDoesntExist         = true
+	createAccountOnHoldingTransferIfDoesntExist = true
 
 	// ProtocolVersion defines version of the protocol used.
 	ProtocolVersion version.Protocol = 0x1
@@ -147,7 +148,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		return app.transferFunds(tx[1:])
 	case transaction.TxTransferToHoldingNotification:
 		app.log.Info("Transfer to holding notification")
-		app.handleTransferToHolding(tx[1:])
+		app.handleTransferToHoldingNotification(tx[1:])
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
@@ -295,6 +296,9 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 			numWatchers, watcherThreshold))
 		panic("Insufficient number of issuers declared in the genesis block")
 	}
+
+	app.state.watcherThreshold = watcherThreshold
+	app.state.holdingAccount = genesisState.SystemProperties.HoldingAccount
 
 	for _, watcher := range genesisState.EthereumWatchers {
 		app.storeWatcherKey(watcher)

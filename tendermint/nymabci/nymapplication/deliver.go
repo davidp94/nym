@@ -19,6 +19,7 @@ package nymapplication
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -118,7 +119,7 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
 
-func (app *NymApplication) handleTransferToHolding(reqb []byte) types.ResponseDeliverTx {
+func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) types.ResponseDeliverTx {
 	req := &transaction.TransferToHoldingNotification{}
 
 	if err := proto.Unmarshal(reqb, req); err != nil {
@@ -126,7 +127,84 @@ func (app *NymApplication) handleTransferToHolding(reqb []byte) types.ResponseDe
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	_ = req
+	// first check if the threshold was alredy reached and transaction was committed
+	if int(app.getNotificationCount(req.TxHash)) == app.state.watcherThreshold {
+		app.log.Info("Already reached required threshold")
+		return types.ResponseDeliverTx{Code: code.ALREADY_COMMITTED}
+	}
+
+	// check if the watcher can be trusted
+	if !app.checkWatcherKey(req.WatcherPublicKey) {
+		app.log.Info("This watcher is not in the trusted set")
+		return types.ResponseDeliverTx{Code: code.ETHEREUM_WATCHER_DOES_NOT_EXIST}
+	}
+
+	// check if client address is correctly formed
+	if len(req.ClientAddress) != ethcommon.AddressLength {
+		app.log.Info("Client's address is malformed")
+		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
+	}
+
+	// check if the holding account matches
+	if !bytes.Equal(app.state.holdingAccount[:], req.HoldingAddress) {
+		app.log.Info("The specified holding account is different from the expected one")
+		return types.ResponseDeliverTx{Code: code.INVALID_HOLDING_ACCOUNT}
+	}
+
+	// check signature
+	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
+	copy(msg, req.WatcherPublicKey)
+	copy(msg[len(req.WatcherPublicKey):], req.ClientAddress)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.HoldingAddress)
+	binary.BigEndian.PutUint64(msg[len(req.WatcherPublicKey)+2*ethcommon.AddressLength:], req.Amount)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength+8:], req.TxHash)
+
+	sig := req.Sig
+	// last byte is a recoveryID which we don't care about
+	if len(sig) > 64 {
+		sig = sig[:64]
+	}
+
+	if !ethcrypto.VerifySignature(req.WatcherPublicKey, tmconst.HashFunction(msg), sig) {
+		app.log.Info("The signature on message is invalid")
+		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	}
+
+	// check if this tx was not already confirmed by this watcher
+	if app.checkWatcherNotification(req.WatcherPublicKey, req.TxHash) {
+		app.log.Info("This watcher already sent this notification before")
+		return types.ResponseDeliverTx{Code: code.ALREADY_CONFIRMED}
+	}
+
+	// 'accept' the notification
+	newCount := app.storeWatcherNotification(req.WatcherPublicKey, req.TxHash)
+
+	app.log.Debug(fmt.Sprintf("Reached %v notifications out of required %v for %v",
+		newCount,
+		app.state.watcherThreshold,
+		ethcommon.BytesToHash(req.TxHash).Hex(),
+	))
+
+	// commit the transaction if threshold is reached
+	if int(newCount) == app.state.watcherThreshold {
+		app.log.Debug(fmt.Sprintf("Reached required threshold of %v for %v",
+			app.state.watcherThreshold,
+			ethcommon.BytesToHash(req.TxHash).Hex(),
+		))
+		// check if account exists
+		currentBalance, err := app.retrieveAccountBalance(req.ClientAddress)
+		if err != nil && createAccountOnHoldingTransferIfDoesntExist {
+			didSucceed := app.createNewAccountOp(ethcommon.BytesToAddress(req.ClientAddress))
+			if !didSucceed {
+				return types.ResponseDeliverTx{Code: code.UNKNOWN}
+			}
+		} else if err != nil {
+			app.log.Info("Client's account does not exist and system is not set to create new ones")
+			return types.ResponseDeliverTx{Code: code.ACCOUNT_DOES_NOT_EXIST}
+		}
+
+		app.setAccountBalance(req.ClientAddress, currentBalance+req.Amount)
+	}
 
 	return types.ResponseDeliverTx{Code: code.OK}
 }

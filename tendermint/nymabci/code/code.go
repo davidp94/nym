@@ -17,6 +17,7 @@
 // Package code defines return codes for the Nym application
 package code
 
+// TODO: reorder and group codes in a more logical way (currently they're added as needed)
 // nolint: golint
 const (
 	// as per spec, codes have to be represented as uint32 and 0 is reserved for OK
@@ -58,11 +59,25 @@ const (
 	REPLAY_ATTACK_ATTEMPT = 15
 	// UNDEFINED_TX represents error due to using tx prefix for an undefined tx.
 	UNDEFINED_TX = 16
+	// ETHEREUM_WATCHER_DOES_NOT_EXIST represents error when trying to verify signature signed by an unknown watcher
+	ETHEREUM_WATCHER_DOES_NOT_EXIST uint32 = 17
+	// ALREADY_CONFIRMED represents error when some entity, like the watcher,
+	// sends same event confirmation multiple times
+	ALREADY_CONFIRMED uint32 = 18
+	// MALFORMED_PUBLIC_KEY represents error when some entity presents a malformed public key, for example by having
+	// invalid length or structure (or can't be unmarshalled)
+	MALFORMED_PUBLIC_KEY = 19
+	// ALREADY_COMMITTED represents error when watcher wants to notify about transaction
+	// while a threshold number of watchers already sent their notifications
+	ALREADY_COMMITTED = 20
+	// INVALID_HOLDING_ACCOUNT represents error due to using different than specified address of the holding account
+	INVALID_HOLDING_ACCOUNT = 21
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
 
 // ToString returns string representation of the return code. It is useful for making human-readable responses.
+//nolint: gocyclo
 func ToString(code uint32) string {
 	switch code {
 	case OK:
@@ -101,6 +116,16 @@ func ToString(code uint32) string {
 		return "Undefined Tx"
 	case COULD_NOT_TRANSFER:
 		return "Could Not Perform Transfer"
+	case ETHEREUM_WATCHER_DOES_NOT_EXIST:
+		return "Ethereum Watcher Does Not Exist"
+	case ALREADY_CONFIRMED:
+		return "Already Confirmed"
+	case MALFORMED_PUBLIC_KEY:
+		return "Malformed Public Key"
+	case ALREADY_COMMITTED:
+		return "Already Committed"
+	case INVALID_HOLDING_ACCOUNT:
+		return "Invalid Holding Account"
 	default:
 		return "Unknown Error Code"
 	}
