@@ -17,6 +17,7 @@
 package nymapplication
 
 import (
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -101,7 +102,7 @@ func (app *NymApplication) setAccountBalance(address []byte, value uint64) {
 	dbEntry := prefixKey(tmconst.AccountsPrefix, address)
 	app.state.db.Set(dbEntry, balance)
 
-	app.log.Debug(fmt.Sprintf("Set balance of: %v with to: %v", ethcommon.BytesToAddress(address).Hex(), value))
+	app.log.Debug(fmt.Sprintf("Set balance of: %v to: %v", ethcommon.BytesToAddress(address).Hex(), value))
 }
 
 func (app *NymApplication) retrieveAccountBalance(address []byte) (uint64, error) {
@@ -109,7 +110,7 @@ func (app *NymApplication) retrieveAccountBalance(address []byte) (uint64, error
 		return 0, errors.New("invalid address length")
 	}
 
-	app.log.Debug(fmt.Sprintf("Checking balance for: %v", ethcommon.BytesToAddress(address).Hash()))
+	app.log.Debug(fmt.Sprintf("Checking balance for: %v", ethcommon.BytesToAddress(address).Hex()))
 	dbEntry := prefixKey(tmconst.AccountsPrefix, address)
 
 	_, val := app.state.db.Get(dbEntry)
@@ -121,6 +122,8 @@ func (app *NymApplication) retrieveAccountBalance(address []byte) (uint64, error
 }
 
 func (app *NymApplication) storeWatcherKey(watcher Watcher) {
+	pubB64 := base64.StdEncoding.EncodeToString(watcher.PublicKey)
+	app.log.Debug(fmt.Sprintf("Adding to the trusted set watcher with public key: %v", pubB64))
 	dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, watcher.PublicKey)
 	// TODO: do we even need to set any meaningful value here?
 	app.state.db.Set(dbEntry, tmconst.EthereumWatcherKeyPrefix)

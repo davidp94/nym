@@ -113,6 +113,36 @@ func (app *NymApplication) createNewAccountOp(address ethcommon.Address) bool {
 	return true
 }
 
+func (app *NymApplication) increaseBalanceBy(address []byte, value uint64) error {
+	currentBalance, err := app.retrieveAccountBalance(address)
+	if err != nil {
+		return err
+	}
+	app.log.Debug(fmt.Sprintf("Increasing balance of %v by %v (from %v to %v)",
+		ethcommon.BytesToAddress(address).Hex(),
+		value,
+		currentBalance,
+		currentBalance+value,
+	))
+	app.setAccountBalance(address, currentBalance+value)
+	return nil
+}
+
+func (app *NymApplication) decreaseBalanceBy(address []byte, value uint64) error {
+	currentBalance, err := app.retrieveAccountBalance(address)
+	if err != nil {
+		return err
+	}
+	app.log.Debug(fmt.Sprintf("Decreasing balance of %v by %v (from %v to %v)",
+		ethcommon.BytesToAddress(address).Hex(),
+		value,
+		currentBalance,
+		currentBalance-value,
+	))
+	app.setAccountBalance(address, currentBalance-value)
+	return nil
+}
+
 // returns code to indicate if the operation was successful and, if applicable, how it failed
 // Simple bool would not provide enough information
 // also returns any additional data
@@ -122,21 +152,16 @@ func (app *NymApplication) transferFundsOp(inAddr, outAddr []byte, amount uint64
 		return retCode, data
 	}
 
-	sourceBalance, err := app.retrieveAccountBalance(inAddr)
-	if err != nil {
+	if err := app.decreaseBalanceBy(inAddr, amount); err != nil {
 		// this is undefined behaviour as account was already checked in validate transfer
 		// so something malicious must have happened
 		panic(err)
 	}
-	targetBalance, err := app.retrieveAccountBalance(outAddr)
-	if err != nil {
+	if err := app.increaseBalanceBy(outAddr, amount); err != nil {
 		// this is undefined behaviour as account was already checked in validate transfer
 		// so something malicious must have happened
 		panic(err)
 	}
-
-	app.setAccountBalance(inAddr, sourceBalance-amount)
-	app.setAccountBalance(outAddr, targetBalance+amount)
 
 	app.log.Info(fmt.Sprintf("Transferred %v from %v to %v",
 		amount, ethcommon.BytesToAddress(inAddr).Hex(), ethcommon.BytesToAddress(outAddr).Hex()))
