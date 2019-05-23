@@ -137,6 +137,62 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 }
 
 func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint32 {
+	req := &transaction.TransferToHoldingNotification{}
+
+	if err := proto.Unmarshal(tx, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
+		return code.INVALID_TX_PARAMS
+	}
+
+	// first check if the threshold was alredy reached and transaction was committed
+	if int(app.getNotificationCount(req.TxHash)) == app.state.watcherThreshold {
+		app.log.Info("Already reached required threshold")
+		return code.ALREADY_COMMITTED
+	}
+
+	// check if the watcher can be trusted
+	if !app.checkWatcherKey(req.WatcherPublicKey) {
+		app.log.Info("This watcher is not in the trusted set")
+		return code.ETHEREUM_WATCHER_DOES_NOT_EXIST
+	}
+
+	// check if client address is correctly formed
+	if len(req.ClientAddress) != ethcommon.AddressLength {
+		app.log.Info("Client's address is malformed")
+		return code.MALFORMED_ADDRESS
+	}
+
+	// check if the holding account matches
+	if !bytes.Equal(app.state.holdingAccount[:], req.HoldingAddress) {
+		app.log.Info("The specified holding account is different from the expected one")
+		return code.INVALID_HOLDING_ACCOUNT
+	}
+
+	// check signature
+	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
+	copy(msg, req.WatcherPublicKey)
+	copy(msg[len(req.WatcherPublicKey):], req.ClientAddress)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.HoldingAddress)
+	binary.BigEndian.PutUint64(msg[len(req.WatcherPublicKey)+2*ethcommon.AddressLength:], req.Amount)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength+8:], req.TxHash)
+
+	sig := req.Sig
+	// last byte is a recoveryID which we don't care about
+	if len(sig) > 64 {
+		sig = sig[:64]
+	}
+
+	if !ethcrypto.VerifySignature(req.WatcherPublicKey, tmconst.HashFunction(msg), sig) {
+		app.log.Info("The signature on message is invalid")
+		return code.INVALID_SIGNATURE
+	}
+
+	// check if this tx was not already confirmed by this watcher
+	if app.checkWatcherNotification(req.WatcherPublicKey, req.TxHash) {
+		app.log.Info("This watcher already sent this notification before")
+		return code.ALREADY_CONFIRMED
+	}
+
 	return code.OK
 }
 
