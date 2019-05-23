@@ -25,7 +25,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -241,7 +240,7 @@ func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
 ) ([]byte, error) {
 
 	publicKey := privateKey.Public().(*ecdsa.PublicKey)
-	publicKeyBytes := crypto.FromECDSAPub(publicKey)
+	publicKeyBytes := ethcrypto.FromECDSAPub(publicKey)
 
 	msg := make([]byte, len(publicKeyBytes)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
 	copy(msg, publicKeyBytes)
