@@ -37,6 +37,9 @@ var (
 // It provides height (changes after each save -> perfect for blockchain) + fast hash which is also needed.
 type State struct {
 	db *iavl.MutableTree // hash and height (version) are obtained from the tree methods
+
+	watcherThreshold int
+	holdingAccount   ethcommon.Address
 }
 
 // TODO: will we still need it?
@@ -123,6 +126,11 @@ func (app *NymApplication) storeWatcherKey(watcher Watcher) {
 	app.state.db.Set(dbEntry, tmconst.EthereumWatcherKeyPrefix)
 }
 
+func (app *NymApplication) checkWatcherKey(publicKey []byte) bool {
+	dbEntry := prefixKey(tmconst.EthereumWatcherKeyPrefix, publicKey)
+	return app.state.db.Has(dbEntry)
+}
+
 // checks if given (random) nonce was already seen before for the particular address
 func (app *NymApplication) checkNonce(nonce, address []byte) bool {
 	if len(nonce) != tmconst.NonceLength || len(address) != ethcommon.AddressLength {
@@ -131,12 +139,49 @@ func (app *NymApplication) checkNonce(nonce, address []byte) bool {
 
 	// [PREFIX || NONCE || ADDRESS]
 	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
-	_, val := app.state.db.Get(key)
-	return val != nil
+	return app.state.db.Has(key)
 }
 
 func (app *NymApplication) setNonce(nonce, address []byte) {
 	key := prefixKey(tmconst.SeenNoncePrefix, prefixKey(nonce, address))
 	// [PREFIX || NONCE || ADDRESS]
 	app.state.db.Set(key, tmconst.SeenNoncePrefix)
+}
+
+// returns new number of notifications received for this transaction
+func (app *NymApplication) storeWatcherNotification(watcherKey, txHash []byte) uint32 {
+	// first set this watcher
+	key := prefixKey(tmconst.EthereumWatcherNotificationPrefix, prefixKey(txHash, watcherKey))
+	// [PREFIX || TXHASH || WATCHER ]
+	// again, does the value matter here? we could just set an empty array to save on space
+	// now increase notification count for this transaction
+	app.state.db.Set(key, tmconst.EthereumWatcherNotificationPrefix)
+	// and update total count
+	newCount := app.getNotificationCount(txHash) + 1
+	app.updateNotificationCount(txHash, newCount)
+	return newCount
+}
+
+// checks if this watcher has already sent notification regarding this transaction
+func (app *NymApplication) checkWatcherNotification(watcherKey, txHash []byte) bool {
+	key := prefixKey(tmconst.EthereumWatcherNotificationPrefix, prefixKey(txHash, watcherKey))
+	return app.state.db.Has(key)
+}
+
+func (app *NymApplication) getNotificationCount(txHash []byte) uint32 {
+	key := prefixKey(tmconst.HoldingTransferNotificationCountKeyPrefix, txHash)
+
+	_, val := app.state.db.Get(key)
+	if val == nil {
+		return 0
+	}
+	return binary.BigEndian.Uint32(val)
+}
+
+func (app *NymApplication) updateNotificationCount(txHash []byte, count uint32) {
+	key := prefixKey(tmconst.HoldingTransferNotificationCountKeyPrefix, txHash)
+	countb := make([]byte, 4)
+	binary.BigEndian.PutUint32(countb, count)
+
+	app.state.db.Set(key, countb)
 }

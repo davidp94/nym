@@ -30,6 +30,7 @@ type CoconutProperties struct {
 
 type SystemProperties struct {
 	WatcherThreshold  int               `json:"watcherTreshold"`
+	HoldingAccount    ethcommon.Address `json:"holdingAccount"`
 	CoconutProperties CoconutProperties `json:"coconutProperties"`
 }
 
