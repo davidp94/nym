@@ -148,7 +148,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		return app.transferFunds(tx[1:])
 	case transaction.TxTransferToHoldingNotification:
 		app.log.Info("Transfer to holding notification")
-		app.handleTransferToHoldingNotification(tx[1:])
+		return app.handleTransferToHoldingNotification(tx[1:])
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from holding to merchant
 		app.log.Info("Deposit Credential")
@@ -300,9 +300,13 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	app.state.watcherThreshold = watcherThreshold
 	app.state.holdingAccount = genesisState.SystemProperties.HoldingAccount
 
+	app.log.Info(fmt.Sprintf("Setting watcher threshold to %v and holding contract address to %v",
+		watcherThreshold, app.state.holdingAccount.Hex()))
+
 	for _, watcher := range genesisState.EthereumWatchers {
 		app.storeWatcherKey(watcher)
 	}
+	app.log.Info("Stored watcher keys in the DB")
 
 	// import vk of IAs
 	numIAs := len(genesisState.Issuers)

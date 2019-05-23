@@ -196,6 +196,8 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 		if err != nil && createAccountOnHoldingTransferIfDoesntExist {
 			didSucceed := app.createNewAccountOp(ethcommon.BytesToAddress(req.ClientAddress))
 			if !didSucceed {
+				app.log.Info(fmt.Sprintf("Failed to create new account for the client with address %v",
+					ethcommon.BytesToAddress(req.ClientAddress).Hex()))
 				return types.ResponseDeliverTx{Code: code.UNKNOWN}
 			}
 		} else if err != nil {
@@ -364,7 +366,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 		if err != nil {
 // 			// it's really impossible for this to fail, but if it somehow does, it's client's fault for providing
 // 			// such weirdly malformed data
-// 			app.log.Error("Proto error after transfer already occured")
+// 			app.log.Error("Proto error after transfer already occurred")
 // 			// TODO: possibly revert operation?
 // 			return types.ResponseDeliverTx{Code: code.UNKNOWN}
 // 		}
