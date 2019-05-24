@@ -77,6 +77,11 @@ func (c *Client) logAndReturnError(fmtString string, a ...interface{}) error {
 	return errors.New(errstr)
 }
 
+// used to get status of transaction, pending, accepted, rejected, etc
+func (c *Client) GetTransactionStatus(ctx context.Context, txHash []byte) {
+	// TODO:
+}
+
 // TransferERC20Tokens sends specified amount of ERC20 tokens to given account.
 func (c *Client) TransferERC20Tokens(ctx context.Context,
 	amount int64,

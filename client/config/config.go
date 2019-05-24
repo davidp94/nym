@@ -24,7 +24,10 @@ import (
 	"runtime"
 
 	"github.com/BurntSushi/toml"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
+
+// TODO: refactor config structure, change section names, move attributes around, etc.
 
 const (
 	defaultLogLevel = "NOTICE"
@@ -78,14 +81,27 @@ type Client struct {
 
 // Nym defines Nym-specific configuration options.
 type Nym struct {
+	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
+	NymContract ethcommon.Address
+
+	// HoldingAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
+	// It is expected to be provided in hex format.
+	HoldingAccount ethcommon.Address
+
 	// AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
 	AccountKeysFile string
 
-	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	// BlockchainNodeAddresses specifies addresses of blockchain nodes
 	// to which the client should send all relevant requests.
 	// Note that only a single request will ever be sent, but multiple addresses are provided in case
 	// the particular node was unavailable.
 	BlockchainNodeAddresses []string
+
+	// EthereumNodeAddresses specifies addresses of Ethereum nodes
+	// to which the client should send all relevant requests.
+	// Note that only a single request will ever be sent, but multiple addresses are provided in case
+	// the particular node was unavailable. (TODO: implement this functionality)
+	EthereumNodeAddresses []string
 }
 
 // Debug is the Coconut Client debug configuration.
@@ -216,7 +232,15 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if len(cfg.Nym.BlockchainNodeAddresses) == 0 {
 		return errors.New("config: No node addresses provided")
 	}
-
+	if len(cfg.Nym.EthereumNodeAddresses) == 0 {
+		return errors.New("config: No ethereum node addresses provider")
+	}
+	if len(cfg.Nym.NymContract) == 0 {
+		return errors.New("config: Unspecified address of the Nym contract")
+	}
+	if len(cfg.Nym.HoldingAccount) == 0 {
+		return errors.New("config: Unspecified address of the holding account")
+	}
 	return nil
 }
 

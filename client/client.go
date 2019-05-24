@@ -35,6 +35,7 @@ import (
 	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	ethclient "0xacab.org/jstuczyn/CoconutGo/ethereum/client"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -56,6 +57,7 @@ type Client struct {
 
 	privateKey *ecdsa.PrivateKey
 	nymClient  *nymclient.Client
+	ethClient  *ethclient.Client
 }
 
 // used to share code for parsing BlindSign and GetCredential responses. They return same data but under different name
@@ -1014,6 +1016,19 @@ func New(cfg *config.Config) (*Client, error) {
 		return nil, errors.New(errStr)
 	}
 
+	ethCfg := ethclient.NewConfig(
+		privateKey,
+		cfg.Nym.EthereumNodeAddresses,
+		cfg.Nym.NymContract,
+		cfg.Nym.HoldingAccount,
+		log,
+	)
+
+	ethClient, err := ethclient.New(ethCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ethereum client: %v", err)
+	}
+
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
 		return nil, errors.New("error while generating coconut params")
@@ -1034,6 +1049,7 @@ func New(cfg *config.Config) (*Client, error) {
 
 		privateKey: privateKey,
 		nymClient:  nymClient,
+		ethClient:  ethClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

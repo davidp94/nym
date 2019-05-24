@@ -39,6 +39,19 @@
 	# the particular node was unavailable.
 	BlockchainNodeAddresses = [ "127.0.0.1:26657", "127.0.0.1:26659", "127.0.0.1:26661", "127.0.0.1:26663" ]
 
+	# EthereumNodeAddresses specifies addresses of Ethereum nodes
+	# to which the client should send all relevant requests.
+	# Note that only a single request will ever be sent, but multiple addresses are provided in case
+	# the particular node was unavailable. (TODO: implement this functionality)
+	EthereumNodeAddresses = [ "https://ropsten.infura.io/v3/131453a5470641cd9f64942eecd8add2" ]
+ 
+ 	# NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
+  NymContract = "0xE80025228D5448A55B995c829B89567ECE5203d3"
+
+	# HoldingAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
+	# It is expected to be provided in hex format.
+	HoldingAccount = "0xd6A548f60FB6F98fB29e6226DE1405c20DbbCF52"
+
 [Logging]
 
   # Disable disables logging entirely.
