@@ -89,12 +89,23 @@ func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication 
 		db: tree,
 	}
 
-	return &NymApplication{
+	app := &NymApplication{
 		state:      state,
 		log:        logger,
 		Version:    version.ABCIVersion,
 		AppVersion: ProtocolVersion.Uint64(),
 	}
+
+	if app.state.db.Version() > 0 {
+		if err := app.loadWatcherThreshold(); err != nil {
+			panic(fmt.Errorf("expected to have watcher threshold stored: %v", err))
+		}
+		if err := app.loadHoldingAccountAddress(); err != nil {
+			panic(fmt.Errorf("expected to have holding account address stored: %v", err))
+		}
+	}
+
+	return app
 }
 
 // Info returns the application information. Required by the nodes to sync in case they crashed.
@@ -297,8 +308,10 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 		panic("Insufficient number of issuers declared in the genesis block")
 	}
 
-	app.state.watcherThreshold = watcherThreshold
+	app.state.watcherThreshold = uint32(watcherThreshold)
+	app.storeWatcherThreshold()
 	app.state.holdingAccount = genesisState.SystemProperties.HoldingAccount
+	app.storeHoldingAccountAddress()
 
 	app.log.Info(fmt.Sprintf("Setting watcher threshold to %v and holding contract address to %v",
 		watcherThreshold, app.state.holdingAccount.Hex()))

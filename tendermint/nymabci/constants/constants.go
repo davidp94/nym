@@ -40,12 +40,9 @@ var (
 	// SpentZetaPrefix represents prefix for each zeta in the database to indicate it has been spent.
 	SpentZetaPrefix = []byte("SPENT")
 
-	// HoldingAccountAddress represents the account address used by the 'Holding Account'.
-	HoldingAccountAddress = []byte("HOLDING ACCOUNT")
-
 	// AggregateVkKey represents the database entry for the aggregate verification key of the threshold number
 	// of issuing authorities of the system. It is used for credential verification.
-	AggregateVkKey = []byte("avk")
+	AggregateVkKey = []byte("AggregateVerificationKey")
 
 	// IaKeyPrefix represents the prefix for particular issuing authority to store their keys.
 	IaKeyPrefix = []byte("IssuingAuthority")
@@ -77,6 +74,13 @@ var (
 
 	// HoldingTransferNotificationCountKey represents prefix for the key for number of watchers confirming given transfer
 	HoldingTransferNotificationCountKeyPrefix = []byte("COUNT HODLTRANSFNOTIF")
+
+	// WatcherThresholdKey represents key under which watcher threshold as initially set in genesis state is stored.
+	WatcherThresholdKey = []byte("WatcherThreshold")
+
+	// HoldingContractKey represents key under which address of the holding account
+	// as initially set in genesis state is stored.
+	HoldingContractKey = []byte("HoldingContractAddress")
 
 	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
 	HashFunction = ethcrypto.Keccak256

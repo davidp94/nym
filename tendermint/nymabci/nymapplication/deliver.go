@@ -128,7 +128,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 	}
 
 	// first check if the threshold was alredy reached and transaction was committed
-	if int(app.getNotificationCount(req.TxHash)) == app.state.watcherThreshold {
+	if app.getNotificationCount(req.TxHash) == app.state.watcherThreshold {
 		app.log.Info("Already reached required threshold")
 		return types.ResponseDeliverTx{Code: code.ALREADY_COMMITTED}
 	}
@@ -186,7 +186,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 	))
 
 	// commit the transaction if threshold is reached
-	if int(newCount) == app.state.watcherThreshold {
+	if newCount == app.state.watcherThreshold {
 		app.log.Debug(fmt.Sprintf("Reached required threshold of %v for %v",
 			app.state.watcherThreshold,
 			ethcommon.BytesToHash(req.TxHash).Hex(),

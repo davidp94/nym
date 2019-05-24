@@ -39,8 +39,38 @@ var (
 type State struct {
 	db *iavl.MutableTree // hash and height (version) are obtained from the tree methods
 
-	watcherThreshold int
+	watcherThreshold uint32
 	holdingAccount   ethcommon.Address
+}
+
+func (app *NymApplication) storeWatcherThreshold() {
+	thrb := make([]byte, 4)
+	binary.BigEndian.PutUint32(thrb, app.state.watcherThreshold)
+	app.state.db.Set(tmconst.WatcherThresholdKey, thrb)
+}
+
+func (app *NymApplication) loadWatcherThreshold() error {
+	_, val := app.state.db.Get(tmconst.WatcherThresholdKey)
+	if val == nil {
+		return ErrKeyDoesNotExist
+	}
+	app.state.watcherThreshold = binary.BigEndian.Uint32(val)
+	app.log.Info(fmt.Sprintf("Loaded watcher threshold: %v", app.state.watcherThreshold))
+	return nil
+}
+
+func (app *NymApplication) storeHoldingAccountAddress() {
+	app.state.db.Set(tmconst.HoldingContractKey, app.state.holdingAccount[:])
+}
+
+func (app *NymApplication) loadHoldingAccountAddress() error {
+	_, val := app.state.db.Get(tmconst.HoldingContractKey)
+	if val == nil {
+		return ErrKeyDoesNotExist
+	}
+	app.state.holdingAccount = ethcommon.BytesToAddress(val)
+	app.log.Info(fmt.Sprintf("Loaded holding account address: %v", app.state.holdingAccount.Hex()))
+	return nil
 }
 
 // TODO: will we still need it?

@@ -145,7 +145,7 @@ func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint3
 	}
 
 	// first check if the threshold was alredy reached and transaction was committed
-	if int(app.getNotificationCount(req.TxHash)) == app.state.watcherThreshold {
+	if app.getNotificationCount(req.TxHash) == app.state.watcherThreshold {
 		app.log.Info("Already reached required threshold")
 		return code.ALREADY_COMMITTED
 	}
