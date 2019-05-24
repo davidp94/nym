@@ -94,10 +94,14 @@ message CredentialRequest {
     // All the cryptographic materials required by issuers to perform a blind sign
     coconut.BlindSignMaterials CryptoMaterials = 3;
     // Value of the credential. While it is included in a BIG form in CryptoMaterials, it's easier to operate on it,
-    // when it's an int
-    int32 Value = 4;
+    // when it's an int. We can't send it as an uint64, as milagro requires a normal int argument to consturct a BIG
+    // num. TODO: checks if the system is using x86-64 version of the library? Because otherwise ints would default to
+    // int32 which would be very problematic.
+    int64 Value = 4;
+    // Required to prevent replay attacks.
+    bytes Nonce = 5;
     // Signature on entire request with client's ethereum key (so that client's address could be used to verify it)
-    bytes Sig = 5;
+    bytes Sig = 6;
 }
 
 // Old proto definition for when IAs initiated the transfer
