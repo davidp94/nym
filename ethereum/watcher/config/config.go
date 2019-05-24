@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -49,10 +50,10 @@ type Watcher struct {
 	// TendermintNodeAddress defines address of the Tendermint node to which the watcher is sending notifications.
 	TendermintNodeAddress string
 	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
-	NymContract string
+	NymContract ethcommon.Address
 	// PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
 	// It is expected to be provided in hex format.
-	PipeAccount string
+	PipeAccount ethcommon.Address
 }
 
 // Debug is the Ethereum watcher debug configuration.
@@ -97,11 +98,11 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		return errors.New("config: Ethereum node address was not specified")
 	}
 
-	if cfg.Watcher.NymContract == "" {
+	if len(cfg.Watcher.NymContract) == 0 {
 		return errors.New("config: The address of ERC20 Nym contract was not specified")
 	}
 
-	if cfg.Watcher.PipeAccount == "" {
+	if len(cfg.Watcher.PipeAccount) == 0 {
 		return errors.New("config: The address of the Pipe/Holding account was not specified")
 	}
 

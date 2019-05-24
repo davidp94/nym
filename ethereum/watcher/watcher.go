@@ -65,11 +65,6 @@ func (w *Watcher) halt() {
 // stop etc are not working
 func (w *Watcher) worker() {
 	w.log.Noticef("Watching Ethereum blockchain at: %s", w.cfg.Watcher.EthereumNodeAddress)
-
-	// again, more temp code
-	pipeAccount := common.HexToAddress(w.cfg.Watcher.PipeAccount)
-	nymContract := common.HexToAddress(w.cfg.Watcher.NymContract)
-
 	heartbeat := time.NewTicker(2 * time.Second)
 
 	// Block on the heartbeat ticker
@@ -83,10 +78,10 @@ func (w *Watcher) worker() {
 			block := w.getFinalizedBlock(latestBlockNumber)
 			for _, tx := range block.Transactions() {
 				if tx.To() != nil {
-					if tx.To().Hex() == nymContract.Hex() { // transaction used the Nym ERC20 contract
+					if tx.To().Hex() == w.cfg.Watcher.NymContract.Hex() { // transaction used the Nym ERC20 contract
 						tr := w.getTransactionReceipt(tx.Hash())
 						from, to := erc20decode(*tr.Logs[0])
-						if to.Hex() == pipeAccount.Hex() { // transaction went to the pipeAccount
+						if to.Hex() == w.cfg.Watcher.PipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
 							w.log.Noticef("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
 						}
@@ -202,7 +197,7 @@ func (w *Watcher) subscribeBlocks(headers chan *types.Header) ethereum.Subscript
 // not in use at the moment, I've ditched subscriptions in favour of polling for now
 func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ethereum.Subscription) {
 	query := ethereum.FilterQuery{
-		Addresses: []common.Address{common.HexToAddress(w.cfg.Watcher.PipeAccount)},
+		Addresses: []common.Address{w.cfg.Watcher.PipeAccount},
 	}
 	logs := make(chan types.Log)
 	sub, err := w.ethClient.SubscribeFilterLogs(context.Background(), query, logs)
@@ -232,7 +227,6 @@ func (w *Watcher) connectToTendermint(tmHost string) error {
 	return nil
 }
 
-// func New(cfg *config.Config) (*Watcher, error) {
 func New(cfg *config.Config) (*Watcher, error) {
 	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if err != nil {
@@ -252,6 +246,9 @@ func New(cfg *config.Config) (*Watcher, error) {
 		log:        watcherLog,
 		haltedCh:   make(chan struct{}),
 	}
+
+	fmt.Println("", w.cfg.Watcher.NymContract.Hex(), w.cfg.Watcher.PipeAccount.Hex())
+	panic("")
 
 	if err := w.connectToEthereum(w.cfg.Watcher.EthereumNodeAddress); err != nil {
 		return nil, err
