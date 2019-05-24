@@ -60,14 +60,13 @@ func (w *Watcher) halt() {
 	close(w.haltedCh)
 }
 
-// TODO: all will need to be made into methods, and split to separate packages
-
 // stop etc are not working
 func (w *Watcher) worker() {
 	w.log.Noticef("Watching Ethereum blockchain at: %s", w.cfg.Watcher.EthereumNodeAddress)
 	heartbeat := time.NewTicker(2 * time.Second)
 
 	// Block on the heartbeat ticker
+	// TODO: way to ensure we dont accicdentally skip a block
 	for {
 		select {
 		case <-w.HaltCh():
@@ -246,9 +245,6 @@ func New(cfg *config.Config) (*Watcher, error) {
 		log:        watcherLog,
 		haltedCh:   make(chan struct{}),
 	}
-
-	fmt.Println("", w.cfg.Watcher.NymContract.Hex(), w.cfg.Watcher.PipeAccount.Hex())
-	panic("")
 
 	if err := w.connectToEthereum(w.cfg.Watcher.EthereumNodeAddress); err != nil {
 		return nil, err
