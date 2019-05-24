@@ -54,7 +54,6 @@ type Client struct {
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
 
-	// nymAccount account.Account
 	privateKey *ecdsa.PrivateKey
 	nymClient  *nymclient.Client
 }

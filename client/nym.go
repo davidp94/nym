@@ -18,6 +18,8 @@
 package client
 
 import (
+	"crypto/ecdsa"
+	"encoding/binary"
 	"errors"
 	"net"
 	"time"
@@ -28,6 +30,9 @@ import (
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	cmn "github.com/tendermint/tendermint/libs/common"
@@ -83,6 +88,25 @@ func (c *Client) parseLookUpCredentialServerResponses(responses []*comm.ServerRe
 		}
 	}
 	return sigs, coconut.NewPP(xs)
+}
+
+// GetCurrentNymBalance gets the current (might be slightly stale due to request being
+// sent as a query and not transaction) balance associated with the client's address.
+func (c *Client) GetCurrentNymBalance() (uint64, error) {
+	address := ethcrypto.PubkeyToAddress(*c.privateKey.Public().(*ecdsa.PublicKey))
+	res, err := c.nymClient.Query(query.QueryCheckBalancePath, address[:])
+	if err != nil {
+		return 0, c.logAndReturnError("GetCurrentNymBalance: failed to send getBalance Query: %v", err)
+	}
+	if res.Response.Code != code.OK {
+		return 0, c.logAndReturnError("GetCurrentNymBalance: the query failed with code %v (%v)",
+			res.Response.Code,
+			code.ToString(res.Response.Code),
+		)
+	}
+	balance := binary.BigEndian.Uint64(res.Response.Value)
+	c.log.Debugf("Queried balance is : %v", balance)
+	return balance, nil
 }
 
 // FIXME:
