@@ -46,6 +46,8 @@ type Watcher struct {
 	KeyFile string
 	// EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
 	EthereumNodeAddress string
+	// TendermintNodeAddress defines address of the Tendermint node to which the watcher is sending notifications.
+	TendermintNodeAddress string
 	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
 	NymContract string
 	// PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.

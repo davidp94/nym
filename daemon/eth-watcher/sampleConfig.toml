@@ -7,6 +7,8 @@
   # EthereumNodeAddress defines address of the Ethereum node that the watcher is monitoring.
   # Infura used for the moment. In production should be a fullnode.
   EthereumNodeAddress = "https://ropsten.infura.io/v3/131453a5470641cd9f64942eecd8add2"
+  # TendermintNodeAddress defines address of the Tendermint node to which the watcher is sending notifications.
+	TendermintNodeAddress = "localhost:26657"
   # NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
   NymContract = "0xE80025228D5448A55B995c829B89567ECE5203d3"
   # PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.

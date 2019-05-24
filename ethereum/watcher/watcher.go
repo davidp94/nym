@@ -20,12 +20,16 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	tmclient "github.com/tendermint/tendermint/rpc/client"
 	"gopkg.in/op/go-logging.v1"
 )
 
 type Watcher struct {
-	cfg        *config.Config
-	ethClient  *ethclient.Client
+	cfg *config.Config
+	// TODO: change both to the 'bigger' clients that auto-reconnect, etc?
+	ethClient *ethclient.Client
+	tmClient  *tmclient.HTTP
+
 	privateKey *ecdsa.PrivateKey
 
 	log *logging.Logger
@@ -208,14 +212,24 @@ func (w *Watcher) subscribeEventLogs(startBlock *big.Int) (chan types.Log, ether
 	return logs, sub
 }
 
-// will definitely be moved to the watcher file
-func (w *Watcher) connect(ethHost string) {
+func (w *Watcher) connectToEthereum(ethHost string) error {
 	client, err := ethclient.Dial(ethHost)
 	if err != nil {
-		log.Fatalf("Error connecting to Infura: %s", err)
+		return fmt.Errorf("error connecting to Infura: %s", err)
 	}
 
 	w.ethClient = client
+	return nil
+}
+
+func (w *Watcher) connectToTendermint(tmHost string) error {
+	client := tmclient.NewHTTP(tmHost, "/websocket")
+	if err := client.Start(); err != nil {
+		return fmt.Errorf("could not connect to: %v (%v)", tmHost, err)
+	}
+
+	w.tmClient = client
+	return nil
 }
 
 // func New(cfg *config.Config) (*Watcher, error) {
@@ -239,7 +253,14 @@ func New(cfg *config.Config) (*Watcher, error) {
 		haltedCh:   make(chan struct{}),
 	}
 
-	w.connect(w.cfg.Watcher.EthereumNodeAddress)
+	if err := w.connectToEthereum(w.cfg.Watcher.EthereumNodeAddress); err != nil {
+		return nil, err
+	}
+
+	if err := w.connectToTendermint(w.cfg.Watcher.TendermintNodeAddress); err != nil {
+		return nil, err
+	}
+
 	w.Go(w.worker)
 
 	return w, nil
