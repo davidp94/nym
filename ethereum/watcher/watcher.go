@@ -10,6 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
 	token "0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/token"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
@@ -78,13 +81,36 @@ func (w *Watcher) worker() {
 			for _, tx := range block.Transactions() {
 				if tx.To() != nil {
 					if tx.To().Hex() == w.cfg.Watcher.NymContract.Hex() { // transaction used the Nym ERC20 contract
-						tr := w.getTransactionReceipt(tx.Hash())
+						txHash := tx.Hash()
+						tr := w.getTransactionReceipt(txHash)
 						from, to := erc20decode(*tr.Logs[0])
 						if to.Hex() == w.cfg.Watcher.PipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
 							w.log.Noticef("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
+							// sending it multiple times is not a problem as tendermint ensures only one will go through
+							// but regardless, we shouldn't send it more than once anyway (to fix later)
+							tmtx, err := transaction.CreateNewTransferToHoldingNotification(w.privateKey,
+								from,
+								to,
+								value.Uint64(),
+								txHash,
+							)
+							if err != nil {
+								w.log.Errorf("Failed to create notification transaction: %v", err)
+								continue
+							}
+							res, err := w.tmClient.BroadcastTxCommit(tmtx)
+							if err != nil {
+								w.log.Errorf("Failed to send notification transaction: %v", err)
+								continue
+							}
+							w.log.Infof("Received tendermint Response.\nCheckCode: %v, Check additional data: %v\nDeliverCode: %v Deliver Aditional data: %v",
+								code.ToString(res.CheckTx.Code),
+								string(res.CheckTx.Data),
+								code.ToString(res.DeliverTx.Code),
+								string(res.DeliverTx.Data),
+							)
 						}
-						fmt.Println()
 					}
 				}
 			}

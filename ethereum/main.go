@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"encoding/base64"
-	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/client"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
@@ -12,45 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// just sends some tokens to the holding account
 func main() {
-	// signature test (unrelated)
-	pk, err := crypto.GenerateKey()
-	if err != nil {
-		panic(err)
-	}
-	// fmt.Println(pk)
-	if err := crypto.SaveECDSA("watcher2.key", pk); err != nil {
-		panic(err)
-	}
-
-	pubK := pk.Public().(*ecdsa.PublicKey)
-	b := crypto.FromECDSAPub(pubK)
-
-	fmt.Println(base64.StdEncoding.EncodeToString(b))
-
-	return
-
-	msg := []byte("foo")
-	hash := crypto.Keccak256(msg)
-
-	sig, err := crypto.Sign(hash, pk)
-	// crypto.VerifySignature()
-	if err != nil {
-		panic(err)
-	}
-
-	addr := crypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
-
-	pub, err := crypto.SigToPub(hash, sig)
-	if err != nil {
-		panic(err)
-	}
-
-	recAddr := crypto.PubkeyToAddress(*pub)
-
-	fmt.Println("OLD", addr.Hex())
-	fmt.Println("NEW", recAddr.Hex())
-
 	// TODO: move all of those to some .toml file
 	privateKey, err := crypto.LoadECDSA("tmpPrivate")
 	if err != nil {
