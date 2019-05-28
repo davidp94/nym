@@ -10,12 +10,11 @@ import (
 	"sync"
 	"time"
 
+	token "0xacab.org/jstuczyn/CoconutGo/ethereum/token"
+	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
+	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-
-	"0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/config"
-	token "0xacab.org/jstuczyn/CoconutGo/ethereum/watcher/token"
-	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"

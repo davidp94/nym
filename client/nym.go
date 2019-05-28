@@ -22,6 +22,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
+	"math/big"
 	"net"
 	"time"
 
@@ -91,6 +92,34 @@ func (c *Client) parseLookUpCredentialServerResponses(responses []*comm.ServerRe
 	return sigs, coconut.NewPP(xs)
 }
 
+// GetCurrentERC20Balance gets the current balance of ERC20 tokens associated with the client's address
+func (c *Client) GetCurrentERC20Balance() (uint64, error) {
+	ctx := context.TODO()
+	address := ethcrypto.PubkeyToAddress(*c.privateKey.Public().(*ecdsa.PublicKey))
+	balance, err := c.ethClient.QueryERC20Balance(ctx, address, false)
+	if err != nil {
+		return 0, c.logAndReturnError("GetCurrentERC20Balance: failed to query balance: %v", err)
+	}
+	t := new(big.Int)
+	fullTokens := t.Div(balance, big.NewInt(1000000000000000000))
+
+	return fullTokens.Uint64(), nil
+}
+
+// GetCurrentERC20PendingBalance gets the current pending balance of ERC20 tokens associated with the client's address
+func (c *Client) GetCurrentERC20PendingBalance() (uint64, error) {
+	ctx := context.TODO()
+	address := ethcrypto.PubkeyToAddress(*c.privateKey.Public().(*ecdsa.PublicKey))
+	balance, err := c.ethClient.QueryERC20Balance(ctx, address, true)
+	if err != nil {
+		return 0, c.logAndReturnError("GetCurrentERC20PendingBalance: failed to query balance: %v", err)
+	}
+	t := new(big.Int)
+	fullTokens := t.Div(balance, big.NewInt(1000000000000000000))
+
+	return fullTokens.Uint64(), nil
+}
+
 // GetCurrentNymBalance gets the current (might be slightly stale due to request being
 // sent as a query and not transaction) balance associated with the client's address.
 func (c *Client) GetCurrentNymBalance() (uint64, error) {
@@ -110,16 +139,17 @@ func (c *Client) GetCurrentNymBalance() (uint64, error) {
 	return balance, nil
 }
 
-// publi wrapper just for dummy tests
-func (c *Client) SendToPipeAccountWrapper(amount int64) {
-	// return c.sendToPipeAccount(amount)
+// public wrapper just for dummy tests
+func (c *Client) SendToPipeAccountWrapper(amount int64) error {
+	return c.sendToPipeAccount(amount)
 }
 
-func (c *Client) sendToPipeAccount(amount int64) {
+func (c *Client) sendToPipeAccount(amount int64) error {
 	ctx := context.TODO()
 	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.NymContract, c.cfg.Nym.PipeAccount); err != nil {
-		// TODO:
+		return err
 	}
+	return nil
 }
 
 func (c *Client) waitForBalanceIncrease() {

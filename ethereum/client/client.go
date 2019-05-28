@@ -26,8 +26,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+
 	"0xacab.org/jstuczyn/CoconutGo/ethereum/erc20/constants"
 
+	token "0xacab.org/jstuczyn/CoconutGo/ethereum/token"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,15 +43,15 @@ import (
 // Client defines necessary attributes for establishing communication with an Ethereum blockchain
 // and for performing functions required by the Nym system.
 type Client struct {
-	address          common.Address
+	nodeAddresses    []string
 	privateKey       *ecdsa.PrivateKey
 	chainID          *big.Int
+	nymTokenIntance  *token.Token
+	ethClient        *ethclient.Client
+	log              *logging.Logger
+	address          common.Address // TODO: remove?
 	erc20NymContract common.Address
 	pipeAccount      common.Address
-	ethClient        *ethclient.Client
-	nodeAddresses    []string
-
-	log *logging.Logger
 }
 
 const (
@@ -82,6 +85,21 @@ func (c *Client) GetTransactionStatus(ctx context.Context, txHash []byte) {
 	// TODO:
 }
 
+// pending is used to decide whether to query pending balance
+func (c *Client) QueryERC20Balance(ctx context.Context, address common.Address, pending bool) (*big.Int, error) {
+	balance, err := c.nymTokenIntance.BalanceOf(&bind.CallOpts{
+		Pending: pending,
+		Context: ctx,
+	}, address)
+
+	if err != nil {
+		return nil, c.logAndReturnError("QueryERC20Balance: Failed to query balance of %v: %v", address.Hex(), err)
+	}
+
+	return balance, nil
+}
+
+// TODO: rewrite to use token instance similarly to Balance query?
 // TransferERC20Tokens sends specified amount of ERC20 tokens to given account.
 func (c *Client) TransferERC20Tokens(ctx context.Context,
 	amount int64,
@@ -89,6 +107,10 @@ func (c *Client) TransferERC20Tokens(ctx context.Context,
 	targetAddress common.Address,
 	tokenDecimals ...int,
 ) error {
+	if amount <= 0 {
+		return c.logAndReturnError("TransferERC20Tokens: trying to transfer negative number of tokens")
+	}
+
 	fromAddress := c.address
 	nonce, err := c.ethClient.PendingNonceAt(ctx, fromAddress)
 	if err != nil {
@@ -162,12 +184,18 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 	if c.chainID == nil {
 		id, err := client.NetworkID(ctx)
 		if err != nil {
-			errMsg := fmt.Sprintf("Failed to obtain networkID: %s", err)
-			c.log.Error(errMsg)
-			return errors.New(errMsg)
+			return c.logAndReturnError("Failed to obtain networkID: %v", err)
 		}
 		c.log.Debugf("Obtained network id: %v", id)
 		c.chainID = id
+	}
+
+	if c.nymTokenIntance == nil {
+		instance, err := token.NewToken(c.erc20NymContract, c.ethClient)
+		if err != nil {
+			return c.logAndReturnError("Failed to create token instance: %v", err)
+		}
+		c.nymTokenIntance = instance
 	}
 	return nil
 }

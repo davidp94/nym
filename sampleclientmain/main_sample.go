@@ -94,11 +94,36 @@ func main() {
 		os.Exit(-1)
 	}
 
+	nymFlow(cc)
+	return
+
+	// TODO: FIXME:
 	if onlyRunBasic {
 		basicIA(cc)
 	} else {
 		wholeSystem(cc)
 	}
+}
+
+func nymFlow(cc *cclient.Client) {
+
+	currentERC20Balance, err := cc.GetCurrentERC20Balance()
+	if err != nil {
+		panic(err)
+	}
+	pending, err := cc.GetCurrentERC20PendingBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current erc20 balance:", currentERC20Balance, "pending:", pending)
+
+	currentNymBalance, err := cc.GetCurrentNymBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current nym balance:", currentNymBalance)
 }
 
 //nolint: errcheck
