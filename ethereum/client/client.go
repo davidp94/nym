@@ -126,7 +126,7 @@ func (c *Client) TransferERC20Tokens(ctx context.Context,
 	return nil
 }
 
-func (c *Client) connect(ctx context.Context, ethHost string, erc20Contract common.Address) error {
+func (c *Client) connect(ctx context.Context, ethHost string) error {
 	client, err := ethclient.Dial(ethHost)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error connecting to Infura: %s", err)
@@ -136,14 +136,6 @@ func (c *Client) connect(ctx context.Context, ethHost string, erc20Contract comm
 
 	c.log.Debugf("Connected to %v", ethHost)
 	c.ethClient = client
-
-	if c.nymTokenInstance == nil {
-		instance, err := token.NewToken(erc20Contract, c.ethClient)
-		if err != nil {
-			return c.logAndReturnError("Failed to create token instance: %v", err)
-		}
-		c.nymTokenInstance = instance
-	}
 	return nil
 }
 
@@ -180,9 +172,15 @@ func New(cfg Config) (*Client, error) {
 
 	// TODO: reconnection, etc as with Tendermint client? Or just have a single node to which we connect and if it
 	// fails, it fails (+ actually same consideration for the Tendermint client)
-	if err := c.connect(context.TODO(), c.nodeAddress, cfg.erc20NymContract); err != nil {
+	if err := c.connect(context.TODO(), c.nodeAddress); err != nil {
 		return nil, err
 	}
+
+	instance, err := token.NewToken(cfg.erc20NymContract, c.ethClient)
+	if err != nil {
+		return nil, err
+	}
+	c.nymTokenInstance = instance
 
 	return c, nil
 }
