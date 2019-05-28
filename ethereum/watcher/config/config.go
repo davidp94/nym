@@ -103,7 +103,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	}
 
 	if len(cfg.Watcher.PipeAccount) == 0 {
-		return errors.New("config: The address of the Pipe/Holding account was not specified")
+		return errors.New("config: The address of the Pipe account was not specified")
 	}
 
 	if _, err := os.Stat(cfg.Watcher.KeyFile); err != nil {

@@ -37,7 +37,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -235,15 +234,15 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// if server is a provider we actually do need to keep the blockchain keys as we need to accept spend requests
 	// and hence verify whether request is bound to our address
-	acc := account.Account{}
+	// acc := account.Account{}
 	if cfg.Server.IsProvider {
 		if cfg.Provider.BlockchainKeysFile != "" {
 			//nolint: govet
-			if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
-				errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-				serverLog.Error(errStr)
-				return nil, errors.New(errStr)
-			}
+			// if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
+			// 	errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			// 	serverLog.Error(errStr)
+			// 	return nil, errors.New(errStr)
+			// }
 			serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		} else {
 			errStr := "no keys for the Nym Blockchain were specified while server is a provider"
@@ -286,9 +285,9 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
-			NymAccount: acc,
-			NymClient:  nymClient,
-			Store:      store,
+			// NymAccount: acc,
+			NymClient: nymClient,
+			Store:     store,
 		}
 		serverWorker, nerr := serverworker.New(serverWorkerCfg)
 

@@ -37,13 +37,13 @@ const (
 	TxNewAccount byte = 0x02
 	// TxTransferBetweenAccounts is byte prefix for transaction to transfer funds between 2 accounts. for debug
 	TxTransferBetweenAccounts byte = 0x03
-	// // TxTransferToHolding is byte prefix for transaction to transfer client's funds to holding account.
-	// TxTransferToHolding byte = 0x04
+	// // TxTransferToPipeAccount is byte prefix for transaction to transfer client's funds to pipe account.
+	// TxTransferToPipeAccount byte = 0x04
 	// TxDepositCoconutCredential is byte prefix for transaction to deposit a coconut credential (+ transfer funds).
 	TxDepositCoconutCredential byte = 0xa0
-	// TxTransferToHoldingNotification is byte prefix for transaction notifying tendermint nodes about
-	// transfer to holding account that happened on ethereum chain
-	TxTransferToHoldingNotification byte = 0xa1
+	// TxTransferToPipeAccountNotification is byte prefix for transaction notifying tendermint nodes about
+	// transfer to pipe account that happened on ethereum chain
+	TxTransferToPipeAccountNotification byte = 0xa1
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
@@ -154,8 +154,8 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 // 	return b, nil
 // }
 
-// // TransferToHoldingRequestParams encapsulates parameters required for the CreateNewTransferToHoldingRequest function.
-// type TransferToHoldingRequestParams struct {
+// // TransferToPipeAccountRequestParams encapsulates parameters required for the CreateNewTransferToPipeAccountRequest function.
+// type TransferToPipeAccountRequestParams struct {
 // 	Acc    account.Account
 // 	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
 // 	EgPub  *elgamal.PublicKey
@@ -164,13 +164,13 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 // }
 
 // // DEPRECATED
-// // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from user's account
-// // to the holding account. It also writes the required cryptographic material for the blind sign onto the chain,
+// // CreateNewTransferToPipeAccountRequest creates new request for tx to transfer funds from user's account
+// // to the pipe account. It also writes the required cryptographic material for the blind sign onto the chain,
 // // so that the IAs monitoring it could issue the partial credentials.
 // // The function is designed to be executed by the user.
-// func CreateNewTransferToHoldingRequest(params TransferToHoldingRequestParams) ([]byte, error) {
+// func CreateNewTransferToPipeAccountRequest(params TransferToPipeAccountRequestParams) ([]byte, error) {
 // 	fmt.Println("DEPRECATED")
-// 	holdingAddress := tmconst.HoldingAccountAddress
+// 	pipeAccountAddress := tmconst.PipeAccountAddress
 
 // 	if params.Amount < 0 {
 // 		return nil, errors.New("negative value of the credential")
@@ -206,22 +206,22 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 // 	}
 
 // 	msg := make([]byte,
-// 		len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
+// 		len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
 // 	)
 // 	copy(msg, params.Acc.PublicKey)
-// 	copy(msg[len(params.Acc.PublicKey):], holdingAddress)
-// 	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(holdingAddress):], uint32(params.Amount))
-// 	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4:], egPubb)
-// 	copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb):], lambdab)
+// 	copy(msg[len(params.Acc.PublicKey):], pipeAccountAddress)
+// 	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress):], uint32(params.Amount))
+// 	copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4:], egPubb)
+// 	copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb):], lambdab)
 // 	for i := range pubMb {
-// 		copy(msg[len(params.Acc.PublicKey)+len(holdingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
+// 		copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
 // 	}
 
 // 	sig := params.Acc.PrivateKey.SignBytes(msg)
 
-// 	req := &TransferToHoldingRequest{
+// 	req := &TransferToPipeAccountRequest{
 // 		SourcePublicKey: params.Acc.PublicKey,
-// 		TargetAddress:   holdingAddress,
+// 		TargetAddress:   pipeAccountAddress,
 // 		Amount:          params.Amount,
 // 		EgPub:           protoEgPub,
 // 		Lambda:          protoLambda,
@@ -229,12 +229,12 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 // 		Sig:             sig,
 // 	}
 
-// 	return marshalRequest(req, TxTransferToHolding)
+// 	return marshalRequest(req, TxTransferToPipeAccount)
 // }
 
-func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
+func CreateNewTransferToPipeAccountNotification(privateKey *ecdsa.PrivateKey,
 	clientAddress ethcommon.Address,
-	holdingAddress ethcommon.Address,
+	pipeAccountAddress ethcommon.Address,
 	amount uint64,
 	txHash ethcommon.Hash,
 ) ([]byte, error) {
@@ -245,7 +245,7 @@ func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
 	msg := make([]byte, len(publicKeyBytes)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
 	copy(msg, publicKeyBytes)
 	copy(msg[len(publicKeyBytes):], clientAddress[:])
-	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength:], holdingAddress[:])
+	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength:], pipeAccountAddress[:])
 	binary.BigEndian.PutUint64(msg[len(publicKeyBytes)+2*ethcommon.AddressLength:], amount)
 	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength+8:], txHash[:])
 
@@ -254,22 +254,22 @@ func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
 		return nil, err
 	}
 
-	req := &TransferToHoldingNotification{
-		WatcherPublicKey: publicKeyBytes,
-		ClientAddress:    clientAddress[:],
-		HoldingAddress:   holdingAddress[:],
-		Amount:           amount,
-		TxHash:           txHash[:],
-		Sig:              sig,
+	req := &TransferToPipeAccountNotification{
+		WatcherPublicKey:   publicKeyBytes,
+		ClientAddress:      clientAddress[:],
+		PipeAccountAddress: pipeAccountAddress[:],
+		Amount:             amount,
+		TxHash:             txHash[:],
+		Sig:                sig,
 	}
-	return marshalRequest(req, TxTransferToHoldingNotification)
+	return marshalRequest(req, TxTransferToPipeAccountNotification)
 }
 
 // DEPRECATED; but left temporarily for reference sake
-// // CreateNewTransferToHoldingRequest creates new request for tx to transfer funds from client's account
-// // to the holding account.
+// // CreateNewTransferToPipeAccountRequest creates new request for tx to transfer funds from client's account
+// // to the pipe account.
 // // It is designed to be executed by an issuing authority.
-// func CreateNewTransferToHoldingRequest(params TransferToHoldingReqParams) ([]byte, error) {
+// func CreateNewTransferToPipeAccountRequest(params TransferToPipeAccountReqParams) ([]byte, error) {
 // 	id := params.ID
 // 	priv := params.PrivateKey
 // 	clientPublicKey := params.ClientPublicKey
@@ -286,7 +286,7 @@ func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
 
 // 	sig := priv.SignBytes(msg)
 
-// 	req := &TransferToHoldingRequest{
+// 	req := &TransferToPipeAccountRequest{
 // 		IAID:            id,
 // 		ClientPublicKey: clientPublicKey,
 // 		Amount:          amount,
@@ -301,7 +301,7 @@ func CreateNewTransferToHoldingNotification(privateKey *ecdsa.PrivateKey,
 // 	}
 // 	b := make([]byte, len(protob)+1)
 
-// 	b[0] = TxTransferToHolding
+// 	b[0] = TxTransferToPipeAccount
 // 	copy(b[1:], protob)
 // 	return b, nil
 // }

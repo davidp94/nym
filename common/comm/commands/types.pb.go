@@ -602,7 +602,7 @@ type GetCredentialRequest struct {
 	PubM [][]byte `protobuf:"bytes,5,rep,name=pubM,proto3" json:"pubM,omitempty"`
 	// Nonce sent to the chain to request the transfer of tokens to the hlding account.
 	Nonce []byte `protobuf:"bytes,6,opt,name=nonce,proto3" json:"nonce,omitempty"`
-	// Hash of Tx that includes transfer of the tokens to the holding account.
+	// Hash of Tx that includes transfer of the tokens to the pipe account.
 	TxHash []byte `protobuf:"bytes,7,opt,name=txHash,proto3" json:"txHash,omitempty"`
 	// Signature on {PublicKey, Value, Nonce, txHash} to confirm validitiy of the request.
 	Sig                  []byte   `protobuf:"bytes,8,opt,name=sig,proto3" json:"sig,omitempty"`

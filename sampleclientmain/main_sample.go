@@ -103,6 +103,15 @@ func main() {
 
 //nolint: errcheck
 func wholeSystem(cc *cclient.Client) {
+	currentBalance, err := cc.GetCurrentNymBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current balance:", currentBalance)
+
+	return
+
 	log, err := logger.New("", "DEBUG", false)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
@@ -192,7 +201,7 @@ func wholeSystem(cc *cclient.Client) {
 	// if err != nil {
 	// 	panic(err)
 	// }
-	// fmt.Printf("Transferred %v to the holding account\n", token.Value())
+	// fmt.Printf("Transferred %v to the pipe account\n", token.Value())
 	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
 
 	// addr, err := base64.StdEncoding.DecodeString(providerAcc)

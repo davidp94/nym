@@ -119,8 +119,8 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 }
 
-func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) types.ResponseDeliverTx {
-	req := &transaction.TransferToHoldingNotification{}
+func (app *NymApplication) handleTransferToPipeAccountNotification(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.TransferToPipeAccountNotification{}
 
 	if err := proto.Unmarshal(reqb, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
@@ -145,17 +145,17 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
 	}
 
-	// check if the holding account matches
-	if !bytes.Equal(app.state.holdingAccount[:], req.HoldingAddress) {
-		app.log.Info("The specified holding account is different from the expected one")
-		return types.ResponseDeliverTx{Code: code.INVALID_HOLDING_ACCOUNT}
+	// check if the pipe account matches
+	if !bytes.Equal(app.state.pipeAccount[:], req.PipeAccountAddress) {
+		app.log.Info("The specified pipe account is different from the expected one")
+		return types.ResponseDeliverTx{Code: code.INVALID_PIPE_ACCOUNT}
 	}
 
 	// check signature
 	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
 	copy(msg, req.WatcherPublicKey)
 	copy(msg[len(req.WatcherPublicKey):], req.ClientAddress)
-	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.HoldingAddress)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.PipeAccountAddress)
 	binary.BigEndian.PutUint64(msg[len(req.WatcherPublicKey)+2*ethcommon.AddressLength:], req.Amount)
 	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength+8:], req.TxHash)
 
@@ -193,7 +193,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 		))
 		// check if account exists
 		currentBalance, err := app.retrieveAccountBalance(req.ClientAddress)
-		if err != nil && createAccountOnHoldingTransferIfDoesntExist {
+		if err != nil && createAccountOnPipeAccountTransferIfDoesntExist {
 			didSucceed := app.createNewAccountOp(ethcommon.BytesToAddress(req.ClientAddress))
 			if !didSucceed {
 				app.log.Info(fmt.Sprintf("Failed to create new account for the client with address %v",
@@ -274,7 +274,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
 
 // 	if isValid {
-// 		retCode, data := app.transferFundsOp(tmconst.HoldingAccountAddress, merchantAddress, uint64(req.Value))
+// 		retCode, data := app.transferFundsOp(tmconst.PipeAccountAddress, merchantAddress, uint64(req.Value))
 // 		// store the used credential
 // 		app.state.db.Set(dbZetaEntry, tmconst.SpentZetaPrefix)
 // 		return types.ResponseDeliverTx{Code: retCode, Data: data}
@@ -282,11 +282,11 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
 // }
 
-// // transfers funds from the given user's account to the holding account. It makes sure it's only done once per
+// // transfers funds from the given user's account to the pipe account. It makes sure it's only done once per
 // // particular credential request.
 // // TODO: wait on deicison on implementation
-// func (app *NymApplication) transferToHolding(reqb []byte) types.ResponseDeliverTx {
-// 	req := &transaction.TransferToHoldingRequest{}
+// func (app *NymApplication) transferToPipeAccount(reqb []byte) types.ResponseDeliverTx {
+// 	req := &transaction.TransferToPipeAccountRequest{}
 // 	if err := proto.Unmarshal(reqb, req); err != nil {
 // 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 // 	}
@@ -320,30 +320,30 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 	}
 
 // 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	recoveredHoldingAddress := req.TargetAddress
+// 	recoveredPipeAccountAddress := req.TargetAddress
 
 // 	// TODO: update once epochs, etc. are introduced
-// 	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
+// 	if !bytes.Equal(recoveredPipeAccountAddress, tmconst.PipeAccountAddress) {
 // 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
 // 	}
 
 // 	if retCode, data := app.validateTransfer(sourcePublicKey,
-// 		recoveredHoldingAddress,
+// 		recoveredPipeAccountAddress,
 // 		uint64(req.Amount),
 // 	); retCode != code.OK {
 // 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 // 	}
 
 // 	msg := make([]byte,
-// 		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
+// 		len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
 // 	)
 // 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
-// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
-// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
-// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
+// 	copy(msg[len(sourcePublicKey):], recoveredPipeAccountAddress)
+// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress):], uint32(req.Amount))
+// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4:], egPubb)
+// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb):], lambdab)
 // 	for i := range req.PubM {
-// 		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
+// 		copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
 // 			req.PubM[i],
 // 		)
 // 	}
@@ -353,7 +353,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 // 	}
 
-// 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
+// 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount))
 // 	if retCode == code.OK {
 // 		// lambda, egpub, pubm
 // 		blindSignMaterials := &coconut.BlindSignMaterials{
@@ -389,20 +389,20 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 // }
 
-// req := &transaction.TransferToHoldingRequest{}
+// req := &transaction.TransferToPipeAccountRequest{}
 
 // if err := proto.Unmarshal(reqb, req); err != nil {
 // 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 // }
 
 // var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// recoveredHoldingAddress := req.TargetAddress
+// recoveredPipeAccountAddress := req.TargetAddress
 
 // // TODO: update once epochs, etc. are introduced
-// if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
-// 	return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("HOLDING")}
+// if bytes.Compare(recoveredPipeAccountAddress, tmconst.PipeAccountAddress) != 0 {
+// 	return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("PIPEACCOUNT")}
 // }
-// if retCode, data := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
+// if retCode, data := app.validateTransfer(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount)); retCode != code.OK {
 // 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 // }
 
@@ -417,7 +417,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // 	return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
 // }
 
-// retCode, data := app.transferFundsOp(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount))
+// retCode, data := app.transferFundsOp(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount))
 // if retCode == code.OK {
 // 	// it can't fail as transferFunds already performed it
 // 	sourcePublicKey.Compress()
@@ -436,7 +436,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // var IAPub account.ECPublicKey
 // var clientPub account.ECPublicKey
 
-// req := &transaction.TransferToHoldingRequest{}
+// req := &transaction.TransferToPipeAccountRequest{}
 // if err := proto.Unmarshal(reqb, req); err != nil {
 // 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 // }
@@ -513,7 +513,7 @@ func (app *NymApplication) handleTransferToHoldingNotification(reqb []byte) type
 // }
 
 // // the request is valid, so transfer the amount
-// transferRetCode, data := app.transferFundsOp(clientPub, tmconst.HoldingAccountAddress, uint64(req.Amount))
+// transferRetCode, data := app.transferFundsOp(clientPub, tmconst.PipeAccountAddress, uint64(req.Amount))
 // binary.BigEndian.PutUint32(retCodeB, transferRetCode)
 // app.state.db.Set(dbKey, retCodeB)
 

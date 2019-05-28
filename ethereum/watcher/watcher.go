@@ -86,10 +86,10 @@ func (w *Watcher) worker() {
 						from, to := erc20decode(*tr.Logs[0])
 						if to.Hex() == w.cfg.Watcher.PipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
-							w.log.Noticef("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
+							w.log.Noticef("\n%d Nyms from %s to pipe account at %s\n", value, from.Hex(), to.Hex())
 							// sending it multiple times is not a problem as tendermint ensures only one will go through
 							// but regardless, we shouldn't send it more than once anyway (to fix later)
-							tmtx, err := transaction.CreateNewTransferToHoldingNotification(w.privateKey,
+							tmtx, err := transaction.CreateNewTransferToPipeAccountNotification(w.privateKey,
 								from,
 								to,
 								value.Uint64(),
@@ -182,7 +182,7 @@ func (w *Watcher) getFinalizedBlock(latestBlockNumber *big.Int) *types.Block {
 	return block
 }
 
-// getFinalizedBalance returns the balance of the given account (typically the holding account)
+// getFinalizedBalance returns the balance of the given account (typically the pipe account)
 // as it was 13 blocks ago.
 //
 // We use 13 blocks to approximate "finality" but PoW chains are not really "final" in any rigorous sense.

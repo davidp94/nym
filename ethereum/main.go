@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// just sends some tokens to the holding account
+// just sends some tokens to the pipe account
 func main() {
 	// TODO: move all of those to some .toml file
 	privateKey, err := crypto.LoadECDSA("tmpPrivate")

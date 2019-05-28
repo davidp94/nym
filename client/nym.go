@@ -18,6 +18,7 @@
 package client
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"errors"
@@ -109,6 +110,24 @@ func (c *Client) GetCurrentNymBalance() (uint64, error) {
 	return balance, nil
 }
 
+// publi wrapper just for dummy tests
+func (c *Client) SendToPipeAccountWrapper(amount int64) {
+	// return c.sendToPipeAccount(amount)
+}
+
+func (c *Client) sendToPipeAccount(amount int64) {
+	ctx := context.TODO()
+	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.NymContract, c.cfg.Nym.PipeAccount); err != nil {
+		// TODO:
+	}
+}
+
+func (c *Client) waitForBalanceIncrease() {
+	// super temp and incredibly dumb way of doing this.
+	// get current balance
+	// periodically query state until balance is increased by specified amount
+}
+
 // FIXME:
 func (c *Client) createCredentialRequestSig(txHash cmn.HexBytes, nonce []byte, token *token.Token) []byte {
 	return nil
@@ -137,10 +156,10 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 	// 		return nil, c.logAndReturnError("GetCredential: Tried to obtain credential on undefined account")
 	// 	}
 
-	// 	// we transfer amount of tokens to the holding account
-	// 	height, err := c.transferTokensToHolding(token, elGamalPublicKey)
+	// 	// we transfer amount of tokens to the Pipe account
+	// 	height, err := c.transferTokensToPipe(token, elGamalPublicKey)
 	// 	if err != nil {
-	// 		return nil, c.logAndReturnError("GetCredential: could not transfer to the holding account: %v", err)
+	// 		return nil, c.logAndReturnError("GetCredential: could not transfer to the Pipe account: %v", err)
 	// 	}
 
 	// 	if height <= 1 {
@@ -256,11 +275,11 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 // 	return c.handleReceivedSignatures(sigs, nil)
 // }
 
-func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
+func (c *Client) transferTokensToPipe(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
 	return -1, errors.New("REQUIRES RE-IMPLEMENTATION")
 	// first check if we have loaded the account information
 	// if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-	// 	return -1, c.logAndReturnError("transferTokensToHolding: Tried to obtain credential on undefined account")
+	// 	return -1, c.logAndReturnError("transferTokensToPipe: Tried to obtain credential on undefined account")
 	// }
 
 	// lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(egPub, token)
@@ -270,7 +289,7 @@ func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.Publ
 
 	// pubM, _ := token.GetPublicAndPrivateSlices()
 
-	// transferToHoldingRequestParams := transaction.TransferToHoldingRequestParams{
+	// transferToPipeRequestParams := transaction.TransferToPipeRequestParams{
 	// 	Acc:    c.nymAccount,
 	// 	Amount: token.Value(),
 	// 	EgPub:  egPub,
@@ -278,17 +297,17 @@ func (c *Client) transferTokensToHolding(token *token.Token, egPub *elgamal.Publ
 	// 	PubM:   pubM,
 	// }
 
-	// req, err := transaction.CreateNewTransferToHoldingRequest(transferToHoldingRequestParams)
+	// req, err := transaction.CreateNewTransferToPipeRequest(transferToPipeRequestParams)
 	// if err != nil {
-	// 	return -1, c.logAndReturnError("transferTokensToHolding: Failed to create request: %v", err)
+	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to create request: %v", err)
 	// }
 
 	// res, err := c.nymClient.Broadcast(req)
 	// if err != nil {
-	// 	return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v", err)
+	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to send request to the blockchain: %v", err)
 	// }
 	// if res.DeliverTx.Code != code.OK {
-	// 	return -1, c.logAndReturnError("transferTokensToHolding: Failed to send request to the blockchain: %v - %v",
+	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to send request to the blockchain: %v - %v",
 	// 		res.DeliverTx.Code,
 	// 		code.ToString(res.DeliverTx.Code),
 	// 	)

@@ -55,7 +55,7 @@ const (
 	// SELF_TRANSFER represents error when trying to send funds from account X back to account X
 	SELF_TRANSFER = 14
 	// REPLAY_ATTACK_ATTEMPT represents error due to trying to transfer tokens
-	// to the holding account with repeating same nonce.
+	// to the pipe account with repeating same nonce.
 	REPLAY_ATTACK_ATTEMPT = 15
 	// UNDEFINED_TX represents error due to using tx prefix for an undefined tx.
 	UNDEFINED_TX = 16
@@ -70,8 +70,8 @@ const (
 	// ALREADY_COMMITTED represents error when watcher wants to notify about transaction
 	// while a threshold number of watchers already sent their notifications
 	ALREADY_COMMITTED = 20
-	// INVALID_HOLDING_ACCOUNT represents error due to using different than specified address of the holding account
-	INVALID_HOLDING_ACCOUNT = 21
+	// INVALID_PIPE_ACCOUNT represents error due to using different than specified address of the pipe account
+	INVALID_PIPE_ACCOUNT = 21
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
@@ -124,8 +124,8 @@ func ToString(code uint32) string {
 		return "Malformed Public Key"
 	case ALREADY_COMMITTED:
 		return "Already Committed"
-	case INVALID_HOLDING_ACCOUNT:
-		return "Invalid Holding Account"
+	case INVALID_PIPE_ACCOUNT:
+		return "Invalid Pipe Account"
 	default:
 		return "Unknown Error Code"
 	}

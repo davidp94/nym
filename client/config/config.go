@@ -84,9 +84,9 @@ type Nym struct {
 	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
 	NymContract ethcommon.Address
 
-	// HoldingAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
+	// PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
 	// It is expected to be provided in hex format.
-	HoldingAccount ethcommon.Address
+	PipeAccount ethcommon.Address
 
 	// AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
 	AccountKeysFile string
@@ -238,8 +238,8 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if len(cfg.Nym.NymContract) == 0 {
 		return errors.New("config: Unspecified address of the Nym contract")
 	}
-	if len(cfg.Nym.HoldingAccount) == 0 {
-		return errors.New("config: Unspecified address of the holding account")
+	if len(cfg.Nym.PipeAccount) == 0 {
+		return errors.New("config: Unspecified address of the Pipe account")
 	}
 	return nil
 }

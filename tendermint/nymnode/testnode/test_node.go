@@ -77,6 +77,8 @@ func initializeHome(config *tmConfig.Config) error {
 		Power:   10,
 	}}
 
+	panic("Requires updating to represent new genesis state")
+
 	//nolint: lll
 	// TODO: variable issuers, etc
 	genDoc.AppState = json.RawMessage(`{

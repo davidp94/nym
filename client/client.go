@@ -1020,7 +1020,7 @@ func New(cfg *config.Config) (*Client, error) {
 		privateKey,
 		cfg.Nym.EthereumNodeAddresses,
 		cfg.Nym.NymContract,
-		cfg.Nym.HoldingAccount,
+		cfg.Nym.PipeAccount,
 		log,
 	)
 

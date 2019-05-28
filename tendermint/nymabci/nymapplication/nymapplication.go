@@ -43,10 +43,10 @@ import (
 // do we still need to keep any information regarding issuers?
 
 const (
-	DBNAME                                      = "nymDB"
-	DefaultDbDir                                = "/nymabci"
-	createAccountOnDepositIfDoesntExist         = true
-	createAccountOnHoldingTransferIfDoesntExist = true
+	DBNAME                                          = "nymDB"
+	DefaultDbDir                                    = "/nymabci"
+	createAccountOnDepositIfDoesntExist             = true
+	createAccountOnPipeAccountTransferIfDoesntExist = true
 
 	// ProtocolVersion defines version of the protocol used.
 	ProtocolVersion version.Protocol = 0x1
@@ -100,8 +100,8 @@ func NewNymApplication(dbType, dbDir string, logger log.Logger) *NymApplication 
 		if err := app.loadWatcherThreshold(); err != nil {
 			panic(fmt.Errorf("expected to have watcher threshold stored: %v", err))
 		}
-		if err := app.loadHoldingAccountAddress(); err != nil {
-			panic(fmt.Errorf("expected to have holding account address stored: %v", err))
+		if err := app.loadPipeAccountAddress(); err != nil {
+			panic(fmt.Errorf("expected to have pipe account address stored: %v", err))
 		}
 	}
 
@@ -157,17 +157,17 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		}
 		app.log.Info("Transfer tx")
 		return app.transferFunds(tx[1:])
-	case transaction.TxTransferToHoldingNotification:
-		app.log.Info("Transfer to holding notification")
-		return app.handleTransferToHoldingNotification(tx[1:])
+	case transaction.TxTransferToPipeAccountNotification:
+		app.log.Info("Transfer to pipe account notification")
+		return app.handleTransferToPipeAccountNotification(tx[1:])
 	case transaction.TxDepositCoconutCredential:
-		// deposits coconut credential and transforms appropriate amount from holding to merchant
+		// deposits coconut credential and transforms appropriate amount from pipe to merchant
 		app.log.Info("Deposit Credential")
 		// return app.depositCoconutCredential(tx[1:])
-	// case transaction.TxTransferToHolding:
-	// 	// transfer given amount of client's funds to the holding account
-	// 	app.log.Info("Transfer to Holding")
-	// return app.transferToHolding(tx[1:])
+	// case transaction.TxTransferToPipeAccount:
+	// 	// transfer given amount of client's funds to the pipe account
+	// 	app.log.Info("Transfer to Pipe Account")
+	// return app.transferToPipeAccount(tx[1:])
 	case transaction.TxAdvanceBlock:
 		// purely for debug purposes to populate the state and advance the blocks
 		if !tmconst.DebugMode {
@@ -211,11 +211,11 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 				checkCode, code.ToString(checkCode)))
 		}
 		return types.ResponseCheckTx{Code: checkCode}
-	case transaction.TxTransferToHoldingNotification:
-		app.log.Debug("CheckTx for TxTransferToHoldingNotification")
-		checkCode := app.checkTransferToHoldingNotificationTx(tx[1:])
+	case transaction.TxTransferToPipeAccountNotification:
+		app.log.Debug("CheckTx for TxTransferToPipeAccountNotification")
+		checkCode := app.checkTransferToPipeAccountNotificationTx(tx[1:])
 		if checkCode != code.OK {
-			app.log.Info(fmt.Sprintf("checkTx for TxTransferToHoldingNotification failed with code: %v - %v",
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferToPipeAccountNotification failed with code: %v - %v",
 				checkCode, code.ToString(checkCode)))
 		}
 		return types.ResponseCheckTx{Code: checkCode}
@@ -231,12 +231,12 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
-	// case transaction.TxTransferToHolding:
-	// 	app.log.Debug("CheckTx for TxTransferToHolding")
+	// case transaction.TxTransferToPipeAccount:
+	// 	app.log.Debug("CheckTx for TxTransferToPipeAccount")
 
-	// checkCode := app.checkTxTransferToHolding(tx[1:])
+	// checkCode := app.checkTxTransferToPipeAccount(tx[1:])
 	// if checkCode != code.OK {
-	// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToHolding failed with code: %v - %v",
+	// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToPipeAccount failed with code: %v - %v",
 	// 		checkCode, code.ToString(checkCode)))
 	// }
 	// return types.ResponseCheckTx{Code: checkCode}
@@ -310,11 +310,11 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 
 	app.state.watcherThreshold = uint32(watcherThreshold)
 	app.storeWatcherThreshold()
-	app.state.holdingAccount = genesisState.SystemProperties.HoldingAccount
-	app.storeHoldingAccountAddress()
+	app.state.pipeAccount = genesisState.SystemProperties.PipeAccount
+	app.storePipeAccountAddress()
 
-	app.log.Info(fmt.Sprintf("Setting watcher threshold to %v and holding contract address to %v",
-		watcherThreshold, app.state.holdingAccount.Hex()))
+	app.log.Info(fmt.Sprintf("Setting watcher threshold to %v and pipe contract address to %v",
+		watcherThreshold, app.state.pipeAccount.Hex()))
 
 	for _, watcher := range genesisState.EthereumWatchers {
 		app.storeWatcherKey(watcher)

@@ -332,7 +332,7 @@ package nymapplication
 // 	return out
 // }
 
-// func deepCopyTransferToHoldingRequest(req *transaction.TransferToHoldingRequest) *transaction.TransferToHoldingRequest {
+// func deepCopyTransferToPipeAccountRequest(req *transaction.TransferToPipeAccountRequest) *transaction.TransferToPipeAccountRequest {
 // 	enccpy := make([]*elgamal.ProtoEncryption, len(req.Lambda.Enc))
 // 	for i := range enccpy {
 // 		enccpy[i] = &elgamal.ProtoEncryption{}
@@ -340,7 +340,7 @@ package nymapplication
 // 		enccpy[i].C2 = copybyteslice(req.Lambda.Enc[i].C2)
 // 	}
 
-// 	return &transaction.TransferToHoldingRequest{
+// 	return &transaction.TransferToPipeAccountRequest{
 // 		SourcePublicKey: copybyteslice(req.SourcePublicKey),
 // 		TargetAddress:   copybyteslice(req.TargetAddress),
 // 		Amount:          req.Amount,
@@ -365,7 +365,7 @@ package nymapplication
 // }
 
 // //nolint: lll
-// func createValidSigOnTransferToHoldingRequest(priv account.ECPrivateKey, req *transaction.TransferToHoldingRequest) []byte {
+// func createValidSigOnTransferToPipeAccountRequest(priv account.ECPrivateKey, req *transaction.TransferToPipeAccountRequest) []byte {
 // 	lambdab, _ := proto.Marshal(req.Lambda)
 // 	egPubb, _ := proto.Marshal(req.EgPub)
 
@@ -382,7 +382,7 @@ package nymapplication
 // 	return priv.SignBytes(msg)
 // }
 
-// func TestCheckTransferToHolding(t *testing.T) {
+// func TestCheckTransferToPipeAccount(t *testing.T) {
 // 	params, _ := coconut.Setup(5)
 // 	p, rng := params.P(), params.G.Rng()
 // 	s := Curve.Randomnum(p, rng)
@@ -401,8 +401,8 @@ package nymapplication
 // 	assert.Nil(t, accpubcpy.Compress())
 // 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, accpubcpy), balance)
 
-// 	// create the holding account
-// 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, tmconst.HoldingAccountAddress), make([]byte, 8))
+// 	// create the pipe account
+// 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, tmconst.PipeAccountAddress), make([]byte, 8))
 
 // 	// create an existing account
 // 	acc2 := account.NewAccount()
@@ -411,7 +411,7 @@ package nymapplication
 // 	assert.Nil(t, acc2.PublicKey.Compress())
 // 	app.state.db.Set(prefixKey(tmconst.AccountsPrefix, acc2.PublicKey), balance)
 
-// 	reqParams := transaction.TransferToHoldingRequestParams{
+// 	reqParams := transaction.TransferToPipeAccountRequestParams{
 // 		Acc:    acc,
 // 		Amount: int32(42),
 // 		EgPub:  egPub,
@@ -420,96 +420,96 @@ package nymapplication
 // 	}
 
 // 	// create a valid request and start malform it in diffent ways
-// 	validReqTx, err := transaction.CreateNewTransferToHoldingRequest(reqParams)
+// 	validReqTx, err := transaction.CreateNewTransferToPipeAccountRequest(reqParams)
 // 	assert.Nil(t, err)
 // 	validReq := validReqTx[1:] // first byte is the prefix indicating type of tx
 
-// 	rawReq := &transaction.TransferToHoldingRequest{}
+// 	rawReq := &transaction.TransferToPipeAccountRequest{}
 // 	assert.Nil(t, proto.Unmarshal(validReq, rawReq))
 
 // 	// firstly check if valid requests go through
-// 	assert.Equal(t, code.OK, app.checkTxTransferToHolding(validReq))
+// 	assert.Equal(t, code.OK, app.checkTxTransferToPipeAccount(validReq))
 
-// 	compKeyReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	compKeyReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	compKeyReq.SourcePublicKey = accpubcpy // the key was compressed
-// 	compKeyReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, compKeyReq)
+// 	compKeyReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, compKeyReq)
 
 // 	req, err := proto.Marshal(compKeyReq)
 // 	assert.Nil(t, err)
-// 	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+// 	assert.Equal(t, code.OK, app.checkTxTransferToPipeAccount(req))
 
-// 	maxInt32Req := deepCopyTransferToHoldingRequest(rawReq)
+// 	maxInt32Req := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	maxInt32Req.Amount = math.MaxInt32
 // 	maxint32BIG := Curve.NewBIGint(int(math.MaxInt32))
 // 	b := make([]byte, constants.BIGLen)
 // 	maxint32BIG.ToBytes(b)
 // 	maxInt32Req.PubM[0] = b
-// 	maxInt32Req.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, maxInt32Req)
+// 	maxInt32Req.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, maxInt32Req)
 
 // 	req, err = proto.Marshal(maxInt32Req)
 // 	assert.Nil(t, err)
-// 	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+// 	assert.Equal(t, code.OK, app.checkTxTransferToPipeAccount(req))
 
-// 	zeroValReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	zeroValReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	zeroValReq.Amount = 0
 // 	zeroBIG := Curve.NewBIGint(0)
 // 	b = make([]byte, constants.BIGLen)
 // 	zeroBIG.ToBytes(b)
 // 	zeroValReq.PubM[0] = b
-// 	zeroValReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, zeroValReq)
+// 	zeroValReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, zeroValReq)
 
 // 	req, err = proto.Marshal(zeroValReq)
 // 	assert.Nil(t, err)
-// 	assert.Equal(t, code.OK, app.checkTxTransferToHolding(req))
+// 	assert.Equal(t, code.OK, app.checkTxTransferToPipeAccount(req))
 
 // 	//
 // 	// invalid requests
 // 	//
 
-// 	noSourceReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noSourceReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noSourceReq.SourcePublicKey = nil
-// 	noSourceReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noSourceReq)
+// 	noSourceReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, noSourceReq)
 
-// 	invalidSourceReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidSourceReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidSourceReq.SourcePublicKey = acc2.PublicKey
-// 	invalidSourceReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidSourceReq)
+// 	invalidSourceReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, invalidSourceReq)
 
-// 	noTargetReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noTargetReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noTargetReq.TargetAddress = nil
-// 	noTargetReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noTargetReq)
+// 	noTargetReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, noTargetReq)
 
-// 	invalidTargetReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidTargetReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidTargetReq.TargetAddress = acc2.PublicKey // so that validate transfer wouldn't fail (acc technically exists)
-// 	invalidTargetReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidTargetReq)
+// 	invalidTargetReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, invalidTargetReq)
 
-// 	noEgPubReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noEgPubReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noEgPubReq.EgPub = nil
-// 	noEgPubReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noEgPubReq)
+// 	noEgPubReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, noEgPubReq)
 
-// 	invalidEgPubReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidEgPubReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidEgPubReq.EgPub.Gamma = []byte("Dummy string converted to bytes")
-// 	invalidEgPubReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidEgPubReq)
+// 	invalidEgPubReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, invalidEgPubReq)
 
-// 	noLambdaReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noLambdaReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noLambdaReq.Lambda = nil
-// 	noLambdaReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noLambdaReq)
+// 	noLambdaReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, noLambdaReq)
 
-// 	invalidLambdaReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidLambdaReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidLambdaReq.Lambda.Proof.Rr = []byte("Dummy string converted to bytes")
-// 	invalidLambdaReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidLambdaReq)
+// 	invalidLambdaReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, invalidLambdaReq)
 
-// 	noPubMReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noPubMReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noPubMReq.PubM = nil
-// 	noPubMReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, noPubMReq)
+// 	noPubMReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, noPubMReq)
 
-// 	invalidPubMReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidPubMReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidPubMReq.PubM[0] = []byte("Dummy string converted to bytes")
-// 	invalidPubMReq.Sig = createValidSigOnTransferToHoldingRequest(acc.PrivateKey, invalidPubMReq)
+// 	invalidPubMReq.Sig = createValidSigOnTransferToPipeAccountRequest(acc.PrivateKey, invalidPubMReq)
 
-// 	noSigReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	noSigReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	noSigReq.Sig = nil
 
-// 	invalidSigReq := deepCopyTransferToHoldingRequest(rawReq)
+// 	invalidSigReq := deepCopyTransferToPipeAccountRequest(rawReq)
 // 	invalidSigReq.Sig[42] &= 1
 
 // 	invalidReqs := []proto.Message{
@@ -530,7 +530,7 @@ package nymapplication
 // 	for _, reqraw := range invalidReqs {
 // 		req, err := proto.Marshal(reqraw)
 // 		assert.Nil(t, err)
-// 		assert.NotEqual(t, code.OK, app.checkTxTransferToHolding(req))
+// 		assert.NotEqual(t, code.OK, app.checkTxTransferToPipeAccount(req))
 // 	}
 
 // }

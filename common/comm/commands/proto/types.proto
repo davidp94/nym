@@ -107,7 +107,7 @@ message GetCredentialRequest {
     repeated bytes pubM = 5;
     // Nonce sent to the chain to request the transfer of tokens to the hlding account.
     bytes nonce = 6;
-    // Hash of Tx that includes transfer of the tokens to the holding account.
+    // Hash of Tx that includes transfer of the tokens to the pipe account.
     bytes txHash = 7;
     // Signature on {PublicKey, Value, Nonce, txHash} to confirm validitiy of the request.
     bytes sig = 8; 

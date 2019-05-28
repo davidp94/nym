@@ -31,7 +31,7 @@ import (
 
 var (
 	// ErrKeyDoesNotExist represents error thrown when trying to look-up non-existent key
-	ErrKeyDoesNotExist error = errors.New("the specified key does not exist in the database")
+	ErrKeyDoesNotExist = errors.New("the specified key does not exist in the database")
 )
 
 // State defines ABCI app state. Currently it is a iavl tree. Reason for the choice: it was recurring case in examples.
@@ -40,7 +40,7 @@ type State struct {
 	db *iavl.MutableTree // hash and height (version) are obtained from the tree methods
 
 	watcherThreshold uint32
-	holdingAccount   ethcommon.Address
+	pipeAccount      ethcommon.Address
 }
 
 func (app *NymApplication) storeWatcherThreshold() {
@@ -59,17 +59,17 @@ func (app *NymApplication) loadWatcherThreshold() error {
 	return nil
 }
 
-func (app *NymApplication) storeHoldingAccountAddress() {
-	app.state.db.Set(tmconst.HoldingContractKey, app.state.holdingAccount[:])
+func (app *NymApplication) storePipeAccountAddress() {
+	app.state.db.Set(tmconst.PipeContractKey, app.state.pipeAccount[:])
 }
 
-func (app *NymApplication) loadHoldingAccountAddress() error {
-	_, val := app.state.db.Get(tmconst.HoldingContractKey)
+func (app *NymApplication) loadPipeAccountAddress() error {
+	_, val := app.state.db.Get(tmconst.PipeContractKey)
 	if val == nil {
 		return ErrKeyDoesNotExist
 	}
-	app.state.holdingAccount = ethcommon.BytesToAddress(val)
-	app.log.Info(fmt.Sprintf("Loaded holding account address: %v", app.state.holdingAccount.Hex()))
+	app.state.pipeAccount = ethcommon.BytesToAddress(val)
+	app.log.Info(fmt.Sprintf("Loaded pipe account address: %v", app.state.pipeAccount.Hex()))
 	return nil
 }
 
@@ -202,7 +202,7 @@ func (app *NymApplication) checkWatcherNotification(watcherKey, txHash []byte) b
 }
 
 func (app *NymApplication) getNotificationCount(txHash []byte) uint32 {
-	key := prefixKey(tmconst.HoldingTransferNotificationCountKeyPrefix, txHash)
+	key := prefixKey(tmconst.PipeAccountTransferNotificationCountKeyPrefix, txHash)
 
 	_, val := app.state.db.Get(key)
 	if val == nil {
@@ -212,7 +212,7 @@ func (app *NymApplication) getNotificationCount(txHash []byte) uint32 {
 }
 
 func (app *NymApplication) updateNotificationCount(txHash []byte, count uint32) {
-	key := prefixKey(tmconst.HoldingTransferNotificationCountKeyPrefix, txHash)
+	key := prefixKey(tmconst.PipeAccountTransferNotificationCountKeyPrefix, txHash)
 	countb := make([]byte, 4)
 	binary.BigEndian.PutUint32(countb, count)
 

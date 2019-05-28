@@ -17,7 +17,7 @@
 // package client provides API for communication with an Ethereum blockchain.
 package client
 
-// TODO: transfer to holding, redeem credential calls handling
+// TODO: transfer to pipe, redeem credential calls handling
 
 import (
 	"context"
@@ -44,7 +44,7 @@ type Client struct {
 	privateKey       *ecdsa.PrivateKey
 	chainID          *big.Int
 	erc20NymContract common.Address
-	holdingAccount   common.Address
+	pipeAccount      common.Address
 	ethClient        *ethclient.Client
 	nodeAddresses    []string
 
@@ -178,18 +178,18 @@ type Config struct {
 	privateKey       *ecdsa.PrivateKey
 	nodeAddresses    []string
 	erc20NymContract common.Address
-	holdingAccount   common.Address
+	pipeAccount      common.Address
 
 	logger *logger.Logger
 }
 
 // NewConfig creates new instance of Config struct.
-func NewConfig(pk *ecdsa.PrivateKey, nodes []string, erc20, holding common.Address, logger *logger.Logger) Config {
+func NewConfig(pk *ecdsa.PrivateKey, nodes []string, erc20, pipeAccount common.Address, logger *logger.Logger) Config {
 	cfg := Config{
 		privateKey:       pk,
 		nodeAddresses:    nodes,
 		erc20NymContract: erc20,
-		holdingAccount:   holding,
+		pipeAccount:      pipeAccount,
 		logger:           logger,
 	}
 	return cfg
@@ -200,7 +200,7 @@ func New(cfg Config) (*Client, error) {
 		address:          crypto.PubkeyToAddress(*cfg.privateKey.Public().(*ecdsa.PublicKey)),
 		privateKey:       cfg.privateKey,
 		erc20NymContract: cfg.erc20NymContract,
-		holdingAccount:   cfg.holdingAccount,
+		pipeAccount:      cfg.pipeAccount,
 		nodeAddresses:    cfg.nodeAddresses,
 		log:              cfg.logger.GetLogger("Ethereum-Client"),
 	}

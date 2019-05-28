@@ -68,7 +68,7 @@ package watcher
 // 						from, to := erc20decode(*tr.Logs[0])
 // 						if to.Hex() == config.pipeAccount.Hex() { // transaction went to the pipeAccount
 // 							value := getValue(*tr.Logs[0])
-// 							fmt.Printf("\n%d Nyms from %s to holding account at %s\n", value, from.Hex(), to.Hex())
+// 							fmt.Printf("\n%d Nyms from %s to pipe account at %s\n", value, from.Hex(), to.Hex())
 // 						}
 // 						fmt.Println()
 // 					}
@@ -142,7 +142,7 @@ package watcher
 // 	return block
 // }
 
-// // getFinalizedBalance returns the balance of the given account (typically the holding account)
+// // getFinalizedBalance returns the balance of the given account (typically the pipe account)
 // // as it was 13 blocks ago.
 // //
 // // We use 13 blocks to approximate "finality" but PoW chains are not really "final" in any rigorous sense.

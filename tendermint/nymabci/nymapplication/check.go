@@ -136,8 +136,8 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 	return code.OK
 }
 
-func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint32 {
-	req := &transaction.TransferToHoldingNotification{}
+func (app *NymApplication) checkTransferToPipeAccountNotificationTx(tx []byte) uint32 {
+	req := &transaction.TransferToPipeAccountNotification{}
 
 	if err := proto.Unmarshal(tx, req); err != nil {
 		app.log.Info("Failed to unmarshal request")
@@ -162,17 +162,17 @@ func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint3
 		return code.MALFORMED_ADDRESS
 	}
 
-	// check if the holding account matches
-	if !bytes.Equal(app.state.holdingAccount[:], req.HoldingAddress) {
-		app.log.Info("The specified holding account is different from the expected one")
-		return code.INVALID_HOLDING_ACCOUNT
+	// check if the pipe account matches
+	if !bytes.Equal(app.state.pipeAccount[:], req.PipeAccountAddress) {
+		app.log.Info("The specified pipe account is different from the expected one")
+		return code.INVALID_PIPE_ACCOUNT
 	}
 
 	// check signature
 	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
 	copy(msg, req.WatcherPublicKey)
 	copy(msg[len(req.WatcherPublicKey):], req.ClientAddress)
-	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.HoldingAddress)
+	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.PipeAccountAddress)
 	binary.BigEndian.PutUint64(msg[len(req.WatcherPublicKey)+2*ethcommon.AddressLength:], req.Amount)
 	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength+8:], req.TxHash)
 
@@ -247,9 +247,9 @@ func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint3
 // 	return code.OK
 // }
 
-// func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
+// func (app *NymApplication) checkTxTransferToPipeAccount(tx []byte) uint32 {
 // 	// verify sigs and check if all structs can be unmarshalled
-// 	req := &transaction.TransferToHoldingRequest{}
+// 	req := &transaction.TransferToPipeAccountRequest{}
 // 	if err := proto.Unmarshal(tx, req); err != nil {
 // 		return code.INVALID_TX_PARAMS
 // 	}
@@ -283,31 +283,31 @@ func (app *NymApplication) checkTransferToHoldingNotificationTx(tx []byte) uint3
 // 	}
 
 // 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	recoveredHoldingAddress := req.TargetAddress
+// 	recoveredPipeAccountAddress := req.TargetAddress
 
 // 	// TODO: update once epochs, etc. are introduced
-// 	if !bytes.Equal(recoveredHoldingAddress, tmconst.HoldingAccountAddress) {
+// 	if !bytes.Equal(recoveredPipeAccountAddress, tmconst.PipeAccountAccountAddress) {
 // 		return code.MALFORMED_ADDRESS
 // 	}
 
 // 	if retCode, _ := app.validateTransfer(
 // 		sourcePublicKey,
-// 		recoveredHoldingAddress,
+// 		recoveredPipeAccountAddress,
 // 		uint64(req.Amount),
 // 	); retCode != code.OK {
 // 		return retCode
 // 	}
 
 // 	msg := make([]byte,
-// 		len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
+// 		len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
 // 	)
 // 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
-// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
-// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
-// 	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
+// 	copy(msg[len(sourcePublicKey):], recoveredPipeAccountAddress)
+// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress):], uint32(req.Amount))
+// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4:], egPubb)
+// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb):], lambdab)
 // 	for i := range req.PubM {
-// 		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
+// 		copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
 // 			req.PubM[i],
 // 		)
 // 	}

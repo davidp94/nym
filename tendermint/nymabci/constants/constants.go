@@ -65,22 +65,23 @@ var (
 	SeenNoncePrefix = []byte("NONCE")
 
 	// CredentialRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
-	// to a successful request to transfer tokents to a holding account.
+	// to a successful request to transfer tokens to the pipe account.
 	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
 
 	// EthereumWatcherNotificationPrefix represents prefix for database entry
 	// to indicate given watcher has already notified about particular transfer.
 	EthereumWatcherNotificationPrefix = []byte("HOLDTRANSFNOTIF")
 
-	// HoldingTransferNotificationCountKey represents prefix for the key for number of watchers confirming given transfer
-	HoldingTransferNotificationCountKeyPrefix = []byte("COUNT HODLTRANSFNOTIF")
+	// PipeAccountTransferNotificationCountKeyPrefix represents prefix for the key for number of watchers
+	// confirming given transfer
+	PipeAccountTransferNotificationCountKeyPrefix = []byte("COUNT HODLTRANSFNOTIF")
 
 	// WatcherThresholdKey represents key under which watcher threshold as initially set in genesis state is stored.
 	WatcherThresholdKey = []byte("WatcherThreshold")
 
-	// HoldingContractKey represents key under which address of the holding account
+	// PipeContractKey represents key under which address of the pipe account
 	// as initially set in genesis state is stored.
-	HoldingContractKey = []byte("HoldingContractAddress")
+	PipeContractKey = []byte("PipeContractAddress")
 
 	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
 	HashFunction = ethcrypto.Keccak256
