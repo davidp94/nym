@@ -26,16 +26,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-
-	"0xacab.org/jstuczyn/CoconutGo/ethereum/erc20/constants"
-
 	token "0xacab.org/jstuczyn/CoconutGo/ethereum/token"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -43,21 +37,18 @@ import (
 // Client defines necessary attributes for establishing communication with an Ethereum blockchain
 // and for performing functions required by the Nym system.
 type Client struct {
-	nodeAddresses    []string
+	nodeAddress      string
 	privateKey       *ecdsa.PrivateKey
-	chainID          *big.Int
 	nymTokenInstance *token.Token
 	ethClient        *ethclient.Client
 	log              *logging.Logger
-	address          common.Address // TODO: remove?
-	erc20NymContract common.Address
-	pipeAccount      common.Address
+
+	pipeAccount common.Address // TODO: needed?
 }
 
 const (
 	// Nym specific
-	defaultDecimals    = 18 // TODO: move this one to erc20.constants?
-	predefinedGasLimit = 50000
+	defaultDecimals = 18 // TODO: move this one to erc20.constants?
 )
 
 // TODO: move to separate token-related package
@@ -111,19 +102,6 @@ func (c *Client) TransferERC20Tokens(ctx context.Context,
 		return c.logAndReturnError("TransferERC20Tokens: trying to transfer negative number of tokens")
 	}
 
-	fromAddress := c.address
-	nonce, err := c.ethClient.PendingNonceAt(ctx, fromAddress)
-	if err != nil {
-		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain nonce: %v", err)
-	}
-
-	gasPrice, err := c.ethClient.SuggestGasPrice(ctx)
-	if err != nil {
-		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain gas price: %v", err)
-	}
-
-	methodID := constants.MustMethodIDBytes(constants.TransferMethodID)
-
 	var decimals int64
 	if len(tokenDecimals) != 1 {
 		decimals = defaultDecimals
@@ -132,44 +110,23 @@ func (c *Client) TransferERC20Tokens(ctx context.Context,
 		decimals = int64(tokenDecimals[0])
 		c.log.Infof("Using %v decimals for the token", decimals)
 	}
-	// padded arguments:
-	paddedAddress := common.LeftPadBytes(targetAddress.Bytes(), 32)
+
 	tokenAmount := new(big.Int)
 	tokenAmount.Mul(getTokenDenomination(decimals), big.NewInt(amount))
 
-	paddedAmount := common.LeftPadBytes(tokenAmount.Bytes(), 32)
+	auth := bind.NewKeyedTransactor(c.privateKey)
+	auth.Context = ctx
 
-	data := make([]byte, len(methodID)+len(paddedAddress)+len(paddedAmount))
-	copy(data, methodID)
-	copy(data[len(methodID):], paddedAddress)
-	copy(data[len(methodID)+len(paddedAddress):], paddedAmount)
-
-	// from my limited experience the estimation was always lower than what was actually required, so temporarily
-	// i've just hardcoded some value, but for future we should probably use the estimation to derive our limit
-	gasLimit, err := c.ethClient.EstimateGas(context.Background(), ethereum.CallMsg{
-		To:   &targetAddress,
-		Data: data,
-	})
+	tx, err := c.nymTokenInstance.Transfer(auth, targetAddress, tokenAmount)
 	if err != nil {
-		return c.logAndReturnError("TransferERC20Tokens: Failed to obtain gas estimation: %v", err)
-	}
-	c.log.Debugf("Estimated gasLimit: %v, using %v instead", gasLimit, predefinedGasLimit)
-	gasLimit = predefinedGasLimit
-
-	tx := types.NewTransaction(nonce, tokenContract, big.NewInt(0), gasLimit, gasPrice, data)
-	signedTx, err := types.SignTx(tx, types.NewEIP155Signer(c.chainID), c.privateKey)
-	if err != nil {
-		return c.logAndReturnError("TransferERC20Tokens: Failed to sign transaction: %v", err)
-	}
-	if err := c.ethClient.SendTransaction(ctx, signedTx); err != nil {
 		return c.logAndReturnError("TransferERC20Tokens: Failed to send transaction: %v", err)
 	}
-	c.log.Noticef("Sent Transaction with hash: %v", signedTx.Hash().Hex())
-	// TODO: perhaps some wait loop to wait for transaction to be accepted/rejected?
+	c.log.Noticef("Sent Transaction with hash: %v", tx.Hash().Hex())
+
 	return nil
 }
 
-func (c *Client) connect(ctx context.Context, ethHost string) error {
+func (c *Client) connect(ctx context.Context, ethHost string, erc20Contract common.Address) error {
 	client, err := ethclient.Dial(ethHost)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error connecting to Infura: %s", err)
@@ -178,20 +135,10 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 	}
 
 	c.log.Debugf("Connected to %v", ethHost)
-
 	c.ethClient = client
 
-	if c.chainID == nil {
-		id, err := client.NetworkID(ctx)
-		if err != nil {
-			return c.logAndReturnError("Failed to obtain networkID: %v", err)
-		}
-		c.log.Debugf("Obtained network id: %v", id)
-		c.chainID = id
-	}
-
 	if c.nymTokenInstance == nil {
-		instance, err := token.NewToken(c.erc20NymContract, c.ethClient)
+		instance, err := token.NewToken(erc20Contract, c.ethClient)
 		if err != nil {
 			return c.logAndReturnError("Failed to create token instance: %v", err)
 		}
@@ -204,7 +151,7 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 // TODO: if expands too much, move it to a toml file? Or just include it in new section of existing Client toml.
 type Config struct {
 	privateKey       *ecdsa.PrivateKey
-	nodeAddresses    []string
+	nodeAddress      string
 	erc20NymContract common.Address
 	pipeAccount      common.Address
 
@@ -212,10 +159,10 @@ type Config struct {
 }
 
 // NewConfig creates new instance of Config struct.
-func NewConfig(pk *ecdsa.PrivateKey, nodes []string, erc20, pipeAccount common.Address, logger *logger.Logger) Config {
+func NewConfig(pk *ecdsa.PrivateKey, node string, erc20, pipeAccount common.Address, logger *logger.Logger) Config {
 	cfg := Config{
 		privateKey:       pk,
-		nodeAddresses:    nodes,
+		nodeAddress:      node,
 		erc20NymContract: erc20,
 		pipeAccount:      pipeAccount,
 		logger:           logger,
@@ -225,17 +172,15 @@ func NewConfig(pk *ecdsa.PrivateKey, nodes []string, erc20, pipeAccount common.A
 
 func New(cfg Config) (*Client, error) {
 	c := &Client{
-		address:          crypto.PubkeyToAddress(*cfg.privateKey.Public().(*ecdsa.PublicKey)),
-		privateKey:       cfg.privateKey,
-		erc20NymContract: cfg.erc20NymContract,
-		pipeAccount:      cfg.pipeAccount,
-		nodeAddresses:    cfg.nodeAddresses,
-		log:              cfg.logger.GetLogger("Ethereum-Client"),
+		privateKey:  cfg.privateKey,
+		pipeAccount: cfg.pipeAccount,
+		nodeAddress: cfg.nodeAddress,
+		log:         cfg.logger.GetLogger("Ethereum-Client"),
 	}
 
 	// TODO: reconnection, etc as with Tendermint client? Or just have a single node to which we connect and if it
 	// fails, it fails (+ actually same consideration for the Tendermint client)
-	if err := c.connect(context.TODO(), c.nodeAddresses[0]); err != nil {
+	if err := c.connect(context.TODO(), c.nodeAddress, cfg.erc20NymContract); err != nil {
 		return nil, err
 	}
 

@@ -1018,7 +1018,7 @@ func New(cfg *config.Config) (*Client, error) {
 
 	ethCfg := ethclient.NewConfig(
 		privateKey,
-		cfg.Nym.EthereumNodeAddresses,
+		cfg.Nym.EthereumNodeAddresses[0],
 		cfg.Nym.NymContract,
 		cfg.Nym.PipeAccount,
 		log,

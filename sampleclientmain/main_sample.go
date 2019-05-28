@@ -124,6 +124,18 @@ func nymFlow(cc *cclient.Client) {
 	}
 
 	fmt.Println("current nym balance:", currentNymBalance)
+
+	if err := cc.SendToPipeAccountWrapper(1); err != nil {
+		panic(err)
+	}
+
+	pending2, err := cc.GetCurrentERC20PendingBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Current pending", pending2)
+
 }
 
 //nolint: errcheck

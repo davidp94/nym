@@ -153,9 +153,7 @@ func (c *Client) sendToPipeAccount(amount int64) error {
 }
 
 func (c *Client) waitForBalanceIncrease() {
-	// super temp and incredibly dumb way of doing this.
-	// get current balance
-	// periodically query state until balance is increased by specified amount
+	// wait until currentbalance = pendingBalance but make sure our tx is in pending
 }
 
 // FIXME:
