@@ -46,7 +46,7 @@ type Client struct {
 	nodeAddresses    []string
 	privateKey       *ecdsa.PrivateKey
 	chainID          *big.Int
-	nymTokenIntance  *token.Token
+	nymTokenInstance *token.Token
 	ethClient        *ethclient.Client
 	log              *logging.Logger
 	address          common.Address // TODO: remove?
@@ -87,7 +87,7 @@ func (c *Client) GetTransactionStatus(ctx context.Context, txHash []byte) {
 
 // pending is used to decide whether to query pending balance
 func (c *Client) QueryERC20Balance(ctx context.Context, address common.Address, pending bool) (*big.Int, error) {
-	balance, err := c.nymTokenIntance.BalanceOf(&bind.CallOpts{
+	balance, err := c.nymTokenInstance.BalanceOf(&bind.CallOpts{
 		Pending: pending,
 		Context: ctx,
 	}, address)
@@ -190,12 +190,12 @@ func (c *Client) connect(ctx context.Context, ethHost string) error {
 		c.chainID = id
 	}
 
-	if c.nymTokenIntance == nil {
+	if c.nymTokenInstance == nil {
 		instance, err := token.NewToken(c.erc20NymContract, c.ethClient)
 		if err != nil {
 			return c.logAndReturnError("Failed to create token instance: %v", err)
 		}
-		c.nymTokenIntance = instance
+		c.nymTokenInstance = instance
 	}
 	return nil
 }
