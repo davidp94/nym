@@ -18,7 +18,7 @@
 package token
 
 import (
-	"crypto/ecdsa"
+	"fmt"
 
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
@@ -35,7 +35,7 @@ import (
 
 //nolint: gochecknoglobals
 var (
-	allowedValues = []int{1, 2, 5, 10, 20, 50, 100}
+	allowedValues = []int64{1, 2, 5, 10, 20, 50, 100}
 )
 
 type Token struct {
@@ -76,7 +76,6 @@ func (t *Token) GetPublicAndPrivateSlices() ([]*Curve.BIG, []*Curve.BIG) {
 
 // should be associated with given client/user rather than token if I understand it correctly
 type PrivateKey *Curve.BIG
-type Foo *ecdsa.PrivateKey
 
 type Credential *coconut.Signature
 
@@ -86,11 +85,21 @@ func (t *Token) PrepareBlindSign(params *coconut.Params, egPub *elgamal.PublicKe
 }
 
 // temp, havent decided on where attrs will be generated, but want token instance for test
-func New(s, k *Curve.BIG, val int64) *Token {
+func New(s, k *Curve.BIG, val int64) (*Token, error) {
+	isAllowed := false
+	for _, allowed := range allowedValues {
+		if val == allowed {
+			isAllowed = true
+			break
+		}
+	}
+	if !isAllowed {
+		return nil, fmt.Errorf("disallowed credential value: %v, allowed: %v", val, allowedValues)
+	}
 	// TODO: validate val
 	return &Token{
 		privateKey:  k,
 		sequenceNum: s,
 		value:       val,
-	}
+	}, nil
 }
