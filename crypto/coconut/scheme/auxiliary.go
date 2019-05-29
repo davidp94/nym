@@ -67,6 +67,7 @@ func GetRandomNums(params *Params, n int) []*Curve.BIG {
 func BigSliceFromByteSlices(b [][]byte) []*Curve.BIG {
 	bigs := make([]*Curve.BIG, len(b))
 	for i := range b {
+		// TODO: check for nil elements?
 		bigs[i] = Curve.FromBytes(b[i])
 	}
 	return bigs

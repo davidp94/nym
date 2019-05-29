@@ -626,3 +626,76 @@ func (theta *Theta) FromProto(protoTheta *ProtoTheta) error {
 	theta.proof = proof
 	return nil
 }
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindSignMaterials) MarshalBinary() ([]byte, error) {
+	protoBlindSignMaterials, err := bsm.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(protoBlindSignMaterials)
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindSignMaterials) UnmarshalBinary(data []byte) error {
+	protoBlindSignMaterials := &ProtoBlindSignMaterials{}
+	if err := proto.Unmarshal(data, protoBlindSignMaterials); err != nil {
+		return err
+	}
+	return bsm.FromProto(protoBlindSignMaterials)
+}
+
+// ToProto creates a protobuf representation of the object.
+func (bsm *BlindSignMaterials) ToProto() (*ProtoBlindSignMaterials, error) {
+	if bsm == nil || bsm.lambda == nil || bsm.egPub == nil || bsm.pubM == nil {
+		return nil, errors.New("the blind sign materials are malformed")
+	}
+
+	protoLambda, err := bsm.lambda.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	protoPublicKey, err := bsm.egPub.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := BigSliceToByteSlices(bsm.pubM)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProtoBlindSignMaterials{
+		Lambda: protoLambda,
+		EgPub:  protoPublicKey,
+		PubM:   pubMb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (bsm *BlindSignMaterials) FromProto(pbsm *ProtoBlindSignMaterials) error {
+	if pbsm == nil || pbsm.Lambda == nil || pbsm.EgPub == nil || pbsm.PubM == nil {
+		return errors.New("invalid proto blind sign materials")
+	}
+
+	lambda := &Lambda{}
+	if err := lambda.FromProto(pbsm.Lambda); err != nil {
+		return err
+	}
+
+	egPub := &elgamal.PublicKey{}
+	if err := egPub.FromProto(pbsm.EgPub); err != nil {
+		return err
+	}
+
+	pubM := BigSliceFromByteSlices(pbsm.PubM)
+
+	bsm.lambda = lambda
+	bsm.egPub = egPub
+	bsm.pubM = pubM
+	return nil
+}
