@@ -20,6 +20,9 @@ package transaction
 import (
 	"crypto/ecdsa"
 	"encoding/binary"
+	"errors"
+
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
@@ -44,6 +47,9 @@ const (
 	// TxTransferToPipeAccountNotification is byte prefix for transaction notifying tendermint nodes about
 	// transfer to pipe account that happened on ethereum chain
 	TxTransferToPipeAccountNotification byte = 0xa1
+	// TxCredentialRequest is byte prefix for transaction indicating client wanting to convert some of its tokens
+	// into a credential
+	TxCredentialRequest byte = 0x02
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
@@ -265,43 +271,54 @@ func CreateNewTransferToPipeAccountNotification(privateKey *ecdsa.PrivateKey,
 	return marshalRequest(req, TxTransferToPipeAccountNotification)
 }
 
-// DEPRECATED; but left temporarily for reference sake
-// // CreateNewTransferToPipeAccountRequest creates new request for tx to transfer funds from client's account
-// // to the pipe account.
-// // It is designed to be executed by an issuing authority.
-// func CreateNewTransferToPipeAccountRequest(params TransferToPipeAccountReqParams) ([]byte, error) {
-// 	id := params.ID
-// 	priv := params.PrivateKey
-// 	clientPublicKey := params.ClientPublicKey
-// 	amount := params.Amount
-// 	commitment := params.Commitment
-// 	clientSig := params.ClientSig
+func CreateCredentialRequest(privateKey *ecdsa.PrivateKey,
+	pipeAccountAddress ethcommon.Address,
+	bsm *coconut.BlindSignMaterials,
+	value int64,
+) ([]byte, error) {
 
-// 	msg := make([]byte, 4+len(clientPublicKey)+4+len(commitment)+len(clientSig))
-// 	binary.BigEndian.PutUint32(msg, id)
-// 	copy(msg[4:], clientPublicKey)
-// 	binary.BigEndian.PutUint32(msg[4+len(clientPublicKey):], uint32(amount))
-// 	copy(msg[4+len(clientPublicKey)+4:], commitment)
-// 	copy(msg[4+len(clientPublicKey)+4+len(commitment):], clientSig)
+	if value <= 0 {
+		return nil, errors.New("invalid credential value")
+	}
 
-// 	sig := priv.SignBytes(msg)
+	nonce, err := utils.GenerateRandomBytes(tmconst.NonceLength)
+	if err != nil {
+		return nil, err
+	}
 
-// 	req := &TransferToPipeAccountRequest{
-// 		IAID:            id,
-// 		ClientPublicKey: clientPublicKey,
-// 		Amount:          amount,
-// 		Commitment:      commitment,
-// 		ClientSig:       clientSig,
-// 		IASig:           sig,
-// 	}
+	protoBlindSignMaterials, err := bsm.ToProto()
+	if err != nil {
+		return nil, err
+	}
 
-// 	protob, err := proto.Marshal(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	b := make([]byte, len(protob)+1)
+	// can't just marshal the proto materials to bytes as this serialisation is not guaranteed to be deterministic
+	bsmBytes, err := protoBlindSignMaterials.OneWayToBytes()
+	if err != nil {
+		return nil, err
+	}
 
-// 	b[0] = TxTransferToPipeAccount
-// 	copy(b[1:], protob)
-// 	return b, nil
-// }
+	address := ethcrypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey))
+
+	msg := make([]byte, 2*ethcommon.AddressLength+len(bsmBytes)+8+tmconst.NonceLength)
+	i := copy(msg, address[:])
+	i += copy(msg[i:], pipeAccountAddress[:])
+	i += copy(msg[i:], bsmBytes)
+	binary.BigEndian.PutUint64(msg[i:], uint64(value))
+	i += 8
+	copy(msg[i:], nonce)
+
+	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), privateKey)
+	if err != nil {
+		return nil, err
+	}
+
+	req := &CredentialRequest{
+		ClientAddress:      address[:],
+		PipeAccountAddress: pipeAccountAddress[:],
+		CryptoMaterials:    protoBlindSignMaterials,
+		Value:              value,
+		Nonce:              nonce,
+		Sig:                sig,
+	}
+	return marshalRequest(req, TxCredentialRequest)
+}
