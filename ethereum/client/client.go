@@ -94,7 +94,6 @@ func (c *Client) QueryERC20Balance(ctx context.Context, address common.Address, 
 // TransferERC20Tokens sends specified amount of ERC20 tokens to given account.
 func (c *Client) TransferERC20Tokens(ctx context.Context,
 	amount int64,
-	tokenContract common.Address,
 	targetAddress common.Address,
 	tokenDecimals ...int,
 ) error {

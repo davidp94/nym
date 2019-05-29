@@ -146,7 +146,7 @@ func (c *Client) SendToPipeAccountWrapper(amount int64) error {
 
 func (c *Client) sendToPipeAccount(amount int64) error {
 	ctx := context.TODO()
-	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.NymContract, c.cfg.Nym.PipeAccount); err != nil {
+	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.PipeAccount); err != nil {
 		return err
 	}
 	return nil
