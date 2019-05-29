@@ -87,7 +87,7 @@ func (p *Processor) worker() {
 				continue
 			}
 
-			blindSignMaterials := &coconut.BlindSignMaterials{}
+			blindSignMaterials := &coconut.ProtoBlindSignMaterials{}
 
 			err := proto.Unmarshal(tx.Tags[0].Value, blindSignMaterials)
 			if err != nil {

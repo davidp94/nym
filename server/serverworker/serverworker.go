@@ -86,7 +86,13 @@ func (sw *ServerWorker) handleSignRequest(req *commands.SignRequest) *commands.R
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := sw.SignWrapper(sw.sk, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	sig, err := sw.SignWrapper(sw.sk, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -119,7 +125,13 @@ func (sw *ServerWorker) handleVerifyRequest(req *commands.VerifyRequest) *comman
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = sw.VerifyWrapper(sw.avk, coconut.BigSliceFromByteSlices(req.PubM), sig)
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	response.Data = sw.VerifyWrapper(sw.avk, bigs, sig)
 	return response
 }
 
@@ -144,7 +156,13 @@ func (sw *ServerWorker) handleBlindSignRequest(req *commands.BlindSignRequest) *
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -176,7 +194,13 @@ func (sw *ServerWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = sw.BlindVerifyWrapper(sw.avk, sig, theta, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	response.Data = sw.BlindVerifyWrapper(sw.avk, sig, theta, bigs)
 	return response
 }
 
