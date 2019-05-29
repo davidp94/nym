@@ -64,13 +64,15 @@ func GetRandomNums(params *Params, n int) []*Curve.BIG {
 }
 
 // BigSliceFromByteSlices recovers a slice of BIG nums from a slice of slices of bytes.
-func BigSliceFromByteSlices(b [][]byte) []*Curve.BIG {
+func BigSliceFromByteSlices(b [][]byte) ([]*Curve.BIG, error) {
 	bigs := make([]*Curve.BIG, len(b))
 	for i := range b {
-		// TODO: check for nil elements?
+		if b[i] == nil {
+			return nil, errors.New("Nil element in slice")
+		}
 		bigs[i] = Curve.FromBytes(b[i])
 	}
-	return bigs
+	return bigs, nil
 }
 
 // BigSliceToByteSlices converts a slice of BIG nums to slice of slices of bytes.

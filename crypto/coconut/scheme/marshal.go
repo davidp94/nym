@@ -692,7 +692,10 @@ func (bsm *BlindSignMaterials) FromProto(pbsm *ProtoBlindSignMaterials) error {
 		return err
 	}
 
-	pubM := BigSliceFromByteSlices(pbsm.PubM)
+	pubM, err := BigSliceFromByteSlices(pbsm.PubM)
+	if err != nil {
+		return err
+	}
 
 	bsm.lambda = lambda
 	bsm.egPub = egPub

@@ -66,7 +66,8 @@ func TestBIGSliceConversion(t *testing.T) {
 		assert.Len(t, s, len(bs))
 		assert.Nil(t, err)
 
-		sr := coconut.BigSliceFromByteSlices(bs)
+		sr, err := coconut.BigSliceFromByteSlices(bs)
+		assert.Nil(t, err)
 		for i := range sr {
 			assert.NotNil(t, sr[i])
 			assert.Zero(t, Curve.Comp(sr[i], s[i]))
