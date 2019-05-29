@@ -34,6 +34,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -139,21 +140,32 @@ func (c *Client) GetCurrentNymBalance() (uint64, error) {
 	return balance, nil
 }
 
-// public wrapper just for dummy tests
-func (c *Client) SendToPipeAccountWrapper(amount int64) error {
-	return c.sendToPipeAccount(amount)
-}
-
-func (c *Client) sendToPipeAccount(amount int64) error {
-	ctx := context.TODO()
+func (c *Client) sendToPipeAccount(ctx context.Context, amount int64) error {
 	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.PipeAccount); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Client) waitForBalanceIncrease() {
-	// wait until currentbalance = pendingBalance but make sure our tx is in pending
+func (c *Client) waitForBalanceIncrease(ctx context.Context, expectedBalance uint64) error {
+	c.log.Info("Waiting for our transaction to reach Tendermint chain")
+	retryTicker := time.NewTicker(2 * time.Second)
+
+	select {
+	case <-retryTicker.C:
+		currentBalance, err := c.GetCurrentNymBalance()
+		if err != nil {
+			// TODO: should we cancel instead?
+			c.log.Warningf("Error while querying for balance: %v", err)
+		}
+		if currentBalance == expectedBalance {
+			return nil
+		}
+	case <-ctx.Done():
+		return errors.New("operation was cancelled")
+	}
+	// should never be reached
+	return errors.New("unexpected error")
 }
 
 // FIXME:
@@ -167,75 +179,86 @@ func (c *Client) createCredentialRequestSig(txHash cmn.HexBytes, nonce []byte, t
 	// return c.nymAccount.PrivateKey.SignBytes(msg)
 }
 
-// GetCredential similarly to previous requests, sends 'getcredential' request
-// to all IA servers specified in the config with the provided token and required cryptographic materials.
-// Error is returned if insufficient number of responses was received.
+// GetCredential is a multistep procedure. First it sends 'GetCredential' request to Tendermint blockchain.
+// This is followed by query to all IA servers specified in the config to obtain partial credentials based on
+// materials sent to the chain.
 func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
-	return nil, errors.New("REQUIRES RE-IMPLEMENTATION")
+	if c.cfg.Client.UseGRPC {
+		return nil, c.logAndReturnError(gRPCClientErr)
+	}
 
-	// if c.cfg.Client.UseGRPC {
-	// 	return nil, c.logAndReturnError(gRPCClientErr)
-	// }
+	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
 
-	// 	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
+	// first check if we have loaded the account information
+	if c.privateKey == nil {
+		return nil, c.logAndReturnError("GetCredential: Tried to obtain credential on undefined account")
+	}
 
-	// 	// first check if we have loaded the account information
-	// 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-	// 		return nil, c.logAndReturnError("GetCredential: Tried to obtain credential on undefined account")
-	// 	}
+	// query our balance to make sure we have enough funds to get credential on specified value
+	currentBalance, err := c.GetCurrentNymBalance()
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: could not query for current balance: %v", err)
+	}
 
-	// 	// we transfer amount of tokens to the Pipe account
-	// 	height, err := c.transferTokensToPipe(token, elGamalPublicKey)
-	// 	if err != nil {
-	// 		return nil, c.logAndReturnError("GetCredential: could not transfer to the Pipe account: %v", err)
-	// 	}
+	// FIXME: this seems like a dodgy comparison due to type conversion, we need to find a way to change it
+	// However, even though token value is an int64, it must always be positive
+	if currentBalance < uint64(token.Value()) {
+		// TODO: flag to transfer remaining funds to pipe account if available on ethereum?
+		return nil, c.logAndReturnError("GetCredential: current balance is lower than the value of desired credential")
+	}
 
-	// 	if height <= 1 {
-	// 		return nil, c.logAndReturnError("GetCredential: tx was included at invalid height: %v", height)
-	// 	}
+	// we send request to the chain
+	height, err := c.sendCredentialRequest(token, elGamalPublicKey)
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: could not send credential request: %v", err)
+	}
 
-	// 	// TODO: if there's a failure anywhere beyond this point, we must be able to return height and elgamal keypair
-	// 	// so that client could theoretically retry at later time
+	if height <= 1 {
+		return nil, c.logAndReturnError("GetCredential: tx was included at invalid height: %v", height)
+	}
 
-	// 	c.log.Debugf("Our tx was included in block: %v", height)
+	// TODO: if there's a failure anywhere beyond this point, we must be able to return height and elgamal keypair
+	// so that client could theoretically retry at later time
 
-	// 	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
-	// 	if err != nil {
-	// 		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
-	// 	}
+	c.log.Debugf("Our tx was included in block: %v", height)
 
-	// 	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
-	// 	if err != nil {
-	// 		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
-	// 	}
+	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
+	}
 
-	// 	for i := 0; i < c.cfg.Debug.NumberOfLookUpRetries; i++ {
-	// 		c.log.Debug("Waiting for %v", time.Millisecond*time.Duration(c.cfg.Debug.LookUpBackoff))
-	// 		time.Sleep(time.Millisecond * time.Duration(c.cfg.Debug.LookUpBackoff))
-	// 		c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
+	if err != nil {
+		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
+	}
 
-	// 		responses := comm.GetServerResponses(
-	// 			&comm.RequestParams{
-	// 				MarshaledPacket:   packetBytes,
-	// 				MaxRequests:       c.cfg.Client.MaxRequests,
-	// 				ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-	// 				RequestTimeout:    c.cfg.Debug.RequestTimeout,
-	// 				ServerAddresses:   c.cfg.Client.IAAddresses,
-	// 				ServerIDs:         c.cfg.Client.IAIDs,
-	// 			},
-	// 			c.log,
-	// 		)
+	for i := 0; i < c.cfg.Debug.NumberOfLookUpRetries; i++ {
+		c.log.Debug("Waiting for %v", time.Millisecond*time.Duration(c.cfg.Debug.LookUpBackoff))
+		time.Sleep(time.Millisecond * time.Duration(c.cfg.Debug.LookUpBackoff))
+		c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
 
-	// 		sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
-	// 		if err != nil {
-	// 			continue
-	// 		}
-	// 		return sig, nil
-	// 	}
+		responses := comm.GetServerResponses(
+			&comm.RequestParams{
+				MarshaledPacket:   packetBytes,
+				MaxRequests:       c.cfg.Client.MaxRequests,
+				ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
+				RequestTimeout:    c.cfg.Debug.RequestTimeout,
+				ServerAddresses:   c.cfg.Client.IAAddresses,
+				ServerIDs:         c.cfg.Client.IAIDs,
+			},
+			c.log,
+		)
 
-	// 	// todo: somehow return gamma and height in response rather than in error message
-	// 	return nil, c.logAndReturnError(`GetCredential: Could not communicate with enough IAs to obtain credentials.
-	// Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
+		sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
+		if err != nil {
+			continue
+		}
+		return sig, nil
+	}
+
+	// todo: somehow return gamma and height in response rather than in error message
+	return nil, c.logAndReturnError(`GetCredential: Could not communicate with enough IAs to obtain credentials.
+	Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 }
 
 // TODO: at later date, though we possibly might even ignore it
@@ -303,45 +326,32 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 // 	return c.handleReceivedSignatures(sigs, nil)
 // }
 
-func (c *Client) transferTokensToPipe(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
-	return -1, errors.New("REQUIRES RE-IMPLEMENTATION")
-	// first check if we have loaded the account information
-	// if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-	// 	return -1, c.logAndReturnError("transferTokensToPipe: Tried to obtain credential on undefined account")
-	// }
+func (c *Client) sendCredentialRequest(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
+	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(egPub, token)
+	if err != nil {
+		return -1, c.logAndReturnError("sendCredentialRequest: Could not create lambda: %v", err)
+	}
 
-	// lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(egPub, token)
-	// if err != nil {
-	// 	return -1, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
-	// }
+	pubM, _ := token.GetPublicAndPrivateSlices()
+	bsm := coconut.NewBlindSignMaterials(lambda, egPub, pubM)
 
-	// pubM, _ := token.GetPublicAndPrivateSlices()
+	req, err := transaction.CreateCredentialRequest(c.privateKey, c.cfg.Nym.PipeAccount, bsm, token.Value())
+	if err != nil {
+		return -1, c.logAndReturnError("sendCredentialRequest: Failed to create request: %v", err)
+	}
 
-	// transferToPipeRequestParams := transaction.TransferToPipeRequestParams{
-	// 	Acc:    c.nymAccount,
-	// 	Amount: token.Value(),
-	// 	EgPub:  egPub,
-	// 	Lambda: lambda,
-	// 	PubM:   pubM,
-	// }
+	res, err := c.nymClient.Broadcast(req)
+	if err != nil {
+		return -1, c.logAndReturnError("sendCredentialRequest: Failed to send request to the blockchain: %v", err)
+	}
+	if res.DeliverTx.Code != code.OK {
+		return -1, c.logAndReturnError("sendCredentialRequest: Failed to send request to the blockchain: %v - %v",
+			res.DeliverTx.Code,
+			code.ToString(res.DeliverTx.Code),
+		)
+	}
 
-	// req, err := transaction.CreateNewTransferToPipeRequest(transferToPipeRequestParams)
-	// if err != nil {
-	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to create request: %v", err)
-	// }
-
-	// res, err := c.nymClient.Broadcast(req)
-	// if err != nil {
-	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to send request to the blockchain: %v", err)
-	// }
-	// if res.DeliverTx.Code != code.OK {
-	// 	return -1, c.logAndReturnError("transferTokensToPipe: Failed to send request to the blockchain: %v - %v",
-	// 		res.DeliverTx.Code,
-	// 		code.ToString(res.DeliverTx.Code),
-	// 	)
-	// }
-
-	// return res.Height, nil
+	return res.Height, nil
 }
 
 func (c *Client) parseSpendCredentialResponse(packetResponse *packet.Packet) (bool, error) {
