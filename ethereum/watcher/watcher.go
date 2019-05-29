@@ -82,6 +82,10 @@ func (w *Watcher) worker() {
 					if tx.To().Hex() == w.cfg.Watcher.NymContract.Hex() { // transaction used the Nym ERC20 contract
 						txHash := tx.Hash()
 						tr := w.getTransactionReceipt(txHash)
+						if len(tr.Logs) == 0 {
+							w.log.Warning("Transaction logs struct is empty")
+							continue
+						}
 						from, to := erc20decode(*tr.Logs[0])
 						if to.Hex() == w.cfg.Watcher.PipeAccount.Hex() { // transaction went to the pipeAccount
 							value := getValue(*tr.Logs[0])
