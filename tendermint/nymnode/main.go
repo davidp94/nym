@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -140,6 +141,16 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 }
 
 func main() {
+	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
+	if PtrSize != 64 || strconv.IntSize != 64 {
+		fmt.Fprintf(os.Stderr,
+			"The binary seems to not have been compiled in 64bit mode. Runtime pointer size: %v, Int size: %v\n",
+			PtrSize,
+			strconv.IntSize,
+		)
+		os.Exit(-1)
+	}
+
 	cfgFilePtr := flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
 	dataRootPtr := flag.String("dataRoot", "/tendermint", "The data root directory")
 	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks",
