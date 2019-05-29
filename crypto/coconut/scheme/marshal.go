@@ -702,3 +702,56 @@ func (bsm *BlindSignMaterials) FromProto(pbsm *ProtoBlindSignMaterials) error {
 	bsm.pubM = pubM
 	return nil
 }
+
+// TODO: perhaps similar code for all other structs?
+// We don't care about being able to recover original data. Treat it as a one-way function.
+// Used to sign and verify the underlying data.
+func (pbsm *ProtoBlindSignMaterials) OneWayToBytes() ([]byte, error) {
+	sp := pbsm.Lambda.Proof
+	if len(sp.Rk) == 0 || len(sp.Rm) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	proofBytes := make([]byte, len(sp.C)+len(sp.Rr)+len(sp.Rk)*len(sp.Rk[0])+len(sp.Rm)*len(sp.Rm[0]))
+	i := copy(proofBytes, sp.C)
+	i += copy(proofBytes[i:], sp.Rr)
+	for _, rke := range sp.Rk {
+		i += copy(proofBytes[i:], rke)
+	}
+	for _, rme := range sp.Rm {
+		i += copy(proofBytes[i:], rme)
+	}
+
+	l := pbsm.Lambda
+	if len(l.Enc) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	lambdaBytes := make([]byte, len(l.Cm)+2*len(l.Enc)*len(l.Enc[0].C1)+len(proofBytes))
+	i = copy(lambdaBytes, l.Cm)
+	for _, ence := range l.Enc {
+		i += copy(lambdaBytes[i:], ence.C1)
+		i += copy(lambdaBytes[i:], ence.C2)
+	}
+	copy(lambdaBytes[i:], proofBytes)
+
+	pub := pbsm.EgPub
+	pubBytes := make([]byte, len(pub.P)+len(pub.G)+len(pub.Gamma))
+	i = copy(pubBytes, pub.P)
+	i += copy(pubBytes[i:], pub.G)
+	copy(pubBytes[i:], pub.Gamma)
+
+	if len(pbsm.PubM) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	pubMb := make([]byte, len(pbsm.PubM)*len(pbsm.PubM[0]))
+	i = 0
+	for _, pubMe := range pbsm.PubM {
+		i += copy(pubMb[i:], pubMe)
+	}
+
+	b := make([]byte, len(lambdaBytes)+len(pubBytes)+len(pubMb))
+	i = copy(b, lambdaBytes)
+	i += copy(b[i:], pubBytes)
+	copy(b[i:], pubMb)
+
+	return b, nil
+}

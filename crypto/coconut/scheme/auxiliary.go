@@ -68,7 +68,7 @@ func BigSliceFromByteSlices(b [][]byte) ([]*Curve.BIG, error) {
 	bigs := make([]*Curve.BIG, len(b))
 	for i := range b {
 		if b[i] == nil {
-			return nil, errors.New("Nil element in slice")
+			return nil, errors.New("nil element in slice")
 		}
 		bigs[i] = Curve.FromBytes(b[i])
 	}
