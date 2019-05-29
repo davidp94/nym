@@ -344,7 +344,7 @@ func NewGetCredentialRequest(lambda *coconut.Lambda,
 func NewSpendCredentialRequest(sig *coconut.Signature,
 	pubM []*Curve.BIG,
 	theta *coconut.ThetaTumbler,
-	val int32,
+	val int64,
 	address []byte,
 ) (*SpendCredentialRequest, error) {
 	protoSig, err := sig.ToProto()

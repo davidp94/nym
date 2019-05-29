@@ -18,10 +18,14 @@
 package token
 
 import (
+	"crypto/ecdsa"
+
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
+
+// TODO: refactor the entire file? - move somewhere more appropriate and perhaps rename it
 
 // For future reference:
 // tags can be accessed via reflections;
@@ -37,7 +41,7 @@ var (
 type Token struct {
 	privateKey  PrivateKey `coconut:"private"`
 	sequenceNum *Curve.BIG `coconut:"private"`
-	value       int32      `coconut:"public"` // should be limited to set of possible values to prevent traffic analysis
+	value       int64      `coconut:"public"` // should be limited to set of possible values to prevent traffic analysis
 	// ttl         time.Time  `coconut:"public"`
 }
 
@@ -49,7 +53,7 @@ func (t *Token) SequenceNum() *Curve.BIG {
 	return t.sequenceNum
 }
 
-func (t *Token) Value() int32 {
+func (t *Token) Value() int64 {
 	return t.value
 }
 
@@ -72,6 +76,7 @@ func (t *Token) GetPublicAndPrivateSlices() ([]*Curve.BIG, []*Curve.BIG) {
 
 // should be associated with given client/user rather than token if I understand it correctly
 type PrivateKey *Curve.BIG
+type Foo *ecdsa.PrivateKey
 
 type Credential *coconut.Signature
 
@@ -81,7 +86,7 @@ func (t *Token) PrepareBlindSign(params *coconut.Params, egPub *elgamal.PublicKe
 }
 
 // temp, havent decided on where attrs will be generated, but want token instance for test
-func New(s, k *Curve.BIG, val int32) *Token {
+func New(s, k *Curve.BIG, val int64) *Token {
 	// TODO: validate val
 	return &Token{
 		privateKey:  k,
