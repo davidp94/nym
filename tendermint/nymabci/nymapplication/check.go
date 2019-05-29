@@ -116,10 +116,11 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 	}
 
 	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
-	copy(msg, req.SourceAddress)
-	copy(msg[ethcommon.AddressLength:], req.TargetAddress)
-	binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], req.Amount)
-	copy(msg[2*ethcommon.AddressLength+8:], req.Nonce)
+	i := copy(msg, req.SourceAddress)
+	i += copy(msg[i:], req.TargetAddress)
+	binary.BigEndian.PutUint64(msg[i:], req.Amount)
+	i += 8
+	copy(msg[i:], req.Nonce)
 
 	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
 	if err != nil {
@@ -170,11 +171,12 @@ func (app *NymApplication) checkTransferToPipeAccountNotificationTx(tx []byte) u
 
 	// check signature
 	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
-	copy(msg, req.WatcherPublicKey)
-	copy(msg[len(req.WatcherPublicKey):], req.ClientAddress)
-	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength:], req.PipeAccountAddress)
-	binary.BigEndian.PutUint64(msg[len(req.WatcherPublicKey)+2*ethcommon.AddressLength:], req.Amount)
-	copy(msg[len(req.WatcherPublicKey)+ethcommon.AddressLength+8:], req.TxHash)
+	i := copy(msg, req.WatcherPublicKey)
+	i += copy(msg[i:], req.ClientAddress)
+	i += copy(msg[i:], req.PipeAccountAddress)
+	binary.BigEndian.PutUint64(msg[i:], req.Amount)
+	i += 8
+	copy(msg[i:], req.TxHash)
 
 	sig := req.Sig
 	// last byte is a recoveryID which we don't care about

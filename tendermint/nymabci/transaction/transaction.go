@@ -110,11 +110,18 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 
 	sourceAddress := ethcrypto.PubkeyToAddress(*sourcePrivateKey.Public().(*ecdsa.PublicKey))
 
+	// msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
+	// copy(msg, sourceAddress[:])
+	// copy(msg[ethcommon.AddressLength:], targetAddress[:])
+	// binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], amount)
+	// copy(msg[2*ethcommon.AddressLength+8:], nonce)
+
 	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
-	copy(msg, sourceAddress[:])
-	copy(msg[ethcommon.AddressLength:], targetAddress[:])
-	binary.BigEndian.PutUint64(msg[2*ethcommon.AddressLength:], amount)
-	copy(msg[2*ethcommon.AddressLength+8:], nonce)
+	i := copy(msg, sourceAddress[:])
+	i += copy(msg[i:], targetAddress[:])
+	binary.BigEndian.PutUint64(msg[i:], amount)
+	i += 8
+	copy(msg[i:], nonce)
 
 	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), sourcePrivateKey)
 	if err != nil {
@@ -248,12 +255,20 @@ func CreateNewTransferToPipeAccountNotification(privateKey *ecdsa.PrivateKey,
 	publicKey := privateKey.Public().(*ecdsa.PublicKey)
 	publicKeyBytes := ethcrypto.FromECDSAPub(publicKey)
 
+	// msg := make([]byte, len(publicKeyBytes)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
+	// copy(msg, publicKeyBytes)
+	// copy(msg[len(publicKeyBytes):], clientAddress[:])
+	// copy(msg[len(publicKeyBytes)+ethcommon.AddressLength:], pipeAccountAddress[:])
+	// binary.BigEndian.PutUint64(msg[len(publicKeyBytes)+2*ethcommon.AddressLength:], amount)
+	// copy(msg[len(publicKeyBytes)+2*ethcommon.AddressLength+8:], txHash[:])
+
 	msg := make([]byte, len(publicKeyBytes)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
-	copy(msg, publicKeyBytes)
-	copy(msg[len(publicKeyBytes):], clientAddress[:])
-	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength:], pipeAccountAddress[:])
-	binary.BigEndian.PutUint64(msg[len(publicKeyBytes)+2*ethcommon.AddressLength:], amount)
-	copy(msg[len(publicKeyBytes)+ethcommon.AddressLength+8:], txHash[:])
+	i := copy(msg, publicKeyBytes)
+	i += copy(msg[i:], clientAddress[:])
+	i += copy(msg[i:], pipeAccountAddress[:])
+	binary.BigEndian.PutUint64(msg[i:], amount)
+	i += 8
+	copy(msg[i:], txHash[:])
 
 	sig, err := ethcrypto.Sign(tmconst.HashFunction(msg), privateKey)
 	if err != nil {
