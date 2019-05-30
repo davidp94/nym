@@ -17,15 +17,11 @@
 package nymapplication
 
 import (
-	"bytes"
-	"encoding/binary"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	"github.com/tendermint/tendermint/abci/types"
 )
@@ -43,33 +39,13 @@ func (app *NymApplication) createNewAccount(reqb []byte) types.ResponseDeliverTx
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	if len(req.Address) != ethcommon.AddressLength {
-		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-	}
-
-	if !app.verifyCredential(req.Credential) {
-		app.log.Info("Failed to verify IP credential")
-		return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-	}
-
-	msg := make([]byte, len(req.Address)+len(req.Credential))
-	copy(msg, req.Address)
-	copy(msg[len(req.Address):], req.Credential)
-
-	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
-	if err != nil {
-		app.log.Info("Error while trying to recover public key associated with the signature")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
-
-	recAddr := ethcrypto.PubkeyToAddress(*recPub)
-	if !bytes.Equal(recAddr[:], req.Address) {
-		app.log.Info("Failed to verify signature on request")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	if checkResult := app.checkNewAccountTx(reqb); checkResult != code.OK {
+		app.log.Info("CreateNewAccount failed checkTx")
+		return types.ResponseDeliverTx{Code: checkResult}
 	}
 
 	// we already know recAddr is identical to the address sent
-	didSucceed := app.createNewAccountOp(recAddr)
+	didSucceed := app.createNewAccountOp(ethcommon.BytesToAddress(req.Address))
 	if didSucceed {
 		return types.ResponseDeliverTx{Code: code.OK}
 	}
@@ -86,31 +62,9 @@ func (app *NymApplication) transferFunds(reqb []byte) types.ResponseDeliverTx {
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	if app.checkNonce(req.Nonce, req.SourceAddress) {
-		return types.ResponseDeliverTx{Code: code.REPLAY_ATTACK_ATTEMPT}
-	}
-
-	if retCode, _ := app.validateTransfer(req.SourceAddress, req.TargetAddress, req.Amount); retCode != code.OK {
-		return types.ResponseDeliverTx{Code: retCode}
-	}
-
-	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
-	i := copy(msg, req.SourceAddress)
-	i += copy(msg[i:], req.TargetAddress)
-	binary.BigEndian.PutUint64(msg[i:], req.Amount)
-	i += 8
-	copy(msg[i:], req.Nonce)
-
-	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
-	if err != nil {
-		app.log.Info("Error while trying to recover public key associated with the signature")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
-
-	recAddr := ethcrypto.PubkeyToAddress(*recPub)
-	if !bytes.Equal(recAddr[:], req.SourceAddress) {
-		app.log.Info("Failed to verify signature on request")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
+	if checkResult := app.checkTransferBetweenAccountsTx(reqb); checkResult != code.OK {
+		app.log.Info("TransferFunds failed checkTx")
+		return types.ResponseDeliverTx{Code: checkResult}
 	}
 
 	retCode, data := app.transferFundsOp(req.SourceAddress, req.TargetAddress, req.Amount)
@@ -128,54 +82,9 @@ func (app *NymApplication) handleTransferToPipeAccountNotification(reqb []byte) 
 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	}
 
-	// first check if the threshold was alredy reached and transaction was committed
-	if app.getNotificationCount(req.TxHash) == app.state.watcherThreshold {
-		app.log.Info("Already reached required threshold")
-		return types.ResponseDeliverTx{Code: code.ALREADY_COMMITTED}
-	}
-
-	// check if the watcher can be trusted
-	if !app.checkWatcherKey(req.WatcherPublicKey) {
-		app.log.Info("This watcher is not in the trusted set")
-		return types.ResponseDeliverTx{Code: code.ETHEREUM_WATCHER_DOES_NOT_EXIST}
-	}
-
-	// check if client address is correctly formed
-	if len(req.ClientAddress) != ethcommon.AddressLength {
-		app.log.Info("Client's address is malformed")
-		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
-	}
-
-	// check if the pipe account matches
-	if !bytes.Equal(app.state.pipeAccount[:], req.PipeAccountAddress) {
-		app.log.Info("The specified pipe account is different from the expected one")
-		return types.ResponseDeliverTx{Code: code.INVALID_PIPE_ACCOUNT}
-	}
-
-	// check signature
-	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
-	i := copy(msg, req.WatcherPublicKey)
-	i += copy(msg[i:], req.ClientAddress)
-	i += copy(msg[i:], req.PipeAccountAddress)
-	binary.BigEndian.PutUint64(msg[i:], req.Amount)
-	i += 8
-	copy(msg[i:], req.TxHash)
-
-	sig := req.Sig
-	// last byte is a recoveryID which we don't care about
-	if len(sig) > 64 {
-		sig = sig[:64]
-	}
-
-	if !ethcrypto.VerifySignature(req.WatcherPublicKey, tmconst.HashFunction(msg), sig) {
-		app.log.Info("The signature on message is invalid")
-		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-	}
-
-	// check if this tx was not already confirmed by this watcher
-	if app.checkWatcherNotification(req.WatcherPublicKey, req.TxHash) {
-		app.log.Info("This watcher already sent this notification before")
-		return types.ResponseDeliverTx{Code: code.ALREADY_CONFIRMED}
+	if checkResult := app.checkTransferToPipeAccountNotificationTx(reqb); checkResult != code.OK {
+		app.log.Info("HandlePipeTransferNotification failed checkTx")
+		return types.ResponseDeliverTx{Code: checkResult}
 	}
 
 	// 'accept' the notification
