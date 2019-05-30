@@ -49,7 +49,7 @@ const (
 	TxTransferToPipeAccountNotification byte = 0xa1
 	// TxCredentialRequest is byte prefix for transaction indicating client wanting to convert some of its tokens
 	// into a credential
-	TxCredentialRequest byte = 0x02
+	TxCredentialRequest byte = 0xa2
 	// TxAdvanceBlock is byte prefix for transaction to store entire tx block in db to advance the blocks.
 	TxAdvanceBlock byte = 0xff // entirely for debug purposes
 )
