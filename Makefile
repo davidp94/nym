@@ -92,7 +92,7 @@ debug_start_over_single_node:
 # also for debug purposes; 
 # simpler to test tiny changes rather than having to restart entire cluster
 debug_restart_single_node:
-	go run tendermint/nymnode/main.go -cfgFile build/nodes/singlenode/config/config.toml -dataRoot build/nodes/singlenode
+	go run daemon/nymnode/main.go -cfgFile build/nodes/singlenode/config/config.toml -dataRoot build/nodes/singlenode
 
 	# -docker stop testsinglenode
 	# docker build -t nym/nymnode -f ./DOCKER/nym_node/Dockerfile . 	

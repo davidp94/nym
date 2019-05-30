@@ -13,18 +13,14 @@
 //
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
-package main
+package nymnode
 
 import (
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
-	"strconv"
-	"syscall"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/nymapplication"
@@ -103,7 +99,7 @@ func createBaseLoger(writer ...io.Writer) log.Logger {
 	return log.NewTMLogger(writer[0])
 }
 
-func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocksInterval time.Duration,
+func CreateNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocksInterval time.Duration,
 ) (*tmNode.Node, error) {
 	nilLog := log.NewNopLogger()
 
@@ -138,48 +134,4 @@ func createNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 	}
 
 	return node, nil
-}
-
-func main() {
-	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
-	if PtrSize != 64 || strconv.IntSize != 64 {
-		fmt.Fprintf(os.Stderr,
-			"The binary seems to not have been compiled in 64bit mode. Runtime pointer size: %v, Int size: %v\n",
-			PtrSize,
-			strconv.IntSize,
-		)
-		os.Exit(-1)
-	}
-
-	cfgFilePtr := flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
-	dataRootPtr := flag.String("dataRoot", "/tendermint", "The data root directory")
-	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks",
-		false,
-		"Flag to indicate whether tendermint should create empty blocks",
-	)
-	emptyBlocksIntervalPtr := flag.Duration("emptyBlocksInterval",
-		0,
-		"(if applicable) used to indicate interval between empty blocks",
-	)
-	flag.Parse()
-
-	node, err := createNymNode(*cfgFilePtr, *dataRootPtr, *createEmptyBlocksPtr, *emptyBlocksIntervalPtr)
-	if err != nil {
-		panic(err)
-	}
-
-	if err = node.Start(); err != nil {
-		fmt.Printf("Failed to start node: %+v\n", err)
-		panic(err)
-	}
-
-	// Trap signal, run forever.
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	<-c
-	if err := node.Stop(); err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("Node was stopped")
 }
