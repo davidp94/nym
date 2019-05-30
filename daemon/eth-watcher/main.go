@@ -27,7 +27,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	cfgFile := flag.String("f", "config.toml", "Path to the watcher config file.")
+	cfgFile := flag.String("f", "/ethereum-watcher/config.toml", "Path to the watcher config file.")
 	flag.Parse()
 
 	syscall.Umask(0077)

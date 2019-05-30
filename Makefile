@@ -19,13 +19,13 @@ build_servers:
 	@if ! [ -f build/issuers/issuer1/config.toml ]; then \
 		i=1; while [ "$$i" -le $(NUM_ISSUERS) ]; do \
 			mkdir -p build/issuers/issuer$$i/coconutkeys ;\
-			cp daemon/server/sampleConfigs/config$$i.toml build/issuers/issuer$$i/config.toml ;\
-			cp daemon/server/sampleKeys/coconutkeys/secret$$((i-1))-n=$(NUM_ISSUERS)-t=$(THRESHOLD).pem build/issuers/issuer$$i/coconutkeys/ ;\
-			cp daemon/server/sampleKeys/coconutkeys/verification$$((i-1))-n=$(NUM_ISSUERS)-t=$(THRESHOLD).pem build/issuers/issuer$$i/coconutkeys/ ;\
+			cp localnetdata/issuers/configs/config$$i.toml build/issuers/issuer$$i/config.toml ;\
+			cp localnetdata/issuers/keys/coconutkeys/secret$$((i-1))-n=$(NUM_ISSUERS)-t=$(THRESHOLD).pem build/issuers/issuer$$i/coconutkeys/ ;\
+			cp localnetdata/issuers/keys/coconutkeys/verification$$((i-1))-n=$(NUM_ISSUERS)-t=$(THRESHOLD).pem build/issuers/issuer$$i/coconutkeys/ ;\
 			i=$$((i + 1));\
 		done ;\
 		mkdir -p build/issuers/issuer1/blockchainkeys ;\
-		cp daemon/server/sampleKeys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json ;\
+		cp localnetdata/issuers/keys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json ;\
 	fi
 	docker build -t nym/server -f ./DOCKER/servers/Dockerfile .
 
@@ -47,21 +47,22 @@ build_nym_nodes:
 build_ethereum_watchers:
 	@if ! [ -f build/eth_watchers/watcher1/config.toml ]; then \
 		i=1; while [ "$$i" -le $(NUM_WATCHERS) ]; do \
-			mkdir -p build/eth_watchers/watcher$$i; \
-			cp daemon/eth-watcher/sampleConfigs/config$$i.toml build/eth_watchers/watcher$$i/config.toml ;\
-			cp daemon/eth-watcher/sampleKeys/watcher$$i.key build/eth_watchers/watcher$$i/watcher.key ;\
+			mkdir -p build/ethereum-watchers/watcher$$i; \
+			cp localnetdata/ethereum-watchers/configs/config$$i.toml build/ethereum-watchers/watcher$$i/config.toml ;\
+			cp localnetdata/ethereum-watchers/keys/watcher$$i.key build/ethereum-watchers/watcher$$i/watcher.key ;\
 			i=$$((i + 1));\
 		done ;\
 	fi
-	docker build -t nym/ethereum_watcher -f ./DOCKER/ethereum_watcher/Dockerfile .
+	docker build -t nym/ethereum-watcher -f ./DOCKER/ethereum_watcher/Dockerfile .
 
 
 localnet-build:
 	make build_nym_nodes
 	make build_servers
+	make build_ethereum_watchers
 
 # Run a 4-node testnet locally
-localnet-start: localnet-stop
+localnet-start:
 	@if ! [ -f build/nodes/node0/config/genesis.json ]; then make localnet-build; fi
 	docker-compose up
 

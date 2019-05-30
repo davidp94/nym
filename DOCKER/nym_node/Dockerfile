@@ -19,8 +19,7 @@ COPY . .
 # Fetch dependencies if we decide to remove the vendor directory at some point
 # RUN go get -d -v
 
-WORKDIR $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/tendermint/nymnode/
-
+WORKDIR $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/daemon/nymnode/
 
 # Build the binary
 # for production: removes debug, etc. 
