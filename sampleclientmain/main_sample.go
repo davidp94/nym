@@ -25,15 +25,15 @@ import (
 	"os/signal"
 	"syscall"
 
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
-
 	cclient "0xacab.org/jstuczyn/CoconutGo/client"
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -106,35 +106,46 @@ func main() {
 }
 
 func nymFlow(cc *cclient.Client) {
-
-	currentERC20Balance, err := cc.GetCurrentERC20Balance()
+	params, err := coconut.Setup(1)
 	if err != nil {
 		panic(err)
 	}
-	pending, err := cc.GetCurrentERC20PendingBalance()
+	s := Curve.Randomnum(params.P(), params.G.Rng())
+	k := Curve.Randomnum(params.P(), params.G.Rng())
+	token, err := token.New(s, k, 1)
 	if err != nil {
 		panic(err)
 	}
+	cc.GetCredential(token)
 
-	fmt.Println("current erc20 balance:", currentERC20Balance, "pending:", pending)
+	// currentERC20Balance, err := cc.GetCurrentERC20Balance()
+	// if err != nil {
+	// 	panic(err)
+	// }
+	// pending, err := cc.GetCurrentERC20PendingBalance()
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	currentNymBalance, err := cc.GetCurrentNymBalance()
-	if err != nil {
-		panic(err)
-	}
+	// fmt.Println("current erc20 balance:", currentERC20Balance, "pending:", pending)
 
-	fmt.Println("current nym balance:", currentNymBalance)
+	// currentNymBalance, err := cc.GetCurrentNymBalance()
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	if err := cc.SendToPipeAccountWrapper(1); err != nil {
-		panic(err)
-	}
+	// fmt.Println("current nym balance:", currentNymBalance)
 
-	pending2, err := cc.GetCurrentERC20PendingBalance()
-	if err != nil {
-		panic(err)
-	}
+	// if err := cc.SendToPipeAccountWrapper(1); err != nil {
+	// 	panic(err)
+	// }
 
-	fmt.Println("Current pending", pending2)
+	// pending2, err := cc.GetCurrentERC20PendingBalance()
+	// if err != nil {
+	// 	panic(err)
+	// }
+
+	// fmt.Println("Current pending", pending2)
 
 }
 

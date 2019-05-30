@@ -222,6 +222,9 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 
 	c.log.Debugf("Our tx was included in block: %v", height)
 
+	return nil, errors.New("foo")
+	// TODO:
+
 	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
 	if err != nil {
 		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
@@ -261,71 +264,6 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 	Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 }
 
-// TODO: at later date, though we possibly might even ignore it
-
-// // GetCredentialGrpc similarly to previous requests, sends 'getcredential' request
-// // to all IA-grpc servers specified in the config with the provided token and required cryptographic materials.
-// // Error is returned if insufficient number of responses was received.
-// func (c *Client) GetCredentialGrpc(token *token.Token) (token.Credential, error) {
-// 	if !c.cfg.Client.UseGRPC {
-// 		return nil, c.logAndReturnError(nonGRPCClientErr)
-// 	}
-
-// 	elGamalPrivateKey, elGamalPublicKey := c.cryptoworker.CoconutWorker().ElGamalKeygenWrapper()
-
-// 	grpcDialOptions := c.defaultDialOptions
-// 	isThreshold := c.cfg.Client.Threshold > 0
-
-// 	// first check if we have loaded the account information
-// 	if c.nymAccount.PrivateKey == nil || c.nymAccount.PublicKey == nil {
-// 		return nil, c.logAndReturnError("GetCredentialGrpc: Tried to obtain credential on undefined account")
-// 	}
-
-// 	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(elGamalPublicKey, token)
-// 	if err != nil {
-// 		return nil, c.logAndReturnError("GetCredential: Could not create lambda: %v", err)
-// 	}
-
-// 	reqSig := c.createCredentialRequestSig(lambda.Cm(), token)
-
-// getCredentialRequest, err := commands.NewGetCredentialRequest(
-// 	lambda,
-// 	elGamalPublicKey,
-// 	token,
-// 	c.nymAccount.PublicKey,
-// 	reqSig,
-// )
-// 	if err != nil {
-// 		return nil, c.logAndReturnError("GetCredential: Failed to create GetCredential request: %v", err)
-// 	}
-
-// 	c.log.Notice("Going to send Get Credential request (via gRPCs) to %v IAs", len(c.cfg.Client.IAgRPCAddresses))
-// 	responses := c.getGrpcResponses(grpcDialOptions, getCredentialRequest)
-
-// 	sigs := make([]*coconut.Signature, 0, len(c.cfg.Client.IAgRPCAddresses))
-// 	xs := make([]*Curve.BIG, 0, len(c.cfg.Client.IAgRPCAddresses))
-
-// 	for i := range responses {
-// 		if responses[i] == nil {
-// 			c.log.Error("nil response received")
-// 			continue
-// 		}
-// 		// needs updating
-// 		sig, err := c.parseBlindSignResponse(responses[i].Message.(*commands.GetCredentialResponse), elGamalPrivateKey)
-// 		if err != nil {
-// 			continue
-// 		}
-// 		sigs = append(sigs, sig)
-// 		if isThreshold {
-// 			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
-// 		}
-// 	}
-// 	if c.cfg.Client.Threshold > 0 {
-// 		return c.handleReceivedSignatures(sigs, coconut.NewPP(xs))
-// 	}
-// 	return c.handleReceivedSignatures(sigs, nil)
-// }
-
 func (c *Client) sendCredentialRequest(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
 	lambda, err := c.cryptoworker.CoconutWorker().PrepareBlindSignTokenWrapper(egPub, token)
 	if err != nil {
@@ -344,11 +282,14 @@ func (c *Client) sendCredentialRequest(token *token.Token, egPub *elgamal.Public
 	if err != nil {
 		return -1, c.logAndReturnError("sendCredentialRequest: Failed to send request to the blockchain: %v", err)
 	}
-	if res.DeliverTx.Code != code.OK {
-		return -1, c.logAndReturnError("sendCredentialRequest: Failed to send request to the blockchain: %v - %v",
-			res.DeliverTx.Code,
-			code.ToString(res.DeliverTx.Code),
-		)
+	if res.DeliverTx.Code != code.OK || res.CheckTx.Code != code.OK {
+		return -1,
+			c.logAndReturnError("sendCredentialRequest: Our request failed to be processed by the blockchain:\nCheckTx: %v - %v\nDeliverTx: %v - %v",
+				res.CheckTx.Code,
+				code.ToString(res.CheckTx.Code),
+				res.DeliverTx.Code,
+				code.ToString(res.DeliverTx.Code),
+			)
 	}
 
 	return res.Height, nil
