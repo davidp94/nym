@@ -164,10 +164,10 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 		// deposits coconut credential and transforms appropriate amount from pipe to merchant
 		app.log.Info("Deposit Credential")
 		// return app.depositCoconutCredential(tx[1:])
-	// case transaction.TxTransferToPipeAccount:
-	// 	// transfer given amount of client's funds to the pipe account
-	// 	app.log.Info("Transfer to Pipe Account")
-	// return app.transferToPipeAccount(tx[1:])
+	case transaction.TxCredentialRequest:
+		// removes given amount of tokens from user's account and writes crypto material to the chain
+		app.log.Info("Credential request")
+		return app.handleCredentialRequest(tx[1:])
 	case transaction.TxAdvanceBlock:
 		// purely for debug purposes to populate the state and advance the blocks
 		if !tmconst.DebugMode {

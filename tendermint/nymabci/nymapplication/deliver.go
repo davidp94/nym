@@ -19,11 +19,14 @@ package nymapplication
 import (
 	"fmt"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/golang/protobuf/proto"
 	"github.com/tendermint/tendermint/abci/types"
+	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -122,6 +125,50 @@ func (app *NymApplication) handleTransferToPipeAccountNotification(reqb []byte) 
 	return types.ResponseDeliverTx{Code: code.OK}
 }
 
+// authorized user to obtain credential - writes crypto materials to the chain and removes his funds
+func (app *NymApplication) handleCredentialRequest(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.CredentialRequest{}
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	if checkResult := app.checkCredentialRequestTx(reqb); checkResult != code.OK {
+		app.log.Info("HandleCredentialRequest failed checkTx")
+		return types.ResponseDeliverTx{Code: checkResult}
+	}
+
+	cryptoMaterialsBytes, err := proto.Marshal(req.CryptoMaterials)
+	if err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
+
+	// remove funds
+	if err := app.decreaseBalanceBy(req.ClientAddress, uint64(req.Value)); err != nil {
+		// it's impossible for it to fail as err is only thrown if account does not exist or has insufficient balance
+		// and we already checked for that
+		app.log.Error(fmt.Sprintf("Undefined behaviour when trying to decrease client's (%v) balance: %v",
+			ethcommon.BytesToAddress(req.ClientAddress).Hex(),
+			err,
+		))
+		// TODO: panic or just continue?
+	}
+
+	// we need to include slightly more information in the key field in case given user performed
+	// more than 1 transfer in given block. That way he wouldn't need to recreate byte materials to index the tx
+	key := make([]byte, ethcommon.AddressLength+constants.ECPLen+len(tmconst.CredentialRequestKeyPrefix))
+	i := copy(key, tmconst.CredentialRequestKeyPrefix)
+	i += copy(key[i:], req.ClientAddress)
+	// gamma is unique per credential request;
+	// it's client's fault if he intentionally reuses is and is up to him to distinguish correct credentials
+	copy(key[i:], req.CryptoMaterials.EgPub.Gamma)
+	return types.ResponseDeliverTx{
+		Code: code.OK,
+		Tags: []cmn.KVPair{
+			{Key: key, Value: cryptoMaterialsBytes},
+		},
+	}
+}
+
 // func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
 // 	req := &transaction.DepositCoconutCredentialRequest{}
 
@@ -191,113 +238,6 @@ func (app *NymApplication) handleTransferToPipeAccountNotification(reqb []byte) 
 // 		return types.ResponseDeliverTx{Code: retCode, Data: data}
 // 	}
 // 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-// }
-
-// // transfers funds from the given user's account to the pipe account. It makes sure it's only done once per
-// // particular credential request.
-// // TODO: wait on deicison on implementation
-// func (app *NymApplication) transferToPipeAccount(reqb []byte) types.ResponseDeliverTx {
-// 	req := &transaction.TransferToPipeAccountRequest{}
-// 	if err := proto.Unmarshal(reqb, req); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	if len(req.PubM) < 1 ||
-// 		len(req.PubM[0]) != constants.BIGLen ||
-// 		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	// only recovered to see if an error is thrown
-// 	lambda := &coconut.Lambda{}
-// 	if err := lambda.FromProto(req.Lambda); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	lambdab, err := proto.Marshal(req.Lambda)
-// 	if err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	// only recovered to see if an error is thrown
-// 	egPub := &elgamal.PublicKey{}
-// 	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	egPubb, err := proto.Marshal(req.EgPub)
-// 	if err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
-
-// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	recoveredPipeAccountAddress := req.TargetAddress
-
-// 	// TODO: update once epochs, etc. are introduced
-// 	if !bytes.Equal(recoveredPipeAccountAddress, tmconst.PipeAccountAddress) {
-// 		return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS}
-// 	}
-
-// 	if retCode, data := app.validateTransfer(sourcePublicKey,
-// 		recoveredPipeAccountAddress,
-// 		uint64(req.Amount),
-// 	); retCode != code.OK {
-// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
-// 	}
-
-// 	msg := make([]byte,
-// 		len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
-// 	)
-// 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], recoveredPipeAccountAddress)
-// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress):], uint32(req.Amount))
-// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4:], egPubb)
-// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb):], lambdab)
-// 	for i := range req.PubM {
-// 		copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
-// 			req.PubM[i],
-// 		)
-// 	}
-
-// 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-// 	}
-
-// 	retCode, data := app.transferFundsOp(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount))
-// 	if retCode == code.OK {
-// 		// lambda, egpub, pubm
-// 		blindSignMaterials := &coconut.BlindSignMaterials{
-// 			Lambda: req.Lambda,
-// 			EgPub:  req.EgPub,
-// 			PubM:   req.PubM,
-// 		}
-
-// 		bsmb, err := proto.Marshal(blindSignMaterials)
-// 		if err != nil {
-// 			// it's really impossible for this to fail, but if it somehow does, it's client's fault for providing
-// 			// such weirdly malformed data
-// 			app.log.Error("Proto error after transfer already occurred")
-// 			// TODO: possibly revert operation?
-// 			return types.ResponseDeliverTx{Code: code.UNKNOWN}
-// 		}
-
-// 		// it can't possibly fail as it was already verified
-// 		//nolint: errcheck
-// 		sourcePublicKey.Compress()
-// 		// we need to include slightly more information in the key field in case given user performed
-// 		// more than 1 transfer in given block. That way he wouldn't need to recreate bsmb to index the tx
-// 		key := make([]byte, len(sourcePublicKey)+constants.ECPLen+len(tmconst.CredentialRequestKeyPrefix))
-// 		copy(key, tmconst.CredentialRequestKeyPrefix)
-// 		copy(key[len(tmconst.CredentialRequestKeyPrefix):], sourcePublicKey)
-
-// 		// gamma is unique per credential request;
-// 		// it's client's fault if he intentionally reuses is and is up to him to distinguish correct credentials
-// 		egPub.Gamma().ToBytes((key[len(tmconst.CredentialRequestKeyPrefix)+len(sourcePublicKey):]), true)
-
-// 		return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: bsmb}}}
-// 	}
-// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
 // }
 
 // req := &transaction.TransferToPipeAccountRequest{}

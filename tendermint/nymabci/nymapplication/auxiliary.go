@@ -133,6 +133,9 @@ func (app *NymApplication) decreaseBalanceBy(address []byte, value uint64) error
 	if err != nil {
 		return err
 	}
+	if value > currentBalance {
+		return errors.New("insufficient balance")
+	}
 	app.log.Debug(fmt.Sprintf("Decreasing balance of %v by %v (from %v to %v)",
 		ethcommon.BytesToAddress(address).Hex(),
 		value,
