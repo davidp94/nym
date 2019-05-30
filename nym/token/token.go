@@ -84,16 +84,18 @@ func (t *Token) PrepareBlindSign(params *coconut.Params, egPub *elgamal.PublicKe
 	return coconut.PrepareBlindSign(params, egPub, pubM, privM)
 }
 
-// temp, havent decided on where attrs will be generated, but want token instance for test
-func New(s, k *Curve.BIG, val int64) (*Token, error) {
-	isAllowed := false
+func ValidateValue(val int64) bool {
 	for _, allowed := range allowedValues {
 		if val == allowed {
-			isAllowed = true
-			break
+			return true
 		}
 	}
-	if !isAllowed {
+	return false
+}
+
+// temp, havent decided on where attrs will be generated, but want token instance for test
+func New(s, k *Curve.BIG, val int64) (*Token, error) {
+	if !ValidateValue(val) {
 		return nil, fmt.Errorf("disallowed credential value: %v, allowed: %v", val, allowedValues)
 	}
 	// TODO: validate val

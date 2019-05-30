@@ -231,15 +231,15 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 		// return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
-	// case transaction.TxTransferToPipeAccount:
-	// 	app.log.Debug("CheckTx for TxTransferToPipeAccount")
+	case transaction.TxCredentialRequest:
+		app.log.Debug("CheckTx for TxCredentialRequest")
 
-	// checkCode := app.checkTxTransferToPipeAccount(tx[1:])
-	// if checkCode != code.OK {
-	// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferToPipeAccount failed with code: %v - %v",
-	// 		checkCode, code.ToString(checkCode)))
-	// }
-	// return types.ResponseCheckTx{Code: checkCode}
+		checkCode := app.checkCredentialRequestTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxCredentialRequest failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 	default:
 		app.log.Error("Unknown Tx")
 		return types.ResponseCheckTx{Code: code.INVALID_TX_PARAMS}

@@ -72,6 +72,8 @@ const (
 	ALREADY_COMMITTED = 20
 	// INVALID_PIPE_ACCOUNT represents error due to using different than specified address of the pipe account
 	INVALID_PIPE_ACCOUNT = 21
+	// INVALID_VALUE represents error due to credential request (or possibly transfer) having an invalid value
+	INVALID_VALUE = 22
 	// COULD_NOT_TRANSFER represents a generic error for failing to transfer funds between accounts.
 	COULD_NOT_TRANSFER uint32 = 100 // todo: replace occurrences with more specific errors
 )
@@ -126,6 +128,8 @@ func ToString(code uint32) string {
 		return "Already Committed"
 	case INVALID_PIPE_ACCOUNT:
 		return "Invalid Pipe Account"
+	case INVALID_VALUE:
+		return "Invalid Value"
 	default:
 		return "Unknown Error Code"
 	}

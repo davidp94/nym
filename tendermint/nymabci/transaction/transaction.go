@@ -22,10 +22,9 @@ import (
 	"encoding/binary"
 	"errors"
 
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
 	"0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"

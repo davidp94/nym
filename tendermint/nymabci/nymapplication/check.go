@@ -20,12 +20,15 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 // implementation will be IP-specific
@@ -96,7 +99,6 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 	}
 
 	return code.OK
-
 }
 
 func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
@@ -249,75 +251,53 @@ func (app *NymApplication) checkTransferToPipeAccountNotificationTx(tx []byte) u
 // 	return code.OK
 // }
 
-// func (app *NymApplication) checkTxTransferToPipeAccount(tx []byte) uint32 {
-// 	// verify sigs and check if all structs can be unmarshalled
-// 	req := &transaction.TransferToPipeAccountRequest{}
-// 	if err := proto.Unmarshal(tx, req); err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+func (app *NymApplication) checkCredentialRequestTx(tx []byte) uint32 {
+	// verify sigs and check if all structs can be unmarshalled
+	req := &transaction.CredentialRequest{}
+	if err := proto.Unmarshal(tx, req); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	if len(req.PubM) < 1 ||
-// 		len(req.PubM[0]) != constants.BIGLen ||
-// 		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	// TODO: allow credentials of 0 value as some kind of 'access' tokens?
+	// perhaps return to the idea later
+	if !token.ValidateValue(req.Value) {
+		return code.INVALID_VALUE
+	}
 
-// 	// only recovered to see if an error is thrown
-// 	lambda := &coconut.Lambda{}
-// 	if err := lambda.FromProto(req.Lambda); err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if len(req.CryptoMaterials.PubM) == 0 ||
+		len(req.CryptoMaterials.PubM[0]) != constants.BIGLen ||
+		Curve.Comp(Curve.FromBytes(req.CryptoMaterials.PubM[0]), Curve.NewBIGint(int(req.Value))) != 0 {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	lambdab, err := proto.Marshal(req.Lambda)
-// 	if err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	materialsBytes, err := req.CryptoMaterials.OneWayToBytes()
+	if err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	// only recovered to see if an error is thrown
-// 	egPub := &elgamal.PublicKey{}
-// 	if rerr := egPub.FromProto(req.EgPub); rerr != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if app.checkNonce(req.Nonce, req.ClientAddress) {
+		return code.REPLAY_ATTACK_ATTEMPT
+	}
 
-// 	egPubb, err := proto.Marshal(req.EgPub)
-// 	if err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	msg := make([]byte, 2*ethcommon.AddressLength+len(materialsBytes)+8+tmconst.NonceLength)
+	i := copy(msg, req.ClientAddress)
+	i += copy(msg[i:], app.state.pipeAccount[:])
+	i += copy(msg[i:], materialsBytes)
+	binary.BigEndian.PutUint64(msg[i:], uint64(req.Value))
+	i += 8
+	copy(msg[i:], req.Nonce)
 
-// 	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// 	recoveredPipeAccountAddress := req.TargetAddress
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	// TODO: update once epochs, etc. are introduced
-// 	if !bytes.Equal(recoveredPipeAccountAddress, tmconst.PipeAccountAccountAddress) {
-// 		return code.MALFORMED_ADDRESS
-// 	}
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.ClientAddress) {
+		app.log.Info("Failed to verify signature on request")
+		return code.INVALID_SIGNATURE
+	}
 
-// 	if retCode, _ := app.validateTransfer(
-// 		sourcePublicKey,
-// 		recoveredPipeAccountAddress,
-// 		uint64(req.Amount),
-// 	); retCode != code.OK {
-// 		return retCode
-// 	}
-
-// 	msg := make([]byte,
-// 		len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM),
-// 	)
-// 	copy(msg, sourcePublicKey)
-// 	copy(msg[len(sourcePublicKey):], recoveredPipeAccountAddress)
-// 	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress):], uint32(req.Amount))
-// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4:], egPubb)
-// 	copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb):], lambdab)
-// 	for i := range req.PubM {
-// 		copy(msg[len(sourcePublicKey)+len(recoveredPipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:],
-// 			req.PubM[i],
-// 		)
-// 	}
-
-// 	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-// 		app.log.Info("Failed to verify signature on request")
-// 		return code.INVALID_SIGNATURE
-// 	}
-
-// 	return code.OK
-// }
+	return code.OK
+}
