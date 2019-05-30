@@ -21,6 +21,7 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
@@ -258,6 +259,11 @@ func (app *NymApplication) checkCredentialRequestTx(tx []byte) uint32 {
 		return code.INVALID_TX_PARAMS
 	}
 
+	// firstly check if client's account even exists and if it has sufficient balance
+	if accBalance, err := app.retrieveAccountBalance(req.ClientAddress); err != nil || accBalance < uint64(req.Value) {
+		return code.INSUFFICIENT_BALANCE
+	}
+
 	// TODO: allow credentials of 0 value as some kind of 'access' tokens?
 	// perhaps return to the idea later
 	if !token.ValidateValue(req.Value) {
@@ -267,6 +273,12 @@ func (app *NymApplication) checkCredentialRequestTx(tx []byte) uint32 {
 	if len(req.CryptoMaterials.PubM) == 0 ||
 		len(req.CryptoMaterials.PubM[0]) != constants.BIGLen ||
 		Curve.Comp(Curve.FromBytes(req.CryptoMaterials.PubM[0]), Curve.NewBIGint(int(req.Value))) != 0 {
+		return code.INVALID_TX_PARAMS
+	}
+
+	// used to check only if the data can be recovered
+	blindSignMaterials := &coconut.BlindSignMaterials{}
+	if err := blindSignMaterials.FromProto(req.CryptoMaterials); err != nil {
 		return code.INVALID_TX_PARAMS
 	}
 
