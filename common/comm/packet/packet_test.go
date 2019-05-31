@@ -16,22 +16,19 @@
 package packet
 
 import (
-	"math/rand"
+	"crypto/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	rand.Seed(time.Now().UTC().UnixNano())
-}
 
 func TestMarshal(t *testing.T) {
 	lengths := []int{0, 1, 16, 32, 512, 1024, 1000000}
 	for _, l := range lengths {
 		payload := make([]byte, l)
-		rand.Read(payload)
+		if _, err := rand.Read(payload); err != nil {
+			t.Fatalf("Failed to read random bytes: %v", err)
+		}
 		p := NewPacket(payload)
 		b, err := p.MarshalBinary()
 		assert.Nil(t, err)
@@ -50,7 +47,9 @@ func TestNewPacket(t *testing.T) {
 	lengths := []int{0, 1, 16, 32, 512, 1024, 1000000}
 	for _, l := range lengths {
 		payload := make([]byte, l)
-		rand.Read(payload)
+		if _, err := rand.Read(payload); err != nil {
+			t.Fatalf("Failed to read random bytes: %v", err)
+		}
 		p := NewPacket(payload)
 		assert.NotNil(t, p)
 		assert.Len(t, p.payload, l)

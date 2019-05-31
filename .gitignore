@@ -1,3 +1,4 @@
 /.vscode
 /ttp/keys*
 /build
+/ethereum/tmpPrivate

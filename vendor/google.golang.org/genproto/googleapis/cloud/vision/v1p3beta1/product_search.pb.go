@@ -5,10 +5,11 @@ package vision
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -20,7 +21,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Supported product search categories.
 type ProductSearchCategory int32
@@ -109,7 +110,9 @@ type ProductSearchParams struct {
 	// Specifies the verbosity of the  product search results.
 	// Optional. Defaults to `BASIC`.
 	View ProductSearchResultsView `protobuf:"varint,4,opt,name=view,proto3,enum=google.cloud.vision.v1p3beta1.ProductSearchResultsView" json:"view,omitempty"`
-	// The resource name of a [ProductSet][google.cloud.vision.v1p3beta1.ProductSet] to be searched for similar images.
+	// The resource name of a
+	// [ProductSet][google.cloud.vision.v1p3beta1.ProductSet] to be searched for
+	// similar images.
 	//
 	// Format is:
 	// `projects/PROJECT_ID/locations/LOC_ID/productSets/PRODUCT_SET_ID`.

@@ -35,32 +35,32 @@ import (
 
 var (
 	// ErrSetupParams indicates incorrect parameters provided for Setup.
-	ErrSetupParams = errors.New("Can't generate params for less than 1 attribute")
+	ErrSetupParams = errors.New("can't generate params for less than 1 attribute")
 
 	// ErrSignParams indicates inconsistent parameters provided for Sign.
-	ErrSignParams = errors.New("Invalid attributes/secret key provided")
+	ErrSignParams = errors.New("invalid attributes/secret key provided")
 
 	// ErrKeygenParams indicates incorrect parameters provided for Keygen.
-	ErrKeygenParams = errors.New("Can't generate keys for less than 1 attribute")
+	ErrKeygenParams = errors.New("can't generate keys for less than 1 attribute")
 
 	// ErrTTPKeygenParams indicates incorrect parameters provided for TTPKeygen.
-	ErrTTPKeygenParams = errors.New("Invalid set of parameters provided to keygen")
+	ErrTTPKeygenParams = errors.New("invalid set of parameters provided to keygen")
 
 	// ErrPrepareBlindSignParams indicates that number of attributes to sign is larger than q specified in Setup.
-	ErrPrepareBlindSignParams = errors.New("Too many attributes to sign")
+	ErrPrepareBlindSignParams = errors.New("too many attributes to sign")
 
 	// ErrPrepareBlindSignPrivate indicates lack of private attributes to blindly sign.
-	ErrPrepareBlindSignPrivate = errors.New("No private attributes to sign")
+	ErrPrepareBlindSignPrivate = errors.New("no private attributes to sign")
 
 	// ErrBlindSignParams indicates that number of attributes to sign is larger than q specified in Setup.
-	ErrBlindSignParams = errors.New("Too many attributes to sign")
+	ErrBlindSignParams = errors.New("too many attributes to sign")
 
 	// ErrBlindSignProof indicates that proof of corectness of ciphertext and cm was invalid
-	ErrBlindSignProof = errors.New("Failed to verify the proof")
+	ErrBlindSignProof = errors.New("failed to verify the proof")
 
 	// ErrShowBlindAttr indicates that either there were no private attributes provided
 	// or their number was larger than the verification key supports
-	ErrShowBlindAttr = errors.New("Invalid attributes provided")
+	ErrShowBlindAttr = errors.New("invalid attributes provided")
 )
 
 // Setup generates the public parameters required by the Coconut scheme.
@@ -171,7 +171,7 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 
 	h, err := getBaseFromAttributes(pubM)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to obtain G1 base: %v", err)
+		return nil, fmt.Errorf("failed to obtain G1 base: %v", err)
 	}
 
 	K := Curve.NewBIGcopy(sk.x) // K = x
@@ -192,7 +192,7 @@ func Sign(params *Params, sk *SecretKey, pubM []*Curve.BIG) (*Signature, error) 
 func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BIG, privM []*Curve.BIG) (*Lambda, error) {
 	G, p, g1, hs, rng := params.G, params.p, params.g1, params.hs, params.G.Rng()
 
-	if len(privM) <= 0 {
+	if len(privM) == 0 {
 		return nil, ErrPrepareBlindSignPrivate
 	}
 	attributes := append(privM, pubM...)
@@ -243,7 +243,7 @@ func PrepareBlindSign(params *Params, egPub *elgamal.PublicKey, pubM []*Curve.BI
 // BlindSign creates a blinded Coconut credential on the attributes provided to PrepareBlindSign.
 // nolint: lll
 func BlindSign(params *Params, sk *SecretKey, lambda *Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) (*BlindedSignature, error) {
-	// todo: can optimize by calculating first pubM * yj and then do single G1mul rather than two of them
+	// todo: can optimise by calculating first pubM * yj and then do single G1mul rather than two of them
 
 	hs := params.hs
 
@@ -349,7 +349,7 @@ func Verify(params *Params, vk *VerificationKey, pubM []*Curve.BIG, sig *Signatu
 // by not tying it to Show protocol
 // nolint: lll
 func ConstructKappaNu(vk *VerificationKey, sig *Signature, privM []*Curve.BIG, t *Curve.BIG) (*Curve.ECP2, *Curve.ECP, error) {
-	if len(privM) <= 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() || !ValidateBigSlice(privM) {
+	if len(privM) == 0 || !vk.Validate() || len(privM) > len(vk.beta) || !sig.Validate() || !ValidateBigSlice(privM) {
 		return nil, nil, ErrShowBlindAttr
 	}
 
@@ -422,6 +422,7 @@ func BlindVerify(params *Params, vk *VerificationKey, sig *Signature, theta *The
 	return !sig.sig1.Is_infinity() && Gt1.Equals(Gt2)
 }
 
+// FIXME: spelling
 // Randomize randomizes the Coconut credential such that it becomes indistinguishable
 // from a fresh credential on different attributes
 func Randomize(params *Params, sig *Signature) *Signature {
@@ -526,6 +527,7 @@ func (sk *SecretKey) ToPEMFile(f string) error {
 	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
 }
 
+// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
 // FromPEMFile reads out the secret key from a PEM file at path f.
 func (sk *SecretKey) FromPEMFile(f string) error {
 	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
@@ -558,6 +560,7 @@ func (vk *VerificationKey) ToPEMFile(f string) error {
 	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
 }
 
+// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
 // FromPEMFile reads out the secret key from a PEM file at path f.
 func (vk *VerificationKey) FromPEMFile(f string) error {
 	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {

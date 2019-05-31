@@ -7,7 +7,8 @@ FROM golang@sha256:8cc1c0f534c0fef088f8fe09edc404f6ff4f729745b85deae5510bfd4c157
 # Install git + SSL ca certificates.
 # Git is required for fetching the dependencies.
 # Ca-certificates is required to call HTTPS endpoints.
-RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-certificates
+# build-base contains among other things gcc and libc required to compile ethereum library that contains some code in C.
+RUN apk update && apk add --no-cache git ca-certificates tzdata build-base && update-ca-certificates
 
 # Create appuser
 RUN adduser -D -g '' appuser

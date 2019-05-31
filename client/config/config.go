@@ -24,13 +24,16 @@ import (
 	"runtime"
 
 	"github.com/BurntSushi/toml"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 )
+
+// TODO: refactor config structure, change section names, move attributes around, etc.
 
 const (
 	defaultLogLevel = "NOTICE"
 
-	defaultConnectTimeout    = 5 * 1000  // 1 sec.
-	defaultRequestTimeout    = 10 * 1000 // 5 sec.
+	defaultConnectTimeout    = 5 * 1000  // 5 sec.
+	defaultRequestTimeout    = 30 * 1000 // 30 sec.
 	defaultMaxRequests       = 3
 	noLimitMaxRequests       = 16
 	defaultMaximumAttributes = 5
@@ -78,14 +81,27 @@ type Client struct {
 
 // Nym defines Nym-specific configuration options.
 type Nym struct {
+	// NymContract defined address of the ERC20 token Nym contract. It is expected to be provided in hex format.
+	NymContract ethcommon.Address
+
+	// PipeAccount defines address of Ethereum account that pipes Nym ERC20 into Nym Tendermint coins.
+	// It is expected to be provided in hex format.
+	PipeAccount ethcommon.Address
+
 	// AccountKeysFile specifies the file containing keys used for the accounts on the Nym Blockchain.
 	AccountKeysFile string
 
-	// BlockchainNodeAddresses specifies addresses of a blockchain nodes
+	// BlockchainNodeAddresses specifies addresses of blockchain nodes
 	// to which the client should send all relevant requests.
 	// Note that only a single request will ever be sent, but multiple addresses are provided in case
 	// the particular node was unavailable.
 	BlockchainNodeAddresses []string
+
+	// EthereumNodeAddresses specifies addresses of Ethereum nodes
+	// to which the client should send all relevant requests.
+	// Note that only a single request will ever be sent, but multiple addresses are provided in case
+	// the particular node was unavailable. (TODO: implement this functionality)
+	EthereumNodeAddresses []string
 }
 
 // Debug is the Coconut Client debug configuration.
@@ -165,15 +181,16 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		cfg.Client.MaximumAttributes = defaultMaximumAttributes
 	}
 
-	if len(cfg.Client.IAAddresses) <= 0 && !cfg.Client.UseGRPC {
+	if len(cfg.Client.IAAddresses) == 0 && !cfg.Client.UseGRPC {
 		return errors.New("config: No server addresses provided")
 	}
 
-	if len(cfg.Client.IAgRPCAddresses) <= 0 && cfg.Client.UseGRPC {
+	if len(cfg.Client.IAgRPCAddresses) == 0 && cfg.Client.UseGRPC {
 		return errors.New("config: No server gRPC addresses provided")
 	}
 
-	if len(cfg.Client.IAIDs) <= 0 {
+	// TODO: try to perhaps rewrite it as a switch statement
+	if len(cfg.Client.IAIDs) == 0 {
 		var IAIDs []int
 		if cfg.Client.UseGRPC {
 			IAIDs = make([]int, len(cfg.Client.IAgRPCAddresses))
@@ -209,13 +226,21 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Nym == nil {
 		return errors.New("config: No Nym block was present")
 	}
-	if len(cfg.Nym.AccountKeysFile) <= 0 {
+	if len(cfg.Nym.AccountKeysFile) == 0 {
 		return errors.New("config: No key file provided")
 	}
-	if len(cfg.Nym.BlockchainNodeAddresses) <= 0 {
+	if len(cfg.Nym.BlockchainNodeAddresses) == 0 {
 		return errors.New("config: No node addresses provided")
 	}
-
+	if len(cfg.Nym.EthereumNodeAddresses) == 0 {
+		return errors.New("config: No ethereum node addresses provider")
+	}
+	if len(cfg.Nym.NymContract) == 0 {
+		return errors.New("config: Unspecified address of the Nym contract")
+	}
+	if len(cfg.Nym.PipeAccount) == 0 {
+		return errors.New("config: Unspecified address of the Pipe account")
+	}
 	return nil
 }
 

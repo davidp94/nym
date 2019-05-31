@@ -6,12 +6,13 @@ package admin
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Operation types.
 type OperationType int32
@@ -272,8 +273,8 @@ type ExportEntitiesRequest struct {
 	//
 	// The resulting files will be nested deeper than the specified URL prefix.
 	// The final output URL will be provided in the
-	// [google.datastore.admin.v1.ExportEntitiesResponse.output_url][google.datastore.admin.v1.ExportEntitiesResponse.output_url] field. That
-	// value should be used for subsequent ImportEntities operations.
+	// [google.datastore.admin.v1.ExportEntitiesResponse.output_url][google.datastore.admin.v1.ExportEntitiesResponse.output_url]
+	// field. That value should be used for subsequent ImportEntities operations.
 	//
 	// By nesting the data files deeper, the same Cloud Storage bucket can be used
 	// in multiple ExportEntities operations without conflict.
@@ -557,7 +558,9 @@ type ImportEntitiesMetadata struct {
 	// Description of which entities are being imported.
 	EntityFilter *EntityFilter `protobuf:"bytes,4,opt,name=entity_filter,json=entityFilter,proto3" json:"entity_filter,omitempty"`
 	// The location of the import metadata file. This will be the same value as
-	// the [google.datastore.admin.v1.ExportEntitiesResponse.output_url][google.datastore.admin.v1.ExportEntitiesResponse.output_url] field.
+	// the
+	// [google.datastore.admin.v1.ExportEntitiesResponse.output_url][google.datastore.admin.v1.ExportEntitiesResponse.output_url]
+	// field.
 	InputUrl             string   `protobuf:"bytes,5,opt,name=input_url,json=inputUrl,proto3" json:"input_url,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

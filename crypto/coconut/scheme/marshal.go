@@ -1,4 +1,4 @@
-// marshal.go - defines methods for marshaling and unmarshaling coconut structures.
+// marshal.go - defines methods for marshalling and unmarshalling coconut structures.
 // Copyright (C) 2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
@@ -214,7 +214,7 @@ func (vk *VerificationKey) ToProto() (*ProtoVerificationKey, error) {
 // unmarshals its attributes.
 func (vk *VerificationKey) FromProto(pvk *ProtoVerificationKey) error {
 	ec2len := constants.ECP2Len
-	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) <= 0 {
+	if pvk == nil || len(pvk.G2) != ec2len || len(pvk.Alpha) != ec2len || len(pvk.Beta) == 0 {
 		return errors.New("invalid proto verification key")
 	}
 	g2 := Curve.ECP2_fromBytes(pvk.G2)
@@ -625,4 +625,133 @@ func (theta *Theta) FromProto(protoTheta *ProtoTheta) error {
 	theta.nu = nu
 	theta.proof = proof
 	return nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindSignMaterials) MarshalBinary() ([]byte, error) {
+	protoBlindSignMaterials, err := bsm.ToProto()
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(protoBlindSignMaterials)
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (bsm *BlindSignMaterials) UnmarshalBinary(data []byte) error {
+	protoBlindSignMaterials := &ProtoBlindSignMaterials{}
+	if err := proto.Unmarshal(data, protoBlindSignMaterials); err != nil {
+		return err
+	}
+	return bsm.FromProto(protoBlindSignMaterials)
+}
+
+// ToProto creates a protobuf representation of the object.
+func (bsm *BlindSignMaterials) ToProto() (*ProtoBlindSignMaterials, error) {
+	if bsm == nil || bsm.lambda == nil || bsm.egPub == nil || bsm.pubM == nil {
+		return nil, errors.New("the blind sign materials are malformed")
+	}
+
+	protoLambda, err := bsm.lambda.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	protoPublicKey, err := bsm.egPub.ToProto()
+	if err != nil {
+		return nil, err
+	}
+
+	pubMb, err := BigSliceToByteSlices(bsm.pubM)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProtoBlindSignMaterials{
+		Lambda: protoLambda,
+		EgPub:  protoPublicKey,
+		PubM:   pubMb,
+	}, nil
+}
+
+// FromProto takes a protobuf representation of the object and
+// unmarshals its attributes.
+func (bsm *BlindSignMaterials) FromProto(pbsm *ProtoBlindSignMaterials) error {
+	if pbsm == nil || pbsm.Lambda == nil || pbsm.EgPub == nil || pbsm.PubM == nil {
+		return errors.New("invalid proto blind sign materials")
+	}
+
+	lambda := &Lambda{}
+	if err := lambda.FromProto(pbsm.Lambda); err != nil {
+		return err
+	}
+
+	egPub := &elgamal.PublicKey{}
+	if err := egPub.FromProto(pbsm.EgPub); err != nil {
+		return err
+	}
+
+	pubM, err := BigSliceFromByteSlices(pbsm.PubM)
+	if err != nil {
+		return err
+	}
+
+	bsm.lambda = lambda
+	bsm.egPub = egPub
+	bsm.pubM = pubM
+	return nil
+}
+
+// TODO: perhaps similar code for all other structs?
+// We don't care about being able to recover original data. Treat it as a one-way function.
+// Used to sign and verify the underlying data.
+func (pbsm *ProtoBlindSignMaterials) OneWayToBytes() ([]byte, error) {
+	sp := pbsm.Lambda.Proof
+	if len(sp.Rk) == 0 || len(sp.Rm) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	proofBytes := make([]byte, len(sp.C)+len(sp.Rr)+len(sp.Rk)*len(sp.Rk[0])+len(sp.Rm)*len(sp.Rm[0]))
+	i := copy(proofBytes, sp.C)
+	i += copy(proofBytes[i:], sp.Rr)
+	for _, rke := range sp.Rk {
+		i += copy(proofBytes[i:], rke)
+	}
+	for _, rme := range sp.Rm {
+		i += copy(proofBytes[i:], rme)
+	}
+
+	l := pbsm.Lambda
+	if len(l.Enc) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	lambdaBytes := make([]byte, len(l.Cm)+2*len(l.Enc)*len(l.Enc[0].C1)+len(proofBytes))
+	i = copy(lambdaBytes, l.Cm)
+	for _, ence := range l.Enc {
+		i += copy(lambdaBytes[i:], ence.C1)
+		i += copy(lambdaBytes[i:], ence.C2)
+	}
+	copy(lambdaBytes[i:], proofBytes)
+
+	pub := pbsm.EgPub
+	pubBytes := make([]byte, len(pub.P)+len(pub.G)+len(pub.Gamma))
+	i = copy(pubBytes, pub.P)
+	i += copy(pubBytes[i:], pub.G)
+	copy(pubBytes[i:], pub.Gamma)
+
+	if len(pbsm.PubM) == 0 {
+		return nil, errors.New("malformed object")
+	}
+	pubMb := make([]byte, len(pbsm.PubM)*len(pbsm.PubM[0]))
+	i = 0
+	for _, pubMe := range pbsm.PubM {
+		i += copy(pubMb[i:], pubMe)
+	}
+
+	b := make([]byte, len(lambdaBytes)+len(pubBytes)+len(pubMb))
+	i = copy(b, lambdaBytes)
+	i += copy(b[i:], pubBytes)
+	copy(b[i:], pubMb)
+
+	return b, nil
 }

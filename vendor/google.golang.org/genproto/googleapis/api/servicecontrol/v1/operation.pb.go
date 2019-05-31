@@ -5,10 +5,11 @@ package servicecontrol
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -20,7 +21,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Defines the importance of the data contained in the operation.
 type Operation_Importance int32
@@ -80,8 +81,10 @@ type Operation struct {
 	// Required. Start time of the operation.
 	StartTime *timestamp.Timestamp `protobuf:"bytes,4,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// End time of the operation.
-	// Required when the operation is used in [ServiceController.Report][google.api.servicecontrol.v1.ServiceController.Report],
-	// but optional when the operation is used in [ServiceController.Check][google.api.servicecontrol.v1.ServiceController.Check].
+	// Required when the operation is used in
+	// [ServiceController.Report][google.api.servicecontrol.v1.ServiceController.Report],
+	// but optional when the operation is used in
+	// [ServiceController.Check][google.api.servicecontrol.v1.ServiceController.Check].
 	EndTime *timestamp.Timestamp `protobuf:"bytes,5,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	// Labels describing the operation. Only the following labels are allowed:
 	//

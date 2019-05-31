@@ -37,7 +37,7 @@ func main() {
 
 	// EnsureDir checks if given dir exists and if it doesnt, creates the entire path
 	if err := cmn.EnsureDir(dbPath, 0700); err != nil {
-		panic(fmt.Errorf("Could not create DB directory: %v", err.Error()))
+		panic(fmt.Errorf("could not create DB directory: %v", err.Error()))
 	}
 
 	// TODO: location of logger, etc
@@ -57,7 +57,9 @@ func main() {
 	}
 
 	cmn.TrapSignal(logger, func() {
-		srv.Stop()
+		if err := srv.Stop(); err != nil {
+			logger.Error(err.Error())
+		}
 		logger.Info("Server was stopped")
 	})
 

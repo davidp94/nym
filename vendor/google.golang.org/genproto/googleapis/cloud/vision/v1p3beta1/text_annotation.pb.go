@@ -5,9 +5,10 @@ package vision
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -19,7 +20,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Enum to denote the type of break found. New line, space etc.
 type TextAnnotation_DetectedBreak_BreakType int32
@@ -115,8 +116,9 @@ func (Block_BlockType) EnumDescriptor() ([]byte, []int) {
 //     TextAnnotation -> Page -> Block -> Paragraph -> Word -> Symbol
 // Each structural component, starting from Page, may further have their own
 // properties. Properties describe detected languages, breaks etc.. Please refer
-// to the [TextAnnotation.TextProperty][google.cloud.vision.v1p3beta1.TextAnnotation.TextProperty] message definition below for more
-// detail.
+// to the
+// [TextAnnotation.TextProperty][google.cloud.vision.v1p3beta1.TextAnnotation.TextProperty]
+// message definition below for more detail.
 type TextAnnotation struct {
 	// List of pages detected by OCR.
 	Pages []*Page `protobuf:"bytes,1,rep,name=pages,proto3" json:"pages,omitempty"`

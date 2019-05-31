@@ -6,6 +6,8 @@ package appengine
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "github.com/golang/protobuf/ptypes/empty"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
@@ -13,7 +15,6 @@ import (
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -25,10 +26,10 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// Fields that should be returned when [Version][google.appengine.v1.Version] resources
-// are retreived.
+// Fields that should be returned when [Version][google.appengine.v1.Version]
+// resources are retreived.
 type VersionView int32
 
 const (
@@ -304,14 +305,17 @@ type UpdateServiceRequest struct {
 	// single version. By default, traffic is shifted immediately.
 	// For gradual traffic migration, the target version
 	// must be located within instances that are configured for both
-	// [warmup requests](https://cloud.google.com/appengine/docs/admin-api/reference/rest/v1/apps.services.versions#inboundservicetype)
+	// [warmup
+	// requests](https://cloud.google.com/appengine/docs/admin-api/reference/rest/v1/apps.services.versions#inboundservicetype)
 	// and
-	// [automatic scaling](https://cloud.google.com/appengine/docs/admin-api/reference/rest/v1/apps.services.versions#automaticscaling).
+	// [automatic
+	// scaling](https://cloud.google.com/appengine/docs/admin-api/reference/rest/v1/apps.services.versions#automaticscaling).
 	// You must specify the
 	// [`shardBy`](https://cloud.google.com/appengine/docs/admin-api/reference/rest/v1/apps.services#shardby)
 	// field in the Service resource. Gradual traffic migration is not
 	// supported in the App Engine flexible environment. For examples, see
-	// [Migrating and Splitting Traffic](https://cloud.google.com/appengine/docs/admin-api/migrating-splitting-traffic).
+	// [Migrating and Splitting
+	// Traffic](https://cloud.google.com/appengine/docs/admin-api/migrating-splitting-traffic).
 	MigrateTraffic       bool     `protobuf:"varint,4,opt,name=migrate_traffic,json=migrateTraffic,proto3" json:"migrate_traffic,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`

@@ -17,22 +17,38 @@
 // Package constants declares system-wide constants.
 package constants
 
-const ()
+import (
+	"errors"
+
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+)
+
+const (
+	// DebugMode is a flag to indicate whether the application is in debug mode.
+	// If disabled some options won't be available
+	DebugMode = true
+
+	// NonceLength indicates number of bytes used for any nonces.
+	NonceLength = 16 // 128 bits - should be more than enough
+)
+
+// TODO: requires major cleanup and removing unused entries
+// TODO: change all prefixes to say only length of 8 bytes?
 
 // nolint: gochecknoglobals
 var (
 	// SpentZetaPrefix represents prefix for each zeta in the database to indicate it has been spent.
 	SpentZetaPrefix = []byte("SPENT")
 
-	// HoldingAccountAddress represents the account address used by the 'Holding Account'.
-	HoldingAccountAddress = []byte("HOLDING ACCOUNT")
-
 	// AggregateVkKey represents the database entry for the aggregate verification key of the threshold number
 	// of issuing authorities of the system. It is used for credential verification.
-	AggregateVkKey = []byte("avk")
+	AggregateVkKey = []byte("AggregateVerificationKey")
 
 	// IaKeyPrefix represents the prefix for particular issuing authority to store their keys.
 	IaKeyPrefix = []byte("IssuingAuthority")
+
+	// EthereumWatcherKeyPrefix represents the prefix for storing public keys of trusted watchers.
+	EthereumWatcherKeyPrefix = []byte("EthereumWatcher")
 
 	// CommitmentsPrefix (TO BE REMOVED) represents prefix for each commitment in the database to indicate
 	// it was already sent and hence funds were moved
@@ -49,6 +65,27 @@ var (
 	SeenNoncePrefix = []byte("NONCE")
 
 	// CredentialRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
-	// to a successful request to transfer tokents to a holding account.
+	// to a successful request to transfer tokens to the pipe account.
 	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
+
+	// EthereumWatcherNotificationPrefix represents prefix for database entry
+	// to indicate given watcher has already notified about particular transfer.
+	EthereumWatcherNotificationPrefix = []byte("HOLDTRANSFNOTIF")
+
+	// PipeAccountTransferNotificationCountKeyPrefix represents prefix for the key for number of watchers
+	// confirming given transfer
+	PipeAccountTransferNotificationCountKeyPrefix = []byte("COUNT HODLTRANSFNOTIF")
+
+	// WatcherThresholdKey represents key under which watcher threshold as initially set in genesis state is stored.
+	WatcherThresholdKey = []byte("WatcherThreshold")
+
+	// PipeContractKey represents key under which address of the pipe account
+	// as initially set in genesis state is stored.
+	PipeContractKey = []byte("PipeContractAddress")
+
+	// HashFunction defines a hash function used during signing and verification of messages sent to tendermint chain
+	HashFunction = ethcrypto.Keccak256
+
+	// ErrNotInDebug indicates error thrown when trying to access functionalities only available in debug mode
+	ErrNotInDebug = errors.New("could not proceed with request. App is not in debug mode")
 )

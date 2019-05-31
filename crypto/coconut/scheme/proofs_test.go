@@ -50,6 +50,7 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 	// so only variable number of private attributes is being tested
 	privns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
+		privn := privn
 		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
@@ -95,6 +96,7 @@ func BenchmarkConstructSignerProof(b *testing.B) {
 func BenchmarkVerifySignerProof(b *testing.B) {
 	privns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
+		privn := privn
 		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
@@ -140,12 +142,14 @@ func BenchmarkVerifySignerProof(b *testing.B) {
 	}
 }
 
+//nolint: gochecknoglobals
 var verifierProofRes *VerifierProof
 
 func BenchmarkConstructVerifierProof(b *testing.B) {
 	privns := []int{1, 3, 5, 10}
 	var verifierProof *VerifierProof
 	for _, privn := range privns {
+		privn := privn
 		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
@@ -172,13 +176,14 @@ func BenchmarkConstructVerifierProof(b *testing.B) {
 		})
 	}
 	// it is recommended to store results in package level variables,
-	// so that compiler would not try to optimize the benchmark
+	// so that compiler would not try to optimise the benchmark
 	verifierProofRes = verifierProof
 }
 
 func BenchmarkVerifyVerifierProof(b *testing.B) {
 	privns := []int{1, 3, 5, 10}
 	for _, privn := range privns {
+		privn := privn
 		b.Run(fmt.Sprintf("priv=%d", privn), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()

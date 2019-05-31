@@ -19,21 +19,16 @@
 package serverworker
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -58,11 +53,11 @@ type ServerWorker struct {
 	nymClient *nymclient.Client
 	store     *storage.Database
 
-	iaid       uint32
-	sk         *coconut.SecretKey // ensure they can be safely shared between multiple workers
-	vk         *coconut.VerificationKey
-	avk        *coconut.VerificationKey // only used if server is a provider
-	nymAccount account.Account
+	iaid uint32
+	sk   *coconut.SecretKey // ensure they can be safely shared between multiple workers
+	vk   *coconut.VerificationKey
+	avk  *coconut.VerificationKey // only used if server is a provider
+	// nymAccount account.Account
 
 	id uint64
 }
@@ -91,7 +86,13 @@ func (sw *ServerWorker) handleSignRequest(req *commands.SignRequest) *commands.R
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := sw.SignWrapper(sw.sk, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	sig, err := sw.SignWrapper(sw.sk, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -103,6 +104,7 @@ func (sw *ServerWorker) handleSignRequest(req *commands.SignRequest) *commands.R
 	return response
 }
 
+//nolint: unparam
 func (sw *ServerWorker) handleVerificationKeyRequest(req *commands.VerificationKeyRequest) *commands.Response {
 	response := getDefaultResponse()
 	response.Data = sw.vk
@@ -123,7 +125,13 @@ func (sw *ServerWorker) handleVerifyRequest(req *commands.VerifyRequest) *comman
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = sw.VerifyWrapper(sw.avk, coconut.BigSliceFromByteSlices(req.PubM), sig)
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	response.Data = sw.VerifyWrapper(sw.avk, bigs, sig)
 	return response
 }
 
@@ -148,7 +156,13 @@ func (sw *ServerWorker) handleBlindSignRequest(req *commands.BlindSignRequest) *
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	sig, err := sw.BlindSignWrapper(sw.sk, lambda, egPub, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -180,7 +194,13 @@ func (sw *ServerWorker) handleBlindVerifyRequest(req *commands.BlindVerifyReques
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	response.Data = sw.BlindVerifyWrapper(sw.avk, sig, theta, coconut.BigSliceFromByteSlices(req.PubM))
+	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
+		sw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+	response.Data = sw.BlindVerifyWrapper(sw.avk, sig, theta, bigs)
 	return response
 }
 
@@ -188,62 +208,67 @@ func (sw *ServerWorker) handleSpendCredentialRequest(req *commands.SpendCredenti
 	response := getDefaultResponse()
 	response.Data = false
 
-	// theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
-	// but we check if the user says it bound it to our address
-	address := req.MerchantAddress
-
-	if bytes.Compare(address, sw.nymAccount.PublicKey) != 0 {
-		// check if perhaps our address is in uncompressed form but client bound it to the compressed version
-		var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
-		copy(accountCompressed, sw.nymAccount.PublicKey)
-		// nolint: gosec
-		accountCompressed.Compress()
-
-		if bytes.Compare(address, accountCompressed) != 0 {
-			b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
-			b64Bind := base64.StdEncoding.EncodeToString(address)
-			errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
-			sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_BINDING)
-			return response
-		}
-	}
-
-	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
-		req.Sig,
-		req.PubM,
-		req.Theta,
-		req.Value,
-		req.MerchantAddress,
-	)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-
-	blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
-		sw.log.Critical(errMsg)
-		response.ErrorMessage = errMsg
-		response.ErrorStatus = commands.StatusCode_PROCESSING_ERROR
-		return response
-	}
-
-	sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
-		code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
-
-	if blockchainResponse.DeliverTx.Code != code.OK {
-		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
-			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
-		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
-		return response
-	}
-
-	// the response data in future might be provider dependent, to include say some authorization token
-	response.ErrorStatus = commands.StatusCode_OK
-	response.Data = true
+	sw.log.Warning("REQUIRES RE-IMPLEMENTATION")
 	return response
+
+	// // theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
+	// // but we check if the user says it bound it to our address
+	// address := req.MerchantAddress
+
+	// if !bytes.Equal(address, sw.nymAccount.PublicKey) {
+	// 	// check if perhaps our address is in uncompressed form but client bound it to the compressed version
+	// 	var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
+	// 	copy(accountCompressed, sw.nymAccount.PublicKey)
+	// 	if err := accountCompressed.Compress(); err != nil {
+	// 		sw.log.Critical("Couldn't compress our own account key")
+	// 		// TODO: how to handle it?
+	// 	}
+
+	// 	if !bytes.Equal(address, accountCompressed) {
+	// 		b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
+	// 		b64Bind := base64.StdEncoding.EncodeToString(address)
+	// 		errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
+	// 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_BINDING)
+	// 		return response
+	// 	}
+	// }
+
+	// blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
+	// 	req.Sig,
+	// 	req.PubM,
+	// 	req.Theta,
+	// 	req.Value,
+	// 	req.MerchantAddress,
+	// )
+	// if err != nil {
+	// 	errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+	// 	return response
+	// }
+
+	// blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
+	// if err != nil {
+	// 	errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
+	// 	sw.log.Critical(errMsg)
+	// 	response.ErrorMessage = errMsg
+	// 	response.ErrorStatus = commands.StatusCode_PROCESSING_ERROR
+	// 	return response
+	// }
+
+	// sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
+	// 	code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
+
+	// if blockchainResponse.DeliverTx.Code != code.OK {
+	// 	errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
+	// 		blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
+	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+	// 	return response
+	// }
+
+	// // the response data in future might be provider dependent, to include say some authorization token
+	// response.ErrorStatus = commands.StatusCode_OK
+	// response.Data = true
+	// return response
 }
 
 func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRequest) *commands.Response {
@@ -277,7 +302,7 @@ func (sw *ServerWorker) handleGetCredentialRequest(req *commands.GetCredentialRe
 	// 	return response
 	// }
 
-	// // before we can issue credential we need to check if the user actually performed a valid transfer to the holding
+	// // before we can issue credential we need to check if the user actually performed a valid transfer to the pipe
 	// // account
 	// // FIXME: we are not performing any checks if this txHash was used before, etc.
 
@@ -356,7 +381,7 @@ func (sw *ServerWorker) handleLookUpCredentialRequest(req *commands.LookUpCreden
 	}
 
 	credPair := sw.store.GetCredential(req.Height, req.Gamma)
-	if len(credPair.Credential) <= 0 {
+	if len(credPair.Credential) == 0 {
 		errMsg := "Could not lookup the credential using provided arguments"
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
@@ -377,7 +402,7 @@ func (sw *ServerWorker) handleLookUpBlockCredentialsRequest(req *commands.LookUp
 	}
 
 	credPairs := sw.store.GetBlockCredentials(req.Height)
-	if len(credPairs) <= 0 {
+	if len(credPairs) == 0 {
 		errMsg := "Could not lookup the credential using provided arguments. " +
 			"Either there were no valid txs in this block or it wasn't processed yet."
 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
@@ -458,12 +483,12 @@ type Config struct {
 	NymClient *nymclient.Client
 	Store     *storage.Database
 
-	Params     *coconut.Params
-	IAID       uint32
-	Sk         *coconut.SecretKey
-	Vk         *coconut.VerificationKey
-	Avk        *coconut.VerificationKey
-	NymAccount account.Account
+	Params *coconut.Params
+	IAID   uint32
+	Sk     *coconut.SecretKey
+	Vk     *coconut.VerificationKey
+	Avk    *coconut.VerificationKey
+	// NymAccount account.Account
 }
 
 // New creates new instance of a serverWorker.
@@ -478,8 +503,8 @@ func New(cfg *Config) (*ServerWorker, error) {
 		avk:           cfg.Avk,
 		nymClient:     cfg.NymClient,
 		store:         cfg.Store,
-		nymAccount:    cfg.NymAccount,
-		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
+		// nymAccount:    cfg.NymAccount,
+		log: cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
 	sw.Go(sw.worker)

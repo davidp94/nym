@@ -129,9 +129,6 @@ type Debug struct {
 	// RequestTimeout specifies the maximum time a client job request can take to process.
 	RequestTimeout int
 
-	// RegenerateKeys specifies whether to generate new Coconut keypair and overwrite existing files.
-	RegenerateKeys bool
-
 	// ProviderStartupTimeout specifies how long the provider is going to keep retrying to start up before giving up.
 	// Useful when all the servers are started at different orders.
 	ProviderStartupTimeout int
@@ -144,6 +141,18 @@ type Debug struct {
 	// only applicable to obtain verification keys of all IAs
 	// -1 indicates no limit
 	ProviderMaxRequests int
+
+	// RegenerateKeys specifies whether to generate new Coconut keypair and overwrite existing files.
+	RegenerateKeys bool
+
+	// DisableAllBlockchainCommunication allows to disable startup of blockchain client, monitor and processor.
+	// Not to be set in production environment. Only really applicable in tests.
+	DisableAllBlockchainCommunication bool
+
+	// DisableBlockchainMonitoring allows to disable startup of blockchain monitor and processor.
+	// However, it does not disable a blockchain client so that server can still send transactions to the chain.
+	// Not to be set in production environment. Only really applicable in tests.
+	DisableBlockchainMonitoring bool
 }
 
 func (dCfg *Debug) applyDefaults() {
@@ -202,7 +211,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if !cfg.Server.IsProvider && !cfg.Server.IsIssuer {
 		return errors.New("config: Server is neither Issuer nor Provider")
 	}
-	if len(cfg.Server.Addresses) <= 0 && len(cfg.Server.GRPCAddresses) <= 0 {
+	if len(cfg.Server.Addresses) == 0 && len(cfg.Server.GRPCAddresses) == 0 {
 		return errors.New("config: No addresses to bind the server to")
 	}
 
@@ -210,13 +219,13 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		if cfg.Provider == nil {
 			return errors.New("config: Provider block not set when server is a Provider")
 		}
-		if len(cfg.Provider.IAIDs) <= 0 {
+		if len(cfg.Provider.IAIDs) == 0 {
 			IAIDs := make([]int, len(cfg.Provider.IAAddresses))
 			for i := range cfg.Provider.IAAddresses {
 				IAIDs[i] = i + 1
 			}
 			cfg.Provider.IAIDs = IAIDs
-		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) <= 0 {
+		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) == 0 {
 			return errors.New("config: Invalid provider - IA Servers configuration")
 		}
 		if cfg.Provider.Threshold < 0 {
@@ -239,7 +248,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		return errors.New("config: Invalid number of allowed attributes")
 	}
 
-	if len(cfg.Server.DataDir) <= 0 {
+	if len(cfg.Server.DataDir) == 0 {
 		return errors.New("config: Unspecified DataDir")
 	}
 

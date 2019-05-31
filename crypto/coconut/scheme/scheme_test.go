@@ -338,7 +338,7 @@ func BenchmarkAte2Pairing(b *testing.B) {
 // 		sig = Unblind(params, blindSig, d)
 // 	}
 // 	// it is recommended to store results in package level variables,
-// 	// so that compiler would not try to optimize the benchmark
+// 	// so that compiler would not try to optimise the benchmark
 // 	unblindRes = sig
 // }
 
@@ -483,7 +483,7 @@ func BenchmarkAte2Pairing(b *testing.B) {
 // 	aSig1 := AggregateSignatures(params, signatures[1:], pp2)
 // 	aSig2 := AggregateSignatures(params, signatures[:len(signatures)-1], pp1)
 
-// 	// Randomize the credentials
+// 	// Randomise the credentials
 // 	rSig1 := Randomize(params, aSig1)
 // 	rSig2 := Randomize(params, aSig2)
 

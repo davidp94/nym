@@ -1,5 +1,6 @@
 // modified version of katzenpost daemon
 
+//nolint: dupl
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strconv"
 	"syscall"
 
 	"0xacab.org/jstuczyn/CoconutGo/server"
@@ -15,6 +17,16 @@ import (
 )
 
 func main() {
+	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
+	if PtrSize != 64 || strconv.IntSize != 64 {
+		fmt.Fprintf(os.Stderr,
+			"The binary seems to not have been compiled in 64bit mode. Runtime pointer size: %v, Int size: %v\n",
+			PtrSize,
+			strconv.IntSize,
+		)
+		os.Exit(-1)
+	}
+
 	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
 	flag.Parse()
 

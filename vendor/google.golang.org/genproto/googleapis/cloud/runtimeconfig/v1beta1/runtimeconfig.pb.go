@@ -6,13 +6,14 @@ package runtimeconfig
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -24,11 +25,12 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Request for the `ListConfigs()` method.
 type ListConfigsRequest struct {
-	// The [project ID](https://support.google.com/cloud/answer/6158840?hl=en&ref_topic=6158848)
+	// The [project
+	// ID](https://support.google.com/cloud/answer/6158840?hl=en&ref_topic=6158848)
 	// for this request, in the format `projects/[PROJECT_ID]`.
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// Specifies the number of results to return per page. If there are fewer
@@ -189,7 +191,8 @@ func (m *GetConfigRequest) GetName() string {
 
 // Creates a RuntimeConfig resource.
 type CreateConfigRequest struct {
-	// The [project ID](https://support.google.com/cloud/answer/6158840?hl=en&ref_topic=6158848)
+	// The [project
+	// ID](https://support.google.com/cloud/answer/6158840?hl=en&ref_topic=6158848)
 	// for this request, in the format `projects/[PROJECT_ID]`.
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
 	// The RuntimeConfig to create.
@@ -353,8 +356,9 @@ func (m *DeleteConfigRequest) GetName() string {
 
 // Request for the `ListVariables()` method.
 type ListVariablesRequest struct {
-	// The path to the RuntimeConfig resource for which you want to list variables.
-	// The configuration must exist beforehand; the path must by in the format:
+	// The path to the RuntimeConfig resource for which you want to list
+	// variables. The configuration must exist beforehand; the path must by in the
+	// format:
 	//
 	// `projects/[PROJECT_ID]/configs/[CONFIG_NAME]`
 	Parent string `protobuf:"bytes,1,opt,name=parent,proto3" json:"parent,omitempty"`
@@ -1170,10 +1174,10 @@ type RuntimeConfigManagerClient interface {
 	UpdateConfig(ctx context.Context, in *UpdateConfigRequest, opts ...grpc.CallOption) (*RuntimeConfig, error)
 	// Deletes a RuntimeConfig resource.
 	DeleteConfig(ctx context.Context, in *DeleteConfigRequest, opts ...grpc.CallOption) (*empty.Empty, error)
-	// Lists variables within given a configuration, matching any provided filters.
-	// This only lists variable names, not the values, unless `return_values` is
-	// true, in which case only variables that user has IAM permission to
-	// GetVariable will be returned.
+	// Lists variables within given a configuration, matching any provided
+	// filters. This only lists variable names, not the values, unless
+	// `return_values` is true, in which case only variables that user has IAM
+	// permission to GetVariable will be returned.
 	ListVariables(ctx context.Context, in *ListVariablesRequest, opts ...grpc.CallOption) (*ListVariablesResponse, error)
 	// Gets information about a single variable.
 	GetVariable(ctx context.Context, in *GetVariableRequest, opts ...grpc.CallOption) (*Variable, error)
@@ -1183,12 +1187,13 @@ type RuntimeConfigManagerClient interface {
 	// If a variable is deleted while being watched, the `variableState` state is
 	// set to `DELETED` and the method returns the last known variable `value`.
 	//
-	// If you set the deadline for watching to a larger value than internal timeout
-	// (60 seconds), the current variable value is returned and the `variableState`
-	// will be `VARIABLE_STATE_UNSPECIFIED`.
+	// If you set the deadline for watching to a larger value than internal
+	// timeout (60 seconds), the current variable value is returned and the
+	// `variableState` will be `VARIABLE_STATE_UNSPECIFIED`.
 	//
 	// To learn more about creating a watcher, read the
-	// [Watching a Variable for Changes](/deployment-manager/runtime-configurator/watching-a-variable)
+	// [Watching a Variable for
+	// Changes](/deployment-manager/runtime-configurator/watching-a-variable)
 	// documentation.
 	WatchVariable(ctx context.Context, in *WatchVariableRequest, opts ...grpc.CallOption) (*Variable, error)
 	// Creates a variable within the given configuration. You cannot create
@@ -1196,7 +1201,8 @@ type RuntimeConfigManagerClient interface {
 	// name that has an existing variable name as a prefix.
 	//
 	// To learn more about creating a variable, read the
-	// [Setting and Getting Data](/deployment-manager/runtime-configurator/set-and-get-variables)
+	// [Setting and Getting
+	// Data](/deployment-manager/runtime-configurator/set-and-get-variables)
 	// documentation.
 	CreateVariable(ctx context.Context, in *CreateVariableRequest, opts ...grpc.CallOption) (*Variable, error)
 	// Updates an existing variable with a new value.
@@ -1378,10 +1384,10 @@ type RuntimeConfigManagerServer interface {
 	UpdateConfig(context.Context, *UpdateConfigRequest) (*RuntimeConfig, error)
 	// Deletes a RuntimeConfig resource.
 	DeleteConfig(context.Context, *DeleteConfigRequest) (*empty.Empty, error)
-	// Lists variables within given a configuration, matching any provided filters.
-	// This only lists variable names, not the values, unless `return_values` is
-	// true, in which case only variables that user has IAM permission to
-	// GetVariable will be returned.
+	// Lists variables within given a configuration, matching any provided
+	// filters. This only lists variable names, not the values, unless
+	// `return_values` is true, in which case only variables that user has IAM
+	// permission to GetVariable will be returned.
 	ListVariables(context.Context, *ListVariablesRequest) (*ListVariablesResponse, error)
 	// Gets information about a single variable.
 	GetVariable(context.Context, *GetVariableRequest) (*Variable, error)
@@ -1391,12 +1397,13 @@ type RuntimeConfigManagerServer interface {
 	// If a variable is deleted while being watched, the `variableState` state is
 	// set to `DELETED` and the method returns the last known variable `value`.
 	//
-	// If you set the deadline for watching to a larger value than internal timeout
-	// (60 seconds), the current variable value is returned and the `variableState`
-	// will be `VARIABLE_STATE_UNSPECIFIED`.
+	// If you set the deadline for watching to a larger value than internal
+	// timeout (60 seconds), the current variable value is returned and the
+	// `variableState` will be `VARIABLE_STATE_UNSPECIFIED`.
 	//
 	// To learn more about creating a watcher, read the
-	// [Watching a Variable for Changes](/deployment-manager/runtime-configurator/watching-a-variable)
+	// [Watching a Variable for
+	// Changes](/deployment-manager/runtime-configurator/watching-a-variable)
 	// documentation.
 	WatchVariable(context.Context, *WatchVariableRequest) (*Variable, error)
 	// Creates a variable within the given configuration. You cannot create
@@ -1404,7 +1411,8 @@ type RuntimeConfigManagerServer interface {
 	// name that has an existing variable name as a prefix.
 	//
 	// To learn more about creating a variable, read the
-	// [Setting and Getting Data](/deployment-manager/runtime-configurator/set-and-get-variables)
+	// [Setting and Getting
+	// Data](/deployment-manager/runtime-configurator/set-and-get-variables)
 	// documentation.
 	CreateVariable(context.Context, *CreateVariableRequest) (*Variable, error)
 	// Updates an existing variable with a new value.

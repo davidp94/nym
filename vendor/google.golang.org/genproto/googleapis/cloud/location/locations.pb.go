@@ -6,11 +6,12 @@ package location
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,9 +23,10 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
-// The request message for [Locations.ListLocations][google.cloud.location.Locations.ListLocations].
+// The request message for
+// [Locations.ListLocations][google.cloud.location.Locations.ListLocations].
 type ListLocationsRequest struct {
 	// The resource that owns the locations collection, if applicable.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -92,7 +94,8 @@ func (m *ListLocationsRequest) GetPageToken() string {
 	return ""
 }
 
-// The response message for [Locations.ListLocations][google.cloud.location.Locations.ListLocations].
+// The response message for
+// [Locations.ListLocations][google.cloud.location.Locations.ListLocations].
 type ListLocationsResponse struct {
 	// A list of locations that matches the specified filter in the request.
 	Locations []*Location `protobuf:"bytes,1,rep,name=locations,proto3" json:"locations,omitempty"`
@@ -142,7 +145,8 @@ func (m *ListLocationsResponse) GetNextPageToken() string {
 	return ""
 }
 
-// The request message for [Locations.GetLocation][google.cloud.location.Locations.GetLocation].
+// The request message for
+// [Locations.GetLocation][google.cloud.location.Locations.GetLocation].
 type GetLocationRequest struct {
 	// Resource name for the location.
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`

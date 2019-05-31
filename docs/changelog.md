@@ -1,5 +1,59 @@
 # CoconutGo Changelog
 
+## 0.7.0
+
+* Working conversion of ERC20 Nym tokens into coconut credentials
+* Using Ethereum addresses for accounts on the Nym-Tendermint side
+* Ability for watchers to send notification transactions to Tendermint chain
+* Ability for client to query its Ethereum (ERC20 Nym) and Tendermint balances
+* Changes to Tendermint app state and the genesis state
+* More ERC20-Nym specific Ethereum-client methods
+* Checks for whether binary were compiled in 64bit mode
+* Moved all localnet related keys and configs to a dedicated directory
+* Other minor changes and fixes
+
+## 0.6.6
+
+* Updated Nym Node genesis state to include Ethereum watchers
+* Modified the nymnode dockerfile to allow include gcc required by Ethereum build process
+* Updates all dependencies
+
+## 0.6.5
+
+* Introduced constants file with method signatures for ERC20 token functions
+* Generalised Ethereum's client transfer function so rather than being hardcoded to transferring to the holding account using Nym contract, both of those attributes can be specified
+* Introduced ECDSA keypair to Ethereum watcher
+* Protobuf definitions for notifications watcher sends to Tendermint chain
+
+## 0.6.4
+
+* A lot of linter-related fixes
+
+## 0.6.3
+
+* Replaced all function calls in watcher file with methods on watcher object. Config object is no longer passed to them
+* Ability to cleanly shutdown the watcher
+* Fixed watcher logger
+
+## v0.6.2
+
+* Dedicated configuration file for the Ethereum watcher
+
+## v0.6.1
+
+* "Daemon" for Ethereum watcher
+* Semi-split the watcher files
+
+## v0.6.0
+
+* Copied the Ethereum watcher codebase to the repository
+* A very initial take on Ethereum client - ability to send Nym tokens to Holding Account
+* Fixed remaining old tests
+
+## v0.5.1
+
+* Fixed monitor/processor deadlock when there are no blocks to be processed.
+
 ## v0.5.0
 
 * Combined tendermint node and nym abci into a single binary to significantly simplify deployment and testing

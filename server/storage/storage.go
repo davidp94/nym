@@ -31,8 +31,10 @@ import (
 //
 // Currently issuers store the following:
 // [CREDENTIAL_PREFIX || BLOCK_HEIGHT || GAMMA] --- BLINDED_SIGNATURE
-// [LATEST_STORED_KEY] - BLOCK_HEIGHT // used to indicate heighest processed block. It is guaranteed to be stored in order and hence there are no missing blocks before that.
+// [LATEST_STORED_KEY] --- BLOCK_HEIGHT // used to indicate the highest processed block.
+// It is guaranteed to be stored in order and hence there are no missing blocks before that.
 
+//nolint: gochecknoglobals
 var (
 	credentialPrefix = []byte("CRED")
 	latestStoredKey  = []byte("LATEST")
@@ -81,7 +83,7 @@ func (db *Database) StoreBlindedSignature(height int64, gammaB []byte, sig []byt
 	if contains {
 		// but if for some reason it's identical as what we wanted to write
 		// (which in theory shouldn't have been invoked in the first place), just ignore it
-		if bytes.Compare(sig, db.Get(key)) == 0 {
+		if bytes.Equal(sig, db.Get(key)) {
 			return
 		}
 		// otherwise include a suffix in the entry which is up to the client to decode and try again

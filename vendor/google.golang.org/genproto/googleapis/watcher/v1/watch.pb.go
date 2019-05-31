@@ -6,12 +6,13 @@ package watcher
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	_ "github.com/golang/protobuf/ptypes/empty"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,7 +24,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // A reported value can be in one of the following states:
 type Change_State int32
@@ -216,14 +217,14 @@ type Change struct {
 	// The state of the `element`.
 	State Change_State `protobuf:"varint,2,opt,name=state,proto3,enum=google.watcher.v1.Change_State" json:"state,omitempty"`
 	// The actual change data. This field is present only when `state() == EXISTS`
-	// or `state() == ERROR`. Please see [google.protobuf.Any][google.protobuf.Any] about how to use
-	// the Any type.
+	// or `state() == ERROR`. Please see
+	// [google.protobuf.Any][google.protobuf.Any] about how to use the Any type.
 	Data *any.Any `protobuf:"bytes,6,opt,name=data,proto3" json:"data,omitempty"`
 	// If present, provides a compact representation of all the messages that have
 	// been received by the caller for the given entity, e.g., it could be a
 	// sequence number or a multi-part timestamp/version vector. This marker can
-	// be provided in the Request message, allowing the caller to resume the stream
-	// watching at a specific point without fetching the initial state.
+	// be provided in the Request message, allowing the caller to resume the
+	// stream watching at a specific point without fetching the initial state.
 	ResumeMarker []byte `protobuf:"bytes,4,opt,name=resume_marker,json=resumeMarker,proto3" json:"resume_marker,omitempty"`
 	// If true, this Change is followed by more Changes that are in the same group
 	// as this Change.

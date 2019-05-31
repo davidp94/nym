@@ -19,6 +19,7 @@ package client
 
 import (
 	"context"
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"net"
@@ -32,11 +33,12 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	pb "0xacab.org/jstuczyn/CoconutGo/common/grpc/services"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	ethclient "0xacab.org/jstuczyn/CoconutGo/ethereum/client"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"google.golang.org/grpc"
@@ -53,8 +55,9 @@ type Client struct {
 	cryptoworker       *cryptoworker.CryptoWorker
 	defaultDialOptions []grpc.DialOption
 
-	nymAccount account.Account
+	privateKey *ecdsa.PrivateKey
 	nymClient  *nymclient.Client
+	ethClient  *ethclient.Client
 }
 
 // used to share code for parsing BlindSign and GetCredential responses. They return same data but under different name
@@ -140,8 +143,10 @@ func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.M
 	return responses
 }
 
-// nolint: lll
-func (c *Client) waitForGrpcResponses(respCh <-chan *comm.ServerResponseGrpc, responses []*comm.ServerResponseGrpc, cancelFuncs []context.CancelFunc) {
+func (c *Client) waitForGrpcResponses(respCh <-chan *comm.ServerResponseGrpc,
+	responses []*comm.ServerResponseGrpc,
+	cancelFuncs []context.CancelFunc,
+) {
 	i := 0
 	for {
 		select {
@@ -165,8 +170,10 @@ func (c *Client) waitForGrpcResponses(respCh <-chan *comm.ServerResponseGrpc, re
 }
 
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
-// nolint: lll, errcheck
-func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc, dialOptions []grpc.DialOption) (chan<- *comm.ServerRequestGrpc, []context.CancelFunc) {
+// nolint: errcheck
+func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc,
+	dialOptions []grpc.DialOption,
+) (chan<- *comm.ServerRequestGrpc, []context.CancelFunc) {
 	reqCh := make(chan *comm.ServerRequestGrpc)
 
 	// there can be at most that many connections active at given time,
@@ -188,9 +195,12 @@ func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc, dialOptions [
 
 				defer conn.Close()
 
-				// in the case of a provider, it will be sent to a single server so no need to make it possible to include it in the loop
+				// in the case of a provider,
+				// it will be sent to a single server so no need to make it possible to include it in the loop
 				cc := pb.NewIssuerClient(conn)
-				ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout))
+				ctx, cancel := context.WithTimeout(context.Background(),
+					time.Millisecond*time.Duration(c.cfg.Debug.ConnectTimeout),
+				)
 				cancelFuncs[i] = cancel
 				defer func() {
 					cancelFuncs[i] = nil
@@ -295,11 +305,13 @@ func (c *Client) parseSignatureServerResponses(
 	return sigs, nil
 }
 
-// nolint: lll, gocyclo
-func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut.PolynomialPoints) (*coconut.Signature, error) {
+// nolint: gocyclo
+func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature,
+	pp *coconut.PolynomialPoints,
+) (*coconut.Signature, error) {
 	// TODO: the code has very similar structure to comm.HandleVks. Can it somehow be generalised?
 
-	if len(sigs) <= 0 {
+	if len(sigs) == 0 {
 		return nil, c.logAndReturnError("handleReceivedSignatures: No signatures provided")
 	}
 
@@ -343,7 +355,11 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 
 	if len(sigs) >= c.cfg.Client.Threshold && len(sigs) > 0 {
 		if c.cfg.Client.Threshold > 0 && len(sigs) != len(pp.Xs()) {
-			return nil, c.logAndReturnError("handleReceivedSignatures: Inconsistent response, sigs: %v, pp: %v\n", len(sigs), len(pp.Xs()))
+			return nil,
+				c.logAndReturnError("handleReceivedSignatures: Inconsistent response, sigs: %v, pp: %v\n",
+					len(sigs),
+					len(pp.Xs()),
+				)
 		}
 		c.log.Notice("Number of signatures received is within threshold")
 	} else {
@@ -351,10 +367,12 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	}
 
 	// we only want threshold number of them, in future randomly choose them?
+	//nolint: dupl
 	if c.cfg.Client.Threshold > 0 {
 		sigs = sigs[:c.cfg.Client.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
+	} else if (!c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAAddresses)) ||
+		(c.cfg.Client.UseGRPC && len(sigs) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v signatures", len(sigs), len(c.cfg.Client.IAAddresses))
 		c.log.Warning("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
@@ -364,15 +382,15 @@ func (c *Client) handleReceivedSignatures(sigs []*coconut.Signature, pp *coconut
 	c.log.Debugf("Aggregated %v signatures (threshold: %v)", len(sigs), c.cfg.Client.Threshold)
 
 	rSig := c.cryptoworker.CoconutWorker().RandomizeWrapper(aSig)
-	c.log.Debug("Randomized the signature")
+	c.log.Debug("Randomised the signature")
 
 	return rSig, nil
 }
 
 // SignAttributesGrpc sends sign request to all IA-grpc servers specified in the config
 // with given set of public attributes.
-// In the case of threshold system, first t results are aggregated and the result is randomized and returned.
-// Otherwise all results are aggregated and then randomized.
+// In the case of threshold system, first t results are aggregated and the result is randomised and returned.
+// Otherwise all results are aggregated and then randomised.
 // Error is returned if insufficient number of signatures was received.
 func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	if !c.cfg.Client.UseGRPC {
@@ -415,8 +433,8 @@ func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, erro
 
 // SignAttributes sends sign request to all IA servers specified in the config
 // using TCP sockets with given set of public attributes.
-// In the case of threshold system, first t results are aggregated and the result is randomized and returned.
-// Otherwise all results are aggregated and then randomized.
+// In the case of threshold system, first t results are aggregated and the result is randomised and returned.
+// Otherwise all results are aggregated and then randomised.
 // Error is returned if insufficient number of signatures was received.
 func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	if c.cfg.Client.UseGRPC {
@@ -428,18 +446,21 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("SignAttributes: Failed to create Sign request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		return nil, c.logAndReturnError("SignAttributes: Could not create data packet for sign command: %v", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},
@@ -448,8 +469,11 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 	return c.handleReceivedSignatures(c.parseSignatureServerResponses(responses, c.cfg.Client.Threshold > 0, false, nil))
 }
 
-// nolint: lll, gocyclo
-func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, pp *coconut.PolynomialPoints, shouldAggregate bool) ([]*coconut.VerificationKey, error) {
+// nolint: gocyclo
+func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey,
+	pp *coconut.PolynomialPoints,
+	shouldAggregate bool,
+) ([]*coconut.VerificationKey, error) {
 	vks, pp, err := comm.HandleVks(c.log, vks, pp, c.cfg.Client.Threshold)
 	if err != nil {
 		// error was already logged at HandleVks
@@ -457,10 +481,12 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey, 
 	}
 
 	// we only want threshold number of them, in future randomly choose them?
+	//nolint: dupl
 	if c.cfg.Client.Threshold > 0 {
 		vks = vks[:c.cfg.Client.Threshold]
 		pp = coconut.NewPP(pp.Xs()[:c.cfg.Client.Threshold])
-	} else if (!c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAAddresses)) || (c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAgRPCAddresses)) {
+	} else if (!c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAAddresses)) ||
+		(c.cfg.Client.UseGRPC && len(vks) != len(c.cfg.Client.IAgRPCAddresses)) {
 		c.log.Error("No threshold, but obtained only %v out of %v verification keys", len(vks), len(c.cfg.Client.IAAddresses))
 		c.log.Warning("This behaviour is currently undefined by requirements.")
 		// should it continue regardless and assume the servers are down permanently or just terminate?
@@ -539,18 +565,21 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 		return nil, c.logAndReturnError("GetVerificationKeys: Failed to create Vk request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		return nil, c.logAndReturnError("GetVerificationKeys: Could not create data packet for getVK command: %v", err)
 	}
-	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
+	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},
@@ -583,8 +612,8 @@ func (c *Client) GetAggregateVerificationKey() (*coconut.VerificationKey, error)
 // BlindSignAttributesGrpc sends blind sign request to all IA-grpc servers specified in the config
 // with given set of public and private attributes.
 // In the case of threshold system, after unblinding all results,
-// first t results are aggregated and the result is randomized and returned.
-// Otherwise all unblinded results are aggregated and then randomized.
+// first t results are aggregated and the result is randomised and returned.
+// Otherwise all unblinded results are aggregated and then randomised.
 // Error is returned if insufficient number of signatures was received.
 func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Signature, error) {
 	if !c.cfg.Client.UseGRPC {
@@ -638,8 +667,8 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 // BlindSignAttributes sends sign request to all IA servers specified in the config
 // using TCP sockets with given set of public and private attributes.
 // In the case of threshold system, after unblinding all results,
-// first t results are aggregated and the result is randomized and returned.
-// Otherwise all unblinded results are aggregated and then randomized.
+// first t results are aggregated and the result is randomised and returned.
+// Otherwise all unblinded results are aggregated and then randomised.
 // Error is returned if insufficient number of signatures was received.
 func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.Signature, error) {
 	if c.cfg.Client.UseGRPC {
@@ -662,19 +691,21 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError("BlindSignAttributes: Failed to create BlindSign request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		return nil, c.logAndReturnError("BlindSignAttributes: Could not create data packet for blind sign command: %v", err)
 	}
 
-	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
 
+	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},
@@ -684,10 +715,14 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 	return c.handleReceivedSignatures(sigs, pp)
 }
 
-// SendCredentialsForVerificationGrpc sends a gRPC request to verify obtained credentials to some specified provider server.
+// SendCredentialsForVerificationGrpc sends a gRPC request to verify
+// obtained credentials to some specified provider server.
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
-// nolint: lll, errcheck
-func (c *Client) SendCredentialsForVerificationGrpc(pubM []*Curve.BIG, sig *coconut.Signature, addr string) (bool, error) {
+// nolint: errcheck
+func (c *Client) SendCredentialsForVerificationGrpc(pubM []*Curve.BIG,
+	sig *coconut.Signature,
+	addr string,
+) (bool, error) {
 	if !c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(nonGRPCClientErr)
 	}
@@ -710,7 +745,10 @@ func (c *Client) SendCredentialsForVerificationGrpc(pubM []*Curve.BIG, sig *coco
 
 	r, err := cc.VerifyCredentials(ctx, verifyRequest)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForVerificationGrpc: Failed to receive response to verification request: %v", err)
+		return false,
+			c.logAndReturnError("SendCredentialsForVerificationGrpc: Failed to receive response to verification request: %v",
+				err,
+			)
 	} else if r.GetStatus().Code != int32(commands.StatusCode_OK) {
 		return false, c.logAndReturnError(
 			"SendCredentialsForVerificationGrpc: Received invalid response with status: %v. Error: %v",
@@ -722,7 +760,6 @@ func (c *Client) SendCredentialsForVerificationGrpc(pubM []*Curve.BIG, sig *coco
 }
 
 // SendCredentialsForVerification sends a TCP request to verify obtained credentials to some specified provider server.
-// nolint: lll
 func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.Signature, addr string) (bool, error) {
 	if c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(gRPCClientErr)
@@ -731,7 +768,7 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 	if err != nil {
 		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to create Verify request: %v", err)
 	}
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		return false, c.logAndReturnError("Could not create data packet for verify command: %v", err)
 	}
@@ -749,17 +786,27 @@ func (c *Client) SendCredentialsForVerification(pubM []*Curve.BIG, sig *coconut.
 
 	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 	if sderr != nil {
-		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to set read deadline for connection: %v", sderr)
+		return false,
+			c.logAndReturnError("SendCredentialsForVerification: Failed to set read deadline for connection: %v",
+				sderr,
+			)
 	}
 
 	respPacket, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForVerification: Received invalid response from %v: %v", addr, err)
+		return false,
+			c.logAndReturnError("SendCredentialsForVerification: Received invalid response from %v: %v",
+				addr,
+				err,
+			)
 	}
 
 	verifyResponse := &commands.VerifyResponse{}
 	if err := proto.Unmarshal(respPacket.Payload(), verifyResponse); err != nil {
-		return false, c.logAndReturnError("SendCredentialsForVerification: Failed to recover verification result: %v", err)
+		return false,
+			c.logAndReturnError("SendCredentialsForVerification: Failed to recover verification result: %v",
+				err,
+			)
 	} else if verifyResponse.GetStatus().Code != int32(commands.StatusCode_OK) {
 		return false, c.logAndReturnError(
 			"SendCredentialsForVerification: Received invalid response with status: %v. Error: %v",
@@ -785,8 +832,11 @@ func (c *Client) parseBlindVerifyResponse(packetResponse *packet.Packet) (bool, 
 	return blindVerifyResponse.IsValid, nil
 }
 
-// nolint: lll
-func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, vk *coconut.VerificationKey) (*commands.BlindVerifyRequest, error) {
+func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+	sig *coconut.Signature,
+	vk *coconut.VerificationKey,
+) (*commands.BlindVerifyRequest, error) {
 	var err error
 	if vk == nil {
 		if c.cfg.Client.UseGRPC {
@@ -795,7 +845,11 @@ func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG
 			vk, err = c.GetAggregateVerificationKey()
 		}
 		if err != nil {
-			return nil, c.logAndReturnError("prepareBlindVerifyRequest: Could not obtain aggregate verification key required to create proofs for verification: %v", err)
+			return nil,
+				c.logAndReturnError("prepareBlindVerifyRequest: "+
+					"Could not obtain aggregate verification key required to create proofs for verification: %v",
+					err,
+				)
 		}
 	}
 
@@ -811,18 +865,27 @@ func (c *Client) prepareBlindVerifyRequest(pubM []*Curve.BIG, privM []*Curve.BIG
 	return blindVerifyRequest, nil
 }
 
-// SendCredentialsForBlindVerificationGrpc sends a gRPC request to verify obtained blind credentials to some specified provider server.
+// SendCredentialsForBlindVerificationGrpc sends a gRPC request to verify
+// obtained blind credentials to some specified provider server.
 // If client does not provide aggregate verification key, the call will first try to obtain it.
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
-// nolint: lll, errcheck
-func (c *Client) SendCredentialsForBlindVerificationGrpc(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) (bool, error) {
+// nolint: errcheck
+func (c *Client) SendCredentialsForBlindVerificationGrpc(pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+	sig *coconut.Signature,
+	addr string,
+	vk *coconut.VerificationKey,
+) (bool, error) {
 	if !c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(nonGRPCClientErr)
 	}
 	grpcDialOptions := c.defaultDialOptions
 	blindVerifyRequest, err := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerificationGrpc: Failed to prepare blindverifyrequest: %v", err)
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerificationGrpc: Failed to prepare blindverifyrequest: %v",
+				err,
+			)
 	}
 
 	c.log.Debugf("Dialing %v", addr)
@@ -838,7 +901,11 @@ func (c *Client) SendCredentialsForBlindVerificationGrpc(pubM []*Curve.BIG, priv
 
 	r, err := cc.BlindVerifyCredentials(ctx, blindVerifyRequest)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerificationGrpc: Failed to receive response to verification request: %v", err)
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerificationGrpc: "+
+				"Failed to receive response to verification request: %v",
+				err,
+			)
 	} else if r.GetStatus().Code != int32(commands.StatusCode_OK) {
 		return false, c.logAndReturnError(
 			"SendCredentialsForBlindVerificationGrpc: Received invalid response with status: %v. Error: %v",
@@ -849,20 +916,29 @@ func (c *Client) SendCredentialsForBlindVerificationGrpc(pubM []*Curve.BIG, priv
 	return r.GetIsValid(), nil
 }
 
-// SendCredentialsForBlindVerification sends a TCP request to verify obtained blind credentials to some specified provider server.
+// SendCredentialsForBlindVerification sends a TCP request to verify
+// obtained blind credentials to some specified provider server.
 // If client does not provide aggregate verification key, the call will first try to obtain it.
-// nolint: lll
-func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []*Curve.BIG, sig *coconut.Signature, addr string, vk *coconut.VerificationKey) (bool, error) {
+// nolint: dupl
+func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+	sig *coconut.Signature,
+	addr string,
+	vk *coconut.VerificationKey,
+) (bool, error) {
 	if c.cfg.Client.UseGRPC {
 		return false, c.logAndReturnError(gRPCClientErr)
 	}
 
 	blindVerifyRequest, err := c.prepareBlindVerifyRequest(pubM, privM, sig, vk)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Failed to prepare blindverifyrequest: %v", err)
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to prepare blindverifyrequest: %v",
+				err,
+			)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(blindVerifyRequest)
+	packetBytes, err := commands.CommandToMarshalledPacket(blindVerifyRequest)
 	if err != nil {
 		return false, c.logAndReturnError("Could not create data packet for blind verify command: %v", err)
 	}
@@ -880,12 +956,19 @@ func (c *Client) SendCredentialsForBlindVerification(pubM []*Curve.BIG, privM []
 
 	sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond))
 	if sderr != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v", sderr)
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Failed to set read deadline for connection: %v",
+				sderr,
+			)
 	}
 
 	resp, err := comm.ReadPacketFromConn(conn)
 	if err != nil {
-		return false, c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v", addr, err)
+		return false,
+			c.logAndReturnError("SendCredentialsForBlindVerification: Received invalid response from %v: %v",
+				addr,
+				err,
+			)
 	}
 	return c.parseBlindVerifyResponse(resp)
 }
@@ -907,45 +990,56 @@ func (c *Client) Stop() {
 }
 
 // New returns a new Client instance parameterized with the specified configuration.
-// nolint: lll, gocyclo
+// nolint: gocyclo
 func New(cfg *config.Config) (*Client, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {
-		return nil, errors.New("Nil config provided")
+		return nil, errors.New("nil config provided")
 	}
 
 	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create a logger: %v", err)
+		return nil, fmt.Errorf("failed to create a logger: %v", err)
 	}
 	clientLog := log.GetLogger("Client")
 	clientLog.Noticef("Logging level set to %v", cfg.Logging.Level)
 
-	acc := account.Account{}
-	var nymClient *nymclient.Client
+	if cfg.Nym == nil || cfg.Nym.AccountKeysFile == "" {
+		clientLog.Error("No keys for the Nym Blockchain were specified.")
+		return nil, errors.New("could not load blockchain keys")
+	}
 
-	if cfg.Nym != nil && cfg.Nym.AccountKeysFile != "" {
-		if err := acc.FromJSONFile(cfg.Nym.AccountKeysFile); err != nil {
-			errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-			clientLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
-		clientLog.Notice("Loaded Nym Blochain keys from the file.")
+	privateKey, loadErr := ethcrypto.LoadECDSA(cfg.Nym.AccountKeysFile)
+	if loadErr != nil {
+		errStr := fmt.Sprintf("Failed to load Nym keys: %v", loadErr)
+		clientLog.Error(errStr)
+		return nil, errors.New(errStr)
+	}
+	clientLog.Notice("Loaded Nym Blochain keys from the file.")
 
-		nymClient, err = nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
-		if err != nil {
-			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-			clientLog.Error(errStr)
-			return nil, errors.New(errStr)
-		}
+	nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+	if err != nil {
+		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+		clientLog.Error(errStr)
+		return nil, errors.New(errStr)
+	}
 
-	} else {
-		clientLog.Notice("No keys for the Nym Blockchain were specified.")
+	ethCfg := ethclient.NewConfig(
+		privateKey,
+		cfg.Nym.EthereumNodeAddresses[0],
+		cfg.Nym.NymContract,
+		cfg.Nym.PipeAccount,
+		log,
+	)
+
+	ethClient, err := ethclient.New(ethCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create ethereum client: %v", err)
 	}
 
 	params, err := coconut.Setup(cfg.Client.MaximumAttributes)
 	if err != nil {
-		return nil, errors.New("Error while generating params")
+		return nil, errors.New("error while generating coconut params")
 	}
 
 	cryptoworker := cryptoworker.New(uint64(1), log, params, cfg.Debug.NumJobWorkers)
@@ -961,8 +1055,9 @@ func New(cfg *config.Config) (*Client, error) {
 			grpc.WithInsecure(),
 		},
 
-		nymAccount: acc,
+		privateKey: privateKey,
 		nymClient:  nymClient,
+		ethClient:  ethClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

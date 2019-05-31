@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
@@ -38,16 +38,15 @@ const (
 	backoffDuration = time.Second * 10
 )
 
-// Processor defines struct containing all data required to sign requests comitted on the blockchain.
+// Processor defines struct containing all data required to sign requests committed on the blockchain.
 type Processor struct {
 	worker.Worker
 	monitor    *monitor.Monitor
 	store      *storage.Database
 	incomingCh chan<- *commands.CommandRequest
 
-	haltCh chan struct{}
-	log    *logging.Logger
-	id     int
+	log *logging.Logger
+	id  int
 }
 
 func (p *Processor) worker() {
@@ -55,7 +54,8 @@ func (p *Processor) worker() {
 		// first check if haltCh was closed to halt if needed
 
 		select {
-		case <-p.haltCh:
+		case <-p.HaltCh():
+			p.log.Debug("Returning from initial select")
 			return
 		default:
 			p.log.Debug("Default")
@@ -65,9 +65,11 @@ func (p *Processor) worker() {
 		if nextBlock == nil {
 			p.log.Info("No blocks to process")
 			select {
-			case <-p.haltCh:
+			case <-p.HaltCh():
+				p.log.Debug("Returning from backoff select")
 				return
 			case <-time.After(backoffDuration):
+				p.log.Debug("time after")
 			}
 			continue
 		}
@@ -79,13 +81,13 @@ func (p *Processor) worker() {
 		nextBlock.Lock()
 
 		for i, tx := range nextBlock.Txs {
-			if tx.Code != code.OK || len(tx.Tags) <= 0 ||
+			if tx.Code != code.OK || len(tx.Tags) == 0 ||
 				!bytes.HasPrefix(tx.Tags[0].Key, tmconst.CredentialRequestKeyPrefix) {
 				p.log.Infof("Tx %v at height %v is not sign request", i, height)
 				continue
 			}
 
-			blindSignMaterials := &coconut.BlindSignMaterials{}
+			blindSignMaterials := &coconut.ProtoBlindSignMaterials{}
 
 			err := proto.Unmarshal(tx.Tags[0].Value, blindSignMaterials)
 			if err != nil {
@@ -127,18 +129,20 @@ func (p *Processor) worker() {
 
 func (p *Processor) Halt() {
 	p.log.Noticef("Halting Processor %v", p.id)
-	close(p.haltCh)
 	p.Worker.Halt()
-	// todo
 }
 
-func New(inCh chan<- *commands.CommandRequest, monitor *monitor.Monitor, l *logger.Logger, id int, store *storage.Database) (*Processor, error) {
+func New(inCh chan<- *commands.CommandRequest,
+	monitor *monitor.Monitor,
+	l *logger.Logger,
+	id int,
+	store *storage.Database,
+) (*Processor, error) {
 
 	p := &Processor{
 		monitor:    monitor,
 		store:      store,
 		incomingCh: inCh,
-		haltCh:     make(chan struct{}),
 		log:        l.GetLogger(fmt.Sprintf("Processor:%v", id)),
 		id:         id,
 	}

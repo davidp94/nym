@@ -5,8 +5,9 @@ package configchange
 
 import (
 	fmt "fmt"
-	proto "github.com/golang/protobuf/proto"
 	math "math"
+
+	proto "github.com/golang/protobuf/proto"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -18,7 +19,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Classifies set of possible modifications to an object in the service
 // configuration.
@@ -73,7 +74,7 @@ type ConfigChange struct {
 	// 'key' is used. If the field has no unique identifier, the numeric index
 	// is used.
 	// Examples:
-	// - visibility.rules[selector=="google.LibraryService.CreateBook"].restriction
+	// - visibility.rules[selector=="google.LibraryService.ListBooks"].restriction
 	// - quota.metric_rules[selector=="google"].metric_costs[key=="reads"].value
 	// - logging.producer_destinations[0]
 	Element string `protobuf:"bytes,1,opt,name=element,proto3" json:"element,omitempty"`

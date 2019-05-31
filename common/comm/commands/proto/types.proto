@@ -87,7 +87,7 @@ message BlindVerifyResponse {
 //     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
 //     coconut.ProtoLambda lambda = 3;
 //     // Value of the desired credential.
-//     int32 value = 4;
+//     int64 value = 4;
 //     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
 //     repeated bytes pubM = 5;
 //     // Signature on {PublicKey, Value, Commitment} to confirm validitiy of the request.
@@ -102,12 +102,12 @@ message GetCredentialRequest {
     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
     coconut.ProtoLambda lambda = 3;
     // Value of the desired credential.
-    int32 value = 4;
+    int64 value = 4;
     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(value).
     repeated bytes pubM = 5;
     // Nonce sent to the chain to request the transfer of tokens to the hlding account.
     bytes nonce = 6;
-    // Hash of Tx that includes transfer of the tokens to the holding account.
+    // Hash of Tx that includes transfer of the tokens to the pipe account.
     bytes txHash = 7;
     // Signature on {PublicKey, Value, Nonce, txHash} to confirm validitiy of the request.
     bytes sig = 8; 
@@ -127,7 +127,7 @@ message SpendCredentialRequest {
     // Crypto materials to verify the credential + required NIZK; also contains g^s
     coconut.ProtoThetaTumbler Theta = 3;
     // Value of the credential
-    int32 Value = 4;
+    int64 Value = 4;
     // Address of the merchant to which the proof is bound. Included so that the provider could verify it
     bytes MerchantAddress = 5;
 }

@@ -134,7 +134,7 @@ func (l *Listener) onNewConn(conn net.Conn) {
 	}
 }
 
-// nolint: interfacer
+//nolint: interfacer
 func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 	l.log.Noticef("Replying back to the client (%v)", conn.RemoteAddr())
 	b, err := packet.MarshalBinary()
@@ -166,7 +166,8 @@ func (l *Listener) FinalizeStartup() {
 }
 
 // New creates a new listener.
-func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l *logger.Logger, addr string) (*Listener, error) {
+func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l *logger.Logger, addr string,
+) (*Listener, error) {
 	var err error
 
 	listener := &Listener{

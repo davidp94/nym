@@ -23,7 +23,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
@@ -31,24 +31,39 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// nolint: lll
-func constructSignerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, gamma *Curve.ECP, encs []*elgamal.Encryption, cm *Curve.ECP, k []*Curve.BIG, r *Curve.BIG, pubM []*Curve.BIG, privM []*Curve.BIG) (*coconut.SignerProof, error) {
+func constructSignerProofWrapper(cw *coconutworker.CoconutWorker,
+	params coconut.SchemeParams,
+	gamma *Curve.ECP,
+	encs []*elgamal.Encryption,
+	cm *Curve.ECP,
+	k []*Curve.BIG,
+	r *Curve.BIG,
+	pubM []*Curve.BIG,
+	privM []*Curve.BIG,
+) (*coconut.SignerProof, error) {
 	if cw == nil {
 		return coconut.ConstructSignerProof(params.(*coconut.Params), gamma, encs, cm, k, r, pubM, privM)
 	}
 	return cw.ConstructSignerProof(params.(*coconutworker.MuxParams), gamma, encs, cm, k, r, pubM, privM)
 }
 
-// nolint: lll
-func verifySignerProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, gamma *Curve.ECP, lambda *coconut.Lambda) bool {
+func verifySignerProofWrapper(cw *coconutworker.CoconutWorker,
+	params coconut.SchemeParams,
+	gamma *Curve.ECP,
+	lambda *coconut.Lambda,
+) bool {
 	if cw == nil {
 		return coconut.VerifySignerProof(params.(*coconut.Params), gamma, lambda)
 	}
 	return cw.VerifySignerProof(params.(*coconutworker.MuxParams), gamma, lambda)
 }
 
-// nolint: lll
-func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, vk *coconut.VerificationKey, sig *coconut.Signature, theta *coconut.Theta) bool {
+func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker,
+	params coconut.SchemeParams,
+	vk *coconut.VerificationKey,
+	sig *coconut.Signature,
+	theta *coconut.Theta,
+) bool {
 	if cw == nil {
 		return coconut.VerifyVerifierProof(params.(*coconut.Params), vk, sig, theta)
 	}
@@ -56,7 +71,6 @@ func verifyVerifierProofWrapper(cw *coconutworker.CoconutWorker, params coconut.
 }
 
 // TestSignerProof tests properties of the appropriate NIZK
-// nolint: lll
 func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 	tests := []struct {
 		pub  []string
@@ -133,7 +147,16 @@ func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 			assert.Equal(t, coconut.ErrConstructSignerCiphertexts, err)
 		}
 
-		_, err = constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks, r, append(pubBig, Curve.NewBIG()), privBig)
+		_, err = constructSignerProofWrapper(cw,
+			params,
+			egPub.Gamma(),
+			encs,
+			cm,
+			ks,
+			r,
+			append(pubBig, Curve.NewBIG()),
+			privBig,
+		)
 		assert.Error(t, err)
 
 		signerProof, err := constructSignerProofWrapper(cw, params, egPub.Gamma(), encs, cm, ks, r, pubBig, privBig)
@@ -146,12 +169,18 @@ func TestSignerProof(t *testing.T, cw *coconutworker.CoconutWorker) {
 		}
 
 		if len(test.priv) > 0 {
-			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs[1:], signerProof)), test.msg)
+			assert.False(t,
+				verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs[1:], signerProof)),
+				test.msg,
+			)
 			assert.False(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs,
 				coconut.NewSignerProof(signerProof.C(), signerProof.Rr(), signerProof.Rk()[1:], signerProof.Rm()))),
 				test.msg)
 		}
-		assert.True(t, verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs, signerProof)), test.msg)
+		assert.True(t,
+			verifySignerProofWrapper(cw, params, egPub.Gamma(), coconut.NewLambda(cm, encs, signerProof)),
+			test.msg,
+		)
 	}
 }
 

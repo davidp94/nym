@@ -6,6 +6,8 @@ package servicemanagement
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	any "github.com/golang/protobuf/ptypes/any"
 	_ "github.com/golang/protobuf/ptypes/struct"
@@ -15,7 +17,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/rpc/status"
 	_ "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -27,7 +28,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type GetServiceConfigRequest_ConfigView int32
 
@@ -1346,8 +1347,10 @@ type ServiceManagerClient interface {
 	CreateService(ctx context.Context, in *CreateServiceRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
 	// Deletes a managed service. This method will change the service to the
 	// `Soft-Delete` state for 30 days. Within this period, service producers may
-	// call [UndeleteService][google.api.servicemanagement.v1.ServiceManager.UndeleteService] to restore the service.
-	// After 30 days, the service will be permanently deleted.
+	// call
+	// [UndeleteService][google.api.servicemanagement.v1.ServiceManager.UndeleteService]
+	// to restore the service. After 30 days, the service will be permanently
+	// deleted.
 	//
 	// Operation<response: google.protobuf.Empty>
 	DeleteService(ctx context.Context, in *DeleteServiceRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
@@ -1378,7 +1381,8 @@ type ServiceManagerClient interface {
 	// Specification). This method stores the source configurations as well as the
 	// generated service configuration. To rollout the service configuration to
 	// other services,
-	// please call [CreateServiceRollout][google.api.servicemanagement.v1.ServiceManager.CreateServiceRollout].
+	// please call
+	// [CreateServiceRollout][google.api.servicemanagement.v1.ServiceManager.CreateServiceRollout].
 	//
 	// Only the 100 most recent configuration sources and ones referenced by
 	// existing service configurtions are kept for each service. The rest will be
@@ -1389,7 +1393,8 @@ type ServiceManagerClient interface {
 	// Lists the history of the service configuration rollouts for a managed
 	// service, from the newest to the oldest.
 	ListServiceRollouts(ctx context.Context, in *ListServiceRolloutsRequest, opts ...grpc.CallOption) (*ListServiceRolloutsResponse, error)
-	// Gets a service configuration [rollout][google.api.servicemanagement.v1.Rollout].
+	// Gets a service configuration
+	// [rollout][google.api.servicemanagement.v1.Rollout].
 	GetServiceRollout(ctx context.Context, in *GetServiceRolloutRequest, opts ...grpc.CallOption) (*Rollout, error)
 	// Creates a new service configuration rollout. Based on rollout, the
 	// Google Service Management will roll out the service configurations to
@@ -1418,16 +1423,16 @@ type ServiceManagerClient interface {
 	// will compare GenerateConfigReportRequest.new_value with the last pushed
 	// service configuration.
 	GenerateConfigReport(ctx context.Context, in *GenerateConfigReportRequest, opts ...grpc.CallOption) (*GenerateConfigReportResponse, error)
-	// Enables a [service][google.api.servicemanagement.v1.ManagedService] for a project, so it can be used
-	// for the project. See
-	// [Cloud Auth Guide](https://cloud.google.com/docs/authentication) for
-	// more information.
+	// Enables a [service][google.api.servicemanagement.v1.ManagedService] for a
+	// project, so it can be used for the project. See [Cloud Auth
+	// Guide](https://cloud.google.com/docs/authentication) for more information.
 	//
 	// Operation<response: EnableServiceResponse>
 	EnableService(ctx context.Context, in *EnableServiceRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
-	// Disables a [service][google.api.servicemanagement.v1.ManagedService] for a project, so it can no longer be
-	// be used for the project. It prevents accidental usage that may cause
-	// unexpected billing charges or security leaks.
+	// Disables a [service][google.api.servicemanagement.v1.ManagedService] for a
+	// project, so it can no longer be be used for the project. It prevents
+	// accidental usage that may cause unexpected billing charges or security
+	// leaks.
 	//
 	// Operation<response: DisableServiceResponse>
 	DisableService(ctx context.Context, in *DisableServiceRequest, opts ...grpc.CallOption) (*longrunning.Operation, error)
@@ -1598,8 +1603,10 @@ type ServiceManagerServer interface {
 	CreateService(context.Context, *CreateServiceRequest) (*longrunning.Operation, error)
 	// Deletes a managed service. This method will change the service to the
 	// `Soft-Delete` state for 30 days. Within this period, service producers may
-	// call [UndeleteService][google.api.servicemanagement.v1.ServiceManager.UndeleteService] to restore the service.
-	// After 30 days, the service will be permanently deleted.
+	// call
+	// [UndeleteService][google.api.servicemanagement.v1.ServiceManager.UndeleteService]
+	// to restore the service. After 30 days, the service will be permanently
+	// deleted.
 	//
 	// Operation<response: google.protobuf.Empty>
 	DeleteService(context.Context, *DeleteServiceRequest) (*longrunning.Operation, error)
@@ -1630,7 +1637,8 @@ type ServiceManagerServer interface {
 	// Specification). This method stores the source configurations as well as the
 	// generated service configuration. To rollout the service configuration to
 	// other services,
-	// please call [CreateServiceRollout][google.api.servicemanagement.v1.ServiceManager.CreateServiceRollout].
+	// please call
+	// [CreateServiceRollout][google.api.servicemanagement.v1.ServiceManager.CreateServiceRollout].
 	//
 	// Only the 100 most recent configuration sources and ones referenced by
 	// existing service configurtions are kept for each service. The rest will be
@@ -1641,7 +1649,8 @@ type ServiceManagerServer interface {
 	// Lists the history of the service configuration rollouts for a managed
 	// service, from the newest to the oldest.
 	ListServiceRollouts(context.Context, *ListServiceRolloutsRequest) (*ListServiceRolloutsResponse, error)
-	// Gets a service configuration [rollout][google.api.servicemanagement.v1.Rollout].
+	// Gets a service configuration
+	// [rollout][google.api.servicemanagement.v1.Rollout].
 	GetServiceRollout(context.Context, *GetServiceRolloutRequest) (*Rollout, error)
 	// Creates a new service configuration rollout. Based on rollout, the
 	// Google Service Management will roll out the service configurations to
@@ -1670,16 +1679,16 @@ type ServiceManagerServer interface {
 	// will compare GenerateConfigReportRequest.new_value with the last pushed
 	// service configuration.
 	GenerateConfigReport(context.Context, *GenerateConfigReportRequest) (*GenerateConfigReportResponse, error)
-	// Enables a [service][google.api.servicemanagement.v1.ManagedService] for a project, so it can be used
-	// for the project. See
-	// [Cloud Auth Guide](https://cloud.google.com/docs/authentication) for
-	// more information.
+	// Enables a [service][google.api.servicemanagement.v1.ManagedService] for a
+	// project, so it can be used for the project. See [Cloud Auth
+	// Guide](https://cloud.google.com/docs/authentication) for more information.
 	//
 	// Operation<response: EnableServiceResponse>
 	EnableService(context.Context, *EnableServiceRequest) (*longrunning.Operation, error)
-	// Disables a [service][google.api.servicemanagement.v1.ManagedService] for a project, so it can no longer be
-	// be used for the project. It prevents accidental usage that may cause
-	// unexpected billing charges or security leaks.
+	// Disables a [service][google.api.servicemanagement.v1.ManagedService] for a
+	// project, so it can no longer be be used for the project. It prevents
+	// accidental usage that may cause unexpected billing charges or security
+	// leaks.
 	//
 	// Operation<response: DisableServiceResponse>
 	DisableService(context.Context, *DisableServiceRequest) (*longrunning.Operation, error)

@@ -6,11 +6,12 @@ package servicecontrol
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	status "google.golang.org/genproto/googleapis/rpc/status"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -22,7 +23,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Request message for the Check method.
 type CheckRequest struct {
@@ -94,8 +95,9 @@ func (m *CheckRequest) GetServiceConfigId() string {
 
 // Response message for the Check method.
 type CheckResponse struct {
-	// The same operation_id value used in the [CheckRequest][google.api.servicecontrol.v1.CheckRequest].
-	// Used for logging and diagnostics purposes.
+	// The same operation_id value used in the
+	// [CheckRequest][google.api.servicecontrol.v1.CheckRequest]. Used for logging
+	// and diagnostics purposes.
 	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// Indicate the decision of the check.
 	//
@@ -264,8 +266,9 @@ type ReportRequest struct {
 	// of the report.
 	//
 	// If multiple operations are in a single request, the total request size
-	// should be no larger than 1MB. See [ReportResponse.report_errors][google.api.servicecontrol.v1.ReportResponse.report_errors] for
-	// partial failure behavior.
+	// should be no larger than 1MB. See
+	// [ReportResponse.report_errors][google.api.servicecontrol.v1.ReportResponse.report_errors]
+	// for partial failure behavior.
 	Operations []*Operation `protobuf:"bytes,2,rep,name=operations,proto3" json:"operations,omitempty"`
 	// Specifies which version of service config should be used to process the
 	// request.
@@ -387,11 +390,15 @@ func (m *ReportResponse) GetServiceConfigId() string {
 	return ""
 }
 
-// Represents the processing error of one [Operation][google.api.servicecontrol.v1.Operation] in the request.
+// Represents the processing error of one
+// [Operation][google.api.servicecontrol.v1.Operation] in the request.
 type ReportResponse_ReportError struct {
-	// The [Operation.operation_id][google.api.servicecontrol.v1.Operation.operation_id] value from the request.
+	// The
+	// [Operation.operation_id][google.api.servicecontrol.v1.Operation.operation_id]
+	// value from the request.
 	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
-	// Details of the error when processing the [Operation][google.api.servicecontrol.v1.Operation].
+	// Details of the error when processing the
+	// [Operation][google.api.servicecontrol.v1.Operation].
 	Status               *status.Status `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}       `json:"-"`
 	XXX_unrecognized     []byte         `json:"-"`
@@ -514,7 +521,8 @@ type ServiceControllerClient interface {
 	// 60 seconds. In case of server errors, the client can rely on the cached
 	// results for longer time.
 	//
-	// NOTE: the [CheckRequest][google.api.servicecontrol.v1.CheckRequest] has the size limit of 64KB.
+	// NOTE: the [CheckRequest][google.api.servicecontrol.v1.CheckRequest] has the
+	// size limit of 64KB.
 	//
 	// This method requires the `servicemanagement.services.check` permission
 	// on the specified service. For more information, see
@@ -529,7 +537,8 @@ type ServiceControllerClient interface {
 	// the aggregation time window to avoid data loss risk more than 0.01%
 	// for business and compliance reasons.
 	//
-	// NOTE: the [ReportRequest][google.api.servicecontrol.v1.ReportRequest] has the size limit of 1MB.
+	// NOTE: the [ReportRequest][google.api.servicecontrol.v1.ReportRequest] has
+	// the size limit of 1MB.
 	//
 	// This method requires the `servicemanagement.services.report` permission
 	// on the specified service. For more information, see
@@ -573,7 +582,8 @@ type ServiceControllerServer interface {
 	// 60 seconds. In case of server errors, the client can rely on the cached
 	// results for longer time.
 	//
-	// NOTE: the [CheckRequest][google.api.servicecontrol.v1.CheckRequest] has the size limit of 64KB.
+	// NOTE: the [CheckRequest][google.api.servicecontrol.v1.CheckRequest] has the
+	// size limit of 64KB.
 	//
 	// This method requires the `servicemanagement.services.check` permission
 	// on the specified service. For more information, see
@@ -588,7 +598,8 @@ type ServiceControllerServer interface {
 	// the aggregation time window to avoid data loss risk more than 0.01%
 	// for business and compliance reasons.
 	//
-	// NOTE: the [ReportRequest][google.api.servicecontrol.v1.ReportRequest] has the size limit of 1MB.
+	// NOTE: the [ReportRequest][google.api.servicecontrol.v1.ReportRequest] has
+	// the size limit of 1MB.
 	//
 	// This method requires the `servicemanagement.services.report` permission
 	// on the specified service. For more information, see

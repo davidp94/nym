@@ -6,6 +6,8 @@ package instance
 import (
 	context "context"
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	empty "github.com/golang/protobuf/ptypes/empty"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -14,7 +16,6 @@ import (
 	longrunning "google.golang.org/genproto/googleapis/longrunning"
 	field_mask "google.golang.org/genproto/protobuf/field_mask"
 	grpc "google.golang.org/grpc"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -26,7 +27,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // Indicates the current state of the instance.
 type Instance_State int32
@@ -134,14 +135,15 @@ type Instance struct {
 	// Required. The number of nodes allocated to this instance. This may be zero
 	// in API responses for instances that are not yet in state `READY`.
 	//
-	// See [the documentation](https://cloud.google.com/spanner/docs/instances#node_count)
+	// See [the
+	// documentation](https://cloud.google.com/spanner/docs/instances#node_count)
 	// for more information about nodes.
 	NodeCount int32 `protobuf:"varint,5,opt,name=node_count,json=nodeCount,proto3" json:"node_count,omitempty"`
 	// Output only. The current instance state. For
-	// [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance], the state must be
-	// either omitted or set to `CREATING`. For
-	// [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance], the state must be
-	// either omitted or set to `READY`.
+	// [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance],
+	// the state must be either omitted or set to `CREATING`. For
+	// [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance],
+	// the state must be either omitted or set to `READY`.
 	State Instance_State `protobuf:"varint,6,opt,name=state,proto3,enum=google.spanner.admin.instance.v1.Instance_State" json:"state,omitempty"`
 	// Cloud Labels are a flexible and lightweight mechanism for organizing cloud
 	// resources into groups that reflect a customer's organizational needs and
@@ -237,7 +239,8 @@ func (m *Instance) GetLabels() map[string]string {
 	return nil
 }
 
-// The request for [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs].
+// The request for
+// [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs].
 type ListInstanceConfigsRequest struct {
 	// Required. The name of the project for which a list of supported instance
 	// configurations is requested. Values are of the form
@@ -248,7 +251,8 @@ type ListInstanceConfigsRequest struct {
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// If non-empty, `page_token` should contain a
 	// [next_page_token][google.spanner.admin.instance.v1.ListInstanceConfigsResponse.next_page_token]
-	// from a previous [ListInstanceConfigsResponse][google.spanner.admin.instance.v1.ListInstanceConfigsResponse].
+	// from a previous
+	// [ListInstanceConfigsResponse][google.spanner.admin.instance.v1.ListInstanceConfigsResponse].
 	PageToken            string   `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -301,13 +305,14 @@ func (m *ListInstanceConfigsRequest) GetPageToken() string {
 	return ""
 }
 
-// The response for [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs].
+// The response for
+// [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs].
 type ListInstanceConfigsResponse struct {
 	// The list of requested instance configurations.
 	InstanceConfigs []*InstanceConfig `protobuf:"bytes,1,rep,name=instance_configs,json=instanceConfigs,proto3" json:"instance_configs,omitempty"`
 	// `next_page_token` can be sent in a subsequent
-	// [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs] call to
-	// fetch more of the matching instance configurations.
+	// [ListInstanceConfigs][google.spanner.admin.instance.v1.InstanceAdmin.ListInstanceConfigs]
+	// call to fetch more of the matching instance configurations.
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -396,7 +401,8 @@ func (m *GetInstanceConfigRequest) GetName() string {
 	return ""
 }
 
-// The request for [GetInstance][google.spanner.admin.instance.v1.InstanceAdmin.GetInstance].
+// The request for
+// [GetInstance][google.spanner.admin.instance.v1.InstanceAdmin.GetInstance].
 type GetInstanceRequest struct {
 	// Required. The name of the requested instance. Values are of the form
 	// `projects/<project>/instances/<instance>`.
@@ -438,7 +444,8 @@ func (m *GetInstanceRequest) GetName() string {
 	return ""
 }
 
-// The request for [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance].
+// The request for
+// [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance].
 type CreateInstanceRequest struct {
 	// Required. The name of the project in which to create the instance. Values
 	// are of the form `projects/<project>`.
@@ -501,7 +508,8 @@ func (m *CreateInstanceRequest) GetInstance() *Instance {
 	return nil
 }
 
-// The request for [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances].
+// The request for
+// [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances].
 type ListInstancesRequest struct {
 	// Required. The name of the project for which a list of instances is
 	// requested. Values are of the form `projects/<project>`.
@@ -510,8 +518,9 @@ type ListInstancesRequest struct {
 	// to the server's maximum allowed page size.
 	PageSize int32 `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// If non-empty, `page_token` should contain a
-	// [next_page_token][google.spanner.admin.instance.v1.ListInstancesResponse.next_page_token] from a
-	// previous [ListInstancesResponse][google.spanner.admin.instance.v1.ListInstancesResponse].
+	// [next_page_token][google.spanner.admin.instance.v1.ListInstancesResponse.next_page_token]
+	// from a previous
+	// [ListInstancesResponse][google.spanner.admin.instance.v1.ListInstancesResponse].
 	PageToken string `protobuf:"bytes,3,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// An expression for filtering the results of the request. Filter rules are
 	// case insensitive. The fields eligible for filtering are:
@@ -591,13 +600,14 @@ func (m *ListInstancesRequest) GetFilter() string {
 	return ""
 }
 
-// The response for [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances].
+// The response for
+// [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances].
 type ListInstancesResponse struct {
 	// The list of requested instances.
 	Instances []*Instance `protobuf:"bytes,1,rep,name=instances,proto3" json:"instances,omitempty"`
 	// `next_page_token` can be sent in a subsequent
-	// [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances] call to fetch more
-	// of the matching instances.
+	// [ListInstances][google.spanner.admin.instance.v1.InstanceAdmin.ListInstances]
+	// call to fetch more of the matching instances.
 	NextPageToken        string   `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -643,15 +653,20 @@ func (m *ListInstancesResponse) GetNextPageToken() string {
 	return ""
 }
 
-// The request for [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance].
+// The request for
+// [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance].
 type UpdateInstanceRequest struct {
 	// Required. The instance to update, which must always include the instance
-	// name.  Otherwise, only fields mentioned in [][google.spanner.admin.instance.v1.UpdateInstanceRequest.field_mask] need be included.
+	// name.  Otherwise, only fields mentioned in
+	// [][google.spanner.admin.instance.v1.UpdateInstanceRequest.field_mask] need
+	// be included.
 	Instance *Instance `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
-	// Required. A mask specifying which fields in [][google.spanner.admin.instance.v1.UpdateInstanceRequest.instance] should be updated.
-	// The field mask must always be specified; this prevents any future fields in
-	// [][google.spanner.admin.instance.v1.Instance] from being erased accidentally by clients that do not know
-	// about them.
+	// Required. A mask specifying which fields in
+	// [][google.spanner.admin.instance.v1.UpdateInstanceRequest.instance] should
+	// be updated. The field mask must always be specified; this prevents any
+	// future fields in
+	// [][google.spanner.admin.instance.v1.Instance] from being erased
+	// accidentally by clients that do not know about them.
 	FieldMask            *field_mask.FieldMask `protobuf:"bytes,2,opt,name=field_mask,json=fieldMask,proto3" json:"field_mask,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
 	XXX_unrecognized     []byte                `json:"-"`
@@ -697,7 +712,8 @@ func (m *UpdateInstanceRequest) GetFieldMask() *field_mask.FieldMask {
 	return nil
 }
 
-// The request for [DeleteInstance][google.spanner.admin.instance.v1.InstanceAdmin.DeleteInstance].
+// The request for
+// [DeleteInstance][google.spanner.admin.instance.v1.InstanceAdmin.DeleteInstance].
 type DeleteInstanceRequest struct {
 	// Required. The name of the instance to be deleted. Values are of the form
 	// `projects/<project>/instances/<instance>`
@@ -745,8 +761,8 @@ type CreateInstanceMetadata struct {
 	// The instance being created.
 	Instance *Instance `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
 	// The time at which the
-	// [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance] request was
-	// received.
+	// [CreateInstance][google.spanner.admin.instance.v1.InstanceAdmin.CreateInstance]
+	// request was received.
 	StartTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// The time at which this operation was cancelled. If set, this operation is
 	// in the process of undoing itself (which is guaranteed to succeed) and
@@ -817,7 +833,8 @@ func (m *CreateInstanceMetadata) GetEndTime() *timestamp.Timestamp {
 type UpdateInstanceMetadata struct {
 	// The desired end state of the update.
 	Instance *Instance `protobuf:"bytes,1,opt,name=instance,proto3" json:"instance,omitempty"`
-	// The time at which [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance]
+	// The time at which
+	// [UpdateInstance][google.spanner.admin.instance.v1.InstanceAdmin.UpdateInstance]
 	// request was received.
 	StartTime *timestamp.Timestamp `protobuf:"bytes,2,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
 	// The time at which this operation was cancelled. If set, this operation is
@@ -1055,9 +1072,9 @@ type InstanceAdminClient interface {
 	// Until completion of the returned operation:
 	//
 	//   * Cancelling the operation sets its metadata's
-	//     [cancel_time][google.spanner.admin.instance.v1.UpdateInstanceMetadata.cancel_time], and begins
-	//     restoring resources to their pre-request values. The operation
-	//     is guaranteed to succeed at undoing all resource changes,
+	//     [cancel_time][google.spanner.admin.instance.v1.UpdateInstanceMetadata.cancel_time],
+	//     and begins restoring resources to their pre-request values. The
+	//     operation is guaranteed to succeed at undoing all resource changes,
 	//     after which point it terminates with a `CANCELLED` status.
 	//   * All other attempts to modify the instance are rejected.
 	//   * Reading the instance via the API continues to give the pre-request
@@ -1272,9 +1289,9 @@ type InstanceAdminServer interface {
 	// Until completion of the returned operation:
 	//
 	//   * Cancelling the operation sets its metadata's
-	//     [cancel_time][google.spanner.admin.instance.v1.UpdateInstanceMetadata.cancel_time], and begins
-	//     restoring resources to their pre-request values. The operation
-	//     is guaranteed to succeed at undoing all resource changes,
+	//     [cancel_time][google.spanner.admin.instance.v1.UpdateInstanceMetadata.cancel_time],
+	//     and begins restoring resources to their pre-request values. The
+	//     operation is guaranteed to succeed at undoing all resource changes,
 	//     after which point it terminates with a `CANCELLED` status.
 	//   * All other attempts to modify the instance are rejected.
 	//   * Reading the instance via the API continues to give the pre-request

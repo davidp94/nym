@@ -8,62 +8,102 @@ option go_package = "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transactio
 
 message NewAccountRequest {
     // Public Key of the user used to derive account address and validate signature
-    bytes PublicKey = 1; 
+    bytes Address = 1; 
     // represents some optional credential from an IP if required
     bytes Credential = 2; 
     // Signature on request to confirm its validity + asserts knowledge of private key
     bytes Sig = 3; 
 }
 
+// DEBUG
 message AccountTransferRequest {
     // Used to validate signature + determine source address
-    bytes SourcePublicKey = 1;
+    bytes SourceAddress = 1;
     // Used to determine target address
-    bytes TargetPublicKey = 2; 
+    bytes TargetAddress = 2; 
     // Amount to be transferred 
     uint64 Amount = 3; 
-    // TODO: if this is going to stay past debug, perhaps some field indicating max fee?
-    // TODO: if this is going to stay past debug, we need nonce to prevent replay attacks
+    // While this function will only be available in debug and hence a nonce is really not needed,
+    // I figured I should include it anyway as it's a good practice + will need to figure out a proper
+    // nonce system anyway.
+    bytes Nonce = 4;
     // Signature on request to confirm its validitiy
-    bytes Sig = 4; 
+    bytes Sig = 5; 
 }
 
-// literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
-message DepositCoconutCredentialRequest {
-    // The actual credential
-    coconut.ProtoSignature Sig = 1;
-    // The public attributes in credential. Note that pubM[0] = BIG(value)
-    repeated bytes PubM = 2;
-    // Crypto materials to verify the credential + required NIZK
-    coconut.ProtoThetaTumbler Theta = 3;
-    // Value of the credential
-    int32 Value = 4;
-    // Address of the merchant to which the proof is bound
-    bytes MerchantAddress = 5;
+// // literally the same as 'SpendCoconutCredentialRequest' but kept separate in case one of them required changes
+// // DEPRECATED
+// message DepositCoconutCredentialRequest {
+//     // The actual credential
+//     coconut.ProtoSignature Sig = 1;
+//     // The public attributes in credential. Note that pubM[0] = BIG(value)
+//     repeated bytes PubM = 2;
+//     // Crypto materials to verify the credential + required NIZK
+//     coconut.ProtoThetaTumbler Theta = 3;
+//     // Value of the credential
+//     int32 Value = 4;
+//     // Address of the merchant to which the proof is bound
+//     bytes MerchantAddress = 5;
+// }
+
+// // Initiated by users and sent directly to the chain
+// // DEPRECATED
+// message TransferToPipeAccountRequest {
+//     // Used to validate signature + determine source address
+//     bytes SourcePublicKey = 1;
+//     // Used to determine target address, in this case it's a constant pipe account, but let's keep it generic
+//     // in case wanted to change it
+//     bytes TargetAddress = 2; 
+//     // Amount to be transferred / Value of the desired credential
+//     int32 Amount = 3; 
+//     // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
+//     elgamal.ProtoPublicKey EgPub = 4;
+//     // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
+//     coconut.ProtoLambda Lambda = 5;
+//     // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
+//     repeated bytes PubM = 6;
+//     // Signature on request to confirm its validitiy
+//     bytes Sig = 7; 
+//  }
+
+message TransferToPipeAccountNotification {
+    // Used to identify the particular watcher and to verify signature
+    bytes WatcherPublicKey = 1;
+    // Ethereum address of the client
+    bytes ClientAddress = 2;
+    // While right now it's completely unrequired as there is only a single pipe account, it might be useful
+    // to have this information in the future if we decided to monitor multiple chains or have multiple pipe accounts
+    // for example on epoch changes.
+    bytes PipeAccountAddress = 3;
+    // Amount transferred by the client to the pipe account.
+    uint64 Amount = 4;
+    // Hash of the transaction in which the transfer occured. 
+    // Used to distinguish from multiple transfers the client might have done.
+    bytes TxHash = 5;
+    // Signature on the entire message done with the watcher's key.
+    bytes Sig = 6;
 }
 
-// Initiated by users and sent directly to the chain
-message TransferToHoldingRequest {
-    // Used to validate signature + determine source address
-    bytes SourcePublicKey = 1;
-    // Used to determine target address, in this case it's a constant holding account, but let's keep it generic
-    // in case wanted to change it
-    bytes TargetAddress = 2; 
-    // Amount to be transferred / Value of the desired credential
-    int32 Amount = 3; 
-    // ElGamal Public Key used to encrypt public attributes by the IA and verify the NIZKs.
-    elgamal.ProtoPublicKey EgPub = 4;
-    // Cryptographic material needed for the blind sign - commitment to values, encryptions and NIZKs.
-    coconut.ProtoLambda Lambda = 5;
-    // The public attributes to be embedded in the credential. Note that pubM[0] = BIG(Amount).
-    repeated bytes PubM = 6;
-    // Signature on request to confirm its validitiy
-    bytes Sig = 7; 
- }
-
+message CredentialRequest {
+    // Ethereum address of the client
+    bytes ClientAddress = 1;
+    // While right now it's completely unrequired as there is only a single pipe account, it might be useful
+    // to have this information in the future if we decided to monitor multiple chains or have multiple pipe accounts
+    // for example on epoch changes.
+    bytes PipeAccountAddress = 2;
+    // All the cryptographic materials required by issuers to perform a blind sign
+    coconut.ProtoBlindSignMaterials CryptoMaterials = 3;
+    // Value of the credential. While it is included in a BIG form in CryptoMaterials, it's easier to operate on it
+    // when it's an int. We can't send it as an uint64, as milagro requires a normal int argument to construct a BIG num. 
+    int64 Value = 4;
+    // Required to prevent replay attacks.
+    bytes Nonce = 5;
+    // Signature on entire request with client's ethereum key (so that client's address could be used to verify it)
+    bytes Sig = 6;
+}
 
 // Old proto definition for when IAs initiated the transfer
-// message TransferToHoldingRequest {
+// message TransferToPipeAccountRequest {
 //     // While Public Key is enough to identify IA and verify signature, attaching ID significantly simplifies the lookup
 //     // at abci side. If PK was attached, abci would need to compare it with all stored keys until a match was found, now
 //     // it obtains key in constant time and uses stored key to verify the signature

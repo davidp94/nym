@@ -17,8 +17,8 @@
 // Package query defines query logic for the Nym application.
 package query
 
-// nolint: golint
+//nolint: golint
 const (
-	QueryCheckBalancePath string = "/balance"
-	DEBUG_printVk                = "/DEBUG_PRINTVK"
+	QueryCheckBalancePath = "/balance"
+	DEBUG_printVk         = "/DEBUG_PRINTVK"
 )

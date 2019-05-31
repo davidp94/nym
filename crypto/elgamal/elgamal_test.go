@@ -122,6 +122,7 @@ func TestPrivateKeyMarshal(t *testing.T) {
 	assert.Zero(t, Curve.Comp(recoveredPK.D(), pk.D()))
 }
 
+//nolint: gochecknoglobals
 var kencRes *Curve.BIG
 
 func BenchmarkElGamalEncryption(b *testing.B) {
@@ -139,6 +140,7 @@ func BenchmarkElGamalEncryption(b *testing.B) {
 	kencRes = k
 }
 
+//nolint: gochecknoglobals
 var decRes *Curve.ECP
 
 func BenchmarkElGamalDecryption(b *testing.B) {

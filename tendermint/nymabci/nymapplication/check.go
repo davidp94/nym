@@ -21,14 +21,14 @@ import (
 	"encoding/binary"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-	proto "github.com/golang/protobuf/proto"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
@@ -37,38 +37,28 @@ func (app *NymApplication) verifyCredential(cred []byte) bool {
 	return true
 }
 
-func (app *NymApplication) validateTransfer(inAddr, outAddr account.ECPublicKey, amount uint64) (uint32, []byte) {
+func (app *NymApplication) validateTransfer(inAddr, outAddr []byte, amount uint64) (uint32, []byte) {
+	if len(inAddr) != ethcommon.AddressLength {
+		return code.MALFORMED_ADDRESS, []byte("SOURCE")
+	}
+	if len(outAddr) != ethcommon.AddressLength {
+		return code.MALFORMED_ADDRESS, []byte("TARGET")
+	}
 	// don't allow transfer when addresses are identical because nothing would happen anyway...
-	if bytes.Compare(inAddr, outAddr) == 0 {
+	if bytes.Equal(inAddr, outAddr) {
 		return code.SELF_TRANSFER, nil
 	}
 
-	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(inAddr, tmconst.HoldingAccountAddress) != 0 {
-		if err := inAddr.Compress(); err != nil {
-			// 'normal' address is invalid
-			return code.MALFORMED_ADDRESS, []byte("SOURCE")
-		}
-	}
-	sourceBalanceB, retCode := app.queryBalance(inAddr)
-	if retCode != code.OK {
-		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOURCE")
+	sourceBalance, err := app.retrieveAccountBalance(inAddr)
+	if err != nil {
+		return code.ACCOUNT_DOES_NOT_EXIST, []byte("SOUCE")
 	}
 
-	sourceBalance := binary.BigEndian.Uint64(sourceBalanceB)
 	if sourceBalance < amount { // + some gas?
 		return code.INSUFFICIENT_BALANCE, nil
 	}
 
-	// holding account is a special case - it's not an EC point but just a string which is uncompressable
-	if bytes.Compare(outAddr, tmconst.HoldingAccountAddress) != 0 {
-		if err := outAddr.Compress(); err != nil {
-			// 'normal' address is invalid
-			return code.MALFORMED_ADDRESS, []byte("TARGET")
-		}
-	}
-
-	if _, retCodeT := app.queryBalance(outAddr); retCodeT != code.OK {
+	if _, err := app.retrieveAccountBalance(outAddr); err != nil {
 		return code.ACCOUNT_DOES_NOT_EXIST, []byte("TARGET")
 	}
 
@@ -84,10 +74,7 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 		return code.INVALID_TX_PARAMS
 	}
 
-	var publicKey account.ECPublicKey = req.PublicKey
-
-	if (len(req.PublicKey) != account.PublicKeyUCSize && len(req.PublicKey) != account.PublicKeySize) ||
-		len(req.Sig) != account.SignatureSize {
+	if len(req.Address) != ethcommon.AddressLength {
 		return code.INVALID_TX_PARAMS
 	}
 
@@ -96,13 +83,18 @@ func (app *NymApplication) checkNewAccountTx(tx []byte) uint32 {
 		return code.INVALID_CREDENTIAL
 	}
 
-	publicKey = req.PublicKey
+	msg := make([]byte, len(req.Address)+len(req.Credential))
+	copy(msg, req.Address)
+	copy(msg[len(req.Address):], req.Credential)
 
-	msg := make([]byte, len(req.PublicKey)+len(req.Credential))
-	copy(msg, req.PublicKey)
-	copy(msg[len(req.PublicKey):], req.Credential)
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
+	}
 
-	if !publicKey.VerifyBytes(msg, req.Sig) {
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.Address) {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
 	}
@@ -118,22 +110,29 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 		return code.INVALID_TX_PARAMS
 	}
 
-	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-	var targetPublicKey account.ECPublicKey = req.TargetPublicKey
+	if app.checkNonce(req.Nonce, req.SourceAddress) {
+		return code.REPLAY_ATTACK_ATTEMPT
+	}
 
-	if retCode, _ := app.validateTransfer(sourcePublicKey, targetPublicKey, req.Amount); retCode != code.OK {
+	if retCode, _ := app.validateTransfer(req.SourceAddress, req.TargetAddress, req.Amount); retCode != code.OK {
 		return retCode
 	}
 
-	amountB := make([]byte, 8)
-	binary.BigEndian.PutUint64(amountB, req.Amount)
+	msg := make([]byte, 2*ethcommon.AddressLength+tmconst.NonceLength+8)
+	i := copy(msg, req.SourceAddress)
+	i += copy(msg[i:], req.TargetAddress)
+	binary.BigEndian.PutUint64(msg[i:], req.Amount)
+	i += 8
+	copy(msg[i:], req.Nonce)
 
-	msg := make([]byte, len(sourcePublicKey)+len(targetPublicKey)+8)
-	copy(msg, sourcePublicKey)
-	copy(msg[len(sourcePublicKey):], targetPublicKey)
-	copy(msg[len(sourcePublicKey)+len(targetPublicKey):], amountB)
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
+	if err != nil {
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
+	}
 
-	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.SourceAddress) {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
 	}
@@ -141,115 +140,173 @@ func (app *NymApplication) checkTransferBetweenAccountsTx(tx []byte) uint32 {
 	return code.OK
 }
 
-func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
-	req := &transaction.DepositCoconutCredentialRequest{}
+func (app *NymApplication) checkTransferToPipeAccountNotificationTx(tx []byte) uint32 {
+	req := &transaction.TransferToPipeAccountNotification{}
 
 	if err := proto.Unmarshal(tx, req); err != nil {
+		app.log.Info("Failed to unmarshal request")
 		return code.INVALID_TX_PARAMS
 	}
 
-	var merchantAddress account.ECPublicKey = req.MerchantAddress
-
-	// start with checking for double spending -
-	// if credential was already spent, there is no point in any further checks
-	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
-	_, zetaStatus := app.state.db.Get(dbZetaEntry)
-	if zetaStatus != nil {
-		return code.DOUBLE_SPENDING_ATTEMPT
+	// first check if the threshold was alredy reached and transaction was committed
+	if app.getNotificationCount(req.TxHash) == app.state.watcherThreshold {
+		app.log.Info("Already reached required threshold")
+		return code.ALREADY_COMMITTED
 	}
 
-	cred := &coconut.Signature{}
-	if err := cred.FromProto(req.Sig); err != nil {
-		return code.INVALID_TX_PARAMS
+	// check if the watcher can be trusted
+	if !app.checkWatcherKey(req.WatcherPublicKey) {
+		app.log.Info("This watcher is not in the trusted set")
+		return code.ETHEREUM_WATCHER_DOES_NOT_EXIST
 	}
 
-	theta := &coconut.ThetaTumbler{}
-	if err := theta.FromProto(req.Theta); err != nil {
-		return code.INVALID_TX_PARAMS
+	// check if client address is correctly formed
+	if len(req.ClientAddress) != ethcommon.AddressLength {
+		app.log.Info("Client's address is malformed")
+		return code.MALFORMED_ADDRESS
 	}
 
-	pubM := coconut.BigSliceFromByteSlices(req.PubM)
-	if !coconut.ValidateBigSlice(pubM) {
-		return code.INVALID_TX_PARAMS
+	// check if the pipe account matches
+	if !bytes.Equal(app.state.pipeAccount[:], req.PipeAccountAddress) {
+		app.log.Info("The specified pipe account is different from the expected one")
+		return code.INVALID_PIPE_ACCOUNT
 	}
 
-	// check if the merchant address is correctly formed
-	if err := merchantAddress.Compress(); err != nil {
-		return code.INVALID_MERCHANT_ADDRESS
+	// check signature
+	msg := make([]byte, len(req.WatcherPublicKey)+2*ethcommon.AddressLength+8+ethcommon.HashLength)
+	i := copy(msg, req.WatcherPublicKey)
+	i += copy(msg[i:], req.ClientAddress)
+	i += copy(msg[i:], req.PipeAccountAddress)
+	binary.BigEndian.PutUint64(msg[i:], req.Amount)
+	i += 8
+	copy(msg[i:], req.TxHash)
+
+	sig := req.Sig
+	// last byte is a recoveryID which we don't care about
+	if len(sig) > 64 {
+		sig = sig[:64]
 	}
 
-	if !app.checkIfAccountExists(merchantAddress) {
-		if !createAccountOnDepositIfDoesntExist {
-			app.log.Error("Merchant's account doesnt exist")
-			return code.MERCHANT_DOES_NOT_EXIST
-		}
-
-		// checkTx will not try creating the account for obvious reasons
+	if !ethcrypto.VerifySignature(req.WatcherPublicKey, tmconst.HashFunction(msg), sig) {
+		app.log.Info("The signature on message is invalid")
+		return code.INVALID_SIGNATURE
 	}
 
-	// don't verify the credential itself as it's rather expensive operation; it will only be done during deliverTx
+	// check if this tx was not already confirmed by this watcher
+	if app.checkWatcherNotification(req.WatcherPublicKey, req.TxHash) {
+		app.log.Info("This watcher already sent this notification before")
+		return code.ALREADY_CONFIRMED
+	}
 
 	return code.OK
 }
 
-func (app *NymApplication) checkTxTransferToHolding(tx []byte) uint32 {
+// func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
+// 	req := &transaction.DepositCoconutCredentialRequest{}
+
+// 	if err := proto.Unmarshal(tx, req); err != nil {
+// 		return code.INVALID_TX_PARAMS
+// 	}
+
+// 	var merchantAddress account.ECPublicKey = req.MerchantAddress
+
+// 	// start with checking for double spending -
+// 	// if credential was already spent, there is no point in any further checks
+// 	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
+// 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
+// 	if zetaStatus != nil {
+// 		return code.DOUBLE_SPENDING_ATTEMPT
+// 	}
+
+// 	cred := &coconut.Signature{}
+// 	if err := cred.FromProto(req.Sig); err != nil {
+// 		return code.INVALID_TX_PARAMS
+// 	}
+
+// 	theta := &coconut.ThetaTumbler{}
+// 	if err := theta.FromProto(req.Theta); err != nil {
+// 		return code.INVALID_TX_PARAMS
+// 	}
+
+// 	pubM := coconut.BigSliceFromByteSlices(req.PubM)
+// 	if !coconut.ValidateBigSlice(pubM) {
+// 		return code.INVALID_TX_PARAMS
+// 	}
+
+// 	// check if the merchant address is correctly formed
+// 	if err := merchantAddress.Compress(); err != nil {
+// 		return code.INVALID_MERCHANT_ADDRESS
+// 	}
+
+// 	if !app.checkIfAccountExists(merchantAddress) {
+// 		if !createAccountOnDepositIfDoesntExist {
+// 			app.log.Error("Merchant's account doesnt exist")
+// 			return code.MERCHANT_DOES_NOT_EXIST
+// 		}
+
+// 		// checkTx will not try creating the account for obvious reasons
+// 	}
+
+// 	// don't verify the credential itself as it's rather expensive operation; it will only be done during deliverTx
+
+// 	return code.OK
+// }
+
+func (app *NymApplication) checkCredentialRequestTx(tx []byte) uint32 {
 	// verify sigs and check if all structs can be unmarshalled
-	req := &transaction.TransferToHoldingRequest{}
+	req := &transaction.CredentialRequest{}
 	if err := proto.Unmarshal(tx, req); err != nil {
 		return code.INVALID_TX_PARAMS
 	}
 
-	if len(req.PubM) < 1 ||
-		len(req.PubM[0]) != constants.BIGLen ||
-		Curve.Comp(Curve.FromBytes(req.PubM[0]), Curve.NewBIGint(int(req.Amount))) != 0 {
+	// firstly check if client's account even exists and if it has sufficient balance
+	if accBalance, err := app.retrieveAccountBalance(req.ClientAddress); err != nil || accBalance < uint64(req.Value) {
+		return code.INSUFFICIENT_BALANCE
+	}
+
+	// TODO: allow credentials of 0 value as some kind of 'access' tokens?
+	// perhaps return to the idea later
+	if !token.ValidateValue(req.Value) {
+		return code.INVALID_VALUE
+	}
+
+	if len(req.CryptoMaterials.PubM) == 0 ||
+		len(req.CryptoMaterials.PubM[0]) != constants.BIGLen ||
+		Curve.Comp(Curve.FromBytes(req.CryptoMaterials.PubM[0]), Curve.NewBIGint(int(req.Value))) != 0 {
 		return code.INVALID_TX_PARAMS
 	}
 
-	// only recovered to see if an error is thrown
-	lambda := &coconut.Lambda{}
-	if err := lambda.FromProto(req.Lambda); err != nil {
+	// used to check only if the data can be recovered
+	blindSignMaterials := &coconut.BlindSignMaterials{}
+	if err := blindSignMaterials.FromProto(req.CryptoMaterials); err != nil {
 		return code.INVALID_TX_PARAMS
 	}
 
-	lambdab, err := proto.Marshal(req.Lambda)
+	materialsBytes, err := req.CryptoMaterials.OneWayToBytes()
 	if err != nil {
 		return code.INVALID_TX_PARAMS
 	}
 
-	// only recovered to see if an error is thrown
-	egPub := &elgamal.PublicKey{}
-	if err := egPub.FromProto(req.EgPub); err != nil {
-		return code.INVALID_TX_PARAMS
+	if app.checkNonce(req.Nonce, req.ClientAddress) {
+		return code.REPLAY_ATTACK_ATTEMPT
 	}
 
-	egPubb, err := proto.Marshal(req.EgPub)
+	msg := make([]byte, 2*ethcommon.AddressLength+len(materialsBytes)+8+tmconst.NonceLength)
+	i := copy(msg, req.ClientAddress)
+	i += copy(msg[i:], app.state.pipeAccount[:])
+	i += copy(msg[i:], materialsBytes)
+	binary.BigEndian.PutUint64(msg[i:], uint64(req.Value))
+	i += 8
+	copy(msg[i:], req.Nonce)
+
+	recPub, err := ethcrypto.SigToPub(tmconst.HashFunction(msg), req.Sig)
 	if err != nil {
-		return code.INVALID_TX_PARAMS
+		app.log.Info("Error while trying to recover public key associated with the signature")
+		return code.INVALID_SIGNATURE
 	}
 
-	var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-	recoveredHoldingAddress := req.TargetAddress
-
-	// TODO: update once epochs, etc. are introduced
-	if bytes.Compare(recoveredHoldingAddress, tmconst.HoldingAccountAddress) != 0 {
-		return code.MALFORMED_ADDRESS
-	}
-
-	if retCode, _ := app.validateTransfer(sourcePublicKey, recoveredHoldingAddress, uint64(req.Amount)); retCode != code.OK {
-		return retCode
-	}
-
-	msg := make([]byte, len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(req.PubM))
-	copy(msg, sourcePublicKey)
-	copy(msg[len(sourcePublicKey):], recoveredHoldingAddress)
-	binary.BigEndian.PutUint32(msg[len(sourcePublicKey)+len(recoveredHoldingAddress):], uint32(req.Amount))
-	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4:], egPubb)
-	copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb):], lambdab)
-	for i := range req.PubM {
-		copy(msg[len(sourcePublicKey)+len(recoveredHoldingAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], req.PubM[i])
-	}
-
-	if len(req.Sig) != account.SignatureSize || !sourcePublicKey.VerifyBytes(msg, req.Sig) {
+	recAddr := ethcrypto.PubkeyToAddress(*recPub)
+	if !bytes.Equal(recAddr[:], req.ClientAddress) {
 		app.log.Info("Failed to verify signature on request")
 		return code.INVALID_SIGNATURE
 	}

@@ -18,6 +18,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -27,7 +28,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
@@ -37,7 +38,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
 	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -80,7 +80,7 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		return nil, nil, comm.LogAndReturnError(s.log, "Failed to create Vk request: %v", err)
 	}
 
-	packetBytes, err := commands.CommandToMarshaledPacket(cmd)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
 	if err != nil {
 		// should never happen...
 		return nil, nil, comm.LogAndReturnError(s.log, "Could not create VK data packet: %v", err)
@@ -89,9 +89,12 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
 	responses := make([]*comm.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
-
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
-	timeout := time.After(time.Duration(s.cfg.Debug.ProviderStartupTimeout) * time.Millisecond)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(s.cfg.Debug.ProviderStartupTimeout)*time.Millisecond,
+	)
+	defer cancel()
 
 	// this allows to enter the case immediately, but in return timeout won't happen
 	// exactly after ProviderStartupTimeout, but instead after N * ProviderStartupRetryInterval,
@@ -100,11 +103,11 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		s.log.Debug("Trying to obtain vks of all IAs...")
 		// this is redone every run so that we would not get stale results
 		responses = comm.GetServerResponses(
+			ctx,
 			&comm.RequestParams{
 				MarshaledPacket:   packetBytes,
 				MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
-				ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
-				RequestTimeout:    s.cfg.Debug.RequestTimeout,
+				ConnectionTimeout: time.Duration(s.cfg.Debug.ConnectTimeout) * time.Millisecond,
 				ServerAddresses:   s.cfg.Provider.IAAddresses,
 				ServerIDs:         s.cfg.Provider.IAIDs,
 			},
@@ -130,9 +133,9 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		}
 
 		select {
-		case <-timeout:
+		case <-ctx.Done():
 			s.log.Critical("Timed out while starting up...")
-			return nil, nil, errors.New("Startup timeout")
+			return nil, nil, errors.New("startup timeout")
 		default:
 		}
 	}
@@ -160,12 +163,12 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 func New(cfg *config.Config) (*Server, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {
-		return nil, errors.New("Nil config provided")
+		return nil, errors.New("nil config provided")
 	}
 
 	log, err := logger.New(cfg.Logging.File, cfg.Logging.Level, cfg.Logging.Disable)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to create a logger: %v", err)
+		return nil, fmt.Errorf("failed to create a logger: %v", err)
 	}
 	// without this, the servers during tests would have same id and would run into concurrency issues
 	serverLog := log.GetLogger("Server - " + cfg.Server.Identifier)
@@ -200,20 +203,22 @@ func New(cfg *config.Config) (*Server, error) {
 
 			if sk.ToPEMFile(cfg.Issuer.SecretKeyFile) != nil || vk.ToPEMFile(cfg.Issuer.VerificationKeyFile) != nil {
 				serverLog.Error("Couldn't write new keys to the files")
-				return nil, errors.New("Couldn't write new keys to the files")
+				return nil, errors.New("couldn't write new keys to the files")
 			}
 
 			serverLog.Notice("Written new keys to the files")
 		} else {
+			//nolint: govet
 			if err := sk.FromPEMFile(cfg.Issuer.SecretKeyFile); err != nil {
 				return nil, err
 			}
+			//nolint: govet
 			if err := vk.FromPEMFile(cfg.Issuer.VerificationKeyFile); err != nil {
 				return nil, err
 			}
 			if len(sk.Y()) > cfg.Server.MaximumAttributes || !coconut.ValidateKeyPair(sk, vk) {
 				serverLog.Errorf("The loaded keys were invalid")
-				return nil, errors.New("The loaded keys were invalid")
+				return nil, errors.New("the loaded keys were invalid")
 			}
 			serverLog.Notice("Loaded Coconut server keys from the files.")
 
@@ -233,33 +238,41 @@ func New(cfg *config.Config) (*Server, error) {
 
 	// if server is a provider we actually do need to keep the blockchain keys as we need to accept spend requests
 	// and hence verify whether request is bound to our address
-	acc := account.Account{}
+	// acc := account.Account{}
 	if cfg.Server.IsProvider {
 		if cfg.Provider.BlockchainKeysFile != "" {
-			if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
-				errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-				serverLog.Error(errStr)
-				return nil, errors.New(errStr)
-			}
+			//nolint: govet
+			// if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
+			// 	errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+			// 	serverLog.Error(errStr)
+			// 	return nil, errors.New(errStr)
+			// }
 			serverLog.Notice("Loaded Nym Blochain keys from the file.")
 		} else {
-			errStr := "No keys for the Nym Blockchain were specified while server is a provider"
+			errStr := "no keys for the Nym Blockchain were specified while server is a provider"
 			serverLog.Error(errStr)
 			return nil, errors.New(errStr)
 		}
 	}
 
-	nymClient, err := nymclient.New(cfg.Server.BlockchainNodeAddresses, log)
-	if err != nil {
-		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-		serverLog.Error(errStr)
-		return nil, errors.New(errStr)
-	}
+	var nymClient *nymclient.Client
+	var store *storage.Database
 
-	store, err := storage.New(dbName, cfg.Server.DataDir)
-	if err != nil {
-		serverLog.Errorf("Failed to create a data store: %v", err)
-		return nil, err
+	if !cfg.Debug.DisableAllBlockchainCommunication {
+		serverLog.Warning("Blockchain communication is disabled - server will not communicate with blockchain at all")
+		nymClient, err = nymclient.New(cfg.Server.BlockchainNodeAddresses, log)
+		if err != nil {
+			errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+			serverLog.Error(errStr)
+			return nil, errors.New(errStr)
+		}
+
+		// store is currently only used if server is using a monitor
+		store, err = storage.New(dbName, cfg.Server.DataDir)
+		if err != nil {
+			serverLog.Errorf("Failed to create a data store: %v", err)
+			return nil, err
+		}
 	}
 
 	avk := &coconut.VerificationKey{}
@@ -276,21 +289,21 @@ func New(cfg *config.Config) (*Server, error) {
 			Sk:         sk,
 			Vk:         vk,
 			Avk:        avk,
-			NymAccount: acc,
-			NymClient:  nymClient,
-			Store:      store,
+			// NymAccount: acc,
+			NymClient: nymClient,
+			Store:     store,
 		}
-		serverWorker, err := serverworker.New(serverWorkerCfg)
+		serverWorker, nerr := serverworker.New(serverWorkerCfg)
 
-		if err == nil {
+		if nerr == nil {
 			serverWorkers = append(serverWorkers, serverWorker)
 		} else {
-			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, err)
+			serverLog.Errorf("Error while starting up serverWorker%v: %v", i, nerr)
 		}
 	}
 
 	if len(serverWorkers) == 0 {
-		errMsg := "Could not start any server worker"
+		errMsg := "could not start any server worker"
 		serverLog.Critical(errMsg)
 		return nil, errors.New(errMsg)
 	}
@@ -326,23 +339,25 @@ func New(cfg *config.Config) (*Server, error) {
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 	// there's no need for a provider to monitor the chain
 	if cfg.Server.IsIssuer {
-		mon, err = monitor.New(log, nymClient, store, int(IAID))
-		if err != nil {
-			// in theory we could still progress if chain comes back later on.
-			// We will just have to catch up on the blocks
-			serverLog.Errorf("Failed to spawn blockchain monitor")
-		}
-		serverLog.Noticef("Spawned blockchain monitor")
-		for i := 0; i < cfg.Debug.NumProcessors; i++ {
-			processor, err := processor.New(cmdCh.In(), mon, log, i, store)
+		if !cfg.Debug.DisableBlockchainMonitoring && !cfg.Debug.DisableAllBlockchainCommunication {
+			mon, err = monitor.New(log, nymClient, store, int(IAID))
 			if err != nil {
-				// but if we are unable to process the blocks, there's no point of the issuer
-				serverLog.Critical("Failed to spawn blockchain block processor")
-				return nil, err
+				// in theory we could still progress if chain comes back later on.
+				// We will just have to catch up on the blocks
+				serverLog.Errorf("Failed to spawn blockchain monitor")
 			}
-			processors[i] = processor
+			serverLog.Noticef("Spawned blockchain monitor")
+			for i := 0; i < cfg.Debug.NumProcessors; i++ {
+				processor, err := processor.New(cmdCh.In(), mon, log, i, store)
+				if err != nil {
+					// but if we are unable to process the blocks, there's no point of the issuer
+					serverLog.Critical("Failed to spawn blockchain block processor")
+					return nil, err
+				}
+				processors[i] = processor
+			}
+			serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
 		}
-		serverLog.Noticef("Spawned %v blockchain block processors", cfg.Debug.NumProcessors)
 	}
 
 	s := &Server{
@@ -373,7 +388,7 @@ func New(cfg *config.Config) (*Server, error) {
 	} else {
 		vks, pp, err := s.getIAsVerificationKeys()
 		if err != nil {
-			return nil, errors.New("Failed to obtain verification keys of IAs")
+			return nil, errors.New("failed to obtain verification keys of IAs")
 		}
 
 		*avk = *serverWorkers[0].AggregateVerificationKeysWrapper(vks, pp)

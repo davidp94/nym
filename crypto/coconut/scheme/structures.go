@@ -79,7 +79,7 @@ func (vk *VerificationKey) Validate() bool {
 	if vk == nil || vk.g2 == nil || vk.alpha == nil || vk.beta == nil {
 		return false
 	}
-	if len(vk.beta) <= 0 {
+	if len(vk.beta) == 0 {
 		return false
 	}
 	for i := range vk.beta {
@@ -199,7 +199,7 @@ type Lambda struct {
 	proof *SignerProof
 }
 
-// Validate checks for nil elements in the mats.
+// Validate checks for nil elements in lambda.
 func (l *Lambda) Validate() bool {
 	if l == nil || l.cm == nil || l.enc == nil {
 		return false
@@ -371,7 +371,37 @@ func (vp *VerifierProof) Validate() bool {
 // 	Verify() bool
 // }
 
-// NewParams returns instance of params key from the provided attributes.
+type BlindSignMaterials struct {
+	lambda *Lambda
+	egPub  *elgamal.PublicKey
+	pubM   []*Curve.BIG
+}
+
+// Lambda returns materials created during PrepareBlindSign.
+func (bsm *BlindSignMaterials) Lambda() *Lambda {
+	return bsm.lambda
+}
+
+// EgPub returns the ElGamal Public key.
+func (bsm *BlindSignMaterials) EgPub() *elgamal.PublicKey {
+	return bsm.egPub
+}
+
+// PubM returns all public attributes to be encoded in the credential.
+func (bsm *BlindSignMaterials) PubM() []*Curve.BIG {
+	return bsm.pubM
+}
+
+// NewBlindSignMaterials returns instance of BlindSignMaterials from the provided attributes.
+func NewBlindSignMaterials(lambda *Lambda, egPub *elgamal.PublicKey, pubM []*Curve.BIG) *BlindSignMaterials {
+	return &BlindSignMaterials{
+		lambda: lambda,
+		egPub:  egPub,
+		pubM:   pubM,
+	}
+}
+
+// NewParams returns instance of params from the provided attributes.
 // Created for tendermint ABCI to create params without the bpgroup.
 func NewParams(G *bpgroup.BpGroup, p *Curve.BIG, g1 *Curve.ECP, g2 *Curve.ECP2, hs []*Curve.ECP) *Params {
 	return &Params{
@@ -383,7 +413,7 @@ func NewParams(G *bpgroup.BpGroup, p *Curve.BIG, g1 *Curve.ECP, g2 *Curve.ECP2, 
 	}
 }
 
-// NewSk returns instance of verification key from the provided attributes.
+// NewSk returns instance of secret key from the provided attributes.
 // Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
 func NewSk(x *Curve.BIG, y []*Curve.BIG) *SecretKey {
 	return &SecretKey{

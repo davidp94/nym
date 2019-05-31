@@ -22,7 +22,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"github.com/golang/protobuf/proto"
@@ -71,9 +71,9 @@ type Command interface {
 // CommandID is wrapper for a byte defining ID of particular command.
 type CommandID byte
 
-// CommandToMarshaledPacket transforms the given command into a marshaled instance of a packet
+// CommandToMarshalledPacket transforms the given command into a marshalled instance of a packet
 // sent to a TCP socket.
-func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
+func CommandToMarshalledPacket(cmd Command) ([]byte, error) {
 	payloadBytes, err := proto.Marshal(cmd)
 	if err != nil {
 		return nil, err
@@ -99,7 +99,7 @@ func CommandToMarshaledPacket(cmd Command) ([]byte, error) {
 	case *LookUpBlockCredentialsRequest:
 		cmdID = LookUpBlockCredentialsID
 	default:
-		return nil, errors.New("Unknown Command")
+		return nil, errors.New("unknown Command")
 	}
 
 	rawCmd := NewRawCommand(cmdID, payloadBytes)
@@ -138,7 +138,7 @@ func FromBytes(b []byte) (Command, error) {
 	case LookUpBlockCredentialsID:
 		cmd = &LookUpBlockCredentialsRequest{}
 	default:
-		return nil, errors.New("Unknown CommandID")
+		return nil, errors.New("unknown CommandID")
 	}
 
 	if err := proto.Unmarshal(payload, cmd); err != nil {
@@ -148,7 +148,7 @@ func FromBytes(b []byte) (Command, error) {
 	return cmd, nil
 }
 
-// RawCommand encapsulates arbitrary marshaled command and ID that defines it.
+// RawCommand encapsulates arbitrary marshalled command and ID that defines it.
 type RawCommand struct {
 	id      CommandID
 	payload []byte
@@ -215,7 +215,7 @@ type ProtoResponse interface {
 
 // NewSignRequest returns new instance of a SignRequest given set of public attributes.
 func NewSignRequest(pubM []*Curve.BIG) (*SignRequest, error) {
-	if len(pubM) <= 0 {
+	if len(pubM) == 0 {
 		return nil, errors.New("no attributes for signing")
 	}
 	pubMb, err := coconut.BigSliceToByteSlices(pubM)
@@ -235,7 +235,7 @@ func NewVerificationKeyRequest() (*VerificationKeyRequest, error) {
 // NewVerifyRequest returns new instance of a VerifyRequest
 // given set of public attributes and a coconut signature on them.
 func NewVerifyRequest(pubM []*Curve.BIG, sig *coconut.Signature) (*VerifyRequest, error) {
-	if len(pubM) <= 0 {
+	if len(pubM) == 0 {
 		return nil, errors.New("no attributes for verifying")
 	}
 	protoSig, err := sig.ToProto()
@@ -344,7 +344,7 @@ func NewGetCredentialRequest(lambda *coconut.Lambda,
 func NewSpendCredentialRequest(sig *coconut.Signature,
 	pubM []*Curve.BIG,
 	theta *coconut.ThetaTumbler,
-	val int32,
+	val int64,
 	address []byte,
 ) (*SpendCredentialRequest, error) {
 	protoSig, err := sig.ToProto()
@@ -357,8 +357,8 @@ func NewSpendCredentialRequest(sig *coconut.Signature,
 		return nil, err
 	}
 
-	if len(pubM) <= 0 || Curve.Comp(pubM[0], Curve.NewBIGint(int(val))) != 0 || val <= 0 {
-		return nil, errors.New("Invalid credential value")
+	if len(pubM) == 0 || Curve.Comp(pubM[0], Curve.NewBIGint(int(val))) != 0 || val <= 0 {
+		return nil, errors.New("invalid credential value")
 	}
 
 	protoThetaTumbler, err := theta.ToProto()

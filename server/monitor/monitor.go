@@ -15,7 +15,7 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Package monitor implements the support for monitoring the state of the Tendermint Blockchain
-// (later Ethereum I guess?) to sign all comitted requests.
+// (later Ethereum I guess?) to sign all committed requests.
 package monitor
 
 import (
@@ -55,7 +55,6 @@ type Monitor struct {
 	subscriberStr              string
 	txsEventsCh                <-chan ctypes.ResultEvent
 	headersEventsCh            <-chan ctypes.ResultEvent
-	haltCh                     chan struct{}
 	latestConsecutiveProcessed int64              // everything up to that point (including it) is already stored on disk
 	processedBlocks            map[int64]struct{} // think of it as a set rather than a hashmap
 	unprocessedBlocks          map[int64]*block
@@ -189,6 +188,7 @@ func (m *Monitor) forceUpdateBlock(height int64) {
 
 // GetLowestFullUnprocessedBlock returns block on lowest height that is currently not being processed.
 // FIXME: it doesn't actually return the lowest, but does it matter?
+//nolint: golint
 func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	m.Lock()
 	defer m.Unlock()
@@ -205,10 +205,11 @@ func (m *Monitor) GetLowestFullUnprocessedBlock() (int64, *block) {
 	return -1, nil
 }
 
+// TODO: the method is currently being unused, do we really need it?
 func (m *Monitor) lowestUnprocessedBlockHeight() int64 {
 	m.Lock()
 	defer m.Unlock()
-	if len(m.unprocessedBlocks) <= 0 {
+	if len(m.unprocessedBlocks) == 0 {
 		return -1
 	}
 	var lowestHeight int64 = math.MaxInt64
@@ -354,7 +355,10 @@ func (m *Monitor) resyncWithBlockchain() error {
 	m.log.Debugf("Resyncing blocks with the chain; latestStored: %v, latestBlock: %v", latestStored, latestBlock.Height)
 
 	if latestStored < (latestBlock.Height - 1) {
-		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v", latestStored, latestBlock.Height)
+		m.log.Warningf("Monitor is behind the blockchain. Latest stored height: %v, latest block height: %v",
+			latestStored,
+			latestBlock.Height,
+		)
 		m.addNewCatchUpBlock(latestBlock, false)
 		m.catchUp(latestStored+1, latestBlock.Height-1)
 	} else {
@@ -409,7 +413,8 @@ func (m *Monitor) resubscribeToBlockchainFull() error {
 func (m *Monitor) fillBlockGaps() {
 	m.log.Debug("Filling missing blocks")
 	m.Lock()
-	if len(m.processedBlocks) <= 0 {
+	if len(m.processedBlocks) == 0 {
+		m.Unlock()
 		return
 	}
 
@@ -423,12 +428,10 @@ func (m *Monitor) fillBlockGaps() {
 
 		if _, ok := m.processedBlocks[h]; ok {
 			remainingBlocks--
-		} else {
-			if _, ok := m.unprocessedBlocks[h]; !ok {
-				m.log.Debugf("Found gap at height: %v", h)
-				// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
-				gaps = append(gaps, h)
-			}
+		} else if _, ok := m.unprocessedBlocks[h]; !ok {
+			m.log.Debugf("Found gap at height: %v remaining: %v", h, remainingBlocks)
+			// if it's not in processed nor unprocessed blocks, it means we never got the data hence it's a gap
+			gaps = append(gaps, h)
 		}
 	}
 
@@ -500,7 +503,7 @@ func (m *Monitor) worker() {
 			// for now do a dummy catchup as in on everything after last stored block.
 			// later improve and do it selectively
 
-		case <-m.haltCh:
+		case <-m.HaltCh():
 			return
 		}
 	}
@@ -509,13 +512,12 @@ func (m *Monitor) worker() {
 // Halt stops the monitor and unsubscribes from any open queries.
 func (m *Monitor) Halt() {
 	m.log.Debugf("Halting the monitor")
-	close(m.haltCh)
+	m.Worker.Halt()
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 	if err := m.tmClient.UnsubscribeAll(ctx, m.subscriberStr); err != nil {
 		m.log.Noticef("%v", err)
 	}
-	m.Worker.Halt()
 }
 
 // New creates a new monitor.
@@ -534,7 +536,6 @@ func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, i
 		store:                      store,
 		log:                        log,
 		subscriberStr:              subscriberStr,
-		haltCh:                     make(chan struct{}),
 		unprocessedBlocks:          make(map[int64]*block),
 		processedBlocks:            make(map[int64]struct{}),
 		latestConsecutiveProcessed: store.GetHighest(),

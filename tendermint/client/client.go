@@ -41,22 +41,22 @@ const (
 // Client encapsulates all necessary data for communicating with the blockchain application by possibly multiple
 // clients simultaneously.
 type Client struct {
-	log               *logging.Logger
 	possibleAddresses []string
-	tmclient          *tmclient.HTTP
-	failedToReconnect bool
 	lastReconnection  time.Time
-
-	connLock sync.Mutex
-	logLock  sync.Mutex
-
-	stopOnce sync.Once
+	log               *logging.Logger
+	tmclient          *tmclient.HTTP
+	stopOnce          sync.Once
+	connLock          sync.Mutex
+	logLock           sync.Mutex
+	failedToReconnect bool
 }
 
 var (
 	// ErrReconnectFailure indicates error due to inability to reconnect to any specified node.
-	ErrReconnectFailure = errors.New("Could not reconnect to any node")
+	ErrReconnectFailure = errors.New("could not reconnect to any node")
 )
+
+// TODO: combine all broadcast, sendasync, etc. and use type switch instead
 
 // Broadcast sends a transaction to specified blockchain nodes and waits until it is included on the chain.
 func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
@@ -66,11 +66,12 @@ func (c *Client) Broadcast(tx []byte) (*ctypes.ResultBroadcastTxCommit, error) {
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.BroadcastTxCommit(tx)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -93,11 +94,12 @@ func (c *Client) SendSync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.BroadcastTxSync(tx)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -119,11 +121,12 @@ func (c *Client) SendAsync(tx []byte) (*ctypes.ResultBroadcastTx, error) {
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.BroadcastTxAsync(tx)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while sending tx to the ABCI: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -145,11 +148,12 @@ func (c *Client) Query(path string, data cmn.HexBytes) (*ctypes.ResultABCIQuery,
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.ABCIQuery(path, data)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while quering the ABCI: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -170,11 +174,12 @@ func (c *Client) TxByHash(hash cmn.HexBytes) (*ctypes.ResultTx, error) {
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.Tx(hash, true)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -196,11 +201,12 @@ func (c *Client) BlockchainInfo(minHeight, maxHeight int64) (*ctypes.ResultBlock
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.BlockchainInfo(minHeight, maxHeight)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -226,11 +232,12 @@ func (c *Client) BlockResults(height *int64) (*ctypes.ResultBlockResults, error)
 	if c.tmclient != nil && c.tmclient.IsRunning() {
 		res, err = c.tmclient.BlockResults(height)
 	} else { // reconnection is most likely already in progress
-		err = errors.New("Invalid client - reconnection required")
+		err = errors.New("invalid client - reconnection required")
 	}
 	// network error
 	if err != nil {
 		c.logMsg("DEBUG", "Network error while getting tx result: %v", err)
+		//nolint: govet
 		err := c.reconnect(false)
 		if err != nil {
 			// workers should decide how to handle it
@@ -263,7 +270,7 @@ func (c *Client) reconnect(forceTry bool) error {
 	// we could try to reconnect to existing one, hoping itd come back, but might as well connect to another node
 	if c.tmclient != nil {
 		// err is only returned of client is already stopped, so we can safely ignore it
-		// nolint: gosec
+		// nolint: errcheck
 		c.tmclient.Stop()
 		c.tmclient = nil
 	}
@@ -317,7 +324,7 @@ func (c *Client) Stop() {
 	c.stopOnce.Do(func() {
 		if c.tmclient != nil {
 			// err is only returned of client is already stopped, so we can safely ignore it
-			// nolint: gosec
+			// nolint: errcheck
 			c.tmclient.Stop()
 		}
 	})
@@ -361,7 +368,7 @@ func New(nodeAddresses []string, logger *logger.Logger) (*Client, error) {
 
 	err := c.reconnect(true)
 	if err != nil {
-		return nil, errors.New("Could not connect to any defined blockchain node")
+		return nil, errors.New("could not connect to any defined blockchain node")
 	}
 
 	return c, nil

@@ -24,6 +24,7 @@ import (
 	"github.com/tendermint/tendermint/libs/log"
 )
 
+//nolint: gochecknoglobals
 var app *NymApplication
 
 func TestMain(m *testing.M) {

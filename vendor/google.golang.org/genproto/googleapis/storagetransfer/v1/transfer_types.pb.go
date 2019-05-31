@@ -5,6 +5,8 @@ package storagetransfer
 
 import (
 	fmt "fmt"
+	math "math"
+
 	proto "github.com/golang/protobuf/proto"
 	duration "github.com/golang/protobuf/ptypes/duration"
 	timestamp "github.com/golang/protobuf/ptypes/timestamp"
@@ -12,7 +14,6 @@ import (
 	code "google.golang.org/genproto/googleapis/rpc/code"
 	date "google.golang.org/genproto/googleapis/type/date"
 	timeofday "google.golang.org/genproto/googleapis/type/timeofday"
-	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -24,7 +25,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 // The status of the transfer job.
 type TransferJob_Status int32
@@ -150,7 +151,8 @@ func (m *GoogleServiceAccount) GetAccountEmail() string {
 }
 
 // AWS access key (see
-// [AWS Security Credentials](http://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html)).
+// [AWS Security
+// Credentials](http://docs.aws.amazon.com/general/latest/gr/aws-security-credentials.html)).
 type AwsAccessKey struct {
 	// AWS access key ID.
 	// Required.
@@ -217,9 +219,10 @@ type ObjectConditions struct {
 	MaxTimeElapsedSinceLastModification *duration.Duration `protobuf:"bytes,2,opt,name=max_time_elapsed_since_last_modification,json=maxTimeElapsedSinceLastModification,proto3" json:"max_time_elapsed_since_last_modification,omitempty"`
 	// If `includePrefixes` is specified, objects that satisfy the object
 	// conditions must have names that start with one of the `includePrefixes`
-	// and that do not start with any of the `excludePrefixes`. If `includePrefixes`
-	// is not specified, all objects except those that have names starting with
-	// one of the `excludePrefixes` must satisfy the object conditions.
+	// and that do not start with any of the `excludePrefixes`. If
+	// `includePrefixes` is not specified, all objects except those that have
+	// names starting with one of the `excludePrefixes` must satisfy the object
+	// conditions.
 	//
 	// Requirements:
 	//
@@ -317,7 +320,8 @@ func (m *ObjectConditions) GetExcludePrefixes() []string {
 // when the content or the metadata of the object is updated.
 type GcsData struct {
 	// Google Cloud Storage bucket name (see
-	// [Bucket Name Requirements](https://cloud.google.com/storage/docs/bucket-naming#requirements)).
+	// [Bucket Name
+	// Requirements](https://cloud.google.com/storage/docs/bucket-naming#requirements)).
 	// Required.
 	BucketName           string   `protobuf:"bytes,1,opt,name=bucket_name,json=bucketName,proto3" json:"bucket_name,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
@@ -361,7 +365,8 @@ func (m *GcsData) GetBucketName() string {
 // In an AwsS3Data, an object's name is the S3 object's key name.
 type AwsS3Data struct {
 	// S3 Bucket name (see
-	// [Creating a bucket](http://docs.aws.amazon.com/AmazonS3/latest/dev/create-bucket-get-location-example.html)).
+	// [Creating a
+	// bucket](http://docs.aws.amazon.com/AmazonS3/latest/dev/create-bucket-get-location-example.html)).
 	// Required.
 	BucketName string `protobuf:"bytes,1,opt,name=bucket_name,json=bucketName,proto3" json:"bucket_name,omitempty"`
 	// AWS access key used to sign the API requests to the AWS S3 bucket.
@@ -427,12 +432,13 @@ func (m *AwsS3Data) GetAwsAccessKey() *AwsAccessKey {
 // * MD5 - The base64-encoded MD5 hash of the object.
 //
 // For an example of a valid TSV file, see
-// [Transferring data from URLs](https://cloud.google.com/storage/transfer/create-url-list).
+// [Transferring data from
+// URLs](https://cloud.google.com/storage/transfer/create-url-list).
 //
 // When transferring data based on a URL list, keep the following in mind:
 //
-// * When an object located at `http(s)://hostname:port/<URL-path>` is transferred
-// to a data sink, the name of the object at the data sink is
+// * When an object located at `http(s)://hostname:port/<URL-path>` is
+// transferred to a data sink, the name of the object at the data sink is
 // `<hostname>/<URL-path>`.
 //
 // * If the specified size of an object does not match the actual size of the
@@ -701,128 +707,14 @@ func (m *TransferSpec) GetTransferOptions() *TransferOptions {
 	return nil
 }
 
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*TransferSpec) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _TransferSpec_OneofMarshaler, _TransferSpec_OneofUnmarshaler, _TransferSpec_OneofSizer, []interface{}{
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*TransferSpec) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
 		(*TransferSpec_GcsDataSource)(nil),
 		(*TransferSpec_AwsS3DataSource)(nil),
 		(*TransferSpec_HttpDataSource)(nil),
 		(*TransferSpec_GcsDataSink)(nil),
 	}
-}
-
-func _TransferSpec_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*TransferSpec)
-	// data_source
-	switch x := m.DataSource.(type) {
-	case *TransferSpec_GcsDataSource:
-		b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.GcsDataSource); err != nil {
-			return err
-		}
-	case *TransferSpec_AwsS3DataSource:
-		b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.AwsS3DataSource); err != nil {
-			return err
-		}
-	case *TransferSpec_HttpDataSource:
-		b.EncodeVarint(3<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.HttpDataSource); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("TransferSpec.DataSource has unexpected type %T", x)
-	}
-	// data_sink
-	switch x := m.DataSink.(type) {
-	case *TransferSpec_GcsDataSink:
-		b.EncodeVarint(4<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.GcsDataSink); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("TransferSpec.DataSink has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _TransferSpec_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*TransferSpec)
-	switch tag {
-	case 1: // data_source.gcs_data_source
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GcsData)
-		err := b.DecodeMessage(msg)
-		m.DataSource = &TransferSpec_GcsDataSource{msg}
-		return true, err
-	case 2: // data_source.aws_s3_data_source
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(AwsS3Data)
-		err := b.DecodeMessage(msg)
-		m.DataSource = &TransferSpec_AwsS3DataSource{msg}
-		return true, err
-	case 3: // data_source.http_data_source
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(HttpData)
-		err := b.DecodeMessage(msg)
-		m.DataSource = &TransferSpec_HttpDataSource{msg}
-		return true, err
-	case 4: // data_sink.gcs_data_sink
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GcsData)
-		err := b.DecodeMessage(msg)
-		m.DataSink = &TransferSpec_GcsDataSink{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _TransferSpec_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*TransferSpec)
-	// data_source
-	switch x := m.DataSource.(type) {
-	case *TransferSpec_GcsDataSource:
-		s := proto.Size(x.GcsDataSource)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *TransferSpec_AwsS3DataSource:
-		s := proto.Size(x.AwsS3DataSource)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *TransferSpec_HttpDataSource:
-		s := proto.Size(x.HttpDataSource)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	// data_sink
-	switch x := m.DataSink.(type) {
-	case *TransferSpec_GcsDataSink:
-		s := proto.Size(x.GcsDataSink)
-		n += 1 // tag and wire
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 // Transfers can be scheduled to recur or to run just once.
@@ -1318,8 +1210,8 @@ func (m *TransferCounters) GetBytesFailedToDeleteFromSink() int64 {
 type TransferOperation struct {
 	// A globally unique ID assigned by the system.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// The ID of the Google Cloud Platform Console project that owns the operation.
-	// Required.
+	// The ID of the Google Cloud Platform Console project that owns the
+	// operation. Required.
 	ProjectId string `protobuf:"bytes,2,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
 	// Transfer specification.
 	// Required.

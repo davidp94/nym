@@ -17,27 +17,30 @@
 package nymapplication
 
 import (
-	"bytes"
+	"fmt"
 
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/account"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
+	"github.com/tendermint/tendermint/abci/types"
 )
 
-// returns balance represented uint64 as BiGEndian encoded byte array and the code
-func (app *NymApplication) queryBalance(address []byte) ([]byte, uint32) {
-	// dont perform validation on holding account since it will fail
-	if bytes.Compare(address, tmconst.HoldingAccountAddress) != 0 {
-		if !account.ValidateAddress(address) {
-			return nil, code.INVALID_QUERY_PARAMS
-		}
+func (app *NymApplication) checkAccountBalanceQuery(req types.RequestQuery) types.ResponseQuery {
+	val, err := app.retrieveAccountBalance(req.Data)
+	if err != nil {
+		return types.ResponseQuery{Code: code.ACCOUNT_DOES_NOT_EXIST}
 	}
+	return types.ResponseQuery{Code: code.OK, Key: req.Data, Value: balanceToBytes(val)}
+}
 
-	key := prefixKey(tmconst.AccountsPrefix, address)
-
-	_, val := app.state.db.Get(key)
-	if val != nil {
-		return val, code.OK
+func (app *NymApplication) printVk(req types.RequestQuery) (types.ResponseQuery, error) {
+	if !tmconst.DebugMode {
+		app.log.Info("Trying to use printVk not in debug mode")
+		return types.ResponseQuery{}, tmconst.ErrNotInDebug
 	}
-	return nil, code.ACCOUNT_DOES_NOT_EXIST
+	avk, err := app.retrieveAggregateVerificationKey()
+	if err != nil {
+		return types.ResponseQuery{Code: code.UNKNOWN}, err
+	}
+	fmt.Println(avk)
+	return types.ResponseQuery{Code: code.OK}, nil
 }
