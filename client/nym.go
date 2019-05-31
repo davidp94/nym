@@ -21,7 +21,6 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
-	"errors"
 	"math/big"
 	"net"
 	"time"
@@ -38,7 +37,6 @@ import (
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
-	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 func (c *Client) parseCredentialPairResponse(resp *commands.LookUpCredentialResponse,
@@ -140,43 +138,104 @@ func (c *Client) GetCurrentNymBalance() (uint64, error) {
 	return balance, nil
 }
 
-func (c *Client) sendToPipeAccount(ctx context.Context, amount int64) error {
+func (c *Client) SendToPipeAccount(ctx context.Context, amount int64) error {
 	if err := c.ethClient.TransferERC20Tokens(ctx, amount, c.cfg.Nym.PipeAccount); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *Client) waitForBalanceIncrease(ctx context.Context, expectedBalance uint64) error {
-	c.log.Info("Waiting for our transaction to reach Tendermint chain")
-	retryTicker := time.NewTicker(2 * time.Second)
+// // actually we don't need this method at all - when we broadcast the data we wait for it to be included
+// func (c *Client) waitForBalanceIncrease(ctx context.Context, expectedBalance uint64) error {
+// 	c.log.Info("Waiting for our transaction to reach Tendermint chain")
+// 	retryTicker := time.NewTicker(2 * time.Second)
 
-	select {
-	case <-retryTicker.C:
-		currentBalance, err := c.GetCurrentNymBalance()
-		if err != nil {
-			// TODO: should we cancel instead?
-			c.log.Warningf("Error while querying for balance: %v", err)
-		}
-		if currentBalance == expectedBalance {
-			return nil
-		}
-	case <-ctx.Done():
-		return errors.New("operation was cancelled")
+// 	select {
+// 	case <-retryTicker.C:
+// 		currentBalance, err := c.GetCurrentNymBalance()
+// 		if err != nil {
+// 			// TODO: should we cancel instead?
+// 			c.log.Warningf("Error while querying for balance: %v", err)
+// 		}
+// 		if currentBalance == expectedBalance {
+// 			return nil
+// 		}
+// 	case <-ctx.Done():
+// 		return errors.New("operation was cancelled")
+// 	}
+// 	// should never be reached
+// 	return errors.New("unexpected error")
+// }
+
+// LookUpIssuedCredential allows to recover a previously issued credential given knowledge of height on which we
+// sent the materials and the elGamal keypair associated with the request.
+func (c *Client) LookUpIssuedCredential(height int64,
+	elGamalPrivateKey *elgamal.PrivateKey,
+	elGamalPublicKey *elgamal.PublicKey,
+) (*coconut.Signature, error) {
+	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
+	if err != nil {
+		return nil, c.logAndReturnError("LookUpIssuedCredential: Failed to create LookUpCredential request: %v", err)
 	}
-	// should never be reached
-	return errors.New("unexpected error")
-}
 
-// FIXME:
-func (c *Client) createCredentialRequestSig(txHash cmn.HexBytes, nonce []byte, token *token.Token) []byte {
-	return nil
-	// msg := make([]byte, len(c.nymAccount.PublicKey)+4+len(nonce)+len(txHash))
-	// copy(msg, c.nymAccount.PublicKey)
-	// binary.BigEndian.PutUint32(msg[len(c.nymAccount.PublicKey):], uint32(token.Value()))
-	// copy(msg[len(c.nymAccount.PublicKey)+4:], nonce)
-	// copy(msg[len(c.nymAccount.PublicKey)+4+len(nonce):], txHash)
-	// return c.nymAccount.PrivateKey.SignBytes(msg)
+	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
+	if err != nil {
+		return nil,
+			c.logAndReturnError("LookUpIssuedCredential: Could not create data packet for look up credential command: %v",
+				err,
+			)
+	}
+
+	retryTicker := time.NewTicker(time.Duration(c.cfg.Debug.LookUpBackoff) * time.Millisecond)
+	defer retryTicker.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
+	var responses []*comm.ServerResponse
+	retryCount := 0
+
+	c.log.Infof("Waiting for %vms before trying to contact the issuers", c.cfg.Debug.LookUpBackoff)
+
+	// we actually don't want to enter tickerCase immediately to give issuers some time to actually handle the request
+outerFor:
+	for {
+		if retryCount == c.cfg.Debug.NumberOfLookUpRetries {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			c.log.Warning("Exceeded context timeout for the request")
+			break outerFor
+		case <-retryTicker.C:
+			retryCount++
+
+			c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
+			responses = comm.GetServerResponses(
+				ctx,
+				&comm.RequestParams{
+					MarshaledPacket:   packetBytes,
+					MaxRequests:       c.cfg.Client.MaxRequests,
+					ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
+					ServerAddresses:   c.cfg.Client.IAAddresses,
+					ServerIDs:         c.cfg.Client.IAIDs,
+				},
+				c.log,
+			)
+
+			// try to parse signature with data we received
+			sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
+			if err != nil {
+				c.log.Warningf("LookUpIssuedCredential: Failed to parse received credentials: %v", err)
+				continue outerFor
+			}
+			return sig, nil
+		}
+	}
+
+	// TODO: somehow return gamma and height in response rather than in error message
+	return nil, c.logAndReturnError(`LookUpIssuedCredential: Could not communicate with enough IAs to obtain credentials.
+			Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 }
 
 // GetCredential is a multistep procedure. First it sends 'GetCredential' request to Tendermint blockchain.
@@ -216,52 +275,11 @@ func (c *Client) GetCredential(token *token.Token) (*coconut.Signature, error) {
 	if height <= 1 {
 		return nil, c.logAndReturnError("GetCredential: tx was included at invalid height: %v", height)
 	}
+	c.log.Debugf("Our tx was included in block: %v", height)
 
 	// TODO: if there's a failure anywhere beyond this point, we must be able to return height and elgamal keypair
 	// so that client could theoretically retry at later time
-
-	c.log.Debugf("Our tx was included in block: %v", height)
-
-	return nil, errors.New("foo")
-	// TODO:
-
-	cmd, err := commands.NewLookUpCredentialRequest(height, elGamalPublicKey)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Failed to create BlindSign request: %v", err)
-	}
-
-	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
-	if err != nil {
-		return nil, c.logAndReturnError("GetCredential: Could not create data packet for look up credential command: %v", err)
-	}
-
-	for i := 0; i < c.cfg.Debug.NumberOfLookUpRetries; i++ {
-		c.log.Debug("Waiting for %v", time.Millisecond*time.Duration(c.cfg.Debug.LookUpBackoff))
-		time.Sleep(time.Millisecond * time.Duration(c.cfg.Debug.LookUpBackoff))
-		c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
-
-		responses := comm.GetServerResponses(
-			&comm.RequestParams{
-				MarshaledPacket:   packetBytes,
-				MaxRequests:       c.cfg.Client.MaxRequests,
-				ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-				RequestTimeout:    c.cfg.Debug.RequestTimeout,
-				ServerAddresses:   c.cfg.Client.IAAddresses,
-				ServerIDs:         c.cfg.Client.IAIDs,
-			},
-			c.log,
-		)
-
-		sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
-		if err != nil {
-			continue
-		}
-		return sig, nil
-	}
-
-	// todo: somehow return gamma and height in response rather than in error message
-	return nil, c.logAndReturnError(`GetCredential: Could not communicate with enough IAs to obtain credentials.
-	Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
+	return c.LookUpIssuedCredential(height, elGamalPrivateKey, elGamalPublicKey)
 }
 
 func (c *Client) sendCredentialRequest(token *token.Token, egPub *elgamal.PublicKey) (int64, error) {
@@ -284,7 +302,9 @@ func (c *Client) sendCredentialRequest(token *token.Token, egPub *elgamal.Public
 	}
 	if res.DeliverTx.Code != code.OK || res.CheckTx.Code != code.OK {
 		return -1,
-			c.logAndReturnError("sendCredentialRequest: Our request failed to be processed by the blockchain:\nCheckTx: %v - %v\nDeliverTx: %v - %v",
+			c.logAndReturnError(`sendCredentialRequest: Our request failed to be processed by the blockchain:
+CheckTx: %v - %v
+DeliverTx: %v - %v`,
 				res.CheckTx.Code,
 				code.ToString(res.CheckTx.Code),
 				res.DeliverTx.Code,

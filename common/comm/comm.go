@@ -156,6 +156,7 @@ func SendServerRequests(ctx context.Context,
 
 // WaitForServerResponses is responsible for keeping track of request statuses and possible timeouts
 // if some requests fail to resolve in given time period.
+// TODO: return error on timeout
 func WaitForServerResponses(ctx context.Context,
 	responseCh <-chan *ServerResponse,
 	responses []*ServerResponse,
@@ -506,6 +507,7 @@ type RequestParams struct {
 
 // GetServerResponses writes requests to all server specified in the params according to the set params.
 // func GetServerResponses(packet []byte, maxR int, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
+// TODO: return error on timeout
 func GetServerResponses(ctx context.Context, requestParams *RequestParams, log *logging.Logger) []*ServerResponse {
 
 	responses := make([]*ServerResponse, len(requestParams.ServerAddresses)) // can't possibly get more results

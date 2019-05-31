@@ -17,6 +17,7 @@
 package main
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
 	"flag"
@@ -94,6 +95,7 @@ func main() {
 		os.Exit(-1)
 	}
 
+	transferToPipe(cc)
 	nymFlow(cc)
 	return
 
@@ -103,6 +105,37 @@ func main() {
 	} else {
 		wholeSystem(cc)
 	}
+}
+
+func transferToPipe(cc *cclient.Client) {
+	currentERC20Balance, err := cc.GetCurrentERC20Balance()
+	if err != nil {
+		panic(err)
+	}
+	pending, err := cc.GetCurrentERC20PendingBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current erc20 balance:", currentERC20Balance, "pending:", pending)
+
+	currentNymBalance, err := cc.GetCurrentNymBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current nym balance:", currentNymBalance)
+
+	if err := cc.SendToPipeAccount(context.TODO(), 1); err != nil {
+		panic(err)
+	}
+
+	pending2, err := cc.GetCurrentERC20PendingBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("Current pending", pending2)
 }
 
 func nymFlow(cc *cclient.Client) {
@@ -116,37 +149,11 @@ func nymFlow(cc *cclient.Client) {
 	if err != nil {
 		panic(err)
 	}
-	cc.GetCredential(token)
-
-	// currentERC20Balance, err := cc.GetCurrentERC20Balance()
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// pending, err := cc.GetCurrentERC20PendingBalance()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fmt.Println("current erc20 balance:", currentERC20Balance, "pending:", pending)
-
-	// currentNymBalance, err := cc.GetCurrentNymBalance()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fmt.Println("current nym balance:", currentNymBalance)
-
-	// if err := cc.SendToPipeAccountWrapper(1); err != nil {
-	// 	panic(err)
-	// }
-
-	// pending2, err := cc.GetCurrentERC20PendingBalance()
-	// if err != nil {
-	// 	panic(err)
-	// }
-
-	// fmt.Println("Current pending", pending2)
-
+	cred, err := cc.GetCredential(token)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
 }
 
 //nolint: errcheck
