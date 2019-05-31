@@ -451,13 +451,16 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 		return nil, c.logAndReturnError("SignAttributes: Could not create data packet for sign command: %v", err)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
 	c.log.Notice("Going to send Sign request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},
@@ -566,14 +569,17 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 	if err != nil {
 		return nil, c.logAndReturnError("GetVerificationKeys: Could not create data packet for getVK command: %v", err)
 	}
-	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
+	c.log.Notice("Going to send GetVK request (via TCP socket) to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},
@@ -690,14 +696,16 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 		return nil, c.logAndReturnError("BlindSignAttributes: Could not create data packet for blind sign command: %v", err)
 	}
 
-	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
 
+	c.log.Notice("Going to send Blind Sign request to %v IAs", len(c.cfg.Client.IAAddresses))
 	responses := comm.GetServerResponses(
+		ctx,
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       c.cfg.Client.MaxRequests,
-			ConnectionTimeout: c.cfg.Debug.ConnectTimeout,
-			RequestTimeout:    c.cfg.Debug.RequestTimeout,
+			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
 			ServerIDs:         c.cfg.Client.IAIDs,
 		},

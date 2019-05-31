@@ -18,6 +18,7 @@
 package comm
 
 import (
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -101,7 +102,12 @@ func ReadPacketFromConn(conn net.Conn) (*packet.Packet, error) {
 // It returns the channel to write the requests to.
 // errcheck is ignored to make it not complain about not checking for err in conn.Close()
 // nolint: errcheck
-func SendServerRequests(rCh chan<- *ServerResponse, maxReqs int, log *logging.Logger, connT int) chan<- *ServerRequest {
+func SendServerRequests(ctx context.Context,
+	responseCh chan<- *ServerResponse,
+	maxReqs int,
+	log *logging.Logger,
+	connectionTimeout time.Duration,
+) chan<- *ServerRequest {
 	ch := make(chan *ServerRequest)
 	for i := 0; i < maxReqs; i++ {
 		go func() {
@@ -111,12 +117,17 @@ func SendServerRequests(rCh chan<- *ServerResponse, maxReqs int, log *logging.Lo
 					return
 				}
 
+				// TODO: perhaps customise it ?
+				dialer := &net.Dialer{
+					Timeout: connectionTimeout,
+				}
 				log.Debugf("Dialing %v", req.ServerMetadata.Address)
-				conn, err := net.Dial("tcp", req.ServerMetadata.Address)
+				conn, err := dialer.DialContext(ctx, "tcp", req.ServerMetadata.Address)
 				if err != nil {
 					log.Errorf("Could not dial %v", req.ServerMetadata.Address)
 					continue
 				}
+
 				defer conn.Close()
 
 				// currently will never be thrown since there is no writedeadline
@@ -125,17 +136,11 @@ func SendServerRequests(rCh chan<- *ServerResponse, maxReqs int, log *logging.Lo
 					continue
 				}
 
-				sderr := conn.SetReadDeadline(time.Now().Add(time.Duration(connT) * time.Millisecond))
-				if sderr != nil {
-					log.Errorf("Failed to set read deadline for connection: %v", sderr)
-					continue
-				}
-
 				resp, err := ReadPacketFromConn(conn)
 				if err != nil {
 					log.Errorf("Received invalid response from %v: %v", req.ServerMetadata.Address, err)
 				} else {
-					rCh <- &ServerResponse{
+					responseCh <- &ServerResponse{
 						MarshaledData: resp.Payload(),
 						ServerMetadata: &ServerMetadata{
 							Address: req.ServerMetadata.Address,
@@ -151,12 +156,15 @@ func SendServerRequests(rCh chan<- *ServerResponse, maxReqs int, log *logging.Lo
 
 // WaitForServerResponses is responsible for keeping track of request statuses and possible timeouts
 // if some requests fail to resolve in given time period.
-func WaitForServerResponses(rCh <-chan *ServerResponse, responses []*ServerResponse, log *logging.Logger, reqT int) {
-	timeout := time.After(time.Duration(reqT) * time.Millisecond)
+func WaitForServerResponses(ctx context.Context,
+	responseCh <-chan *ServerResponse,
+	responses []*ServerResponse,
+	log *logging.Logger,
+) {
 	i := 0
 	for {
 		select {
-		case resp := <-rCh:
+		case resp := <-responseCh:
 			log.Debug("Received a reply from IA (%v)", resp.ServerMetadata.Address)
 			responses[i] = resp
 			i++
@@ -165,8 +173,8 @@ func WaitForServerResponses(rCh <-chan *ServerResponse, responses []*ServerRespo
 				log.Debug("Got responses from all servers")
 				return
 			}
-		case <-timeout:
-			log.Notice("Timed out while sending requests")
+		case <-ctx.Done():
+			log.Notice("Timed out while sending requests (context is done)")
 			return
 		}
 	}
@@ -491,19 +499,18 @@ func ResolveServerRequest(cmd commands.Command,
 type RequestParams struct {
 	MarshaledPacket   []byte
 	MaxRequests       int
-	ConnectionTimeout int
-	RequestTimeout    int
+	ConnectionTimeout time.Duration
 	ServerAddresses   []string
 	ServerIDs         []int
 }
 
 // GetServerResponses writes requests to all server specified in the params according to the set params.
 // func GetServerResponses(packet []byte, maxR int, connT int, reqT int, addrs []string, ids []int) []*ServerResponse {
-func GetServerResponses(requestParams *RequestParams, log *logging.Logger) []*ServerResponse {
+func GetServerResponses(ctx context.Context, requestParams *RequestParams, log *logging.Logger) []*ServerResponse {
 
 	responses := make([]*ServerResponse, len(requestParams.ServerAddresses)) // can't possibly get more results
 	respCh := make(chan *ServerResponse)
-	reqCh := SendServerRequests(respCh, requestParams.MaxRequests, log, requestParams.ConnectionTimeout)
+	reqCh := SendServerRequests(ctx, respCh, requestParams.MaxRequests, log, requestParams.ConnectionTimeout)
 
 	// write requests in a goroutine so we wouldn't block when trying to read responses
 	go func() {
@@ -519,7 +526,7 @@ func GetServerResponses(requestParams *RequestParams, log *logging.Logger) []*Se
 		}
 	}()
 
-	WaitForServerResponses(respCh, responses, log, requestParams.RequestTimeout)
+	WaitForServerResponses(ctx, respCh, responses, log)
 	close(reqCh)
 	return responses
 }

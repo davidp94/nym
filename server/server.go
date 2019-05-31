@@ -18,6 +18,7 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -88,9 +89,12 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 	s.log.Notice("Going to send GetVK request to %v IAs", len(s.cfg.Provider.IAAddresses))
 
 	responses := make([]*comm.ServerResponse, len(s.cfg.Provider.IAAddresses)) // can't possibly get more results
-
 	retryTicker := time.NewTicker(time.Duration(s.cfg.Debug.ProviderStartupRetryInterval) * time.Millisecond)
-	timeout := time.After(time.Duration(s.cfg.Debug.ProviderStartupTimeout) * time.Millisecond)
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		time.Duration(s.cfg.Debug.ProviderStartupTimeout)*time.Millisecond,
+	)
+	defer cancel()
 
 	// this allows to enter the case immediately, but in return timeout won't happen
 	// exactly after ProviderStartupTimeout, but instead after N * ProviderStartupRetryInterval,
@@ -99,11 +103,11 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		s.log.Debug("Trying to obtain vks of all IAs...")
 		// this is redone every run so that we would not get stale results
 		responses = comm.GetServerResponses(
+			ctx,
 			&comm.RequestParams{
 				MarshaledPacket:   packetBytes,
 				MaxRequests:       s.cfg.Debug.ProviderMaxRequests,
-				ConnectionTimeout: s.cfg.Debug.ConnectTimeout,
-				RequestTimeout:    s.cfg.Debug.RequestTimeout,
+				ConnectionTimeout: time.Duration(s.cfg.Debug.ConnectTimeout) * time.Millisecond,
 				ServerAddresses:   s.cfg.Provider.IAAddresses,
 				ServerIDs:         s.cfg.Provider.IAIDs,
 			},
@@ -129,7 +133,7 @@ func (s *Server) getIAsVerificationKeys() ([]*coconut.VerificationKey, *coconut.
 		}
 
 		select {
-		case <-timeout:
+		case <-ctx.Done():
 			s.log.Critical("Timed out while starting up...")
 			return nil, nil, errors.New("startup timeout")
 		default:

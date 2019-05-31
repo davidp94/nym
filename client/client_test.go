@@ -20,6 +20,7 @@
 package client
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -28,6 +29,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	cconfig "0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/common/comm"
@@ -819,11 +821,11 @@ func makeValidSignServerResponse(t *testing.T,
 	log, err := logger.New("", "DEBUG", true)
 	assert.Nil(t, err)
 	return comm.GetServerResponses(
+		context.TODO(),
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
-			ConnectionTimeout: 2000,
-			RequestTimeout:    5000,
+			ConnectionTimeout: 2000 * time.Millisecond,
 			ServerAddresses:   []string{address},
 			ServerIDs:         []int{id},
 		}, log.GetLogger("Foo"))[0]
@@ -867,11 +869,11 @@ func makeValidBlindSignServerResponse(t *testing.T,
 	assert.Nil(t, err)
 
 	return comm.GetServerResponses(
+		context.TODO(),
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
-			ConnectionTimeout: 2000,
-			RequestTimeout:    5000,
+			ConnectionTimeout: 2000 * time.Millisecond,
 			ServerAddresses:   []string{address},
 			ServerIDs:         []int{id},
 		}, log.GetLogger("Foo"))[0]
@@ -902,11 +904,11 @@ func makeValidVkServerResponse(t *testing.T, address string, id int, mock bool) 
 	assert.Nil(t, err)
 
 	return comm.GetServerResponses(
+		context.TODO(),
 		&comm.RequestParams{
 			MarshaledPacket:   packetBytes,
 			MaxRequests:       16,
-			ConnectionTimeout: 2000,
-			RequestTimeout:    5000,
+			ConnectionTimeout: 2000 * time.Millisecond,
 			ServerAddresses:   []string{address},
 			ServerIDs:         []int{id},
 		}, log.GetLogger("Foo"))[0]
