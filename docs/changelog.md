@@ -1,5 +1,17 @@
 # CoconutGo Changelog
 
+## 0.7.0
+
+* Working conversion of ERC20 Nym tokens into coconut credentials
+* Using Ethereum addresses for accounts on the Nym-Tendermint side
+* Ability for watchers to send notification transactions to Tendermint chain
+* Ability for client to query its Ethereum (ERC20 Nym) and Tendermint balances
+* Changes to Tendermint app state and the genesis state
+* More ERC20-Nym specific Ethereum-client methods
+* Checks for whether binary were compiled in 64bit mode
+* Moved all localnet related keys and configs to a dedicated directory
+* Other minor changes and fixes
+
 ## 0.6.6
 
 * Updated Nym Node genesis state to include Ethereum watchers
