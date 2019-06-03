@@ -65,7 +65,7 @@ func (w *Watcher) halt() {
 // stop etc are not working
 func (w *Watcher) worker() {
 	w.log.Noticef("Watching Ethereum blockchain at: %s", w.cfg.Watcher.EthereumNodeAddress)
-	heartbeat := time.NewTicker(2 * time.Second)
+	heartbeat := time.NewTicker(1000 * time.Millisecond)
 
 	// Block on the heartbeat ticker
 	// TODO: way to ensure we dont accicdentally skip a block
