@@ -1,5 +1,10 @@
 # CoconutGo Changelog
 
+## 0.7.1
+
+* Additional method to wait for balance change for an ERC20 Nym
+* Adjustments in watcher heartbeat interval
+
 ## 0.7.0
 
 * Working conversion of ERC20 Nym tokens into coconut credentials
