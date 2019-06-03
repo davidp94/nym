@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"net"
 	"time"
@@ -143,6 +144,44 @@ func (c *Client) SendToPipeAccount(ctx context.Context, amount int64) error {
 		return err
 	}
 	return nil
+}
+
+func (c *Client) Foo(ctx context.Context, balance uint64) {
+	c.waitForERC20BalanceChange(ctx, balance)
+}
+
+// TODO: perhaps wait for N blocks to be more certain of it?
+func (c *Client) waitForERC20BalanceChange(ctx context.Context, expectedBalance uint64) error {
+	c.log.Info("Waiting for our transaction to reach the chain")
+	// TODO: make ticker interval configurable in config.toml file?
+	retryTicker := time.NewTicker(2 * time.Second)
+
+	for {
+		select {
+		case <-retryTicker.C:
+			currentBalance, err := c.GetCurrentERC20Balance()
+			if err != nil {
+				// TODO: should we cancel instead?
+				c.log.Warningf("Error while querying for balance: %v", err)
+			}
+			pendingBalance, err := c.GetCurrentERC20PendingBalance()
+			if err != nil {
+				c.log.Warningf("Error while querying for pending balance: %v", err)
+			}
+			c.log.Debugf("Waiting for balance to change to: %v\nCurrent: %v, Pending: %v",
+				expectedBalance,
+				currentBalance,
+				pendingBalance,
+			)
+			if currentBalance == expectedBalance {
+				c.log.Debug("Target balance was reached")
+				return nil
+			}
+		case <-ctx.Done():
+			c.log.Warning("Context timeout was reached")
+			return errors.New("operation was cancelled")
+		}
+	}
 }
 
 // // actually we don't need this method at all - when we broadcast the data we wait for it to be included
