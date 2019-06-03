@@ -26,9 +26,9 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
-type HandlerRegistry map[reflect.Type]ResolveReuqestHandlerFunc
+type HandlerRegistry map[reflect.Type]ResolveRequestHandlerFunc
 
-type ResolveReuqestHandlerFunc func(context.Context, <-chan *commands.Response) proto.Message
+type ResolveRequestHandlerFunc func(context.Context, <-chan *commands.Response) proto.Message
 
 func makeProtoStatus(code commands.StatusCode, message string) *commands.Status {
 	return &commands.Status{
