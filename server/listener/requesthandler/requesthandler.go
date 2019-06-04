@@ -26,6 +26,7 @@ import (
 	"github.com/golang/protobuf/proto"
 )
 
+// TODO: perhaps if it's too expensive, replace reflect.Type with some string or even a byte?
 type HandlerRegistry map[reflect.Type]ResolveRequestHandlerFunc
 
 type ResolveRequestHandlerFunc func(context.Context, <-chan *commands.Response) proto.Message
