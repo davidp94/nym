@@ -29,7 +29,10 @@ import (
 
 // ValidateKeyPair checks if the coconut keypair was correctly formed.
 func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
-	if len(sk.y) != len(vk.beta) || !sk.Validate() || !vk.Validate() {
+	if !sk.Validate() || !vk.Validate() {
+		return false
+	}
+	if len(sk.y) != len(vk.beta) {
 		return false
 	}
 	if !vk.alpha.Equals(Curve.G2mul(vk.g2, sk.x)) {
