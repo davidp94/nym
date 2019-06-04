@@ -19,35 +19,30 @@
 package serverworker
 
 import (
+	"errors"
 	"fmt"
+	"reflect"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobpacket"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/server/serverworker/commandhandler"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"gopkg.in/op/go-logging.v1"
 )
 
-// TODO: perhaps replace all "handle" methods with hundlerFuncs similar to net/http ?
-
-const (
-	defaultErrorMessage    = ""
-	defaultErrorStatusCode = commands.StatusCode_UNKNOWN
-
-	providerStartupErr = "The aggregate verification key is nil. " +
-		"Is the server a provider? And if so, has it completed the start up sequence?"
-)
-
-// ServerWorker allows writing coconut actions to a shared job queue,
+/// ServerWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
 type ServerWorker struct {
 	worker.Worker
-	*coconutworker.CoconutWorker // TODO: since coconutWorker is created in New, does it need to be a reference?
+	IssuerWorker
+	ProviderWorker
+	*coconutworker.CoconutWorker // TODO: since CoconutWorker does not have many attributes should we still use reference?
+	handlers                     commandhandler.HandlerRegistry
 	incomingCh                   <-chan *commands.CommandRequest
 	log                          *logging.Logger
 	nymClient                    *nymclient.Client
@@ -56,339 +51,162 @@ type ServerWorker struct {
 }
 
 type IssuerWorker struct {
-	*ServerWorker
-	iaid uint32
-	sk   *coconut.SecretKey
-	vk   *coconut.VerificationKey
+	sk *coconut.SecretKey
+	vk *coconut.VerificationKey
 }
 
 type ProviderWorker struct {
-	*ServerWorker
 	avk *coconut.VerificationKey
 }
 
-func (sw *ServerWorker) getDefaultResponse() *commands.Response {
-	return &commands.Response{
-		Data:         nil,
-		ErrorStatus:  defaultErrorStatusCode,
-		ErrorMessage: defaultErrorMessage,
+func (sw *ServerWorker) RegisterAsIssuer(sk *coconut.SecretKey, vk *coconut.VerificationKey) error {
+	sw.log.Noticef("Registering ServerWorker%v as Issuer", sw.id)
+	if !coconut.ValidateKeyPair(sk, vk) {
+		sw.log.Error("Invalid keypair provided")
+		return errors.New("invalid keypair provided")
+	}
+	sw.IssuerWorker = IssuerWorker{
+		sk: sk,
+		vk: vk,
+	}
+	// TODO: is there a better alternative for the way handlers are registered now?
+	sw.RegisterHandler(&commands.SignRequest{},
+		commandhandler.SignRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.SignRequestHandlerData{
+				Cmd:       cmd.(*commands.SignRequest),
+				Worker:    sw.CoconutWorker,
+				Logger:    sw.log,
+				SecretKey: sw.sk,
+			}
+		})
+	sw.RegisterHandler(&commands.BlindSignRequest{},
+		commandhandler.BlindSignRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.BlindSignRequestHandlerData{
+				Cmd:       cmd.(*commands.BlindSignRequest),
+				Worker:    sw.CoconutWorker,
+				Logger:    sw.log,
+				SecretKey: sw.sk,
+			}
+		})
+	sw.RegisterHandler(&commands.VerificationKeyRequest{},
+		commandhandler.VerificationKeyRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.VerificationKeyRequestHandlerData{
+				Cmd:             cmd.(*commands.VerificationKeyRequest),
+				Worker:          sw.CoconutWorker,
+				Logger:          sw.log,
+				VerificationKey: sw.vk,
+			}
+		})
+	sw.RegisterHandler(&commands.LookUpCredentialRequest{},
+		commandhandler.LookUpCredentialRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.LookUpCredentialRequestHandlerData{
+				Cmd:    cmd.(*commands.LookUpCredentialRequest),
+				Worker: sw.CoconutWorker,
+				Logger: sw.log,
+				Store:  sw.store,
+			}
+		})
+	sw.RegisterHandler(&commands.LookUpBlockCredentialsRequest{},
+		commandhandler.LookUpBlockCredentialsRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.LookUpBlockCredentialsRequestHandlerData{
+				Cmd:    cmd.(*commands.LookUpBlockCredentialsRequest),
+				Worker: sw.CoconutWorker,
+				Logger: sw.log,
+				Store:  sw.store,
+			}
+		})
+
+	return nil
+}
+
+func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
+	sw.log.Noticef("Registering ServerWorker%v as Provider", sw.id)
+	if !avk.Validate() {
+		sw.log.Error("Invalid verification key provided")
+		return errors.New("invalid verification key provided")
+	}
+	sw.ProviderWorker = ProviderWorker{
+		avk: avk,
+	}
+
+	sw.RegisterHandler(&commands.VerifyRequest{},
+		commandhandler.VerifyRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.VerifyRequestHandlerData{
+				Cmd:             cmd.(*commands.VerifyRequest),
+				Worker:          sw.CoconutWorker,
+				Logger:          sw.log,
+				VerificationKey: sw.vk,
+			}
+		})
+	sw.RegisterHandler(&commands.BlindVerifyRequest{},
+		commandhandler.BlindVerifyRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.BlindVerifyRequestHandlerData{
+				Cmd:             cmd.(*commands.BlindVerifyRequest),
+				Worker:          sw.CoconutWorker,
+				Logger:          sw.log,
+				VerificationKey: sw.vk,
+			}
+		})
+	sw.RegisterHandler(&commands.SpendCredentialRequest{},
+		commandhandler.SpendCredentialRequestHandler,
+		func(cmd commands.Command) commandhandler.HandlerData {
+			return &commandhandler.SpendCredentialRequestHandlerData{
+				Cmd:    cmd.(*commands.SpendCredentialRequest),
+				Worker: sw.CoconutWorker,
+				Logger: sw.log,
+				TODO:   nil,
+			}
+		})
+	return nil
+}
+
+func (sw *ServerWorker) RegisterHandler(o interface{},
+	hfn commandhandler.HandlerFunc,
+	dfn func(commands.Command) commandhandler.HandlerData) {
+	typ := reflect.TypeOf(o)
+	if _, ok := sw.handlers[typ]; ok {
+		sw.log.Warningf("%v already had a registered handler. It will be overritten", typ)
+	}
+
+	sw.log.Debugf("Registering handler for %v", typ)
+	// TODO: perhaps move to commandhandler package?
+	sw.handlers[typ] = commandhandler.HandlerRegistryEntry{
+		Fn:     hfn,
+		DataFn: dfn,
 	}
 }
 
-func (sw *ServerWorker) setErrorResponse(response *commands.Response, errMsg string, errCode commands.StatusCode) {
-	sw.log.Error(errMsg)
-	// response.Data = nil
-	response.ErrorMessage = errMsg
-	response.ErrorStatus = errCode
-}
-
-func (iw *IssuerWorker) handleSignRequest(req *commands.SignRequest) *commands.Response {
-	response := iw.getDefaultResponse()
-
-	if len(req.PubM) > len(iw.sk.Y()) {
-		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM), len(iw.sk.Y()))
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	sig, err := iw.SignWrapper(iw.sk, bigs)
-	if err != nil {
-		// TODO: should client really know those details?
-		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	iw.log.Debugf("Writing back signature")
-	response.Data = sig
-	return response
-}
-
-//nolint: unparam
-func (iw *IssuerWorker) handleVerificationKeyRequest(req *commands.VerificationKeyRequest) *commands.Response {
-	response := iw.getDefaultResponse()
-	response.Data = iw.vk
-	return response
-}
-
-func (iw *IssuerWorker) handleBlindSignRequest(req *commands.BlindSignRequest) *commands.Response {
-	response := iw.getDefaultResponse()
-
-	lambda := &coconut.Lambda{}
-	if err := lambda.FromProto(req.Lambda); err != nil {
-		errMsg := "Could not recover received lambda."
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	if len(req.PubM)+len(lambda.Enc()) > len(iw.sk.Y()) {
-		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(iw.sk.Y()))
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	egPub := &elgamal.PublicKey{}
-	if err := egPub.FromProto(req.EgPub); err != nil {
-		errMsg := "Could not recover received ElGamal Public Key."
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	sig, err := iw.BlindSignWrapper(iw.sk, lambda, egPub, bigs)
-	if err != nil {
-		// TODO: should client really know those details?
-		errMsg := fmt.Sprintf("Error while signing message: %v", err)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	iw.log.Debugf("Writing back blinded signature")
-	response.Data = sig
-	return response
-}
-
-func (iw *IssuerWorker) handleLookUpCredentialRequest(req *commands.LookUpCredentialRequest) *commands.Response {
-	response := iw.getDefaultResponse()
-	current := iw.store.GetHighest()
-	if current < req.Height {
-		errMsg := fmt.Sprintf("Target height hasn't been processed yet. Target: %v, current: %v", req.Height, current)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_NOT_PROCESSED_YET)
-		return response
-	}
-
-	credPair := iw.store.GetCredential(req.Height, req.Gamma)
-	if len(credPair.Credential) == 0 {
-		errMsg := "Could not lookup the credential using provided arguments"
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-
-	response.Data = credPair
-	return response
-}
-
-func (iw *IssuerWorker) handleLookUpBlockCredentialsRequest(req *commands.LookUpBlockCredentialsRequest,
-) *commands.Response {
-	response := iw.getDefaultResponse()
-	current := iw.store.GetHighest()
-	if current < req.Height {
-		errMsg := fmt.Sprintf("Target height hasn't been processed yet. Target: %v, current: %v", req.Height, current)
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_NOT_PROCESSED_YET)
-		return response
-	}
-
-	credPairs := iw.store.GetBlockCredentials(req.Height)
-	if len(credPairs) == 0 {
-		errMsg := "Could not lookup the credential using provided arguments. " +
-			"Either there were no valid txs in this block or it wasn't processed yet."
-		iw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-
-	response.Data = credPairs
-	return response
-}
-
-func (iw *IssuerWorker) worker() {
+func (sw *ServerWorker) worker() {
 	for {
 		select {
-		case <-iw.HaltCh():
-			iw.log.Noticef("Halting Coconut Issuer worker %d\n", iw.id)
+		case <-sw.HaltCh():
+			sw.log.Noticef("Halting Coconut Serwer worker %d\n", sw.id)
 			return
-		case cmdReq := <-iw.incomingCh:
+		case cmdReq := <-sw.incomingCh:
 			cmd := cmdReq.Cmd()
 			var response *commands.Response
 
-			switch req := cmd.(type) {
-			case *commands.SignRequest:
-				iw.log.Notice("Received Sign (NOT blind) command")
-				response = iw.handleSignRequest(req)
-
-			case *commands.VerificationKeyRequest:
-				iw.log.Notice("Received Get Verification Key command")
-				response = iw.handleVerificationKeyRequest(req)
-
-			case *commands.BlindSignRequest:
-				iw.log.Notice("Received Blind Sign command")
-				response = iw.handleBlindSignRequest(req)
-
-			case *commands.LookUpCredentialRequest:
-				iw.log.Notice("Received Look Up Credential Command")
-				response = iw.handleLookUpCredentialRequest(req)
-
-			case *commands.LookUpBlockCredentialsRequest:
-				iw.log.Notice("Received Look Up Block Credentials Command")
-				response = iw.handleLookUpBlockCredentialsRequest(req)
-
-			default:
-				errMsg := "Received Invalid Command"
-				iw.log.Warning(errMsg)
-				response = iw.getDefaultResponse()
+			typ := reflect.TypeOf(cmd)
+			sw.log.Debugf("Received command of type %v", typ)
+			handler, ok := sw.handlers[typ]
+			if !ok {
+				errMsg := fmt.Sprintf("Received Invalid Command - no registered handler for %v", typ)
+				sw.log.Warning(errMsg)
+				response = commandhandler.DefaultResponse()
 				response.ErrorStatus = commands.StatusCode_INVALID_COMMAND
+
+				cmdReq.RetCh() <- response
+				break
 			}
-			cmdReq.RetCh() <- response
-		}
-	}
-}
 
-func (pw *ProviderWorker) handleVerifyRequest(req *commands.VerifyRequest) *commands.Response {
-	response := pw.getDefaultResponse()
-
-	if pw.avk == nil {
-		errMsg := providerStartupErr
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
-		return response
-	}
-	sig := &coconut.Signature{}
-	if err := sig.FromProto(req.Sig); err != nil {
-		errMsg := "Could not recover received signature."
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	response.Data = pw.VerifyWrapper(pw.avk, bigs, sig)
-	return response
-}
-
-func (pw *ProviderWorker) handleBlindVerifyRequest(req *commands.BlindVerifyRequest) *commands.Response {
-	response := pw.getDefaultResponse()
-
-	if pw.avk == nil {
-		errMsg := providerStartupErr
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_UNAVAILABLE)
-		return response
-	}
-	sig := &coconut.Signature{}
-	if err := sig.FromProto(req.Sig); err != nil {
-		errMsg := "Could not recover received signature."
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	theta := &coconut.Theta{}
-	if err := theta.FromProto(req.Theta); err != nil {
-		errMsg := "Could not recover received theta."
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-		return response
-	}
-	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
-	if err != nil {
-		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
-		pw.setErrorResponse(response, errMsg, commands.StatusCode_PROCESSING_ERROR)
-		return response
-	}
-	response.Data = pw.BlindVerifyWrapper(pw.avk, sig, theta, bigs)
-	return response
-}
-
-func (pw *ProviderWorker) handleSpendCredentialRequest(req *commands.SpendCredentialRequest) *commands.Response {
-	response := pw.getDefaultResponse()
-	response.Data = false
-
-	pw.log.Warning("REQUIRES RE-IMPLEMENTATION")
-	return response
-
-	// // theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
-	// // but we check if the user says it bound it to our address
-	// address := req.MerchantAddress
-
-	// if !bytes.Equal(address, sw.nymAccount.PublicKey) {
-	// 	// check if perhaps our address is in uncompressed form but client bound it to the compressed version
-	// 	var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
-	// 	copy(accountCompressed, sw.nymAccount.PublicKey)
-	// 	if err := accountCompressed.Compress(); err != nil {
-	// 		sw.log.Critical("Couldn't compress our own account key")
-	// 		// TODO: how to handle it?
-	// 	}
-
-	// 	if !bytes.Equal(address, accountCompressed) {
-	// 		b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
-	// 		b64Bind := base64.StdEncoding.EncodeToString(address)
-	// 		errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
-	// 		sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_BINDING)
-	// 		return response
-	// 	}
-	// }
-
-	// blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
-	// 	req.Sig,
-	// 	req.PubM,
-	// 	req.Theta,
-	// 	req.Value,
-	// 	req.MerchantAddress,
-	// )
-	// if err != nil {
-	// 	errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
-	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-	// 	return response
-	// }
-
-	// blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
-	// if err != nil {
-	// 	errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
-	// 	sw.log.Critical(errMsg)
-	// 	response.ErrorMessage = errMsg
-	// 	response.ErrorStatus = commands.StatusCode_PROCESSING_ERROR
-	// 	return response
-	// }
-
-	// sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
-	// 	code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
-
-	// if blockchainResponse.DeliverTx.Code != code.OK {
-	// 	errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
-	// 		blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
-	// 	sw.setErrorResponse(response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
-	// 	return response
-	// }
-
-	// // the response data in future might be provider dependent, to include say some authorization token
-	// response.ErrorStatus = commands.StatusCode_OK
-	// response.Data = true
-	// return response
-}
-
-func (pw *ProviderWorker) worker() {
-	for {
-		select {
-		case <-pw.HaltCh():
-			pw.log.Noticef("Halting Coconut Provider worker %d\n", pw.id)
-			return
-		case cmdReq := <-pw.incomingCh:
-			cmd := cmdReq.Cmd()
-			var response *commands.Response
-
-			switch req := cmd.(type) {
-			case *commands.VerifyRequest:
-				pw.log.Notice("Received Verify (NOT blind) command")
-				response = pw.handleVerifyRequest(req)
-
-			case *commands.BlindVerifyRequest:
-				pw.log.Notice("Received Blind Verify Command")
-				response = pw.handleBlindVerifyRequest(req)
-
-			case *commands.SpendCredentialRequest:
-				pw.log.Notice("Received Spend Credential Command")
-				response = pw.handleSpendCredentialRequest(req)
-
-			default:
-				errMsg := "Received Invalid Command"
-				pw.log.Warning(errMsg)
-				response = pw.getDefaultResponse()
-				response.ErrorStatus = commands.StatusCode_INVALID_COMMAND
-			}
+			response = handler.Fn(cmdReq.Ctx(), handler.DataFn(cmd))
 			cmdReq.RetCh() <- response
 		}
 	}
@@ -406,9 +224,10 @@ type Config struct {
 }
 
 // New creates new instance of a serverWorker.
-func NewBaseWorker(cfg *Config) (*ServerWorker, error) {
+func New(cfg *Config) (*ServerWorker, error) {
 	sw := &ServerWorker{
 		CoconutWorker: coconutworker.New(cfg.JobQueue, cfg.Params),
+		handlers:      make(commandhandler.HandlerRegistry),
 		incomingCh:    cfg.IncomingCh,
 		id:            cfg.ID,
 		nymClient:     cfg.NymClient,
@@ -416,42 +235,6 @@ func NewBaseWorker(cfg *Config) (*ServerWorker, error) {
 		log:           cfg.Log.GetLogger(fmt.Sprintf("Serverworker:%d", int(cfg.ID))),
 	}
 
+	sw.Go(sw.worker)
 	return sw, nil
-}
-
-func NewIssuerWorker(baseConfig *Config,
-	iaid uint32,
-	sk *coconut.SecretKey,
-	vk *coconut.VerificationKey,
-) (*IssuerWorker, error) {
-
-	baseWorker, err := NewBaseWorker(baseConfig)
-	if err != nil {
-		return nil, err
-	}
-	iw := &IssuerWorker{
-		ServerWorker: baseWorker,
-		iaid:         iaid,
-		sk:           sk,
-		vk:           vk,
-	}
-	iw.Go(iw.worker)
-
-	return iw, nil
-
-}
-
-func NewProviderWorker(baseConfig *Config, avk *coconut.VerificationKey) (*ProviderWorker, error) {
-	baseWorker, err := NewBaseWorker(baseConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	pw := &ProviderWorker{
-		ServerWorker: baseWorker,
-		avk:          avk,
-	}
-	pw.Go(pw.worker)
-
-	return pw, nil
 }
