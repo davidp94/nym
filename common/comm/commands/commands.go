@@ -18,6 +18,7 @@
 package commands
 
 import (
+	"context"
 	"errors"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
@@ -58,6 +59,11 @@ const (
 
 	// LookUpBlockCredentialsID is commandID for looking up all credentials issued at particular block height.
 	LookUpBlockCredentialsID CommandID = 131
+
+	// DefaultResponseErrorStatusCode defines default value for the error status code of a server response.
+	DefaultResponseErrorStatusCode = StatusCode_UNKNOWN
+	// DefaultResponseErrorMessage defines default value for the error message of a server response.
+	DefaultResponseErrorMessage = ""
 )
 
 // Command defines interface that is implemented by all commands defined in the package.
@@ -179,6 +185,7 @@ func (c *RawCommand) ToBytes() []byte {
 
 // CommandRequest defines set of Command and chan that is used by client workers.
 type CommandRequest struct {
+	ctx   context.Context
 	cmd   Command
 	retCh chan *Response
 }
@@ -196,6 +203,16 @@ func (cr *CommandRequest) RetCh() chan *Response {
 // Cmd returns command of CommandRequest.
 func (cr *CommandRequest) Cmd() Command {
 	return cr.cmd
+}
+
+// Ctx returns context attached to the CommandRequest.
+func (cr *CommandRequest) Ctx() context.Context {
+	return cr.ctx
+}
+
+// WithContext attaches context to given CommandRequest.
+func (cr *CommandRequest) WithContext(ctx context.Context) {
+	cr.ctx = ctx
 }
 
 // Response represents a server response to client's query.
