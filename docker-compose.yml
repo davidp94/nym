@@ -101,12 +101,12 @@ services:
       localnet:
         ipv4_address: 192.167.12.2 
 
-  issuer1-provider:
+  issuer1:
     # below two are for debug purposes only
     stdin_open: true
     tty: true
-    container_name: issuer1-provider
-    image: "nym/server"
+    container_name: issuer1
+    image: "nym/issuer"
     ports:
       - "4000:4000"
       - "5000:5000"
@@ -127,7 +127,7 @@ services:
     stdin_open: true
     tty: true
     container_name: issuer2
-    image: "nym/server"
+    image: "nym/issuer"
     ports:
       - "4001:4000"
       - "5001:5000"
@@ -148,7 +148,7 @@ services:
     stdin_open: true
     tty: true
     container_name: issuer3
-    image: "nym/server"
+    image: "nym/issuer"
     ports:
       - "4002:4000"
       - "5002:5000"

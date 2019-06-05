@@ -84,6 +84,8 @@ func (l *Listener) RegisterHandler(o interface{}, hf requesthandler.ResolveReque
 	if _, ok := l.handlers[typ]; ok {
 		l.log.Warningf("%v already had a registered handler. It will be overritten", typ)
 	}
+	l.log.Debugf("Registering handler for %v", typ)
+
 	l.handlers[typ] = hf
 }
 

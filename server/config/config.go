@@ -68,14 +68,6 @@ type Server struct {
 	// Note that only a single request will ever be sent, but multiple addresses are provided in case
 	// the particular node was unavailable.
 	BlockchainNodeAddresses []string
-
-	// IsProvider specifies whether the server is a provider.
-	// Currently it means it should be able to verify credentials it receives.
-	IsProvider bool
-
-	// IsIssuer specifies whether the server is a credential issuer.
-	// Currently it means it should be able to sign attributes it receives.
-	IsIssuer bool
 }
 
 // Issuer is the Coconut issuing authority server configuration.
@@ -208,17 +200,11 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	if cfg.Server == nil {
 		return errors.New("config: No Server block was present")
 	}
-	if !cfg.Server.IsProvider && !cfg.Server.IsIssuer {
-		return errors.New("config: Server is neither Issuer nor Provider")
-	}
 	if len(cfg.Server.Addresses) == 0 && len(cfg.Server.GRPCAddresses) == 0 {
 		return errors.New("config: No addresses to bind the server to")
 	}
 
-	if cfg.Server.IsProvider {
-		if cfg.Provider == nil {
-			return errors.New("config: Provider block not set when server is a Provider")
-		}
+	if cfg.Provider != nil {
 		if len(cfg.Provider.IAIDs) == 0 {
 			IAIDs := make([]int, len(cfg.Provider.IAAddresses))
 			for i := range cfg.Provider.IAAddresses {
@@ -233,10 +219,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 		}
 	}
 
-	if cfg.Server.IsIssuer {
-		if cfg.Issuer == nil {
-			return errors.New("config: Issuer block not set when server is an Issuer")
-		}
+	if cfg.Issuer != nil {
 		// does not care if files are empty, if so, new keys will be generated and written there,
 		// but explicitly needs both of them to be present
 		if cfg.Issuer.SecretKeyFile == "" || cfg.Issuer.VerificationKeyFile == "" {

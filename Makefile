@@ -15,7 +15,7 @@ NUM_NODES=4
 THRESHOLD=2
 
 
-build_servers:
+build_issuers:
 	@if ! [ -f build/issuers/issuer1/config.toml ]; then \
 		i=1; while [ "$$i" -le $(NUM_ISSUERS) ]; do \
 			mkdir -p build/issuers/issuer$$i/coconutkeys ;\
@@ -27,7 +27,7 @@ build_servers:
 		mkdir -p build/issuers/issuer1/blockchainkeys ;\
 		cp localnetdata/issuers/keys/blockchainkeys/ia1.json build/issuers/issuer1/blockchainkeys/provider.json ;\
 	fi
-	docker build -t nym/server -f ./DOCKER/servers/Dockerfile .
+	docker build -t nym/issuer -f ./DOCKER/issuer/Dockerfile .
 
 build_nym_nodes:
 	@if ! [ -f build/nodes/node0/config/genesis.json ]; then  \
@@ -58,7 +58,7 @@ build_ethereum_watchers:
 
 localnet-build:
 	make build_nym_nodes
-	make build_servers
+	make build_issuers
 	make build_ethereum_watchers
 
 # Run a 4-node testnet locally
@@ -78,8 +78,8 @@ localnet-clear:
 # basically point of it is to remove a lot of overhead after introducing tiny change to issuer
 debug_restart_single_issuer:
 	-docker stop testissuer3
-	make build_servers
-	docker run -it --rm -p 4002:4000 -p 5002:5000 --name=testissuer3 --network=coconutgo_localnet -v $(CURDIR)/build/issuers/issuer3:/coconut_server:Z nym/server -f /coconut_server/config.toml
+	make build_issuers
+	docker run -it --rm -p 4002:4000 -p 5002:5000 --name=testissuer3 --network=coconutgo_localnet -v $(CURDIR)/build/issuers/issuer3:/coconut_server:Z nym/issuer -f /coconut_server/config.toml
 
 
 debug_start_over_single_node:

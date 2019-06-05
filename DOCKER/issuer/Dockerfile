@@ -19,13 +19,13 @@ COPY . .
 # Fetch dependencies if we decide to remove the vendor directory at some point
 # RUN go get -d -v
 
-WORKDIR $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/daemon/server/
+WORKDIR $GOPATH/src/0xacab.org/jstuczyn/CoconutGo/daemon/issuer/
 
 
 # Build the binary
 # for production: removes debug, etc. 
-# RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -a -installsuffix cgo -o /go/bin/coconut_server .
-RUN go build -o /go/bin/coconut_server .
+# RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -a -installsuffix cgo -o /go/bin/issuer .
+RUN go build -o /go/bin/issuer .
 
 # ############################
 # # STEP 2 build a small image
@@ -41,9 +41,9 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /etc/passwd /etc/passwd
 
 # Copy our static executable + configs etc
-COPY --from=builder /go/bin/coconut_server /app/coconut_server
+COPY --from=builder /go/bin/issuer /app/issuer
 
 # Use an unprivileged user.
 USER appuser
 
-ENTRYPOINT [ "/app/coconut_server" ]
+ENTRYPOINT [ "/app/issuer" ]

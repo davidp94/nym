@@ -338,6 +338,8 @@ func makeProtoStatus(code commands.StatusCode, message string) *commands.Status 
 
 // ResolveServerRequest awaits for a response from a cryptoworker and acts on it appropriately adding relevant metadata.
 // nolint: gocyclo
+// TODO: FIXME: currently it is only used by an outdated (and without actual support for new functions) grpclistener
+//
 func ResolveServerRequest(cmd commands.Command,
 	resCh chan *commands.Response,
 	log *logging.Logger,

@@ -12,8 +12,8 @@ import (
 	"strconv"
 	"syscall"
 
-	"0xacab.org/jstuczyn/CoconutGo/server"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/server/issuer"
 )
 
 func main() {
@@ -54,9 +54,9 @@ func main() {
 	// for now ignore SIGHUP signal, todo: handle it similarly to katzenpost
 
 	// Start up the server.
-	svr, err := server.New(cfg)
+	svr, err := issuer.New(cfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to spawn server instance: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to spawn issuer instance: %v\n", err)
 		os.Exit(-1)
 	}
 	defer svr.Shutdown()
