@@ -93,7 +93,7 @@ func (vk *VerificationKey) Validate() bool {
 // ThresholdSecretKey is a special type of coconut secret key. It was generated in a threshold manner and includes
 // ID required for aggregation.
 type ThresholdSecretKey struct {
-	SecretKey
+	*SecretKey
 	id int64
 }
 
@@ -105,7 +105,7 @@ func (tsk *ThresholdSecretKey) ID() int64 {
 // ThresholdVerificationKey is a special type of coconut secret key. It was generated in a threshold manner and includes
 // ID required for aggregation.
 type ThresholdVerificationKey struct {
-	VerificationKey
+	*VerificationKey
 	id int64
 }
 
@@ -453,6 +453,31 @@ func NewVk(g2 *Curve.ECP2, alpha *Curve.ECP2, beta []*Curve.ECP2) *VerificationK
 		g2:    g2,
 		alpha: alpha,
 		beta:  beta,
+	}
+}
+
+// NewThresholdSk returns instance of threshold secret key from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewThresholdSk(x *Curve.BIG, y []*Curve.BIG, id int64) *ThresholdSecretKey {
+	return &ThresholdSecretKey{
+		SecretKey: &SecretKey{
+			x: x,
+			y: y,
+		},
+		id: id,
+	}
+}
+
+// NewThresholdVk returns instance of threshold verification key from the provided attributes.
+// Created for coconutclientworker to not repeat the type definition but preserve attributes being private.
+func NewThresholdVk(g2 *Curve.ECP2, alpha *Curve.ECP2, beta []*Curve.ECP2, id int64) *ThresholdVerificationKey {
+	return &ThresholdVerificationKey{
+		VerificationKey: &VerificationKey{
+			g2:    g2,
+			alpha: alpha,
+			beta:  beta,
+		},
+		id: id,
 	}
 }
 

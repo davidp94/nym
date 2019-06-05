@@ -47,7 +47,7 @@ func keygenWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams)
 }
 
 // nolint: lll
-func ttpKeygenWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, t int, n int) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+func ttpKeygenWrapper(cw *coconutworker.CoconutWorker, params coconut.SchemeParams, t int, n int) ([]*coconut.ThresholdSecretKey, []*coconut.ThresholdVerificationKey, error) {
 	if cw == nil {
 		return coconut.TTPKeygen(params.(*coconut.Params), t, n)
 	}
@@ -522,8 +522,17 @@ func TestAggregateVerification(t *testing.T, cw *coconutworker.CoconutWorker) {
 				vks[i] = vk
 			}
 		} else {
-			sks, vks, err = ttpKeygenWrapper(cw, params, test.t, test.authorities)
+			tsks, tvks, err := ttpKeygenWrapper(cw, params, test.t, test.authorities)
 
+			// TODO: proper handle
+			sks = make([]*coconut.SecretKey, len(tsks))
+			for i := range tsks {
+				sks[i] = tsks[i].SecretKey
+			}
+			vks = make([]*coconut.VerificationKey, len(tvks))
+			for i := range tvks {
+				vks[i] = tvks[i].VerificationKey
+			}
 			assert.Nil(t, err)
 		}
 
@@ -719,8 +728,18 @@ func TestThresholdAuthorities(t *testing.T, cw *coconutworker.CoconutWorker) {
 		lambda, err := prepareBlindSignWrapper(cw, params, egPub, pubBig, privBig)
 		assert.Nil(t, err)
 
-		sks, vks, err := ttpKeygenWrapper(cw, params, test.t, test.n)
+		tsks, tvks, err := ttpKeygenWrapper(cw, params, test.t, test.n)
 		assert.Nil(t, err)
+
+		// TODO: proper handle
+		sks := make([]*coconut.SecretKey, len(tsks))
+		for i := range tsks {
+			sks[i] = tsks[i].SecretKey
+		}
+		vks := make([]*coconut.VerificationKey, len(tvks))
+		for i := range tvks {
+			vks[i] = tvks[i].VerificationKey
+		}
 
 		// repeat the test repeat number of times to ensure it works with different subsets of keys/sigs
 		for a := 0; a < repeat; a++ {
