@@ -18,12 +18,8 @@
 package coconut
 
 import (
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -512,70 +508,4 @@ func AggregateSignatures(params *Params, sigs []*Signature, pp *PolynomialPoints
 		sig1: sigs[0].sig1,
 		sig2: sig2,
 	}
-}
-
-// ToPEMFile writes out the secret key to a PEM file at path f.
-func (sk *SecretKey) ToPEMFile(f string) error {
-	b, err := sk.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.SecretKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
-}
-
-// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
-// FromPEMFile reads out the secret key from a PEM file at path f.
-func (sk *SecretKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.SecretKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if sk.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read secret key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-// ToPEMFile writes out the verification key to a PEM file at path f.
-func (vk *VerificationKey) ToPEMFile(f string) error {
-	b, err := vk.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.VerificationKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
-}
-
-// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
-// FromPEMFile reads out the secret key from a PEM file at path f.
-func (vk *VerificationKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.VerificationKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if vk.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read verification key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
 }

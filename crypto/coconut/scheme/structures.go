@@ -90,6 +90,30 @@ func (vk *VerificationKey) Validate() bool {
 	return true
 }
 
+// ThresholdSecretKey is a special type of coconut secret key. It was generated in a threshold manner and includes
+// ID required for aggregation.
+type ThresholdSecretKey struct {
+	SecretKey
+	id int64
+}
+
+// ID returns the id part of the key.
+func (tsk *ThresholdSecretKey) ID() int64 {
+	return tsk.id
+}
+
+// ThresholdVerificationKey is a special type of coconut secret key. It was generated in a threshold manner and includes
+// ID required for aggregation.
+type ThresholdVerificationKey struct {
+	VerificationKey
+	id int64
+}
+
+// ID returns the id part of the key.
+func (tvk *ThresholdVerificationKey) ID() int64 {
+	return tvk.id
+}
+
 // Signature represents signature/credential issued by a Coconut signing authority.
 // sig1 = h,
 // sig2 = h * (x + (m[0] * y[0]) + ... + (m[i] * y[i])).

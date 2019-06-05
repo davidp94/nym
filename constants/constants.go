@@ -46,6 +46,13 @@ const (
 	// VerificationKeyType defines PEM Type for Coconut Verification Key.
 	VerificationKeyType = "COCONUT VERIFICATION KEY"
 
+	/* #nosec G101 */
+	// ThresholdSecretKeyType defines PEM Type for Coconut Threshold Secret Key.
+	ThresholdSecretKeyType = "COCONUT THRESHOLD SECRET KEY"
+
+	// ThresholdVerificationKeyType defines PEM Type for Coconut Threshold Verification Key.
+	ThresholdVerificationKeyType = "COCONUT THRESHOLD VERIFICATION KEY"
+
 	// ElGamalPublicKeyType defines PEM Type for Coconut-specific ElGamal Public Key.
 	ElGamalPublicKeyType = "COCONUT-ELGAMAL PUBLIC KEY"
 

@@ -19,13 +19,9 @@
 package elgamal
 
 import (
-	"encoding/pem"
 	"errors"
-	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
+	cmnutils "0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	proto "github.com/golang/protobuf/proto"
@@ -142,35 +138,12 @@ func (pub *PublicKey) FromProto(ppub *ProtoPublicKey) error {
 
 // ToPEMFile writes out the verification key to a PEM file at path f.
 func (pub *PublicKey) ToPEMFile(f string) error {
-	b, err := pub.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.ElGamalPublicKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+	return cmnutils.ToPEMFile(pub, f, constants.ElGamalPublicKeyType)
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
-// TODO: the dupl issue of sk and vk
 func (pub *PublicKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.ElGamalPublicKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if pub.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read public key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
+	return cmnutils.FromPEMFile(pub, f, constants.ElGamalPublicKeyType)
 }
 
 // Validate checks for nil elements in the key.
@@ -210,15 +183,7 @@ func (pk *PrivateKey) UnmarshalBinary(data []byte) error {
 
 // ToPEMFile writes out the secret key to a PEM file at path f.
 func (pk *PrivateKey) ToPEMFile(f string) error {
-	b, err := pk.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.ElGamalPrivateKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+	return cmnutils.ToPEMFile(pk, f, constants.ElGamalPrivateKeyType)
 }
 
 // ToProto creates a protobuf representation of the object.
@@ -246,23 +211,8 @@ func (pk *PrivateKey) FromProto(ppk *ProtoPrivateKey) error {
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
-// TODO: the dupl issue of sk and vk
 func (pk *PrivateKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.ElGamalPrivateKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if pk.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read private key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
+	return cmnutils.FromPEMFile(pk, f, constants.ElGamalPrivateKeyType)
 }
 
 // Validate checks for nil elements in the key.
