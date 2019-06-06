@@ -62,19 +62,19 @@ func New(cfg *config.Config) (*Issuer, error) {
 		return nil, err
 	}
 
-	sk := &coconut.SecretKey{}
-	vk := &coconut.VerificationKey{}
+	tsk := &coconut.ThresholdSecretKey{}
+	tvk := &coconut.ThresholdVerificationKey{}
 
-	IAID := cfg.Issuer.ID
 	//nolint: govet
-	if err := sk.FromPEMFile(cfg.Issuer.SecretKeyFile); err != nil {
+	if err := tsk.FromPEMFile(cfg.Issuer.SecretKeyFile); err != nil {
 		return nil, err
 	}
 	//nolint: govet
-	if err := vk.FromPEMFile(cfg.Issuer.VerificationKeyFile); err != nil {
+	if err := tvk.FromPEMFile(cfg.Issuer.VerificationKeyFile); err != nil {
 		return nil, err
 	}
-	if len(sk.Y()) > cfg.Server.MaximumAttributes || !coconut.ValidateKeyPair(sk, vk) {
+
+	if len(tsk.Y()) > cfg.Server.MaximumAttributes || !coconut.ValidateKeyPair(tsk.SecretKey, tvk.VerificationKey) {
 		issuerLog.Errorf("The loaded keys were invalid")
 		return nil, errors.New("the loaded keys were invalid")
 	}
@@ -84,7 +84,7 @@ func New(cfg *config.Config) (*Issuer, error) {
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 
 	if !cfg.Debug.DisableBlockchainMonitoring && !cfg.Debug.DisableAllBlockchainCommunication {
-		mon, err = monitor.New(log, baseServer.NymClient(), baseServer.Store(), int(IAID))
+		mon, err = monitor.New(log, baseServer.NymClient(), baseServer.Store(), tsk.ID())
 		if err != nil {
 			// in theory we could still progress if chain comes back later on.
 			// We will just have to catch up on the blocks
@@ -123,7 +123,7 @@ func New(cfg *config.Config) (*Issuer, error) {
 	errCount := 0
 	for i, sw := range ia.ServerWorkers() {
 		issuerLog.Debugf("Registering issuer handlers for serverworker %v", i)
-		if err := sw.RegisterAsIssuer(sk, vk); err != nil {
+		if err := sw.RegisterAsIssuer(tsk, tvk); err != nil {
 			errCount++
 			issuerLog.Warningf("Could not register worker %v as issuer", i)
 		}

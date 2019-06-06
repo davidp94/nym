@@ -146,6 +146,7 @@ func (handlerData *VerificationKeyRequestHandlerData) Data() interface{} {
 	return handlerData.VerificationKey
 }
 
+// TODO: return the threshold key
 func VerificationKeyRequestHandler(ctx context.Context, reqData HandlerData) *commands.Response {
 	response := DefaultResponse()
 	log := reqData.Log()

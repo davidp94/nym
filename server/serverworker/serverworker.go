@@ -51,23 +51,23 @@ type ServerWorker struct {
 }
 
 type IssuerWorker struct {
-	sk *coconut.SecretKey
-	vk *coconut.VerificationKey
+	tsk *coconut.ThresholdSecretKey
+	tvk *coconut.ThresholdVerificationKey
 }
 
 type ProviderWorker struct {
 	avk *coconut.VerificationKey
 }
 
-func (sw *ServerWorker) RegisterAsIssuer(sk *coconut.SecretKey, vk *coconut.VerificationKey) error {
+func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *coconut.ThresholdVerificationKey) error {
 	sw.log.Noticef("Registering ServerWorker%v as Issuer", sw.id)
-	if !coconut.ValidateKeyPair(sk, vk) {
+	if !coconut.ValidateKeyPair(tsk.SecretKey, tvk.VerificationKey) {
 		sw.log.Error("Invalid keypair provided")
 		return errors.New("invalid keypair provided")
 	}
 	sw.IssuerWorker = IssuerWorker{
-		sk: sk,
-		vk: vk,
+		tsk: tsk,
+		tvk: tvk,
 	}
 	// TODO: is there a better alternative for the way handlers are registered now?
 	sw.RegisterHandler(&commands.SignRequest{},
@@ -77,7 +77,7 @@ func (sw *ServerWorker) RegisterAsIssuer(sk *coconut.SecretKey, vk *coconut.Veri
 				Cmd:       cmd.(*commands.SignRequest),
 				Worker:    sw.CoconutWorker,
 				Logger:    sw.log,
-				SecretKey: sw.sk,
+				SecretKey: sw.tsk.SecretKey,
 			}
 		})
 	sw.RegisterHandler(&commands.BlindSignRequest{},
@@ -87,7 +87,7 @@ func (sw *ServerWorker) RegisterAsIssuer(sk *coconut.SecretKey, vk *coconut.Veri
 				Cmd:       cmd.(*commands.BlindSignRequest),
 				Worker:    sw.CoconutWorker,
 				Logger:    sw.log,
-				SecretKey: sw.sk,
+				SecretKey: sw.tsk.SecretKey,
 			}
 		})
 	sw.RegisterHandler(&commands.VerificationKeyRequest{},
@@ -97,7 +97,7 @@ func (sw *ServerWorker) RegisterAsIssuer(sk *coconut.SecretKey, vk *coconut.Veri
 				Cmd:             cmd.(*commands.VerificationKeyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.vk,
+				VerificationKey: sw.tvk.VerificationKey,
 			}
 		})
 	sw.RegisterHandler(&commands.LookUpCredentialRequest{},
@@ -141,7 +141,7 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
 				Cmd:             cmd.(*commands.VerifyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.vk,
+				VerificationKey: sw.tvk.VerificationKey,
 			}
 		})
 	sw.RegisterHandler(&commands.BlindVerifyRequest{},
@@ -151,7 +151,7 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
 				Cmd:             cmd.(*commands.BlindVerifyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.vk,
+				VerificationKey: sw.tvk.VerificationKey,
 			}
 		})
 	sw.RegisterHandler(&commands.SpendCredentialRequest{},
