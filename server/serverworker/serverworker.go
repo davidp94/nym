@@ -77,7 +77,7 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 				Cmd:       cmd.(*commands.SignRequest),
 				Worker:    sw.CoconutWorker,
 				Logger:    sw.log,
-				SecretKey: sw.tsk.SecretKey,
+				SecretKey: sw.tsk,
 			}
 		})
 	sw.RegisterHandler(&commands.BlindSignRequest{},
@@ -87,7 +87,7 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 				Cmd:       cmd.(*commands.BlindSignRequest),
 				Worker:    sw.CoconutWorker,
 				Logger:    sw.log,
-				SecretKey: sw.tsk.SecretKey,
+				SecretKey: sw.tsk,
 			}
 		})
 	sw.RegisterHandler(&commands.VerificationKeyRequest{},
@@ -97,7 +97,7 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 				Cmd:             cmd.(*commands.VerificationKeyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.tvk.VerificationKey,
+				VerificationKey: sw.tvk,
 			}
 		})
 	sw.RegisterHandler(&commands.LookUpCredentialRequest{},

@@ -30,6 +30,12 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
+// TODO: figure out more appropriate location for this definition
+type IssuedSignature struct {
+	Sig      interface{} // because it can be either *coconut.Signature or *coconut.BlindedSignature
+	IssuerID int64
+}
+
 // TODO: perhaps if it's too expensive, replace reflect.Type with some string or even a byte?
 type HandlerRegistry map[reflect.Type]HandlerRegistryEntry
 
@@ -73,7 +79,7 @@ type SignRequestHandlerData struct {
 	Cmd       *commands.SignRequest
 	Worker    *coconutworker.CoconutWorker
 	Logger    *logging.Logger
-	SecretKey *coconut.SecretKey
+	SecretKey *coconut.ThresholdSecretKey
 }
 
 func (handlerData *SignRequestHandlerData) Command() commands.Command {
@@ -95,13 +101,13 @@ func (handlerData *SignRequestHandlerData) Data() interface{} {
 func SignRequestHandler(ctx context.Context, reqData HandlerData) *commands.Response {
 	req := reqData.Command().(*commands.SignRequest)
 	log := reqData.Log()
-	sk := reqData.Data().(*coconut.SecretKey)
+	tsk := reqData.Data().(*coconut.ThresholdSecretKey)
 	response := DefaultResponse()
 
 	log.Debug("SignRequestHandler")
-	if len(req.PubM) > len(sk.Y()) {
+	if len(req.PubM) > len(tsk.Y()) {
 		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM), len(sk.Y()))
+			" Got: %v, expected at most: %v", len(req.PubM), len(tsk.Y()))
 		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
@@ -111,7 +117,7 @@ func SignRequestHandler(ctx context.Context, reqData HandlerData) *commands.Resp
 		setErrorResponse(log, response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
-	sig, err := reqData.CoconutWorker().SignWrapper(sk, bigs)
+	sig, err := reqData.CoconutWorker().SignWrapper(tsk.SecretKey, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -119,7 +125,10 @@ func SignRequestHandler(ctx context.Context, reqData HandlerData) *commands.Resp
 		return response
 	}
 	log.Debugf("Writing back signature %v", sig)
-	response.Data = sig
+	response.Data = IssuedSignature{
+		Sig:      sig,
+		IssuerID: tsk.ID(),
+	}
 	return response
 }
 
@@ -127,7 +136,7 @@ type VerificationKeyRequestHandlerData struct {
 	Cmd             *commands.VerificationKeyRequest
 	Worker          *coconutworker.CoconutWorker
 	Logger          *logging.Logger
-	VerificationKey *coconut.VerificationKey
+	VerificationKey *coconut.ThresholdVerificationKey
 }
 
 func (handlerData *VerificationKeyRequestHandlerData) Command() commands.Command {
@@ -146,7 +155,6 @@ func (handlerData *VerificationKeyRequestHandlerData) Data() interface{} {
 	return handlerData.VerificationKey
 }
 
-// TODO: return the threshold key
 func VerificationKeyRequestHandler(ctx context.Context, reqData HandlerData) *commands.Response {
 	response := DefaultResponse()
 	log := reqData.Log()
@@ -159,7 +167,7 @@ type BlindSignRequestHandlerData struct {
 	Cmd       *commands.BlindSignRequest
 	Worker    *coconutworker.CoconutWorker
 	Logger    *logging.Logger
-	SecretKey *coconut.SecretKey
+	SecretKey *coconut.ThresholdSecretKey
 }
 
 func (handlerData *BlindSignRequestHandlerData) Command() commands.Command {
@@ -181,7 +189,7 @@ func (handlerData *BlindSignRequestHandlerData) Data() interface{} {
 func BlindSignRequestHandler(ctx context.Context, reqData HandlerData) *commands.Response {
 	req := reqData.Command().(*commands.BlindSignRequest)
 	log := reqData.Log()
-	sk := reqData.Data().(*coconut.SecretKey)
+	tsk := reqData.Data().(*coconut.ThresholdSecretKey)
 	response := DefaultResponse()
 
 	log.Debug("BlindSignRequestHandler")
@@ -191,9 +199,9 @@ func BlindSignRequestHandler(ctx context.Context, reqData HandlerData) *commands
 		setErrorResponse(reqData.Log(), response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	if len(req.PubM)+len(lambda.Enc()) > len(sk.Y()) {
+	if len(req.PubM)+len(lambda.Enc()) > len(tsk.Y()) {
 		errMsg := fmt.Sprintf("Received more attributes to sign than what the server supports."+
-			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(sk.Y()))
+			" Got: %v, expected at most: %v", len(req.PubM)+len(lambda.Enc()), len(tsk.Y()))
 		setErrorResponse(reqData.Log(), response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
@@ -209,7 +217,7 @@ func BlindSignRequestHandler(ctx context.Context, reqData HandlerData) *commands
 		setErrorResponse(reqData.Log(), response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
-	sig, err := reqData.CoconutWorker().BlindSignWrapper(sk, lambda, egPub, bigs)
+	sig, err := reqData.CoconutWorker().BlindSignWrapper(tsk.SecretKey, lambda, egPub, bigs)
 	if err != nil {
 		// TODO: should client really know those details?
 		errMsg := fmt.Sprintf("Error while signing message: %v", err)
@@ -217,7 +225,10 @@ func BlindSignRequestHandler(ctx context.Context, reqData HandlerData) *commands
 		return response
 	}
 	log.Debugf("Writing back blinded signature")
-	response.Data = sig
+	response.Data = IssuedSignature{
+		Sig:      sig,
+		IssuerID: tsk.ID(),
+	}
 	return response
 }
 

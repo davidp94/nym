@@ -23,6 +23,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+	"0xacab.org/jstuczyn/CoconutGo/server/serverworker/commandhandler"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -67,15 +68,19 @@ func ResolveVerificationKeyRequestHandler(ctx context.Context, resCh <-chan *com
 
 	var err error
 	protoVk := &coconut.ProtoVerificationKey{}
+	issuerID := int64(-1)
 	if data != nil {
-		protoVk, err = data.(*coconut.VerificationKey).ToProto()
+		tvk := data.(*coconut.ThresholdVerificationKey)
+		protoVk, err = tvk.VerificationKey.ToProto()
 		if err != nil {
 			protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 		}
+		issuerID = tvk.ID()
 	}
 	return &commands.VerificationKeyResponse{
-		Vk:     protoVk,
-		Status: protoStatus,
+		Vk:       protoVk,
+		IssuerID: issuerID,
+		Status:   protoStatus,
 	}
 }
 
@@ -84,15 +89,19 @@ func ResolveSignRequestHandler(ctx context.Context, resCh <-chan *commands.Respo
 
 	var err error
 	protoSig := &coconut.ProtoSignature{}
+	issuerID := int64(-1)
 	if data != nil {
-		protoSig, err = data.(*coconut.Signature).ToProto()
+		resolvedData := data.(commandhandler.IssuedSignature)
+		protoSig, err = resolvedData.Sig.(*coconut.Signature).ToProto()
 		if err != nil {
 			protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 		}
+		issuerID = resolvedData.IssuerID
 	}
 	return &commands.SignResponse{
-		Sig:    protoSig,
-		Status: protoStatus,
+		Sig:      protoSig,
+		IssuerID: issuerID,
+		Status:   protoStatus,
 	}
 }
 
@@ -110,15 +119,19 @@ func ResolveBlindSignRequestHandler(ctx context.Context, resCh <-chan *commands.
 
 	var err error
 	protoBlindSig := &coconut.ProtoBlindedSignature{}
+	issuerID := int64(-1)
 	if data != nil {
-		protoBlindSig, err = data.(*coconut.BlindedSignature).ToProto()
+		resolvedData := data.(commandhandler.IssuedSignature)
+		protoBlindSig, err = resolvedData.Sig.(*coconut.BlindedSignature).ToProto()
 		if err != nil {
 			protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
 		}
+		issuerID = resolvedData.IssuerID
 	}
 	return &commands.BlindSignResponse{
-		Sig:    protoBlindSig,
-		Status: protoStatus,
+		Sig:      protoBlindSig,
+		IssuerID: issuerID,
+		Status:   protoStatus,
 	}
 }
 
