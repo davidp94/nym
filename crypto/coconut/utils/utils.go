@@ -216,6 +216,7 @@ func PolyEval(coeff []*Curve.BIG, x *Curve.BIG, o *Curve.BIG) *Curve.BIG {
 		t := x.Powmod(iBIG, o)                             // x ^ i
 		result = result.Plus(Curve.Modmul(coeff[i], t, o)) // coeff[0] * x ^ 0 + ... + coeff[i] * x ^ i
 	}
+	result.Mod(o)
 	return result
 }
 
