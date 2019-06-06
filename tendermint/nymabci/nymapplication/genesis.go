@@ -35,8 +35,6 @@ type SystemProperties struct {
 }
 
 type Issuer struct {
-	// ID of the particular issuer. Has to be the same as during generation of the verification key.
-	ID uint32 `json:"id"`
 	// While currently Issuers do not need any additional keypair to interact with the blockchain, it might be useful
 	// to just leave it in genesis app state would we ever need it down the line.
 	PublicKey []byte `json:"pub_key"`

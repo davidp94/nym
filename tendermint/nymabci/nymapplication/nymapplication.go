@@ -20,6 +20,7 @@
 package nymapplication
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -343,14 +344,16 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	xs := make([]*Curve.BIG, 0, threshold)
 
 	for _, i := range indices {
-		vk := &coconut.VerificationKey{}
+		vk := &coconut.ThresholdVerificationKey{}
 		if uerr := vk.UnmarshalBinary(genesisState.Issuers[i].VerificationKey); uerr != nil {
 			app.log.Error(fmt.Sprintf("Error while unmarshaling genesis IA Verification Key : %v", uerr))
 			panic("Failed while unmarshaling genesis verification keys")
 		}
 
-		vks = append(vks, vk)
-		xs = append(xs, Curve.NewBIGint(int(genesisState.Issuers[i].ID)))
+		vks = append(vks, vk.VerificationKey)
+		// this conversion is safe as on node startup we assert we run in 64bit mode. Plus realistically
+		// this value should never even be higher than max of int8
+		xs = append(xs, Curve.NewBIGint(int(vk.ID())))
 	}
 
 	// TODO: again, do we still need coconut params at this point?
@@ -373,8 +376,10 @@ func (app *NymApplication) InitChain(req types.RequestInitChain) types.ResponseI
 	// should we also store individual verification keys of all issuers?
 	app.storeAggregateVerificationKey(avk)
 
+	// TODO: do we still need it...
 	for _, ia := range genesisState.Issuers {
-		app.storeIssuerKey(ia)
+		id := int64(binary.BigEndian.Uint64(ia.VerificationKey)) // first 8 bytes are the id
+		app.storeIssuerKey(ia.VerificationKey[8:], id)
 	}
 	app.log.Info(fmt.Sprintf("Stored IAs Public Keys in DB"))
 

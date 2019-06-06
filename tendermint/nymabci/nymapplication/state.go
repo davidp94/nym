@@ -117,12 +117,12 @@ func (app *NymApplication) retrieveAggregateVerificationKey() (*coconut.Verifica
 }
 
 // TODO: will we still need it?
-func (app *NymApplication) storeIssuerKey(issuer Issuer) {
-	idb := make([]byte, 4)
-	binary.BigEndian.PutUint32(idb, issuer.ID)
+func (app *NymApplication) storeIssuerKey(key []byte, id int64) {
+	idb := make([]byte, 8)
+	binary.BigEndian.PutUint64(idb, uint64(id))
 
 	dbEntry := prefixKey(tmconst.IaKeyPrefix, idb)
-	app.state.db.Set(dbEntry, issuer.PublicKey)
+	app.state.db.Set(dbEntry, key)
 }
 
 func (app *NymApplication) setAccountBalance(address []byte, value uint64) {
