@@ -74,9 +74,6 @@ type Server struct {
 // It is responsible for signing attributes it receives
 // and providing its public verification key upon request.
 type Issuer struct {
-	// ID represents the ID of the server used during generation of threshold keys.
-	ID uint32
-
 	// VerificationKeyFile specifies the file containing the Coconut Verification Key.
 	VerificationKeyFile string
 
@@ -88,12 +85,11 @@ type Issuer struct {
 // At this point it is only responsible for verifying credentials it receives.
 type Provider struct {
 	// IAAddresses are the IP address:port combinations of all Authority Servers.
-	// Required if the server is a provider.
+	// Only required if IAVerificationKeys is not specified.
 	IAAddresses []string
 
-	// IAIDs are IDs of the servers used during generation of threshold keys.
-	// If empty, it is going to be assumed that IAAddresses are ordered correctly.
-	IAIDs []int
+	// IAVerificationKeys specifies files containing Coconut Verification keys of all Issuing Authorities.
+	IAVerificationKeys []string
 
 	// Threshold defines minimum number of verification keys provider needs to obtain.
 	// Default = len(IAAddresses).
@@ -205,13 +201,7 @@ func (cfg *Config) validateAndApplyDefaults() error {
 	}
 
 	if cfg.Provider != nil {
-		if len(cfg.Provider.IAIDs) == 0 {
-			IAIDs := make([]int, len(cfg.Provider.IAAddresses))
-			for i := range cfg.Provider.IAAddresses {
-				IAIDs[i] = i + 1
-			}
-			cfg.Provider.IAIDs = IAIDs
-		} else if len(cfg.Provider.IAIDs) != len(cfg.Provider.IAAddresses) || len(cfg.Provider.IAAddresses) == 0 {
+		if len(cfg.Provider.IAAddresses) == 0 && len(cfg.Provider.IAVerificationKeys) == 0 {
 			return errors.New("config: Invalid provider - IA Servers configuration")
 		}
 		if cfg.Provider.Threshold < 0 {
