@@ -14,9 +14,6 @@
   # IAgRPCAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
   IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 
-  # IAIDs are IDs of the servers used during generation of threshold keys.
-  IAIDs = [ 1, 2, 3 ]
-
   # MaxRequests defines maximum number of concurrent requests each client can make.
   # -1 indicates no limit
   MaxRequests = -1

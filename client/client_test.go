@@ -49,7 +49,7 @@ import (
 type providerServer struct {
 	tcpaddress  string
 	grpcaddress string
-	server      *server.Server
+	server      *server.BaseServer
 }
 
 const issuersKeysFolderRelative = "../testdata/issuerkeys"
@@ -62,7 +62,7 @@ const nonExistentProvider = "127.0.0.1:54321"
 //nolint: gochecknoglobals
 var (
 	issuersKeysFolder    string
-	issuers              []*server.Server
+	issuers              []*server.BaseServer
 	thresholdProvider    *providerServer
 	nonThresholdProvider *providerServer
 
@@ -104,7 +104,7 @@ func makeStringOfAddresses(name string, addrs []string) string {
 	return out
 }
 
-func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) *server.Server {
+func startProvider(addr string, grpcaddr string, threshold bool, tmpDir string) *server.BaseServer {
 	IAAddressesStr := makeStringOfAddresses("IAAddresses", issuerTCPAddresses)
 	thresholdStr := ""
 	if threshold {
@@ -147,7 +147,7 @@ Level = "NOTICE"
 	return srv
 }
 
-func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.Server {
+func startIssuer(n int, addr string, grpcaddr string, tmpDir string) *server.BaseServer {
 	id := cmn.RandStr(6)
 	cfgstr := strings.Join([]string{string(`
 [Server]
@@ -2487,7 +2487,7 @@ func TestMain(m *testing.M) {
 	defer os.Remove(tmpDir)
 
 	issuersKeysFolder = path.Join(dir, issuersKeysFolderRelative)
-	issuers = make([]*server.Server, 0, 5)
+	issuers = make([]*server.BaseServer, 0, 5)
 
 	for i := range issuerTCPAddresses {
 		issuers = append(issuers, startIssuer(i, issuerTCPAddresses[i], issuerGRPCAddresses[i], tmpDir))

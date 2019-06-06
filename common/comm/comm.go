@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
@@ -40,7 +39,6 @@ import (
 // request and response.
 type ServerMetadata struct {
 	Address string
-	ID      int
 }
 
 // ServerResponse represents raw data returned from a particular server
@@ -144,7 +142,6 @@ func SendServerRequests(ctx context.Context,
 						MarshaledData: resp.Payload(),
 						ServerMetadata: &ServerMetadata{
 							Address: req.ServerMetadata.Address,
-							ID:      req.ServerMetadata.ID,
 						},
 					}
 				}
@@ -209,7 +206,7 @@ func ParseVerificationKeyResponses(responses []*ServerResponse,
 			vks = append(vks, vk)
 			if isThreshold {
 				// no point in computing that if we won't need it
-				xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+				xs = append(xs, Curve.NewBIGint(int(resp.IssuerID)))
 			}
 		}
 	}
@@ -223,11 +220,13 @@ func ParseVerificationKeyResponses(responses []*ServerResponse,
 		return nil, nil
 	}
 
-	// works under assumption that servers specified in config file are ordered by their IDs
-	// which will in most cases be the case since they're just going to be 1,2,.., etc.
-	// a more general solution would require modifying the function signature
-	// and this use case is too niche to warrant the change.
-	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
+	// TODO: FIXME: WHY WAS I SORTING THIS SLICE BEFORE??
+
+	// // works under assumption that servers specified in config file are ordered by their IDs
+	// // which will in most cases be the case since they're just going to be 1,2,.., etc.
+	// // a more general solution would require modifying the function signature
+	// // and this use case is too niche to warrant the change.
+	// sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	return vks, nil
 }
@@ -504,7 +503,6 @@ type RequestParams struct {
 	MaxRequests       int
 	ConnectionTimeout time.Duration
 	ServerAddresses   []string
-	ServerIDs         []int
 }
 
 // GetServerResponses writes requests to all server specified in the params according to the set params.
@@ -524,7 +522,6 @@ func GetServerResponses(ctx context.Context, requestParams *RequestParams, log *
 				MarshaledData: requestParams.MarshaledPacket,
 				ServerMetadata: &ServerMetadata{
 					Address: requestParams.ServerAddresses[i],
-					ID:      requestParams.ServerIDs[i],
 				},
 			}
 		}
