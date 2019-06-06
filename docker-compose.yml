@@ -110,9 +110,9 @@ services:
     ports:
       - "4000:4000"
       - "5000:5000"
-    command: "-f /coconut_server/config.toml"
+    command: "-f /issuer/config.toml"
     volumes:
-      - ./build/issuers/issuer1:/coconut_server:Z
+      - ./build/issuers/issuer1:/issuer:Z
     depends_on:
       - node0
       - node1
@@ -131,9 +131,9 @@ services:
     ports:
       - "4001:4000"
       - "5001:5000"
-    command: "-f /coconut_server/config.toml"
+    command: "-f /issuer/config.toml"
     volumes:
-      - ./build/issuers/issuer2:/coconut_server:Z
+      - ./build/issuers/issuer2:/issuer:Z
     depends_on:
       - node0
       - node1
@@ -152,9 +152,9 @@ services:
     ports:
       - "4002:4000"
       - "5002:5000"
-    command: "-f /coconut_server/config.toml"
+    command: "-f /issuer/config.toml"
     volumes:
-      - ./build/issuers/issuer3:/coconut_server:Z
+      - ./build/issuers/issuer3:/issuer:Z
     depends_on:
       - node0
       - node1

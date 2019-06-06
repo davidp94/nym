@@ -3,7 +3,7 @@
 [Server]
 
   # Identifier is the human readable identifier for the node (eg: FQDN).
-  Identifier = "Test IA Server"
+  Identifier = "Issuer 1"
 
   # Addresses are the IP address/port combinations that the server will bind
   # to for incoming connections.
@@ -14,7 +14,7 @@
 	GRPCAddresses = [ "0.0.0.0:5000" ]
 
 	# DataDir specifies path to a .db file holding relevant server-specific persistent data.
-	DataDir = "/coconut_server/"
+	DataDir = "/issuer/"
   
 	# MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes = 5
@@ -26,14 +26,12 @@
 	BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
 
 [Issuer]
-	# ID represents the ID of the server used during generation of threshold keys.
-	ID = 1
 
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "/coconut_server/coconutkeys/verification0-n=3-t=2.pem"
+  VerificationKeyFile = "/issuer/coconutkeys/threshold-verificationKey-id=1-attrs=5-n=5-t=3.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "/coconut_server/coconutkeys/secret0-n=3-t=2.pem"
+  SecretKeyFile = "/issuer/coconutkeys/threshold-secretKey-id=1-attrs=5-n=5-t=3.pem"
 
 [Logging]
 

@@ -23,7 +23,7 @@
 
   # Threshold defines minimum number of signatures client needs to obtain. Default = len(IAAddresses).
   # TODO: should it be client or debug property?
-  Threshold = 2
+  Threshold = 3
 
   # MaximumAttributes specifies the maximum number of attributes the client will want to have signed.
   MaximumAttributes = 5
