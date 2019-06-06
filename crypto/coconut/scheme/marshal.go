@@ -759,39 +759,31 @@ func (pbsm *ProtoBlindSignMaterials) OneWayToBytes() ([]byte, error) {
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (tsk *ThresholdSecretKey) MarshalBinary() ([]byte, error) {
-	protoSk, err := tsk.SecretKey.ToProto()
-	if err != nil {
-		return nil, err
-	}
-	skb, err := proto.Marshal(protoSk)
+	skb, err := tsk.SecretKey.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
 	tskb := make([]byte, len(skb)+8)
 	binary.BigEndian.PutUint64(tskb, uint64(tsk.ID()))
 	copy(tskb[8:], skb)
+
 	return tskb, nil
 }
 
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (tsk *ThresholdSecretKey) UnmarshalBinary(data []byte) error {
-	tsk.id = int64(binary.BigEndian.Uint64(data))
-	protoSk := &ProtoSecretKey{}
-	if err := proto.Unmarshal(data[8:], protoSk); err != nil {
-		return err
+	if tsk.SecretKey == nil {
+		tsk.SecretKey = &SecretKey{}
 	}
-	return tsk.SecretKey.FromProto(protoSk)
+	tsk.id = int64(binary.BigEndian.Uint64(data))
+	return tsk.SecretKey.UnmarshalBinary(data[8:])
 }
 
 // MarshalBinary is an implementation of a method on the
 // BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
 func (tvk *ThresholdVerificationKey) MarshalBinary() ([]byte, error) {
-	protoVk, err := tvk.VerificationKey.ToProto()
-	if err != nil {
-		return nil, err
-	}
-	vkb, err := proto.Marshal(protoVk)
+	vkb, err := tvk.VerificationKey.MarshalBinary()
 	if err != nil {
 		return nil, err
 	}
@@ -804,10 +796,9 @@ func (tvk *ThresholdVerificationKey) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary is an implementation of a method on the
 // BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
 func (tvk *ThresholdVerificationKey) UnmarshalBinary(data []byte) error {
-	tvk.id = int64(binary.BigEndian.Uint64(data))
-	protoVk := &ProtoVerificationKey{}
-	if err := proto.Unmarshal(data[8:], protoVk); err != nil {
-		return err
+	if tvk.VerificationKey == nil {
+		tvk.VerificationKey = &VerificationKey{}
 	}
-	return tvk.VerificationKey.FromProto(protoVk)
+	tvk.id = int64(binary.BigEndian.Uint64(data))
+	return tvk.VerificationKey.UnmarshalBinary(data[8:])
 }
