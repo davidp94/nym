@@ -161,10 +161,10 @@ func (tsk *ThresholdSecretKey) FromPEMFile(f string) error {
 
 // ToPEMFile writes out the verification key to a PEM file at path f.
 func (tvk *ThresholdVerificationKey) ToPEMFile(f string) error {
-	return cmnutils.ToPEMFile(tvk, f, constants.VerificationKeyType)
+	return cmnutils.ToPEMFile(tvk, f, constants.ThresholdVerificationKeyType)
 }
 
 // FromPEMFile reads out the secret key from a PEM file at path f.
 func (tvk *ThresholdVerificationKey) FromPEMFile(f string) error {
-	return cmnutils.FromPEMFile(tvk, f, constants.VerificationKeyType)
+	return cmnutils.FromPEMFile(tvk, f, constants.ThresholdVerificationKeyType)
 }
