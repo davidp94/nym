@@ -42,7 +42,8 @@ message VerificationKeyRequest {
 
 message VerificationKeyResponse {
     coconut.ProtoVerificationKey vk = 1;
-    Status status = 2;
+    int64 IssuerID = 2;
+    Status status = 3;
 }
 
 message VerifyRequest {
