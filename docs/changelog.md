@@ -1,5 +1,16 @@
 # CoconutGo Changelog
 
+## 0.8.0
+
+* Separated "server" into separate provider and issuer
+* Ability to register handlers for different types of requests for listener
+* Ability to register handlers for different types of commands for serverworker
+* Further inclusion of context argument to different processing methods
+* Separate type for Threshold Coconut Keys - they include the ID used during generation
+* Removed ServerID from ServerMetadata from all server responses - it's now included in relevant attached key
+* Created shared daemon service code making it easier to create any future daemons
+* Bug fix in PolyEval function causing possibly invalid results
+
 ## 0.7.1
 
 * Additional method to wait for balance change for an ERC20 Nym
