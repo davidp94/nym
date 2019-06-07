@@ -28,7 +28,7 @@ import (
 
 func main() {
 	daemon.Start(func() {
-		flag.String("f", "config.toml", "Path to the config file of the watcher")
+		flag.String("f", "/ethereum-watcher/config.toml", "Path to the config file of the watcher")
 	},
 		func() daemon.Service {
 			cfgFile := flag.Lookup("f").Value.(flag.Getter).Get().(string)
