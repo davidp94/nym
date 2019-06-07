@@ -67,9 +67,18 @@ func TestSchemeTTPKeygen(t *testing.T) {
 		q := 4
 		params, _ := Setup(q)
 
-		sks, vks, err := TTPKeygen(params, test.t, test.n)
+		tsks, tvks, err := TTPKeygen(params, test.t, test.n)
 		assert.Nil(t, err)
-		assert.Equal(t, len(sks), len(vks))
+		assert.Equal(t, len(tsks), len(tvks))
+
+		sks := make([]*coconut.SecretKey, len(tsks))
+		for i := range tsks {
+			sks[i] = tsks[i].SecretKey
+		}
+		vks := make([]*coconut.VerificationKey, len(tvks))
+		for i := range tvks {
+			vks[i] = tvks[i].VerificationKey
+		}
 
 		// first check if they work as normal keys
 		for i := range sks {

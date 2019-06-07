@@ -66,9 +66,19 @@ func TestCCWTTPKeygen(t *testing.T) {
 		q := 4
 		params, _ := ccw.Setup(q)
 
-		sks, vks, err := ccw.TTPKeygen(params, test.t, test.n)
+		tsks, tvks, err := ccw.TTPKeygen(params, test.t, test.n)
 		assert.Nil(t, err)
-		assert.Equal(t, len(sks), len(vks))
+		assert.Equal(t, len(tsks), len(tvks))
+
+		// TODO: proper handle
+		sks := make([]*coconut.SecretKey, len(tsks))
+		for i := range tsks {
+			sks[i] = tsks[i].SecretKey
+		}
+		vks := make([]*coconut.VerificationKey, len(tvks))
+		for i := range tvks {
+			vks[i] = tvks[i].VerificationKey
+		}
 
 		// first check if they work as normal keys
 		for i := range sks {

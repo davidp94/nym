@@ -63,10 +63,6 @@ type Client struct {
 	// IAAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
 	IAgRPCAddresses []string
 
-	// IAIDs are IDs of the servers used during generation of threshold keys.
-	// If empty, it is going to be assumed that IAAddresses are ordered correctly.
-	IAIDs []int
-
 	// MaxRequests defines maximum number of concurrent requests each client can make.
 	// -1 indicates no limit
 	MaxRequests int
@@ -187,31 +183,6 @@ func (cfg *Config) validateAndApplyDefaults() error {
 
 	if len(cfg.Client.IAgRPCAddresses) == 0 && cfg.Client.UseGRPC {
 		return errors.New("config: No server gRPC addresses provided")
-	}
-
-	// TODO: try to perhaps rewrite it as a switch statement
-	if len(cfg.Client.IAIDs) == 0 {
-		var IAIDs []int
-		if cfg.Client.UseGRPC {
-			IAIDs = make([]int, len(cfg.Client.IAgRPCAddresses))
-			for i := range cfg.Client.IAgRPCAddresses {
-				IAIDs[i] = i + 1
-			}
-		} else {
-			IAIDs = make([]int, len(cfg.Client.IAAddresses))
-			for i := range cfg.Client.IAAddresses {
-				IAIDs[i] = i + 1
-			}
-		}
-		cfg.Client.IAIDs = IAIDs
-	} else if cfg.Client.UseGRPC {
-		if len(cfg.Client.IAIDs) != len(cfg.Client.IAgRPCAddresses) {
-			return errors.New("config: Invalid server configuration")
-		}
-	} else {
-		if len(cfg.Client.IAIDs) != len(cfg.Client.IAAddresses) {
-			return errors.New("config: Invalid server configuration")
-		}
 	}
 
 	if cfg.Debug == nil {

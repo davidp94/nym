@@ -18,12 +18,8 @@
 package coconut
 
 import (
-	"encoding/pem"
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
@@ -118,7 +114,7 @@ func Keygen(params *Params) (*SecretKey, *VerificationKey, error) {
 // TTPKeygen generates a set of n Coconut keypairs [((x, y1, y2...), (g2, g2^x, g2^y1, ...)), ...],
 // such that they support threshold aggregation of t parties.
 // It is expected that this procedure is executed by a Trusted Third Party.
-func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, error) {
+func TTPKeygen(params *Params, t int, n int) ([]*ThresholdSecretKey, []*ThresholdVerificationKey, error) {
 	p, g2, hs, rng := params.p, params.g2, params.hs, params.G.Rng()
 
 	q := len(hs)
@@ -134,7 +130,7 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 	}
 
 	// secret keys
-	sks := make([]*SecretKey, n)
+	tsks := make([]*ThresholdSecretKey, n)
 	// we can use any is now, rather than 1,2...,n; might be useful if we have some authorities ids?
 	for i := 1; i < n+1; i++ {
 		iBIG := Curve.NewBIGint(i)
@@ -143,21 +139,26 @@ func TTPKeygen(params *Params, t int, n int) ([]*SecretKey, []*VerificationKey, 
 		for j, wj := range w {
 			ys[j] = utils.PolyEval(wj, iBIG, p)
 		}
-		sks[i-1] = &SecretKey{x: x, y: ys}
+		tsks[i-1] = &ThresholdSecretKey{
+			SecretKey: &SecretKey{x: x, y: ys},
+			id:        int64(i),
+		}
 	}
 
 	// verification keys
-	vks := make([]*VerificationKey, n)
-	for i := range sks {
-		alpha := Curve.G2mul(g2, sks[i].x)
+	tvks := make([]*ThresholdVerificationKey, n)
+	for i := range tsks {
+		alpha := Curve.G2mul(g2, tsks[i].x)
 		beta := make([]*Curve.ECP2, q)
-		for j, yj := range sks[i].y {
+		for j, yj := range tsks[i].y {
 			beta[j] = Curve.G2mul(g2, yj)
 		}
-		vks[i] = &VerificationKey{g2: g2, alpha: alpha, beta: beta}
-
+		tvks[i] = &ThresholdVerificationKey{
+			VerificationKey: &VerificationKey{g2: g2, alpha: alpha, beta: beta},
+			id:              tsks[i].id,
+		}
 	}
-	return sks, vks, nil
+	return tsks, tvks, nil
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
@@ -512,70 +513,4 @@ func AggregateSignatures(params *Params, sigs []*Signature, pp *PolynomialPoints
 		sig1: sigs[0].sig1,
 		sig2: sig2,
 	}
-}
-
-// ToPEMFile writes out the secret key to a PEM file at path f.
-func (sk *SecretKey) ToPEMFile(f string) error {
-	b, err := sk.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.SecretKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
-}
-
-// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
-// FromPEMFile reads out the secret key from a PEM file at path f.
-func (sk *SecretKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.SecretKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if sk.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read secret key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-// ToPEMFile writes out the verification key to a PEM file at path f.
-func (vk *VerificationKey) ToPEMFile(f string) error {
-	b, err := vk.MarshalBinary()
-	if err != nil {
-		return err
-	}
-	blk := &pem.Block{
-		Type:  constants.VerificationKeyType,
-		Bytes: b,
-	}
-	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
-}
-
-// TODO: combine with crypto.elgamal.elgamal(157-173) and perhaps move to common?
-// FromPEMFile reads out the secret key from a PEM file at path f.
-func (vk *VerificationKey) FromPEMFile(f string) error {
-	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
-		blk, rest := pem.Decode(buf)
-		if len(rest) != 0 {
-			return fmt.Errorf("trailing garbage after PEM encoded secret key")
-		}
-		if blk.Type != constants.VerificationKeyType {
-			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
-		}
-		if vk.UnmarshalBinary(blk.Bytes) != nil {
-			return errors.New("failed to read verification key from PEM file")
-		}
-	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
 }

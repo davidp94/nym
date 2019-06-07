@@ -14,16 +14,13 @@
   # IAgRPCAddresses are the gRPC IP address:port combinations of Issuing Authority Servers.
   IAgRPCAddresses = [ "127.0.0.1:5000", "127.0.0.1:5001", "127.0.0.1:5002" ]
 
-  # IAIDs are IDs of the servers used during generation of threshold keys.
-  IAIDs = [ 1, 2, 3 ]
-
   # MaxRequests defines maximum number of concurrent requests each client can make.
   # -1 indicates no limit
   MaxRequests = -1
 
   # Threshold defines minimum number of signatures client needs to obtain. Default = len(IAAddresses).
   # TODO: should it be client or debug property?
-  Threshold = 2
+  Threshold = 3
 
   # MaximumAttributes specifies the maximum number of attributes the client will want to have signed.
   MaximumAttributes = 5

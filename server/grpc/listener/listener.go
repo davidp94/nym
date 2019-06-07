@@ -97,6 +97,7 @@ func (l *Listener) resolveCommand(req proto.Message) proto.Message {
 	cmdReq := commands.NewCommandRequest(req, resCh)
 	l.incomingCh <- cmdReq
 
+	// TODO: FIXME: THIS IS EXTREMELY OUTDATED (AND SO IS ENTIRE GRPCLISTENER)
 	return comm.ResolveServerRequest(req, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 }
 
@@ -120,6 +121,15 @@ func (l *Listener) FinalizeStartup() {
 	l.finalizedStartup = true
 }
 
+func (l *Listener) RegisterAsIssuer() {
+	pb.RegisterIssuerServer(l.grpcServer, l)
+	l.log.Debug("Registered gRPC Service for Issuer")
+}
+func (l *Listener) RegisterAsProvider() {
+	pb.RegisterProviderServer(l.grpcServer, l)
+	l.log.Debug("Registered gRPC Service for Provider")
+}
+
 // New creates new instance of a grpclistener using provided config and listening on specified address.
 func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l *logger.Logger, addr string,
 ) (*Listener, error) {
@@ -138,15 +148,6 @@ func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l 
 		return nil, err
 	}
 	listener.log.Noticef("Listening on: %v", addr)
-
-	if cfg.Server.IsIssuer {
-		pb.RegisterIssuerServer(listener.grpcServer, listener)
-		listener.log.Debug("Registered gRPC Service for Issuer")
-	}
-	if cfg.Server.IsProvider {
-		pb.RegisterProviderServer(listener.grpcServer, listener)
-		listener.log.Debug("Registered gRPC Service for Provider")
-	}
 
 	listener.Go(listener.worker)
 	return listener, nil

@@ -1,69 +1,55 @@
+// nymnode.go - nymnode daemon.
+// Copyright (C) 2019  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"runtime"
-	"strconv"
-	"syscall"
+	"time"
 
+	"0xacab.org/jstuczyn/CoconutGo/daemon"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymnode"
 )
 
 func main() {
-	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
-	if PtrSize != 64 || strconv.IntSize != 64 {
-		fmt.Fprintf(os.Stderr,
-			"The binary seems to not have been compiled in 64bit mode. Runtime pointer size: %v, Int size: %v\n",
-			PtrSize,
-			strconv.IntSize,
+	daemon.Start(func() {
+		flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
+		flag.String("dataRoot", "/tendermint", "The data root directory")
+		flag.Bool("createEmptyBlocks",
+			false,
+			"Flag to indicate whether tendermint should create empty blocks",
 		)
-		os.Exit(-1)
-	}
+		flag.Duration("emptyBlocksInterval",
+			0,
+			"(if applicable) used to indicate interval between empty blocks",
+		)
+	},
+		func() daemon.Service {
+			cfgFile := flag.Lookup("cfgFile").Value.(flag.Getter).Get().(string)
+			dataRoot := flag.Lookup("dataRoot").Value.(flag.Getter).Get().(string)
+			createEmptyBlocks := flag.Lookup("createEmptyBlocks").Value.(flag.Getter).Get().(bool)
+			emptyBlocksInterval := flag.Lookup("emptyBlocksInterval").Value.(flag.Getter).Get().(time.Duration)
 
-	cfgFilePtr := flag.String("cfgFile", "/tendermint/config/config.toml", "The main tendermint configuration file")
-	dataRootPtr := flag.String("dataRoot", "/tendermint", "The data root directory")
-	createEmptyBlocksPtr := flag.Bool("createEmptyBlocks",
-		false,
-		"Flag to indicate whether tendermint should create empty blocks",
-	)
-	emptyBlocksIntervalPtr := flag.Duration("emptyBlocksInterval",
-		0,
-		"(if applicable) used to indicate interval between empty blocks",
-	)
-	flag.Parse()
-
-	node, err := nymnode.CreateNymNode(*cfgFilePtr, *dataRootPtr, *createEmptyBlocksPtr, *emptyBlocksIntervalPtr)
-	if err != nil {
-		panic(err)
-	}
-
-	syscall.Umask(0077)
-
-	// Ensure that a sane number of OS threads is allowed.
-	if os.Getenv("GOMAXPROCS") == "" {
-		// But only if the user isn't trying to override it.
-		nProcs := runtime.GOMAXPROCS(0)
-		nCPU := runtime.NumCPU()
-		if nProcs < nCPU {
-			runtime.GOMAXPROCS(nCPU)
-		}
-	}
-
-	if err = node.Start(); err != nil {
-		fmt.Printf("Failed to start node: %+v\n", err)
-		panic(err)
-	}
-
-	// Trap signal, run forever.
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-
-	<-c
-	if err := node.Stop(); err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println("Node was stopped")
+			node, err := nymnode.CreateNymNode(cfgFile, dataRoot, createEmptyBlocks, emptyBlocksInterval)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to create NymNode: %v\n", err)
+				os.Exit(-1)
+			}
+			return node
+		})
 }

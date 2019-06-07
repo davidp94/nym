@@ -33,7 +33,8 @@ message SignRequest {
 
 message SignResponse {
     coconut.ProtoSignature sig = 1;
-    Status status = 2;
+    int64 IssuerID = 2;
+    Status status = 3;
 }
 
 message VerificationKeyRequest {
@@ -42,7 +43,8 @@ message VerificationKeyRequest {
 
 message VerificationKeyResponse {
     coconut.ProtoVerificationKey vk = 1;
-    Status status = 2;
+    int64 IssuerID = 2;
+    Status status = 3;
 }
 
 message VerifyRequest {
@@ -63,7 +65,8 @@ message BlindSignRequest {
 
 message BlindSignResponse {
     coconut.ProtoBlindedSignature sig = 1;
-    Status status = 2;
+    int64 IssuerID = 2;
+    Status status = 3;
 }
 
 message BlindVerifyRequest {

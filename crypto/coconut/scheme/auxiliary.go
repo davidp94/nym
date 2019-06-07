@@ -21,6 +21,7 @@ import (
 	"errors"
 	"strings"
 
+	cmnutils "0xacab.org/jstuczyn/CoconutGo/common/utils"
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/utils"
 	"github.com/jstuczyn/amcl/version3/go/amcl"
@@ -29,7 +30,10 @@ import (
 
 // ValidateKeyPair checks if the coconut keypair was correctly formed.
 func ValidateKeyPair(sk *SecretKey, vk *VerificationKey) bool {
-	if len(sk.y) != len(vk.beta) || !sk.Validate() || !vk.Validate() {
+	if !sk.Validate() || !vk.Validate() {
+		return false
+	}
+	if len(sk.y) != len(vk.beta) {
 		return false
 	}
 	if !vk.alpha.Equals(Curve.G2mul(vk.g2, sk.x)) {
@@ -123,4 +127,44 @@ func CompressedBytesToECPSlice(b []byte) []*Curve.ECP {
 		s[i] = Curve.ECP_fromBytes(b[i*constants.ECPLen : (i+1)*constants.ECPLen])
 	}
 	return s
+}
+
+// ToPEMFile writes out the secret key to a PEM file at path f.
+func (sk *SecretKey) ToPEMFile(f string) error {
+	return cmnutils.ToPEMFile(sk, f, constants.SecretKeyType)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (sk *SecretKey) FromPEMFile(f string) error {
+	return cmnutils.FromPEMFile(sk, f, constants.SecretKeyType)
+}
+
+// ToPEMFile writes out the verification key to a PEM file at path f.
+func (vk *VerificationKey) ToPEMFile(f string) error {
+	return cmnutils.ToPEMFile(vk, f, constants.VerificationKeyType)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (vk *VerificationKey) FromPEMFile(f string) error {
+	return cmnutils.FromPEMFile(vk, f, constants.VerificationKeyType)
+}
+
+// ToPEMFile writes out the secret key to a PEM file at path f.
+func (tsk *ThresholdSecretKey) ToPEMFile(f string) error {
+	return cmnutils.ToPEMFile(tsk, f, constants.ThresholdSecretKeyType)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (tsk *ThresholdSecretKey) FromPEMFile(f string) error {
+	return cmnutils.FromPEMFile(tsk, f, constants.ThresholdSecretKeyType)
+}
+
+// ToPEMFile writes out the verification key to a PEM file at path f.
+func (tvk *ThresholdVerificationKey) ToPEMFile(f string) error {
+	return cmnutils.ToPEMFile(tvk, f, constants.ThresholdVerificationKeyType)
+}
+
+// FromPEMFile reads out the secret key from a PEM file at path f.
+func (tvk *ThresholdVerificationKey) FromPEMFile(f string) error {
+	return cmnutils.FromPEMFile(tvk, f, constants.ThresholdVerificationKeyType)
 }

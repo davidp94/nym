@@ -18,11 +18,11 @@
 package coconut
 
 import (
+	"encoding/binary"
 	"errors"
 
-	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
-
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	proto "github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -754,4 +754,51 @@ func (pbsm *ProtoBlindSignMaterials) OneWayToBytes() ([]byte, error) {
 	copy(b[i:], pubMb)
 
 	return b, nil
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (tsk *ThresholdSecretKey) MarshalBinary() ([]byte, error) {
+	skb, err := tsk.SecretKey.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	tskb := make([]byte, len(skb)+8)
+	binary.BigEndian.PutUint64(tskb, uint64(tsk.ID()))
+	copy(tskb[8:], skb)
+
+	return tskb, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (tsk *ThresholdSecretKey) UnmarshalBinary(data []byte) error {
+	if tsk.SecretKey == nil {
+		tsk.SecretKey = &SecretKey{}
+	}
+	tsk.id = int64(binary.BigEndian.Uint64(data))
+	return tsk.SecretKey.UnmarshalBinary(data[8:])
+}
+
+// MarshalBinary is an implementation of a method on the
+// BinaryMarshaler interface defined in https://golang.org/pkg/encoding/
+func (tvk *ThresholdVerificationKey) MarshalBinary() ([]byte, error) {
+	vkb, err := tvk.VerificationKey.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	tvkb := make([]byte, len(vkb)+8)
+	binary.BigEndian.PutUint64(tvkb, uint64(tvk.ID()))
+	copy(tvkb[8:], vkb)
+	return tvkb, nil
+}
+
+// UnmarshalBinary is an implementation of a method on the
+// BinaryUnmarshaler interface defined in https://golang.org/pkg/encoding/
+func (tvk *ThresholdVerificationKey) UnmarshalBinary(data []byte) error {
+	if tvk.VerificationKey == nil {
+		tvk.VerificationKey = &VerificationKey{}
+	}
+	tvk.id = int64(binary.BigEndian.Uint64(data))
+	return tvk.VerificationKey.UnmarshalBinary(data[8:])
 }

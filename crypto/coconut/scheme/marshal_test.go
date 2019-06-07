@@ -77,6 +77,43 @@ func TestVerificationKeyMarshal(t *testing.T) {
 	}
 }
 
+func TestThresholdSecretKeyMarshal(t *testing.T) {
+	params, _ := coconut.Setup(4)
+	tsks, _, err := coconut.TTPKeygen(params, 3, 5)
+	assert.Nil(t, err)
+	tsk := tsks[0]
+	data, err := tsk.MarshalBinary()
+	assert.NotEmpty(t, data)
+	assert.Nil(t, err)
+	recoveredTsk := &coconut.ThresholdSecretKey{}
+	assert.Nil(t, recoveredTsk.UnmarshalBinary(data))
+
+	assert.Zero(t, Curve.Comp(tsk.X(), recoveredTsk.X()))
+	for i := range tsk.Y() {
+		assert.Zero(t, Curve.Comp(tsk.Y()[i], recoveredTsk.Y()[i]))
+	}
+	assert.Equal(t, tsk.ID(), recoveredTsk.ID())
+}
+
+func TestThresholdVerificationKeyMarshal(t *testing.T) {
+	params, _ := coconut.Setup(4)
+	_, tvks, err := coconut.TTPKeygen(params, 3, 5)
+	assert.Nil(t, err)
+	tvk := tvks[0]
+	data, err := tvk.MarshalBinary()
+	assert.Nil(t, err)
+	recoveredTvk := &coconut.ThresholdVerificationKey{}
+	assert.Nil(t, recoveredTvk.UnmarshalBinary(data))
+	assert.True(t, tvk.G2().Equals(recoveredTvk.G2()))
+	assert.True(t, tvk.Alpha().Equals(recoveredTvk.Alpha()))
+	for i := range tvk.Beta() {
+		assert.True(t, tvk.Beta()[i].Equals(recoveredTvk.Beta()[i]))
+	}
+
+	assert.Equal(t, tvk.ID(), recoveredTvk.ID())
+
+}
+
 func TestSignatureMarshal(t *testing.T) {
 	params, _ := coconut.Setup(1)
 	sk, _, _ := coconut.Keygen(params)

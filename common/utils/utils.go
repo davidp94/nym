@@ -19,7 +19,13 @@ package utils
 
 import (
 	"crypto/rand"
+	"encoding"
+	"encoding/pem"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 )
@@ -51,4 +57,35 @@ func CompressECPBytes(b []byte) ([]byte, error) {
 	copy(comp[1:], b[1:constants.BIGLen+1])
 
 	return comp, nil
+}
+
+// To be used as main entry point by all calls (need to actually do it)
+func ToPEMFile(o encoding.BinaryMarshaler, f, pemType string) error {
+	b, err := o.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	blk := &pem.Block{
+		Type:  pemType,
+		Bytes: b,
+	}
+	return ioutil.WriteFile(f, pem.EncodeToMemory(blk), 0600)
+}
+
+func FromPEMFile(o encoding.BinaryUnmarshaler, f, pemType string) error {
+	if buf, err := ioutil.ReadFile(filepath.Clean(f)); err == nil {
+		blk, rest := pem.Decode(buf)
+		if len(rest) != 0 {
+			return fmt.Errorf("trailing garbage after PEM encoded secret key")
+		}
+		if blk.Type != pemType {
+			return fmt.Errorf("invalid PEM Type: '%v'", blk.Type)
+		}
+		if o.UnmarshalBinary(blk.Bytes) != nil {
+			return errors.New("failed to read secret key from PEM file")
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }

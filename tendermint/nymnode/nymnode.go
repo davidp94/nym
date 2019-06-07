@@ -21,6 +21,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/nymapplication"
@@ -39,6 +40,21 @@ const (
 	abciDbType = "leveldb"
 	abciDbDir  = "nymabci"
 )
+
+type NymNode struct {
+	*tmNode.Node
+	haltOnce sync.Once
+}
+
+func (nn *NymNode) Shutdown() {
+	nn.haltOnce.Do(func() { nn.halt() })
+}
+
+func (nn *NymNode) halt() {
+	if err := nn.Stop(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error when stoping node: %v\n", err)
+	}
+}
 
 // It is assumed the node will be run in a docker container or on a fresh machine
 // hence all data could be stored on the main path.
@@ -100,7 +116,7 @@ func createBaseLoger(writer ...io.Writer) log.Logger {
 }
 
 func CreateNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocksInterval time.Duration,
-) (*tmNode.Node, error) {
+) (*NymNode, error) {
 	nilLog := log.NewNopLogger()
 
 	log := createBaseLoger()
@@ -133,5 +149,12 @@ func CreateNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 		return nil, err
 	}
 
-	return node, nil
+	if err := node.Start(); err != nil {
+		log.Error("Failed to start node: %+v\n", err)
+		return nil, err
+	}
+
+	return &NymNode{
+		Node: node,
+	}, nil
 }

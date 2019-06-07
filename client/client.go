@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"sort"
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
@@ -132,7 +131,6 @@ func (c *Client) getGrpcResponses(dialOptions []grpc.DialOption, request proto.M
 				Message: request,
 				ServerMetadata: &comm.ServerMetadata{
 					Address: c.cfg.Client.IAgRPCAddresses[i],
-					ID:      c.cfg.Client.IAIDs[i],
 				},
 			}
 		}
@@ -228,7 +226,6 @@ func (c *Client) sendGRPCs(respCh chan<- *comm.ServerResponseGrpc,
 						Message: resp,
 						ServerMetadata: &comm.ServerMetadata{
 							Address: req.ServerMetadata.Address,
-							ID:      req.ServerMetadata.ID,
 						},
 					}
 				}
@@ -255,15 +252,6 @@ func (c *Client) parseSignatureServerResponses(
 	xs := make([]*Curve.BIG, 0, len(responses))
 	for i := range responses {
 		if responses[i] != nil && responses[i].ServerMetadata != nil {
-			if responses[i].ServerMetadata.ID <= 0 {
-				c.log.Errorf("Invalid serverID provided: %v", responses[i].ServerMetadata.ID)
-				if !isThreshold {
-					c.log.Error("Not a threshold system: can't get all signatures")
-					return nil, nil
-				}
-				continue
-			}
-
 			var resp commands.ProtoResponse
 			if isBlind {
 				resp = &commands.BlindSignResponse{}
@@ -277,20 +265,26 @@ func (c *Client) parseSignatureServerResponses(
 
 			var sig *coconut.Signature
 			var err error
+			issuerID := int64(-1)
 			if isBlind && elGamalPrivateKey != nil {
 				sig, err = c.parseBlindSignResponse(resp.(*commands.BlindSignResponse), elGamalPrivateKey)
 				if err != nil {
 					continue
 				}
+				issuerID = resp.(*commands.BlindSignResponse).IssuerID
 			} else {
 				sig, err = c.parseSignResponse(resp.(*commands.SignResponse))
 				if err != nil {
 					continue
 				}
+				issuerID = resp.(*commands.SignResponse).IssuerID
 			}
 
-			if isThreshold {
-				xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+			if isThreshold && issuerID <= 0 {
+				c.log.Errorf("Invalid IssuerID: %v", issuerID)
+				continue
+			} else if isThreshold {
+				xs = append(xs, Curve.NewBIGint(int(issuerID)))
 			}
 			sigs = append(sigs, sig)
 		}
@@ -422,7 +416,7 @@ func (c *Client) SignAttributesGrpc(pubM []*Curve.BIG) (*coconut.Signature, erro
 		}
 		sigs = append(sigs, sig)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+			xs = append(xs, Curve.NewBIGint(int(responses[i].Message.(*commands.SignResponse).IssuerID)))
 		}
 	}
 	if c.cfg.Client.Threshold > 0 {
@@ -462,7 +456,6 @@ func (c *Client) SignAttributes(pubM []*Curve.BIG) (*coconut.Signature, error) {
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
-			ServerIDs:         c.cfg.Client.IAIDs,
 		},
 		c.log,
 	)
@@ -507,6 +500,8 @@ func (c *Client) handleReceivedVerificationKeys(vks []*coconut.VerificationKey,
 // In the case of threshold system, first t results are aggregated, otherwise all results are aggregated.
 // Error is returned if insufficient number of verification keys was received.
 func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.VerificationKey, error) {
+	return nil, errors.New("Implementation details has changed and grpc version hasnt been updated yet")
+
 	if !c.cfg.Client.UseGRPC {
 		return nil, c.logAndReturnError(nonGRPCClientErr)
 	}
@@ -536,13 +531,14 @@ func (c *Client) GetVerificationKeysGrpc(shouldAggregate bool) ([]*coconut.Verif
 		}
 		vks = append(vks, vk)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+			xs = append(xs, Curve.NewBIGint(int(responses[i].Message.(*commands.VerificationKeyResponse).IssuerID)))
 		}
 	}
 
-	// works under assumption that servers specified in config file are ordered by their IDs
-	// which will in most cases be the case since they're just going to be 1,2,.., etc.
-	sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
+	// TODO: FIXME: WHY WAS I SORTING THIS SLICE??
+	// // works under assumption that servers specified in config file are ordered by their IDs
+	// // which will in most cases be the case since they're just going to be 1,2,.., etc.
+	// sort.Slice(responses, func(i, j int) bool { return responses[i].ServerMetadata.ID < responses[j].ServerMetadata.ID })
 
 	if c.cfg.Client.Threshold > 0 {
 		return c.handleReceivedVerificationKeys(vks, coconut.NewPP(xs), shouldAggregate)
@@ -581,7 +577,6 @@ func (c *Client) GetVerificationKeys(shouldAggregate bool) ([]*coconut.Verificat
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
-			ServerIDs:         c.cfg.Client.IAIDs,
 		},
 		c.log,
 	)
@@ -655,7 +650,7 @@ func (c *Client) BlindSignAttributesGrpc(pubM []*Curve.BIG, privM []*Curve.BIG) 
 		}
 		sigs = append(sigs, sig)
 		if isThreshold {
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+			xs = append(xs, Curve.NewBIGint(int(responses[i].Message.(*commands.BlindSignResponse).IssuerID)))
 		}
 	}
 	if c.cfg.Client.Threshold > 0 {
@@ -707,7 +702,6 @@ func (c *Client) BlindSignAttributes(pubM []*Curve.BIG, privM []*Curve.BIG) (*co
 			MaxRequests:       c.cfg.Client.MaxRequests,
 			ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
 			ServerAddresses:   c.cfg.Client.IAAddresses,
-			ServerIDs:         c.cfg.Client.IAIDs,
 		},
 		c.log,
 	)
@@ -1017,12 +1011,12 @@ func New(cfg *config.Config) (*Client, error) {
 	}
 	clientLog.Notice("Loaded Nym Blochain keys from the file.")
 
-	nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
-	if err != nil {
-		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-		clientLog.Error(errStr)
-		return nil, errors.New(errStr)
-	}
+	// nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+	// if err != nil {
+	// 	errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+	// 	clientLog.Error(errStr)
+	// 	return nil, errors.New(errStr)
+	// }
 
 	ethCfg := ethclient.NewConfig(
 		privateKey,
@@ -1056,8 +1050,8 @@ func New(cfg *config.Config) (*Client, error) {
 		},
 
 		privateKey: privateKey,
-		nymClient:  nymClient,
-		ethClient:  ethClient,
+		// nymClient:  nymClient,
+		ethClient: ethClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)

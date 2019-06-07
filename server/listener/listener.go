@@ -18,8 +18,10 @@
 package listener
 
 import (
+	"context"
 	"fmt"
 	"net"
+	"reflect"
 	"sync"
 	"time"
 
@@ -28,12 +30,14 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/packet"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
+	"0xacab.org/jstuczyn/CoconutGo/server/listener/requesthandler"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
 	"github.com/golang/protobuf/proto"
 	"gopkg.in/op/go-logging.v1"
 )
 
 // Listener represents the Coconut Server listener (listening on TCP socket, not for gRPC via HTTP2)
+// TODO: remove old fields and make more generic
 type Listener struct {
 	cfg *config.Config
 
@@ -46,10 +50,43 @@ type Listener struct {
 	closeAllCh chan interface{}
 	closeAllWg sync.WaitGroup
 
-	l net.Listener
+	l  net.Listener
+	id uint64
 
-	id               uint64
+	handlers requesthandler.HandlerRegistry
+
+	// DEPRECATED
 	finalizedStartup bool
+}
+
+func (l *Listener) RegisterDefaultIssuerHandlers() {
+	l.Lock()
+	defer l.Unlock()
+	// TODO: is there a better alternative for the way handlers are registered now?
+	l.RegisterHandler(&commands.SignRequest{}, requesthandler.ResolveSignRequestHandler)
+	l.RegisterHandler(&commands.BlindSignRequest{}, requesthandler.ResolveBlindSignRequestHandler)
+	l.RegisterHandler(&commands.VerificationKeyRequest{}, requesthandler.ResolveVerificationKeyRequestHandler)
+	l.RegisterHandler(&commands.LookUpCredentialRequest{}, requesthandler.ResolveLookUpCredentialRequestHandler)
+	l.RegisterHandler(&commands.LookUpBlockCredentialsRequest{}, requesthandler.ResolveLookUpBlockCredentialsRequestHandler)
+}
+
+func (l *Listener) RegisterDefaultServiceProviderHandlers() {
+	l.Lock()
+	defer l.Unlock()
+	// TODO: is there a better alternative for the way handlers are registered now?
+	l.RegisterHandler(&commands.VerifyRequest{}, requesthandler.ResolveVerifyRequestHandler)
+	l.RegisterHandler(&commands.BlindVerifyRequest{}, requesthandler.ResolveBlindVerifyRequestHandler)
+	l.RegisterHandler(&commands.SpendCredentialRequest{}, requesthandler.ResolveSpendCredentialRequestHandler)
+}
+
+func (l *Listener) RegisterHandler(o interface{}, hf requesthandler.ResolveRequestHandlerFunc) {
+	typ := reflect.TypeOf(o)
+	if _, ok := l.handlers[typ]; ok {
+		l.log.Warningf("%v already had a registered handler. It will be overritten", typ)
+	}
+	l.log.Debugf("Registering handler for %v", typ)
+
+	l.handlers[typ] = hf
 }
 
 // Halt stops the listener and closes (if any) connections.
@@ -95,6 +132,7 @@ func (l *Listener) worker() {
 		l.log.Debugf("Accepted new connection: %v", conn.RemoteAddr())
 
 		go func() {
+			// TODO: maximum number of concurrent connections
 			l.onNewConn(conn)
 		}()
 	}
@@ -124,11 +162,23 @@ func (l *Listener) onNewConn(conn net.Conn) {
 		l.log.Errorf("Error while parsing packet: %v", err)
 		return
 	}
+
+	if _, ok := l.handlers[reflect.TypeOf(cmd)]; !ok {
+		l.log.Warningf("There's no registered handler for %v", reflect.TypeOf(cmd))
+		// TODO: write meaningful 'error' data back to client
+		l.replyToClient(packet.NewPacket([]byte{}), conn)
+		return
+	}
 	resCh := make(chan *commands.Response, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
 	cmdReq := commands.NewCommandRequest(cmd, resCh)
+	cmdReq.WithContext(ctx)
 
 	l.incomingCh <- cmdReq
-	outPacket := l.resolveCommand(cmd, resCh)
+	outPacket := l.resolveCommand(ctx, cmd, resCh)
 	if outPacket != nil {
 		l.replyToClient(outPacket, conn)
 	}
@@ -147,8 +197,9 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 	l.log.Error("Couldn't reply to the client") // conn will close regardless after this
 }
 
-func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
-	protoResp := comm.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
+func (l *Listener) resolveCommand(ctx context.Context, cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
+	protoResp := l.handlers[reflect.TypeOf(cmd)](ctx, resCh)
+	// protoResp := comm.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 
 	b, err := proto.Marshal(protoResp)
 	if err != nil {
@@ -161,6 +212,7 @@ func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Res
 
 // FinalizeStartup is used when the server is a provider. It indicates it has aggregated required
 // number of verification keys and hence can verify received credentials.
+// TODO: get rid in favour of simply loading all keys on startup
 func (l *Listener) FinalizeStartup() {
 	l.finalizedStartup = true
 }
@@ -176,6 +228,7 @@ func New(cfg *config.Config, inCh chan<- *commands.CommandRequest, id uint64, l 
 		closeAllCh: make(chan interface{}),
 		log:        l.GetLogger(fmt.Sprintf("Listener:%d", int(id))),
 		id:         id,
+		handlers:   make(requesthandler.HandlerRegistry),
 	}
 
 	listener.l, err = net.Listen("tcp", addr)

@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/binary"
+	"errors"
 	"math/big"
 	"net"
 	"time"
@@ -36,7 +37,6 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
-	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 func (c *Client) parseCredentialPairResponse(resp *commands.LookUpCredentialResponse,
@@ -63,32 +63,30 @@ func (c *Client) parseLookUpCredentialServerResponses(responses []*comm.ServerRe
 		return nil, nil
 	}
 
-	sigs := make([]*coconut.Signature, 0, len(responses))
-	xs := make([]*Curve.BIG, 0, len(responses))
-	for i := range responses {
-		if responses[i] != nil && responses[i].ServerMetadata != nil {
-			if responses[i].ServerMetadata.ID <= 0 {
-				c.log.Errorf("Invalid serverID provided: %v", responses[i].ServerMetadata.ID)
-				continue
-			}
+	// TODO:!!!!
+	return nil, nil
 
-			resp := &commands.LookUpCredentialResponse{}
-			if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
-				c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerMetadata.Address)
-				continue
-			}
+	// sigs := make([]*coconut.Signature, 0, len(responses))
+	// xs := make([]*Curve.BIG, 0, len(responses))
+	// for i := range responses {
+	// 	if responses[i] != nil && responses[i].ServerMetadata != nil {
+	// 		resp := &commands.LookUpCredentialResponse{}
+	// 		if err := proto.Unmarshal(responses[i].MarshaledData, resp); err != nil {
+	// 			c.log.Errorf("Failed to unmarshal response from: %v", responses[i].ServerMetadata.Address)
+	// 			continue
+	// 		}
 
-			var sig *coconut.Signature
-			var err error
-			sig, err = c.parseCredentialPairResponse(resp, elGamalPrivateKey)
-			if err != nil {
-				continue
-			}
-			xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
-			sigs = append(sigs, sig)
-		}
-	}
-	return sigs, coconut.NewPP(xs)
+	// 		var sig *coconut.Signature
+	// 		var err error
+	// 		sig, err = c.parseCredentialPairResponse(resp, elGamalPrivateKey)
+	// 		if err != nil {
+	// 			continue
+	// 		}
+	// 		xs = append(xs, Curve.NewBIGint(responses[i].ServerMetadata.ID))
+	// 		sigs = append(sigs, sig)
+	// 	}
+	// }
+	// return sigs, coconut.NewPP(xs)
 }
 
 // GetCurrentERC20Balance gets the current balance of ERC20 tokens associated with the client's address
@@ -145,6 +143,44 @@ func (c *Client) SendToPipeAccount(ctx context.Context, amount int64) error {
 	return nil
 }
 
+func (c *Client) Foo(ctx context.Context, balance uint64) {
+	c.waitForERC20BalanceChange(ctx, balance)
+}
+
+// TODO: perhaps wait for N blocks to be more certain of it?
+func (c *Client) waitForERC20BalanceChange(ctx context.Context, expectedBalance uint64) error {
+	c.log.Info("Waiting for our transaction to reach the chain")
+	// TODO: make ticker interval configurable in config.toml file?
+	retryTicker := time.NewTicker(2 * time.Second)
+
+	for {
+		select {
+		case <-retryTicker.C:
+			currentBalance, err := c.GetCurrentERC20Balance()
+			if err != nil {
+				// TODO: should we cancel instead?
+				c.log.Warningf("Error while querying for balance: %v", err)
+			}
+			pendingBalance, err := c.GetCurrentERC20PendingBalance()
+			if err != nil {
+				c.log.Warningf("Error while querying for pending balance: %v", err)
+			}
+			c.log.Debugf("Waiting for balance to change to: %v\nCurrent: %v, Pending: %v",
+				expectedBalance,
+				currentBalance,
+				pendingBalance,
+			)
+			if currentBalance == expectedBalance {
+				c.log.Debug("Target balance was reached")
+				return nil
+			}
+		case <-ctx.Done():
+			c.log.Warning("Context timeout was reached")
+			return errors.New("operation was cancelled")
+		}
+	}
+}
+
 // // actually we don't need this method at all - when we broadcast the data we wait for it to be included
 // func (c *Client) waitForBalanceIncrease(ctx context.Context, expectedBalance uint64) error {
 // 	c.log.Info("Waiting for our transaction to reach Tendermint chain")
@@ -177,65 +213,68 @@ func (c *Client) LookUpIssuedCredential(height int64,
 	if err != nil {
 		return nil, c.logAndReturnError("LookUpIssuedCredential: Failed to create LookUpCredential request: %v", err)
 	}
+	_ = cmd
+	// TODO:!!!!
+	return nil, errors.New("foo")
 
-	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
-	if err != nil {
-		return nil,
-			c.logAndReturnError("LookUpIssuedCredential: Could not create data packet for look up credential command: %v",
-				err,
-			)
-	}
+	// 	packetBytes, err := commands.CommandToMarshalledPacket(cmd)
+	// 	if err != nil {
+	// 		return nil,
+	// 			c.logAndReturnError("LookUpIssuedCredential: Could not create data packet for look up credential command: %v",
+	// 				err,
+	// 			)
+	// 	}
 
-	retryTicker := time.NewTicker(time.Duration(c.cfg.Debug.LookUpBackoff) * time.Millisecond)
-	defer retryTicker.Stop()
+	// 	retryTicker := time.NewTicker(time.Duration(c.cfg.Debug.LookUpBackoff) * time.Millisecond)
+	// 	defer retryTicker.Stop()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
-	defer cancel()
+	// 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(c.cfg.Debug.RequestTimeout)*time.Millisecond)
+	// 	defer cancel()
 
-	var responses []*comm.ServerResponse
-	retryCount := 0
+	// 	var responses []*comm.ServerResponse
+	// 	retryCount := 0
 
-	c.log.Infof("Waiting for %vms before trying to contact the issuers", c.cfg.Debug.LookUpBackoff)
+	// 	c.log.Infof("Waiting for %vms before trying to contact the issuers", c.cfg.Debug.LookUpBackoff)
 
-	// we actually don't want to enter tickerCase immediately to give issuers some time to actually handle the request
-outerFor:
-	for {
-		if retryCount == c.cfg.Debug.NumberOfLookUpRetries {
-			break
-		}
-		select {
-		case <-ctx.Done():
-			c.log.Warning("Exceeded context timeout for the request")
-			break outerFor
-		case <-retryTicker.C:
-			retryCount++
+	// 	// we actually don't want to enter tickerCase immediately to give issuers some time to actually handle the request
+	// outerFor:
+	// 	for {
+	// 		if retryCount == c.cfg.Debug.NumberOfLookUpRetries {
+	// 			break
+	// 		}
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			c.log.Warning("Exceeded context timeout for the request")
+	// 			break outerFor
+	// 		case <-retryTicker.C:
+	// 			retryCount++
 
-			c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
-			responses = comm.GetServerResponses(
-				ctx,
-				&comm.RequestParams{
-					MarshaledPacket:   packetBytes,
-					MaxRequests:       c.cfg.Client.MaxRequests,
-					ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
-					ServerAddresses:   c.cfg.Client.IAAddresses,
-					ServerIDs:         c.cfg.Client.IAIDs,
-				},
-				c.log,
-			)
+	// 			c.log.Notice("Going to send look up credential request to %v IAs", len(c.cfg.Client.IAAddresses))
+	// 			responses = comm.GetServerResponses(
+	// 				ctx,
+	// 				&comm.RequestParams{
+	// 					MarshaledPacket:   packetBytes,
+	// 					MaxRequests:       c.cfg.Client.MaxRequests,
+	// 					ConnectionTimeout: time.Duration(c.cfg.Debug.ConnectTimeout) * time.Millisecond,
+	// 					ServerAddresses:   c.cfg.Client.IAAddresses,
+	// 					ServerIDs:         c.cfg.Client.IAIDs,
+	// 				},
+	// 				c.log,
+	// 			)
 
-			// try to parse signature with data we received
-			sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
-			if err != nil {
-				c.log.Warningf("LookUpIssuedCredential: Failed to parse received credentials: %v", err)
-				continue outerFor
-			}
-			return sig, nil
-		}
-	}
+	// 			// try to parse signature with data we received
+	// 			sig, err := c.handleReceivedSignatures(c.parseLookUpCredentialServerResponses(responses, elGamalPrivateKey))
+	// 			if err != nil {
+	// 				c.log.Warningf("LookUpIssuedCredential: Failed to parse received credentials: %v", err)
+	// 				continue outerFor
+	// 			}
+	// 			return sig, nil
+	// 		}
+	// 	}
 
-	// TODO: somehow return gamma and height in response rather than in error message
-	return nil, c.logAndReturnError(`LookUpIssuedCredential: Could not communicate with enough IAs to obtain credentials.
-			Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
+	// 	// TODO: somehow return gamma and height in response rather than in error message
+	// 	return nil, c.logAndReturnError(`LookUpIssuedCredential: Could not communicate with enough IAs to obtain credentials.
+	// 			Token was spent in block: %v and gamma used was: %v`, cmd.Height, cmd.Gamma)
 }
 
 // GetCredential is a multistep procedure. First it sends 'GetCredential' request to Tendermint blockchain.

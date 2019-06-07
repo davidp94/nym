@@ -3,7 +3,7 @@
 [Server]
 
   # Identifier is the human readable identifier for the node (eg: FQDN).
-  Identifier = "Test IA Server3"
+  Identifier = "Issuer 3"
 
   # Addresses are the IP address/port combinations that the server will bind
   # to for incoming connections.
@@ -14,7 +14,7 @@
 	GRPCAddresses = [ "0.0.0.0:5000" ]
 
 	# DataDir specifies path to a .db file holding relevant server-specific persistent data.
-	DataDir = "/coconut_server/"
+	DataDir = "/issuer/"
 
 	# MaximumAttributes specifies the maximum number of attributes the system supports.
 	MaximumAttributes = 5
@@ -25,39 +25,13 @@
 	# the particular node was unavailable.
 	BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
 
-  # IsProvider specifies whether the server is a provider.
-	# Currently it means it should be able to verify credentials it receives.
-	IsProvider = false
-
-	# IsIssuer specifies whether the server is a credential issuer.
-	# Currently it means it should be able to sign attributes it receives.
-	IsIssuer = true
-
 [Issuer]
-	# ID represents the ID of the server used during generation of threshold keys.
-	ID = 3
-
+  
   # VerificationKeyFile specifies the file containing the Coconut Verification Key.
-  VerificationKeyFile = "/coconut_server/coconutkeys/verification2-n=3-t=2.pem"
+  VerificationKeyFile = "/issuer/coconutkeys/threshold-verificationKey-id=3-attrs=5-n=5-t=3.pem"
 
   # SecretKeyFile specifies the file containing the Coconut Secret Key.
-  SecretKeyFile = "/coconut_server/coconutkeys/secret2-n=3-t=2.pem"
-
-[Provider]
-
-	# IAAddresses are the IP address:port combinations of all Authority Servers.
-	# Required if the server is a provider.
-  IAAddresses = [ "192.167.11.1:4000", "192.167.11.2:4000", "192.167.11.3:4000" ]
-
-  # IAIDs are IDs of the servers used during generation of threshold keys.
-  IAIDs = [ 1, 2, 3 ]
-  
-  # Threshold defines minimum number of verification keys provider needs to obtain. Default = len(IAAddresses).
-  # TODO: should it be server or debug property?
-  Threshold = 2
-
-	# BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
-	BlockchainKeysFile = "/coconut_server/blockchainkeys/provider.json"
+  SecretKeyFile = "/issuer/coconutkeys/threshold-secretKey-id=3-attrs=5-n=5-t=3.pem"
 
 [Logging]
 

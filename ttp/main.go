@@ -49,7 +49,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	sks, vks, err := coconut.TTPKeygen(params, *t, *n)
+	tsks, tvks, err := coconut.TTPKeygen(params, *t, *n)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to generate keys: %v\n", err)
 		os.Exit(-1)
@@ -71,15 +71,19 @@ func main() {
 		}
 	}
 
-	for i := range sks {
-		skPathName := filepath.Join(*folder, fmt.Sprintf("secret%v-n=%v-t=%v.pem", i, *n, *t))
-		vkPathName := filepath.Join(*folder, fmt.Sprintf("verification%v-n=%v-t=%v.pem", i, *n, *t))
+	for i := range tsks {
+		skPathName := filepath.Join(*folder,
+			fmt.Sprintf("threshold-secretKey-id=%v-attrs=%v-n=%v-t=%v.pem", tsks[i].ID(), *numAttrs, *n, *t),
+		)
+		vkPathName := filepath.Join(*folder,
+			fmt.Sprintf("threshold-verificationKey-id=%v-attrs=%v-n=%v-t=%v.pem", tsks[i].ID(), *numAttrs, *n, *t),
+		)
 
-		if err := sks[i].ToPEMFile(skPathName); err != nil {
+		if err := tsks[i].ToPEMFile(skPathName); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to save secret key: %v\n", err)
 			os.Exit(-1)
 		}
-		if err := vks[i].ToPEMFile(vkPathName); err != nil {
+		if err := tvks[i].ToPEMFile(vkPathName); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to save verification key: %v\n", err)
 			os.Exit(-1)
 		}

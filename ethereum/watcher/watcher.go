@@ -65,10 +65,13 @@ func (w *Watcher) halt() {
 // stop etc are not working
 func (w *Watcher) worker() {
 	w.log.Noticef("Watching Ethereum blockchain at: %s", w.cfg.Watcher.EthereumNodeAddress)
-	heartbeat := time.NewTicker(2 * time.Second)
+	heartbeat := time.NewTicker(1000 * time.Millisecond)
 
 	// Block on the heartbeat ticker
 	// TODO: way to ensure we dont accicdentally skip a block
+	latestSeen := int64(0)
+
+outerFor:
 	for {
 		select {
 		case <-w.HaltCh():
@@ -77,6 +80,20 @@ func (w *Watcher) worker() {
 			latestBlockNumber := w.getLatestBlockNumber()
 			// latestBlockNumber := big.NewInt(int64(5422702)) // TEMP
 			block := w.getFinalizedBlock(latestBlockNumber)
+			w.log.Debugf("Heartbeat blockNum: %d ", block.Number())
+			if latestSeen == 0 {
+				latestSeen = block.Number().Int64() - 1
+			}
+			if block.Number().Int64() == latestSeen {
+				// we have already seen it
+				continue outerFor
+			}
+			if block.Number().Int64() != latestSeen+1 {
+				w.log.Warningf("We seem to have missed a block. Current: %v, latest seen: %v",
+					latestBlockNumber.String(),
+					latestSeen,
+				)
+			}
 			for _, tx := range block.Transactions() {
 				if tx.To() != nil {
 					if tx.To().Hex() == w.cfg.Watcher.NymContract.Hex() { // transaction used the Nym ERC20 contract
@@ -117,7 +134,8 @@ func (w *Watcher) worker() {
 					}
 				}
 			}
-			w.log.Debugf("Heartbeat blockNum: %d ", block.Number())
+			w.log.Noticef("Processed unique blockNum: %d ", block.Number())
+			latestSeen = block.Number().Int64()
 		}
 	}
 }

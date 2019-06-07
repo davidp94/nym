@@ -97,7 +97,7 @@ func (cw *CoconutWorker) Keygen(params *MuxParams) (*coconut.SecretKey, *coconut
 func (cw *CoconutWorker) TTPKeygen(params *MuxParams,
 	t int,
 	n int,
-) ([]*coconut.SecretKey, []*coconut.VerificationKey, error) {
+) ([]*coconut.ThresholdSecretKey, []*coconut.ThresholdVerificationKey, error) {
 	p, g2, hs, rng := params.P(), params.G2(), params.Hs(), params.G.Rng()
 
 	q := len(hs)
@@ -113,7 +113,7 @@ func (cw *CoconutWorker) TTPKeygen(params *MuxParams,
 	}
 
 	// secret keys - nothing (relatively) computationally expensive here
-	sks := make([]*coconut.SecretKey, n)
+	tsks := make([]*coconut.ThresholdSecretKey, n)
 	for i := 1; i < n+1; i++ {
 		iBIG := Curve.NewBIGint(i)
 		x := utils.PolyEval(v, iBIG, p)
@@ -121,24 +121,24 @@ func (cw *CoconutWorker) TTPKeygen(params *MuxParams,
 		for j, wj := range w {
 			ys[j] = utils.PolyEval(wj, iBIG, p)
 		}
-		sks[i-1] = coconut.NewSk(x, ys)
+		tsks[i-1] = coconut.NewThresholdSk(x, ys, int64(i))
 	}
 
 	alphaChs := make([]chan interface{}, n)
 	betaChs := make([][]chan interface{}, n)
-	for i := range sks {
+	for i := range tsks {
 		alphaChs[i] = make(chan interface{}, 1)
-		cw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, sks[i].X())
+		cw.jobQueue <- jobpacket.MakeG2MulPacket(alphaChs[i], g2, tsks[i].X())
 
 		betaChs[i] = make([]chan interface{}, q)
-		for j, yj := range sks[i].Y() {
+		for j, yj := range tsks[i].Y() {
 			betaChs[i][j] = make(chan interface{}, 1)
 			cw.jobQueue <- jobpacket.MakeG2MulPacket(betaChs[i][j], g2, yj)
 		}
 	}
 
-	vks := make([]*coconut.VerificationKey, n)
-	for i := range sks {
+	tvks := make([]*coconut.ThresholdVerificationKey, n)
+	for i := range tsks {
 		alphaRes := <-alphaChs[i]
 		alpha := alphaRes.(*Curve.ECP2)
 
@@ -147,9 +147,9 @@ func (cw *CoconutWorker) TTPKeygen(params *MuxParams,
 			betaijRes := <-betaChs[i][j]
 			beta[j] = betaijRes.(*Curve.ECP2)
 		}
-		vks[i] = coconut.NewVk(g2, alpha, beta)
+		tvks[i] = coconut.NewThresholdVk(g2, alpha, beta, tsks[i].ID())
 	}
-	return sks, vks, nil
+	return tsks, tvks, nil
 }
 
 // Sign creates a Coconut credential under a given secret key on a set of public attributes only.
