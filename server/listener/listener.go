@@ -170,10 +170,15 @@ func (l *Listener) onNewConn(conn net.Conn) {
 		return
 	}
 	resCh := make(chan *commands.Response, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.cfg.Debug.RequestTimeout)*time.Millisecond)
+	defer cancel()
+
 	cmdReq := commands.NewCommandRequest(cmd, resCh)
+	cmdReq.WithContext(ctx)
 
 	l.incomingCh <- cmdReq
-	outPacket := l.resolveCommand(cmd, resCh)
+	outPacket := l.resolveCommand(ctx, cmd, resCh)
 	if outPacket != nil {
 		l.replyToClient(outPacket, conn)
 	}
@@ -192,10 +197,7 @@ func (l *Listener) replyToClient(packet *packet.Packet, conn net.Conn) {
 	l.log.Error("Couldn't reply to the client") // conn will close regardless after this
 }
 
-func (l *Listener) resolveCommand(cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(l.cfg.Debug.RequestTimeout)*time.Millisecond)
-	defer cancel()
-
+func (l *Listener) resolveCommand(ctx context.Context, cmd commands.Command, resCh chan *commands.Response) *packet.Packet {
 	protoResp := l.handlers[reflect.TypeOf(cmd)](ctx, resCh)
 	// protoResp := comm.ResolveServerRequest(cmd, resCh, l.log, l.cfg.Debug.RequestTimeout, l.finalizedStartup)
 
