@@ -149,6 +149,11 @@ func CreateNymNode(cfgFile, dataRoot string, createEmptyBlocks bool, emptyBlocks
 		return nil, err
 	}
 
+	if err := node.Start(); err != nil {
+		log.Error("Failed to start node: %+v\n", err)
+		return nil, err
+	}
+
 	return &NymNode{
 		Node: node,
 	}, nil
