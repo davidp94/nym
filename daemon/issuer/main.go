@@ -1,72 +1,49 @@
-// modified version of katzenpost daemon
+// issuer.go - issuing authority daemon.
+// Copyright (C) 2019  Jedrzej Stuczynski.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as
+// published by the Free Software Foundation, either version 3 of the
+// License, or (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-//nolint: dupl
 package main
 
 import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"runtime"
-	"strconv"
-	"syscall"
 
+	"0xacab.org/jstuczyn/CoconutGo/daemon"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
 	"0xacab.org/jstuczyn/CoconutGo/server/issuer"
 )
 
 func main() {
-	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
-	if PtrSize != 64 || strconv.IntSize != 64 {
-		fmt.Fprintf(os.Stderr,
-			"The binary seems to not have been compiled in 64bit mode. Runtime pointer size: %v, Int size: %v\n",
-			PtrSize,
-			strconv.IntSize,
-		)
-		os.Exit(-1)
-	}
+	daemon.Start(func() {
+		flag.String("f", "config.toml", "Path to the config file of the issuer")
+	},
+		func() daemon.Service {
+			cfgFile := flag.Lookup("f").Value.(flag.Getter).Get().(string)
+			cfg, err := config.LoadFile(cfgFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to load config file '%v': %v\n", cfgFile, err)
+				os.Exit(-1)
+			}
 
-	cfgFile := flag.String("f", "config.toml", "Path to the server config file.")
-	flag.Parse()
-
-	syscall.Umask(0077)
-
-	// Ensure that a sane number of OS threads is allowed.
-	if os.Getenv("GOMAXPROCS") == "" {
-		// But only if the user isn't trying to override it.
-		nProcs := runtime.GOMAXPROCS(0)
-		nCPU := runtime.NumCPU()
-		if nProcs < nCPU {
-			runtime.GOMAXPROCS(nCPU)
-		}
-	}
-
-	cfg, err := config.LoadFile(*cfgFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load config file '%v': %v\n", *cfgFile, err)
-		os.Exit(-1)
-	}
-
-	// Setup the signal handling.
-	haltCh := make(chan os.Signal)
-	signal.Notify(haltCh, os.Interrupt, syscall.SIGTERM)
-	// for now ignore SIGHUP signal, todo: handle it similarly to katzenpost
-
-	// Start up the server.
-	svr, err := issuer.New(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to spawn issuer instance: %v\n", err)
-		os.Exit(-1)
-	}
-	defer svr.Shutdown()
-
-	// Halt the server gracefully on SIGINT/SIGTERM.
-	go func() {
-		<-haltCh
-		svr.Shutdown()
-	}()
-
-	// Wait for the server to explode or be terminated.
-	svr.Wait()
+			// Start up the issuer.
+			issuer, err := issuer.New(cfg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to spawn issuer instance: %v\n", err)
+				os.Exit(-1)
+			}
+			return issuer
+		})
 }
