@@ -110,9 +110,8 @@ func New(cfg *config.Config) (*Issuer, error) {
 		processors: processors,
 	}
 
-	// in a sec
 	for i, l := range ia.Listeners() {
-		issuerLog.Debugf("	 issuer handlers for listener %v", i)
+		issuerLog.Debugf("Registering issuer handlers for listener %v", i)
 		l.RegisterDefaultIssuerHandlers()
 	}
 	// for _, l := range ia.GrpcListeners() {
@@ -138,7 +137,7 @@ func New(cfg *config.Config) (*Issuer, error) {
 	return ia, nil
 }
 
-// Shutdown cleanly shuts down a given Server instance.
+// Shutdown cleanly shuts down a given Issuer instance.
 func (ia *Issuer) Shutdown() {
 	ia.haltOnce.Do(func() { ia.halt() })
 }

@@ -19,6 +19,7 @@
 package serverworker
 
 import (
+	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"reflect"
@@ -56,7 +57,8 @@ type IssuerWorker struct {
 }
 
 type ProviderWorker struct {
-	avk *coconut.VerificationKey
+	privateKey *ecdsa.PrivateKey
+	avk        *coconut.VerificationKey
 }
 
 func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *coconut.ThresholdVerificationKey) error {
@@ -124,14 +126,15 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 	return nil
 }
 
-func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
+func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey, privateKey *ecdsa.PrivateKey) error {
 	sw.log.Noticef("Registering ServerWorker%v as Provider", sw.id)
 	if !avk.Validate() {
 		sw.log.Error("Invalid verification key provided")
 		return errors.New("invalid verification key provided")
 	}
 	sw.ProviderWorker = ProviderWorker{
-		avk: avk,
+		privateKey: privateKey,
+		avk:        avk,
 	}
 
 	sw.RegisterHandler(&commands.VerifyRequest{},
@@ -141,7 +144,7 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
 				Cmd:             cmd.(*commands.VerifyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.tvk.VerificationKey,
+				VerificationKey: sw.avk,
 			}
 		})
 	sw.RegisterHandler(&commands.BlindVerifyRequest{},
@@ -151,7 +154,7 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey) error {
 				Cmd:             cmd.(*commands.BlindVerifyRequest),
 				Worker:          sw.CoconutWorker,
 				Logger:          sw.log,
-				VerificationKey: sw.tvk.VerificationKey,
+				VerificationKey: sw.avk,
 			}
 		})
 	sw.RegisterHandler(&commands.SpendCredentialRequest{},

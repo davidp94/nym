@@ -1,5 +1,5 @@
 // config.go - config for coconut server
-// Copyright (C) 2018  Jedrzej Stuczynski.
+// Copyright (C) 2018-2019  Jedrzej Stuczynski.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as
@@ -96,8 +96,8 @@ type Provider struct {
 	// 0 = no threshold
 	Threshold int
 
-	// BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
-	BlockchainKeysFile string
+	// BlockchainKeyFile specifies the file containing the Blockchain relevant keys.
+	BlockchainKeyFile string
 }
 
 // Debug is the Coconut IA server debug configuration.

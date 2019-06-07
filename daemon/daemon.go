@@ -35,8 +35,6 @@ type Service interface {
 type StartUpFunc func() Service
 type FlagDefineFunc func()
 
-// type FlagFunc func()
-
 func Start(flagsFn FlagDefineFunc, startFn StartUpFunc) {
 	const PtrSize = 32 << uintptr(^uintptr(0)>>63)
 	if PtrSize != 64 || strconv.IntSize != 64 {
@@ -77,6 +75,6 @@ func Start(flagsFn FlagDefineFunc, startFn StartUpFunc) {
 		service.Shutdown()
 	}()
 
-	// Wait for the server to explode or be terminated.
+	// Wait for the service to explode or be terminated.
 	service.Wait()
 }

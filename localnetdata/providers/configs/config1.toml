@@ -1,0 +1,65 @@
+# Coconut IA server configuration file.
+
+[Server]
+
+  # Identifier is the human readable identifier for the node (eg: FQDN).
+  Identifier = "Service Provider 1"
+
+  # Addresses are the IP address/port combinations that the server will bind
+  # to for incoming connections.
+  Addresses = [ "0.0.0.0:4000" ]
+
+  # GRPCAddresses are the IP address:port combinations that the server will bind
+  # to for incoming grpcs.
+  GRPCAddresses = [ "0.0.0.0:5000" ]
+
+  # DataDir specifies path to a .db file holding relevant server-specific persistent data.
+  DataDir = "/provider/"
+  
+  # MaximumAttributes specifies the maximum number of attributes the system supports.
+  MaximumAttributes = 5
+
+  # BlockchainNodeAddresses specifies addresses of a blockchain nodes
+  # to which the issuer should send all relevant requests. 
+  # Note that only a single request will ever be sent, but multiple addresses are provided in case 
+  # the particular node was unavailable.
+  BlockchainNodeAddresses = [ "192.167.10.2:26657", "192.167.10.3:26657", "192.167.10.4:26657", "192.167.10.5:26657" ]
+
+[Provider]
+
+  # IAAddresses are the IP address:port combinations of all Authority Servers.
+  # Required if the server is a provider.
+  IAAddresses = [ "192.167.11.1:4000", "192.167.11.2:4000", "192.167.11.3:4000" ]
+  
+  # IAVerificationKeys specifies files containing Coconut Verification keys of all Issuing Authorities.
+  IAVerificationKeys = [ "/provider/issuerKeys/threshold-verificationKey-id=1-attrs=5-n=5-t=3.pem" ,
+  "/provider/issuerKeys/threshold-verificationKey-id=2-attrs=5-n=5-t=3.pem",
+  "/provider/issuerKeys/threshold-verificationKey-id=3-attrs=5-n=5-t=3.pem",
+  "/provider/issuerKeys/threshold-verificationKey-id=4-attrs=5-n=5-t=3.pem",
+  "/provider/issuerKeys/threshold-verificationKey-id=5-attrs=5-n=5-t=3.pem"]
+
+  # Threshold defines minimum number of verification keys provider needs to obtain. Default = len(IAAddresses).
+  # TODO: should it be server or debug property?
+  Threshold = 3
+
+  # BlockchainKeysFile specifies the file containing the Blockchain relevant keys.
+  BlockchainKeyFile = "/provider/accountKey/provider.key"
+
+[Logging]
+
+  # Disable disables logging entirely.
+  Disable = false
+
+  # File specifies the log file, if omitted stdout will be used.
+  # File = "/var/log/coconutIA.log"
+
+  # Level specifies the log level out of `CRITICAL`, `ERROR`, `WARNING`,
+  # `NOTICE`, `INFO` and `DEBUG`.
+  #
+  # Warning: The `DEBUG` log level is unsafe for production use.
+  Level = "DEBUG"
+
+
+[Debug]
+
+  # RegenerateKeys = true

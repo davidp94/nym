@@ -18,39 +18,87 @@
 package provider
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
-	"0xacab.org/jstuczyn/CoconutGo/common/comm"
-	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobqueue"
-	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/jobworker"
+	"0xacab.org/jstuczyn/CoconutGo/server"
+
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	grpclistener "0xacab.org/jstuczyn/CoconutGo/server/grpc/listener"
-	"0xacab.org/jstuczyn/CoconutGo/server/listener"
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor/processor"
-	"0xacab.org/jstuczyn/CoconutGo/server/requestqueue"
-	"0xacab.org/jstuczyn/CoconutGo/server/serverworker"
-	"0xacab.org/jstuczyn/CoconutGo/server/storage"
-	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 	"gopkg.in/op/go-logging.v1"
 )
 
 // Provider defines all the required attributes for a coconut provider.
 type Provider struct {
-	log   *logging.Logger
+	*server.BaseServer
+	log *logging.Logger
+
 	haltOnce sync.Once
+}
+
+func checkDuplicateID(ids []*Curve.BIG, id *Curve.BIG) bool {
+	for _, el := range ids {
+		if el == nil {
+			continue
+		}
+		if Curve.Comp(el, id) == 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func (prov *Provider) loadAndAggregateVerificationKeys(files, addresses []string, threshold int) (*coconut.VerificationKey, error) {
+	if len(files) == 0 {
+		if len(addresses) == 0 {
+			prov.log.Error("No files or addresses specified")
+			return nil, errors.New("no files or addresses specified")
+		}
+
+		// TODO: reimplement that
+		return nil, errors.New("can't query IAs yet")
+	}
+
+	if len(files) < threshold {
+		return nil, errors.New("insufficient number of keys provided")
+	}
+
+	vks := make([]*coconut.VerificationKey, threshold)
+	xs := make([]*Curve.BIG, threshold)
+
+	for i, f := range files {
+		// no point in parsing more than threshold number of them
+		if i == threshold {
+			break
+		}
+
+		tvk := &coconut.ThresholdVerificationKey{}
+		if err := tvk.FromPEMFile(f); err != nil {
+			return nil, fmt.Errorf("failed to load key from file %v: %v", f, err)
+		}
+		idBIG := Curve.NewBIGint(int(tvk.ID()))
+		if checkDuplicateID(xs, idBIG) {
+			return nil, fmt.Errorf("at least two keys have the same id: %v", tvk.ID())
+		}
+
+		vks[i] = tvk.VerificationKey
+		xs[i] = idBIG
+	}
+
+	// we have already started serverworkers, they're just not registered as providers yet,
+	// but can perform crypto operations
+	avk := prov.ServerWorkers()[0].AggregateVerificationKeysWrapper(vks, coconut.NewPP(xs))
+
+	return avk, nil
 }
 
 // New returns a new Server instance parameterized with the specified configuration.
 // nolint: gocyclo
-func New(cfg *config.Config) (*Server, error) {
+func New(cfg *config.Config) (*Provider, error) {
 	// there is no need to further validate it, as if it's not nil, it was already done
 	if cfg == nil {
 		return nil, errors.New("nil config provided")
@@ -69,133 +117,75 @@ func New(cfg *config.Config) (*Server, error) {
 		return nil, err
 	}
 
-	if cfg.Provider.BlockchainKeysFile != "" {
-		//nolint: govet
-		// if err := acc.FromJSONFile(cfg.Provider.BlockchainKeysFile); err != nil {
-		// 	errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
-		// 	providerLog.Error(errStr)
-		// 	return nil, errors.New(errStr)
-		// }
-		providerLog.Notice("Loaded Nym Blochain keys from the file.")
-	} else {
+	if cfg.Provider.BlockchainKeyFile == "" {
 		errStr := "no keys for the Nym Blockchain were specified while server is a provider"
 		providerLog.Error(errStr)
 		return nil, errors.New(errStr)
 	}
-	
 
-	
-
-	avk := &coconut.VerificationKey{}
-
-
-
-	s := &Server{
-		cfg: cfg,
-
-		sk: sk,
-		vk: vk,
-
-		cmdCh: cmdCh,
-		jobCh: jobCh,
-		log:   providerLog,
-
-		serverWorkers: serverWorkers,
-		listeners:     listeners,
-		grpclisteners: grpclisteners,
-		jobWorkers:    jobworkers,
-
-		monitor:    mon,
-		processors: processors,
-		store:      store,
-
-		haltedCh: make(chan interface{}),
+	privateKey, err := ethcrypto.LoadECDSA(cfg.Provider.BlockchainKeyFile)
+	if err != nil {
+		errStr := fmt.Sprintf("Failed to load Nym keys: %v", err)
+		providerLog.Error(errStr)
+		return nil, errors.New(errStr)
 	}
 
-	// need to start trying to obtain vks of all IAs after starting listener in case other servers are also IA+provider
-	if !cfg.Server.IsProvider {
-		avk = nil
-	} else {
-		vks, pp, err := s.getIAsVerificationKeys()
-		if err != nil {
-			return nil, errors.New("failed to obtain verification keys of IAs")
+	providerLog.Notice("Loaded Nym Blochain keys from the file.")
+
+	// TODO: actually use the key:
+	// - request/response to obtain address (required by client)
+	// - send request to tendermint to redeem credential
+	// - send request to tendermint to get paid
+
+	provider := &Provider{
+		BaseServer: baseServer,
+		log:        providerLog,
+	}
+
+	avk, err := provider.loadAndAggregateVerificationKeys(cfg.Provider.IAVerificationKeys,
+		cfg.Provider.IAAddresses,
+		cfg.Provider.Threshold,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for i, l := range provider.Listeners() {
+		providerLog.Debugf("Registering provider handlers for listener %v", i)
+		l.RegisterDefaultServiceProviderHandlers()
+	}
+	// for _, l := range s.grpclisteners {
+	// TODO:
+	// 	l.FinalizeStartup()
+	// }
+
+	errCount := 0
+	for i, sw := range provider.ServerWorkers() {
+		providerLog.Debugf("Registering provider handlers for serverworker %v", i)
+		if err := sw.RegisterAsProvider(avk, privateKey); err != nil {
+			errCount++
+			providerLog.Warningf("Could not register worker %v as provider", i)
 		}
-
-		*avk = *serverWorkers[0].AggregateVerificationKeysWrapper(vks, pp)
-	}
-	s.avk = avk
-
-	for _, l := range s.listeners {
-		l.FinalizeStartup()
-	}
-	for _, l := range s.grpclisteners {
-		l.FinalizeStartup()
 	}
 
-	providerLog.Noticef("Started %v Server (Issuer: %v, Provider: %v)",
-		cfg.Server.Identifier, cfg.Server.IsIssuer, cfg.Server.IsProvider)
-	return s, nil
+	if errCount == len(provider.ServerWorkers()) {
+		errMsg := "could not register any serverworker as provider"
+		providerLog.Errorf(errMsg)
+		return nil, errors.New(errMsg)
+	}
+
+	return provider, nil
 }
 
-// Wait waits till the server is terminated for any reason.
-func (s *Server) Wait() {
-	<-s.haltedCh
+// Shutdown cleanly shuts down a given Provider instance.
+func (prov *Provider) Shutdown() {
+	prov.haltOnce.Do(func() { prov.halt() })
 }
 
-// Shutdown cleanly shuts down a given Server instance.
-func (s *Server) Shutdown() {
-	s.haltOnce.Do(func() { s.halt() })
-}
+func (prov *Provider) halt() {
+	prov.log.Notice("Starting graceful shutdown.")
 
-func (s *Server) halt() {
-	s.log.Notice("Starting graceful shutdown.")
+	// currently no provider-specific procedures required
 
-	for i, l := range s.grpclisteners {
-		if l != nil {
-			l.Halt()
-			s.grpclisteners[i] = nil
-		}
-	}
-
-	// Stop the listener(s), close all incoming connections.
-	for i, l := range s.listeners {
-		if l != nil {
-			l.Halt() // Closes all connections.
-			s.listeners[i] = nil
-		}
-	}
-
-	for i, p := range s.processors {
-		if p != nil {
-			p.Halt()
-			s.processors[i] = nil
-		}
-	}
-
-	if s.monitor != nil {
-		s.monitor.Halt()
-		s.monitor = nil
-	}
-
-	for i, w := range s.serverWorkers {
-		if w != nil {
-			w.Halt()
-			s.serverWorkers[i] = nil
-		}
-	}
-
-	for i, w := range s.jobWorkers {
-		if w != nil {
-			w.Halt()
-			s.jobWorkers[i] = nil
-		}
-	}
-
-	if s.store != nil {
-		s.store.Close()
-		s.store = nil
-	}
-
-	s.log.Notice("Shutdown complete.")
-	close(s.haltedCh)
+	prov.BaseServer.Shutdown()
 }
