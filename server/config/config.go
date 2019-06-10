@@ -98,6 +98,10 @@ type Provider struct {
 
 	// BlockchainKeyFile specifies the file containing the Blockchain relevant keys.
 	BlockchainKeyFile string
+
+	// DisableLocalCredentialsChecks specifies whether the provider should check the credentials and proofs it receives
+	// or just send everything to the chain and wait for the verifier nodes to check it.
+	DisableLocalCredentialsChecks bool
 }
 
 // Debug is the Coconut IA server debug configuration.
