@@ -45,8 +45,9 @@ func TestParseCredentialPairResponse(t *testing.T) {
 	assert.Nil(t, err)
 	emptyClient := &Client{log: log.GetLogger("Client")}
 
-	sig, err := emptyClient.parseCredentialPairResponse(nil, nil)
+	sig, id, err := emptyClient.parseCredentialPairResponse(nil, nil)
 	assert.Nil(t, sig)
+	assert.True(t, id == -1)
 	assert.Error(t, err)
 
 	_ = validStatus

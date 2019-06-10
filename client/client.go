@@ -1011,12 +1011,12 @@ func New(cfg *config.Config) (*Client, error) {
 	}
 	clientLog.Notice("Loaded Nym Blochain keys from the file.")
 
-	// nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
-	// if err != nil {
-	// 	errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
-	// 	clientLog.Error(errStr)
-	// 	return nil, errors.New(errStr)
-	// }
+	nymClient, err := nymclient.New(cfg.Nym.BlockchainNodeAddresses, log)
+	if err != nil {
+		errStr := fmt.Sprintf("Failed to create a nymClient: %v", err)
+		clientLog.Error(errStr)
+		return nil, errors.New(errStr)
+	}
 
 	ethCfg := ethclient.NewConfig(
 		privateKey,
@@ -1050,8 +1050,8 @@ func New(cfg *config.Config) (*Client, error) {
 		},
 
 		privateKey: privateKey,
-		// nymClient:  nymClient,
-		ethClient: ethClient,
+		nymClient:  nymClient,
+		ethClient:  ethClient,
 	}
 
 	clientLog.Noticef("Created %v client", cfg.Client.Identifier)
