@@ -144,7 +144,7 @@ message issuedCredential {
     // sig is defined as bytes rather than protoBlindedSignature as it in fact is marshalled proto blinded signature
     // there is no point in extra unmarshaling and further marshaling just for the sake of it.
     bytes Sig = 1;
-    uint64 IssuerID = 2;
+    int64 IssuerID = 2;
 }
 
 // defines blinded credential and gamma to which it was issued
