@@ -25,10 +25,8 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
-	"0xacab.org/jstuczyn/CoconutGo/nym/token"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
-	cmn "github.com/tendermint/tendermint/libs/common"
 )
 
 const (
@@ -46,9 +44,6 @@ const (
 
 	// BlindVerifyID is commandID for verifying a blind signature on public and private attributes.
 	BlindVerifyID CommandID = 104
-
-	// GetCredentialID is commandID for obtaining credential on provided Nym tokens.
-	GetCredentialID CommandID = 128
 
 	// SpendCredentialID is commandID for spending given credential at particular provider.
 	SpendCredentialID CommandID = 129
@@ -94,8 +89,6 @@ func CommandToMarshalledPacket(cmd Command) ([]byte, error) {
 		cmdID = BlindSignID
 	case *BlindVerifyRequest:
 		cmdID = BlindVerifyID
-	case *GetCredentialRequest:
-		cmdID = GetCredentialID
 	case *SpendCredentialRequest:
 		cmdID = SpendCredentialID
 	case *VerificationKeyRequest:
@@ -135,8 +128,6 @@ func FromBytes(b []byte) (Command, error) {
 		cmd = &BlindSignRequest{}
 	case BlindVerifyID:
 		cmd = &BlindVerifyRequest{}
-	case GetCredentialID:
-		cmd = &GetCredentialRequest{}
 	case SpendCredentialID:
 		cmd = &SpendCredentialRequest{}
 	case LookUpCredentialID:
@@ -316,43 +307,6 @@ func NewBlindVerifyRequest(theta *coconut.Theta,
 		Theta: protoTheta,
 		Sig:   protoSig,
 		PubM:  pubMb,
-	}, nil
-}
-
-// NewGetCredentialRequest returns new instance of a GetCredentialRequest
-// given set of public attributes, theta and a coconut signature on them.
-// TODO:  MIGHT CHANGE
-func NewGetCredentialRequest(lambda *coconut.Lambda,
-	egPub *elgamal.PublicKey,
-	token *token.Token,
-	pub []byte,
-	nonce []byte,
-	txHash cmn.HexBytes,
-	sig []byte,
-) (*GetCredentialRequest, error) {
-	protoLambda, err := lambda.ToProto()
-	if err != nil {
-		return nil, err
-	}
-	protoEgPub, err := egPub.ToProto()
-	if err != nil {
-		return nil, err
-	}
-
-	pubM, _ := token.GetPublicAndPrivateSlices()
-	pubMb, err := coconut.BigSliceToByteSlices(pubM)
-	if err != nil {
-		return nil, err
-	}
-	return &GetCredentialRequest{
-		PublicKey: pub,
-		EgPub:     protoEgPub,
-		Lambda:    protoLambda,
-		Value:     token.Value(),
-		PubM:      pubMb,
-		Nonce:     nonce,
-		TxHash:    txHash,
-		Sig:       sig,
 	}, nil
 }
 
