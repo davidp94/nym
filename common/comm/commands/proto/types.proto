@@ -140,14 +140,19 @@ message SpendCredentialResponse {
     Status status = 2;
 }
 
+message issuedCredential {
+    // sig is defined as bytes rather than protoBlindedSignature as it in fact is marshalled proto blinded signature
+    // there is no point in extra unmarshaling and further marshaling just for the sake of it.
+    bytes Sig = 1;
+    uint64 IssuerID = 2;
+}
+
 // defines blinded credential and gamma to which it was issued
 // unless client reused gamma which they shouldn't have, it will be identical to what they sent before,
 // otherwise it will have additional suffix to indicate a duplicate (in given block)
 message credentialPair {
     bytes gamma = 1;
-    // credential is defined as bytes rather than protoBlindedSignature as it in fact is marshalled proto blinded signature
-    // there is no point in extra unmarshaling and further marshaling just for the sake of it.
-    bytes credential = 2;
+    issuedCredential credential = 2;
 }
 
 message LookUpCredentialRequest {
