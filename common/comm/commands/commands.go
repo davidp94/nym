@@ -25,6 +25,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/constants"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
@@ -316,7 +317,7 @@ func NewSpendCredentialRequest(sig *coconut.Signature,
 	pubM []*Curve.BIG,
 	theta *coconut.ThetaTumbler,
 	val int64,
-	address []byte,
+	address ethcommon.Address,
 ) (*SpendCredentialRequest, error) {
 	protoSig, err := sig.ToProto()
 	if err != nil {
@@ -345,7 +346,7 @@ func NewSpendCredentialRequest(sig *coconut.Signature,
 		PubM:            pubMb,
 		Theta:           protoThetaTumbler,
 		Value:           val,
-		MerchantAddress: address,
+		MerchantAddress: address[:],
 	}, nil
 }
 

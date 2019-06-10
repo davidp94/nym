@@ -20,6 +20,7 @@ enum StatusCode {
     INVALID_SIGNATURE = 10;
     TX_NOT_ON_CHAIN = 11;
     NOT_PROCESSED_YET = 12;
+    DOUBLE_SPENDING_ATTEMPT = 13;
 }
 
 message Status {
