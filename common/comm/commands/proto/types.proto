@@ -136,7 +136,7 @@ message SpendCredentialRequest {
 }
 
 message SpendCredentialResponse {
-    bool wasGetuccessful = 1;
+    bool wasSuccessful = 1;
     Status status = 2;
 }
 
