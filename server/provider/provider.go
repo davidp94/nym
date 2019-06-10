@@ -162,7 +162,7 @@ func New(cfg *config.Config) (*Provider, error) {
 	errCount := 0
 	for i, sw := range provider.ServerWorkers() {
 		providerLog.Debugf("Registering provider handlers for serverworker %v", i)
-		if err := sw.RegisterAsProvider(avk, privateKey); err != nil {
+		if err := sw.RegisterAsProvider(avk, privateKey, cfg.Provider.DisableLocalCredentialsChecks); err != nil {
 			errCount++
 			providerLog.Warningf("Could not register worker %v as provider", i)
 		}

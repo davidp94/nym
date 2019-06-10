@@ -18,9 +18,15 @@
 package commandhandler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+
+	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
@@ -28,6 +34,8 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
 	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
+	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -413,21 +421,27 @@ func BlindVerifyRequestHandler(ctx context.Context, reqData HandlerData) *comman
 		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response
 	}
-	bigs, err := coconut.BigSliceFromByteSlices(req.PubM)
+	pubM, err := coconut.BigSliceFromByteSlices(req.PubM)
 	if err != nil {
 		errMsg := fmt.Sprintf("Error while recovering big numbers from the slice: %v", err)
 		setErrorResponse(log, response, errMsg, commands.StatusCode_PROCESSING_ERROR)
 		return response
 	}
-	response.Data = reqData.CoconutWorker().BlindVerifyWrapper(avk, sig, theta, bigs)
+	response.Data = reqData.CoconutWorker().BlindVerifyWrapper(avk, sig, theta, pubM)
 	return response
 }
 
+type SpendCredentialVerificationData struct {
+	Avk       *coconut.VerificationKey
+	Address   ethcommon.Address
+	NymClient *nymclient.Client // in theory it should be safe to use the same instance for multiple requests
+}
+
 type SpendCredentialRequestHandlerData struct {
-	Cmd    *commands.SpendCredentialRequest
-	Worker *coconutworker.CoconutWorker
-	Logger *logging.Logger
-	TODO   interface{}
+	Cmd              *commands.SpendCredentialRequest
+	Worker           *coconutworker.CoconutWorker
+	Logger           *logging.Logger
+	VerificationData SpendCredentialVerificationData
 }
 
 func (handlerData *SpendCredentialRequestHandlerData) Command() commands.Command {
@@ -443,77 +457,125 @@ func (handlerData *SpendCredentialRequestHandlerData) Log() *logging.Logger {
 }
 
 func (handlerData *SpendCredentialRequestHandlerData) Data() interface{} {
-	return handlerData.TODO
+	return handlerData.VerificationData
 }
 
 func SpendCredentialRequestHandler(ctx context.Context, reqData HandlerData) *commands.Response {
 	req := reqData.Command().(*commands.SpendCredentialRequest)
+	verificationData := reqData.Data().(SpendCredentialVerificationData)
 	log := reqData.Log()
 	response := DefaultResponse()
 	response.Data = false
 
 	log.Debug("SpendCredentialRequestHandler")
-	_ = req
 
-	log.Warning("REQUIRES RE-IMPLEMENTATION")
+	if !bytes.Equal(req.MerchantAddress, verificationData.Address[:]) {
+		errMsg := "Invalid merchant address"
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_BINDING)
+		return response
+	}
+
+	sig := &coconut.Signature{}
+	if err := sig.FromProto(req.Sig); err != nil {
+		errMsg := fmt.Sprintf("Failed to unmarshal signature: %v", err)
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_SIGNATURE)
+		return response
+	}
+
+	thetaTumbler := &coconut.ThetaTumbler{}
+	if err := thetaTumbler.FromProto(req.Theta); err != nil {
+		errMsg := fmt.Sprintf("Failed to unmarshal theta: %v", err)
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+
+	pubM, err := coconut.BigSliceFromByteSlices(req.PubM)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to unmarshal public attributes: %v", err)
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+
+	// Depends on provider settings, if we are to verify credential, we do just that (it includes checking the binding)
+	// otherwise we only verify the binding
+	// When the provider is going to redeem the credential for itself, it will be verified by the nym system anyway.
+	if verificationData.Avk != nil {
+		isValid := reqData.CoconutWorker().BlindVerifyTumblerWrapper(
+			verificationData.Avk,
+			sig,
+			thetaTumbler,
+			pubM,
+			verificationData.Address[:],
+		)
+		if !isValid {
+			setErrorResponse(log, response, "Failed to verify the data", commands.StatusCode_INVALID_SIGNATURE)
+			return response
+		}
+		log.Info("The received data is valid")
+	} else {
+		bind, bindErr := coconut.CreateBinding(verificationData.Address[:])
+		if bindErr != nil {
+			log.Critical("Failed to create binding out of our own address")
+			setErrorResponse(log, response, "Critical failure when generating own binding", commands.StatusCode_PROCESSING_ERROR)
+			return response
+		}
+		if !bind.Equals(thetaTumbler.Zeta()) {
+			setErrorResponse(log, response, "Invalid binding provided", commands.StatusCode_INVALID_BINDING)
+			return response
+		}
+	}
+
+	// this is not by any means a reliable check as this request is not properly ordered, etc.
+	// All it does is check against credentials spent in the past (so say it would fail if client sent same request
+	// to two SPs now)
+	wasSpentRes, err := verificationData.NymClient.Query(query.ZetaStatus, req.Theta.Zeta)
+	if err != nil {
+		errMsg := "Failed to preliminarily check status of zeta"
+		setErrorResponse(log, response, errMsg, commands.StatusCode_UNAVAILABLE)
+		return response
+	}
+
+	if bytes.Equal(wasSpentRes.Response.Value, []byte{1}) {
+		errMsg := "Received zeta was already spent before"
+		setErrorResponse(log, response, errMsg, commands.StatusCode_DOUBLE_SPENDING_ATTEMPT)
+	}
+
+	// TODO: now it's a question of whether we want to immediately try to deposit our credential or wait and do it later
+	// and possibly in bulk. In the former case: store the data in the database
+	// However, for the demo sake (since it's easier), deposit immediately
+	// TODO: in future we could just store that marshalled request (as below) rather than all attributes separately
+	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
+		req.Sig,
+		req.PubM,
+		req.Theta,
+		req.Value,
+		verificationData.Address,
+	)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
+		return response
+	}
+
+	blockchainResponse, err := verificationData.NymClient.Broadcast(blockchainRequest)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
+		setErrorResponse(log, response, errMsg, commands.StatusCode_PROCESSING_ERROR)
+		return response
+	}
+
+	log.Debugf("Received response from the blockchain. Return code: %v; Additional Data: %v",
+		code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
+
+	if blockchainResponse.DeliverTx.Code != code.OK {
+		errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
+			blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
+		setErrorResponse(log, response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
+		return response
+	}
+
+	// the response data in future might be provider dependent, to include say some authorization token
+	response.ErrorStatus = commands.StatusCode_OK
+	response.Data = true
 	return response
-
-	// // theoretically provider does not need to do any checks as if the request is invalid the blockchain will reject it,
-	// // but we check if the user says it bound it to our address
-	// address := req.MerchantAddress
-
-	// if !bytes.Equal(address, sw.nymAccount.PublicKey) {
-	// 	// check if perhaps our address is in uncompressed form but client bound it to the compressed version
-	// 	var accountCompressed account.ECPublicKey = make([]byte, len(sw.nymAccount.PublicKey))
-	// 	copy(accountCompressed, sw.nymAccount.PublicKey)
-	// 	if err := accountCompressed.Compress(); err != nil {
-	// 		sw.log.Critical("Couldn't compress our own account key")
-	// 		// TODO: how to handle it?
-	// 	}
-
-	// 	if !bytes.Equal(address, accountCompressed) {
-	// 		b64Addr := base64.StdEncoding.EncodeToString(accountCompressed)
-	// 		b64Bind := base64.StdEncoding.EncodeToString(address)
-	// 		errMsg := fmt.Sprintf("Request is bound to an invalid address, Expected: %v, actual: %v", b64Addr, b64Bind)
-	// 		sw.setErrorResponse(log,response, errMsg, commands.StatusCode_INVALID_BINDING)
-	// 		return response
-	// 	}
-	// }
-
-	// blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
-	// 	req.Sig,
-	// 	req.PubM,
-	// 	req.Theta,
-	// 	req.Value,
-	// 	req.MerchantAddress,
-	// )
-	// if err != nil {
-	// 	errMsg := fmt.Sprintf("Failed to create blockchain request: %v", err)
-	// 	sw.setErrorResponse(log,response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
-	// 	return response
-	// }
-
-	// blockchainResponse, err := sw.nymClient.Broadcast(blockchainRequest)
-	// if err != nil {
-	// 	errMsg := fmt.Sprintf("Failed to send transaction to the blockchain: %v", err)
-	// 	sw.log.Critical(errMsg)
-	// 	response.ErrorMessage = errMsg
-	// 	response.ErrorStatus = commands.StatusCode_PROCESSING_ERROR
-	// 	return response
-	// }
-
-	// sw.log.Notice("Received response from the blockchain. Return code: %v; Additional Data: %v",
-	// 	code.ToString(blockchainResponse.DeliverTx.Code), string(blockchainResponse.DeliverTx.Data))
-
-	// if blockchainResponse.DeliverTx.Code != code.OK {
-	// 	errMsg := fmt.Sprintf("The transaction failed to be included on the blockchain. Errorcode: %v - %v",
-	// 		blockchainResponse.DeliverTx.Code, code.ToString(blockchainResponse.DeliverTx.Code))
-	// 	sw.setErrorResponse(log,response, errMsg, commands.StatusCode_INVALID_TRANSACTION)
-	// 	return response
-	// }
-
-	// // the response data in future might be provider dependent, to include say some authorization token
-	// response.ErrorStatus = commands.StatusCode_OK
-	// response.Data = true
-	// return response
 }

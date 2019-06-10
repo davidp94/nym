@@ -33,6 +33,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	nymclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
 	"0xacab.org/jstuczyn/CoconutGo/worker"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -126,7 +127,10 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 	return nil
 }
 
-func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey, privateKey *ecdsa.PrivateKey) error {
+func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey,
+	privateKey *ecdsa.PrivateKey,
+	disableVerification bool,
+) error {
 	sw.log.Noticef("Registering ServerWorker%v as Provider", sw.id)
 	if !avk.Validate() {
 		sw.log.Error("Invalid verification key provided")
@@ -136,6 +140,8 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey, private
 		privateKey: privateKey,
 		avk:        avk,
 	}
+
+	address := ethcrypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey))
 
 	sw.RegisterHandler(&commands.VerifyRequest{},
 		commandhandler.VerifyRequestHandler,
@@ -157,16 +163,37 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey, private
 				VerificationKey: sw.avk,
 			}
 		})
-	sw.RegisterHandler(&commands.SpendCredentialRequest{},
-		commandhandler.SpendCredentialRequestHandler,
-		func(cmd commands.Command) commandhandler.HandlerData {
-			return &commandhandler.SpendCredentialRequestHandlerData{
-				Cmd:    cmd.(*commands.SpendCredentialRequest),
-				Worker: sw.CoconutWorker,
-				Logger: sw.log,
-				TODO:   nil,
-			}
-		})
+
+	if disableVerification {
+		sw.RegisterHandler(&commands.SpendCredentialRequest{},
+			commandhandler.SpendCredentialRequestHandler,
+			func(cmd commands.Command) commandhandler.HandlerData {
+				return &commandhandler.SpendCredentialRequestHandlerData{
+					Cmd:    cmd.(*commands.SpendCredentialRequest),
+					Worker: sw.CoconutWorker,
+					Logger: sw.log,
+					VerificationData: commandhandler.SpendCredentialVerificationData{
+						Avk:     nil,
+						Address: address,
+					},
+				}
+			})
+	} else {
+		sw.RegisterHandler(&commands.SpendCredentialRequest{},
+			commandhandler.SpendCredentialRequestHandler,
+			func(cmd commands.Command) commandhandler.HandlerData {
+				return &commandhandler.SpendCredentialRequestHandlerData{
+					Cmd:    cmd.(*commands.SpendCredentialRequest),
+					Worker: sw.CoconutWorker,
+					Logger: sw.log,
+					VerificationData: commandhandler.SpendCredentialVerificationData{
+						Avk:       sw.avk,
+						Address:   address,
+						NymClient: sw.nymClient,
+					},
+				}
+			})
+	}
 	return nil
 }
 
