@@ -30,12 +30,6 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-// TODO: figure out more appropriate location for this definition
-type IssuedSignature struct {
-	Sig      interface{} // because it can be either *coconut.Signature or *coconut.BlindedSignature
-	IssuerID int64
-}
-
 // TODO: perhaps if it's too expensive, replace reflect.Type with some string or even a byte?
 type HandlerRegistry map[reflect.Type]HandlerRegistryEntry
 
