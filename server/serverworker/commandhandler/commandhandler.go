@@ -26,6 +26,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/crypto/coconut/concurrency/coconutworker"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/elgamal"
+	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"gopkg.in/op/go-logging.v1"
 )
@@ -119,7 +120,7 @@ func SignRequestHandler(ctx context.Context, reqData HandlerData) *commands.Resp
 		return response
 	}
 	log.Debugf("Writing back signature %v", sig)
-	response.Data = IssuedSignature{
+	response.Data = utils.IssuedSignature{
 		Sig:      sig,
 		IssuerID: tsk.ID(),
 	}
@@ -219,7 +220,7 @@ func BlindSignRequestHandler(ctx context.Context, reqData HandlerData) *commands
 		return response
 	}
 	log.Debugf("Writing back blinded signature")
-	response.Data = IssuedSignature{
+	response.Data = utils.IssuedSignature{
 		Sig:      sig,
 		IssuerID: tsk.ID(),
 	}
@@ -264,7 +265,7 @@ func LookUpCredentialRequestHandler(ctx context.Context, reqData HandlerData) *c
 	}
 
 	credPair := store.GetCredential(req.Height, req.Gamma)
-	if len(credPair.Credential) == 0 {
+	if len(credPair.Credential.Sig) == 0 {
 		errMsg := "Could not lookup the credential using provided arguments"
 		setErrorResponse(reqData.Log(), response, errMsg, commands.StatusCode_INVALID_ARGUMENTS)
 		return response

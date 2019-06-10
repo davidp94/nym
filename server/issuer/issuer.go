@@ -80,6 +80,30 @@ func New(cfg *config.Config) (*Issuer, error) {
 	}
 	issuerLog.Notice("Loaded Coconut server keys from the files.")
 
+	for i, l := range baseServer.Listeners() {
+		issuerLog.Debugf("Registering issuer handlers for listener %v", i)
+		l.RegisterDefaultIssuerHandlers()
+	}
+	// for _, l := range baseServer.GrpcListeners() {
+	// 	// TODO:
+	// 	l.FinalizeStartup()
+	// }
+
+	errCount := 0
+	for i, sw := range baseServer.ServerWorkers() {
+		issuerLog.Debugf("Registering issuer handlers for serverworker %v", i)
+		if err := sw.RegisterAsIssuer(tsk, tvk); err != nil {
+			errCount++
+			issuerLog.Warningf("Could not register worker %v as issuer", i)
+		}
+	}
+
+	if errCount == len(baseServer.ServerWorkers()) {
+		errMsg := "could not register any serverworker as issuer"
+		issuerLog.Errorf(errMsg)
+		return nil, errors.New(errMsg)
+	}
+
 	var mon *monitor.Monitor
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 
@@ -108,30 +132,6 @@ func New(cfg *config.Config) (*Issuer, error) {
 		log:        issuerLog,
 		monitor:    mon,
 		processors: processors,
-	}
-
-	for i, l := range ia.Listeners() {
-		issuerLog.Debugf("Registering issuer handlers for listener %v", i)
-		l.RegisterDefaultIssuerHandlers()
-	}
-	// for _, l := range ia.GrpcListeners() {
-	// 	// TODO:
-	// 	l.FinalizeStartup()
-	// }
-
-	errCount := 0
-	for i, sw := range ia.ServerWorkers() {
-		issuerLog.Debugf("Registering issuer handlers for serverworker %v", i)
-		if err := sw.RegisterAsIssuer(tsk, tvk); err != nil {
-			errCount++
-			issuerLog.Warningf("Could not register worker %v as issuer", i)
-		}
-	}
-
-	if errCount == len(ia.ServerWorkers()) {
-		errMsg := "could not register any serverworker as issuer"
-		issuerLog.Errorf(errMsg)
-		return nil, errors.New(errMsg)
 	}
 
 	return ia, nil

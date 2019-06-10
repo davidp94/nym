@@ -23,7 +23,7 @@ import (
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/server/serverworker/commandhandler"
+	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"github.com/golang/protobuf/proto"
 )
 
@@ -91,7 +91,7 @@ func ResolveSignRequestHandler(ctx context.Context, resCh <-chan *commands.Respo
 	protoSig := &coconut.ProtoSignature{}
 	issuerID := int64(-1)
 	if data != nil {
-		resolvedData := data.(commandhandler.IssuedSignature)
+		resolvedData := data.(utils.IssuedSignature)
 		protoSig, err = resolvedData.Sig.(*coconut.Signature).ToProto()
 		if err != nil {
 			protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")
@@ -121,7 +121,7 @@ func ResolveBlindSignRequestHandler(ctx context.Context, resCh <-chan *commands.
 	protoBlindSig := &coconut.ProtoBlindedSignature{}
 	issuerID := int64(-1)
 	if data != nil {
-		resolvedData := data.(commandhandler.IssuedSignature)
+		resolvedData := data.(utils.IssuedSignature)
 		protoBlindSig, err = resolvedData.Sig.(*coconut.BlindedSignature).ToProto()
 		if err != nil {
 			protoStatus = makeProtoStatus(commands.StatusCode_PROCESSING_ERROR, "Failed to marshal response.")

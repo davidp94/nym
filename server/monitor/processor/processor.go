@@ -25,6 +25,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
+	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
@@ -113,13 +114,9 @@ func (p *Processor) worker() {
 			}
 			p.log.Infof("Signed tx %v on height %v", i, height)
 
-			blindedSig := res.Data.(*coconut.BlindedSignature)
-			blindedSigB, err := blindedSig.MarshalBinary()
-			if err != nil {
-				p.log.Errorf("Could not marshal blinded sig at index: %v on height %v, err: %v", i, height, err)
-			}
+			issuedCred := res.Data.(utils.IssuedSignature)
 
-			p.store.StoreBlindedSignature(height, blindSignMaterials.EgPub.Gamma, blindedSigB)
+			p.store.StoreIssuedSignature(height, blindSignMaterials.EgPub.Gamma, issuedCred)
 			p.log.Infof("Stored sig for tx %v on height %v", i, height)
 		}
 		p.monitor.FinalizeHeight(height)
