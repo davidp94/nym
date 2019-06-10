@@ -1,5 +1,11 @@
 # CoconutGo Changelog
 
+## 0.8.1
+
+* Restored client's ability to query issued credentials
+* Modified the way issuers are storing issued credentials
+* Moved IssuedSignature struct to new issuer utils
+
 ## 0.8.0
 
 * Separated "server" into separate provider and issuer
