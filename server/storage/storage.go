@@ -22,7 +22,10 @@ import (
 	"encoding/binary"
 	"path/filepath"
 
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
+
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/util"
@@ -30,7 +33,7 @@ import (
 
 //
 // Currently issuers store the following:
-// [CREDENTIAL_PREFIX || BLOCK_HEIGHT || GAMMA] --- BLINDED_SIGNATURE
+// [CREDENTIAL_PREFIX || BLOCK_HEIGHT || GAMMA] --- [uint64ID || BLINDED_SIGNATURE]
 // [LATEST_STORED_KEY] --- BLOCK_HEIGHT // used to indicate the highest processed block.
 // It is guaranteed to be stored in order and hence there are no missing blocks before that.
 
@@ -68,28 +71,39 @@ func (db *Database) Set(key []byte, value []byte) {
 	}
 }
 
-// StoreBlindedSignature stores particular blinded signature using appropriate key.
-func (db *Database) StoreBlindedSignature(height int64, gammaB []byte, sig []byte) {
+// StoreIssuedSignature stores particular blinded signature using appropriate key.
+// [CREDENTIAL_PREFIX || BLOCK_HEIGHT || GAMMA] --- [uint64ID || BLINDED_SIGNATURE]
+func (db *Database) StoreIssuedSignature(height int64, gammaB []byte, cred utils.IssuedSignature) {
 	key := make([]byte, len(credentialPrefix)+8+len(gammaB))
 	copy(key, credentialPrefix)
 	binary.BigEndian.PutUint64(key[len(credentialPrefix):], uint64(height))
 	copy(key[len(credentialPrefix)+8:], gammaB)
 
+	sigB, err := cred.Sig.(*coconut.BlindedSignature).MarshalBinary()
+	if err != nil {
+		panic(err)
+	}
+
+	val := make([]byte, 8+len(sigB))
+	binary.BigEndian.PutUint64(val, uint64(cred.IssuerID))
+	copy(val[8:], sigB)
+
 	contains, err := db.db.Has(key, nil)
 	if err != nil {
 		panic(err)
 	}
+
 	// there is already a blinded signature for this particular entry
 	if contains {
 		// but if for some reason it's identical as what we wanted to write
 		// (which in theory shouldn't have been invoked in the first place), just ignore it
-		if bytes.Equal(sig, db.Get(key)) {
+		if bytes.Equal(val, db.Get(key)) {
 			return
 		}
 		// otherwise include a suffix in the entry which is up to the client to decode and try again
-		db.StoreBlindedSignature(height, append(gammaB, 0), sig)
+		db.StoreIssuedSignature(height, append(gammaB, 0), cred)
 	} else {
-		db.Set(key, sig)
+		db.Set(key, val)
 	}
 }
 
@@ -122,9 +136,15 @@ func (db *Database) GetBlockCredentials(height int64) []*commands.CredentialPair
 	creds := []*commands.CredentialPair{}
 	iter := db.db.NewIterator(util.BytesPrefix(credentialPrefix), nil)
 	for iter.Next() {
+		issuedCredRaw := iter.Value()
+		issuedCred := &commands.IssuedCredential{
+			Sig:      issuedCredRaw[8:],
+			IssuerID: int64(binary.BigEndian.Uint64(issuedCredRaw)),
+		}
+
 		creds = append(creds, &commands.CredentialPair{
 			Gamma:      iter.Key()[len(credentialPrefix)+8:],
-			Credential: iter.Value(), // since it's a byte slice, it will be coppied
+			Credential: issuedCred,
 		})
 	}
 	iter.Release()
@@ -132,7 +152,7 @@ func (db *Database) GetBlockCredentials(height int64) []*commands.CredentialPair
 		panic(err)
 	}
 
-	// todo: cleanup sigs slice?
+	// TODO: cleanup sigs slice?
 	return creds
 }
 
@@ -143,7 +163,13 @@ func (db *Database) GetCredential(height int64, gammaB []byte) *commands.Credent
 	binary.BigEndian.PutUint64(key[len(credentialPrefix):], uint64(height))
 	copy(key[len(credentialPrefix)+8:], gammaB)
 
-	return &commands.CredentialPair{Gamma: gammaB, Credential: db.Get(key)}
+	issuedCredRaw := db.Get(key)
+	issuedCred := &commands.IssuedCredential{
+		Sig:      issuedCredRaw[8:],
+		IssuerID: int64(binary.BigEndian.Uint64(issuedCredRaw)),
+	}
+
+	return &commands.CredentialPair{Gamma: gammaB, Credential: issuedCred}
 }
 
 // Close closes the database connection. It should be called upon server shutdown.
