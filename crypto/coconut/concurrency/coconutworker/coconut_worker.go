@@ -126,8 +126,8 @@ func (cw *CoconutWorker) ShowBlindSignatureTumblerWrapper(
 	return cw.ShowBlindSignatureTumbler(cw.muxParams, vk, sig, privM, address)
 }
 
-// BlindVerifyTumblerTumbler wraps the provided arguments with pre-generated params.
-func (cw *CoconutWorker) BlindVerifyTumblerTumbler(
+// BlindVerifyTumblerWrapper wraps the provided arguments with pre-generated params.
+func (cw *CoconutWorker) BlindVerifyTumblerWrapper(
 	vk *coconut.VerificationKey,
 	sig *coconut.Signature,
 	theta *coconut.ThetaTumbler,
