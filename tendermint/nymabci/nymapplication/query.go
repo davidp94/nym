@@ -32,6 +32,17 @@ func (app *NymApplication) checkAccountBalanceQuery(req types.RequestQuery) type
 	return types.ResponseQuery{Code: code.OK, Key: req.Data, Value: balanceToBytes(val)}
 }
 
+func (app *NymApplication) checkZeta(req types.RequestQuery) types.ResponseQuery {
+	isSpent := app.checkIfZetaIsSpent(req.Data)
+	app.log.Debug(fmt.Sprintf("Zeta %v is spent: %v", req.Data, isSpent))
+	isSpentB := []byte{0}
+	if isSpent {
+		isSpentB = []byte{1}
+	}
+	return types.ResponseQuery{Code: code.OK, Key: req.Data, Value: isSpentB}
+}
+
+//nolint: unparam
 func (app *NymApplication) printVk(req types.RequestQuery) (types.ResponseQuery, error) {
 	if !tmconst.DebugMode {
 		app.log.Info("Trying to use printVk not in debug mode")

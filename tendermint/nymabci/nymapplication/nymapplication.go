@@ -271,6 +271,8 @@ func (app *NymApplication) Query(req types.RequestQuery) types.ResponseQuery {
 	switch req.Path {
 	case query.QueryCheckBalancePath:
 		return app.checkAccountBalanceQuery(req)
+	case query.ZetaStatus:
+		return app.checkZeta(req)
 	case query.DEBUG_printVk:
 		res, err := app.printVk(req)
 		if err == tmconst.ErrNotInDebug {

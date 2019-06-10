@@ -21,4 +21,5 @@ package query
 const (
 	QueryCheckBalancePath = "/balance"
 	DEBUG_printVk         = "/DEBUG_PRINTVK"
+	ZetaStatus            = "/ZetaStatus"
 )

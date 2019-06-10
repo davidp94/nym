@@ -218,3 +218,14 @@ func (app *NymApplication) updateNotificationCount(txHash []byte, count uint32) 
 
 	app.state.db.Set(key, countb)
 }
+
+func (app *NymApplication) storeSpentZeta(zeta []byte) {
+	key := prefixKey(tmconst.SpentZetaPrefix, zeta)
+	// TODO: the recurring problem of what value it should be set to.
+	app.state.db.Set(key, tmconst.SpentZetaPrefix)
+}
+
+func (app *NymApplication) checkIfZetaIsSpent(zeta []byte) bool {
+	key := prefixKey(tmconst.SpentZetaPrefix, zeta)
+	return app.state.db.Has(key)
+}

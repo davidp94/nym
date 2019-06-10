@@ -38,7 +38,7 @@ const (
 // nolint: gochecknoglobals
 var (
 	// SpentZetaPrefix represents prefix for each zeta in the database to indicate it has been spent.
-	SpentZetaPrefix = []byte("SPENT")
+	SpentZetaPrefix = []byte("SpentZeta")
 
 	// AggregateVkKey represents the database entry for the aggregate verification key of the threshold number
 	// of issuing authorities of the system. It is used for credential verification.
@@ -49,10 +49,6 @@ var (
 
 	// EthereumWatcherKeyPrefix represents the prefix for storing public keys of trusted watchers.
 	EthereumWatcherKeyPrefix = []byte("EthereumWatcher")
-
-	// CommitmentsPrefix (TO BE REMOVED) represents prefix for each commitment in the database to indicate
-	// it was already sent and hence funds were moved
-	CommitmentsPrefix = []byte("commitment")
 
 	// AccountsPrefix represents prefix for each account in the database to indicate amount of associated tokens.
 	AccountsPrefix = []byte("account")
