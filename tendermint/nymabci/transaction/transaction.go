@@ -137,112 +137,26 @@ func CreateNewTransferRequest(sourcePrivateKey *ecdsa.PrivateKey,
 	return marshalRequest(req, TxTransferBetweenAccounts)
 }
 
-// // CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
-// // (that is bound to particular merchant address) to be spent.
-// func CreateNewDepositCoconutCredentialRequest(
-// 	protoSig *coconut.ProtoSignature,
-// 	pubMb [][]byte,
-// 	protoThetaTumbler *coconut.ProtoThetaTumbler,
-// 	value int32,
-// 	address []byte,
-// ) ([]byte, error) {
+// CreateNewDepositCoconutCredentialRequest creates new request for tx to send credential created out of given token
+// (that is bound to particular merchant address) to be spent.
+func CreateNewDepositCoconutCredentialRequest(
+	protoSig *coconut.ProtoSignature,
+	pubMb [][]byte,
+	protoThetaTumbler *coconut.ProtoThetaTumbler,
+	value int64,
+	address ethcommon.Address,
+) ([]byte, error) {
 
-// 	req := &DepositCoconutCredentialRequest{
-// 		Sig:             protoSig,
-// 		PubM:            pubMb,
-// 		Theta:           protoThetaTumbler,
-// 		Value:           value,
-// 		MerchantAddress: address,
-// 	}
+	req := &DepositCoconutCredentialRequest{
+		Sig:             protoSig,
+		PubM:            pubMb,
+		Theta:           protoThetaTumbler,
+		Value:           value,
+		ProviderAddress: address[:],
+	}
 
-// 	protob, err := proto.Marshal(req)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	b := make([]byte, len(protob)+1)
-
-// 	b[0] = TxDepositCoconutCredential
-// 	copy(b[1:], protob)
-// 	return b, nil
-// }
-
-// // TransferToPipeAccountRequestParams encapsulates parameters required for the CreateNewTransferToPipeAccountRequest function.
-// type TransferToPipeAccountRequestParams struct {
-// 	Acc    account.Account
-// 	Amount int32 // needs to be strictly greater than 0, but have max value of int32 rather than uint32
-// 	EgPub  *elgamal.PublicKey
-// 	Lambda *coconut.Lambda
-// 	PubM   []*Curve.BIG
-// }
-
-// // DEPRECATED
-// // CreateNewTransferToPipeAccountRequest creates new request for tx to transfer funds from user's account
-// // to the pipe account. It also writes the required cryptographic material for the blind sign onto the chain,
-// // so that the IAs monitoring it could issue the partial credentials.
-// // The function is designed to be executed by the user.
-// func CreateNewTransferToPipeAccountRequest(params TransferToPipeAccountRequestParams) ([]byte, error) {
-// 	fmt.Println("DEPRECATED")
-// 	pipeAccountAddress := tmconst.PipeAccountAddress
-
-// 	if params.Amount < 0 {
-// 		return nil, errors.New("negative value of the credential")
-// 	}
-
-// 	if len(params.PubM) < 1 || Curve.Comp(params.PubM[0], Curve.NewBIGint(int(params.Amount))) != 0 {
-// 		return nil, errors.New("invalid public parameters")
-// 	}
-
-// 	protoLambda, err := params.Lambda.ToProto()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	lambdab, err := proto.Marshal(protoLambda)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	protoEgPub, err := params.EgPub.ToProto()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	egPubb, err := proto.Marshal(protoEgPub)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	pubMb, err := coconut.BigSliceToByteSlices(params.PubM)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	msg := make([]byte,
-// 		len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*len(pubMb),
-// 	)
-// 	copy(msg, params.Acc.PublicKey)
-// 	copy(msg[len(params.Acc.PublicKey):], pipeAccountAddress)
-// 	binary.BigEndian.PutUint32(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress):], uint32(params.Amount))
-// 	copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4:], egPubb)
-// 	copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb):], lambdab)
-// 	for i := range pubMb {
-// 		copy(msg[len(params.Acc.PublicKey)+len(pipeAccountAddress)+4+len(egPubb)+len(lambdab)+constants.BIGLen*i:], pubMb[i])
-// 	}
-
-// 	sig := params.Acc.PrivateKey.SignBytes(msg)
-
-// 	req := &TransferToPipeAccountRequest{
-// 		SourcePublicKey: params.Acc.PublicKey,
-// 		TargetAddress:   pipeAccountAddress,
-// 		Amount:          params.Amount,
-// 		EgPub:           protoEgPub,
-// 		Lambda:          protoLambda,
-// 		PubM:            pubMb,
-// 		Sig:             sig,
-// 	}
-
-// 	return marshalRequest(req, TxTransferToPipeAccount)
-// }
+	return marshalRequest(req, TxDepositCoconutCredential)
+}
 
 func CreateNewTransferToPipeAccountNotification(privateKey *ecdsa.PrivateKey,
 	clientAddress ethcommon.Address,
