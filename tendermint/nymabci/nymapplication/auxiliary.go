@@ -84,7 +84,7 @@ func randomInts(q int, max int, source rand.Source) ([]int, error) {
 // checks if account with given address exists in the database
 func (app *NymApplication) checkIfAccountExists(address []byte) bool {
 	_, err := app.retrieveAccountBalance(address)
-	return err != nil
+	return err == nil
 }
 
 // getSimpleCoconutParams returns params required to perform coconut operations, however, they do not include
