@@ -35,6 +35,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/golang/protobuf/proto"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
@@ -360,7 +361,7 @@ func (c *Client) prepareSpendCredentialRequest(
 	token *token.Token,
 	sig *coconut.Signature,
 	vk *coconut.VerificationKey,
-	providerAddress []byte,
+	providerAddress ethcommon.Address,
 ) (*commands.SpendCredentialRequest, error) {
 	var err error
 	if vk == nil {
@@ -379,7 +380,7 @@ func (c *Client) prepareSpendCredentialRequest(
 	}
 
 	pubM, privM := token.GetPublicAndPrivateSlices()
-	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureTumblerWrapper(vk, sig, privM, providerAddress)
+	theta, err := c.cryptoworker.CoconutWorker().ShowBlindSignatureTumblerWrapper(vk, sig, privM, providerAddress[:])
 	if err != nil {
 		return nil,
 			c.logAndReturnError("prepareSpendCredentialRequest: Failed when creating proofs for verification: %v", err)
@@ -399,7 +400,7 @@ func (c *Client) SpendCredential(
 	token *token.Token, // token on which the credential is issued; encapsulates required attributes
 	credential *coconut.Signature, // the credential to be spent
 	address string, // physical address of the merchant to which we send the request
-	providerAccountAddress []byte, // blockchain address of the merchant to which the proof will be bound
+	providerAccountAddress ethcommon.Address, // blockchain address of the merchant to which the proof will be bound
 	vk *coconut.VerificationKey, // aggregate verification key of the issuers in the system
 ) (bool, error) {
 	if c.cfg.Client.UseGRPC {
