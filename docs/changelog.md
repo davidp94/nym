@@ -1,5 +1,12 @@
 # CoconutGo Changelog
 
+## 0.8.2
+
+* Restored provider's ability to redeem received credentials
+* Tendermint-side handling of the above request (currently credentials are verified by the tendermint nodes, ON CHAIN)
+* Ability to send a query to check if given zeta was spent (it does not indicate that it was NOT spent)
+* Fixed checkIfAccountExists method
+
 ## 0.8.1
 
 * Restored client's ability to query issued credentials
