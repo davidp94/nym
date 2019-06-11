@@ -16,6 +16,7 @@
 package coconut_test
 
 import (
+	"sync"
 	"testing"
 
 	. "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
@@ -139,6 +140,45 @@ func BenchmarkDoubleAtePairing(b *testing.B) {
 
 		Gt1 := Curve.Fexp(Curve.Ate(g21, g11))
 		Gt2 := Curve.Fexp(Curve.Ate(g22, g12))
+
+		if !Gt1.Equals(Gt2) {
+			panic("fail")
+		}
+	}
+}
+
+func BenchmarkParallelDoubleAtePairing(b *testing.B) {
+	params, _ := coconut.Setup(1)
+	p, rng := params.P(), params.G.Rng()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		x := Curve.Randomnum(p, rng)
+		y := Curve.Randomnum(p, rng)
+
+		g11 := Curve.G1mul(params.G1(), x)
+		g21 := Curve.G2mul(params.G2(), y)
+
+		g12 := Curve.G1mul(params.G1(), y)
+		g22 := Curve.G2mul(params.G2(), x)
+
+		b.StartTimer()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		var Gt1 *Curve.FP12
+		var Gt2 *Curve.FP12
+
+		go func() {
+			Gt1 = Curve.Fexp(Curve.Ate(g21, g11))
+			wg.Done()
+		}()
+		go func() {
+			Gt2 = Curve.Fexp(Curve.Ate(g22, g12))
+			wg.Done()
+		}()
+		wg.Wait()
 
 		if !Gt1.Equals(Gt2) {
 			panic("fail")
