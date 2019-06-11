@@ -29,6 +29,12 @@ import (
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
+func mustNilErr(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
 func balanceToBytes(balance uint64) []byte {
 	b := make([]byte, 8)
 	binary.BigEndian.PutUint64(b, balance)

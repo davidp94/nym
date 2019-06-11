@@ -201,56 +201,49 @@ func (app *NymApplication) checkTransferToPipeAccountNotificationTx(tx []byte) u
 	return code.OK
 }
 
-// func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
-// 	req := &transaction.DepositCoconutCredentialRequest{}
+// We can't do many checks on the tx without actually initiating it first
+func (app *NymApplication) checkDepositCoconutCredentialTx(tx []byte) uint32 {
+	req := &transaction.DepositCoconutCredentialRequest{}
 
-// 	if err := proto.Unmarshal(tx, req); err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	if err := proto.Unmarshal(tx, req); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	var merchantAddress account.ECPublicKey = req.MerchantAddress
+	if len(req.ProviderAddress) != ethcommon.AddressLength {
+		return code.INVALID_MERCHANT_ADDRESS
+	}
 
-// 	// start with checking for double spending -
-// 	// if credential was already spent, there is no point in any further checks
-// 	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
-// 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
-// 	if zetaStatus != nil {
-// 		return code.DOUBLE_SPENDING_ATTEMPT
-// 	}
+	if !app.checkIfAccountExists(req.ProviderAddress) {
+		if !createAccountOnDepositIfDoesntExist {
+			app.log.Error("Provider's account doesnt exist")
+			return code.MERCHANT_DOES_NOT_EXIST
+		}
+		// checkTx will not try creating the account for obvious reasons, only deliverTx can do it
+	}
 
-// 	cred := &coconut.Signature{}
-// 	if err := cred.FromProto(req.Sig); err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	// check for double spending -
+	// if credential was already spent, there is no point in any further checks
+	if app.checkIfZetaIsSpent(req.Theta.Zeta) {
+		return code.DOUBLE_SPENDING_ATTEMPT
+	}
 
-// 	theta := &coconut.ThetaTumbler{}
-// 	if err := theta.FromProto(req.Theta); err != nil {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	// Just check if data is formed correctly, i.e. it can be unmarshalled
+	cred := &coconut.Signature{}
+	if err := cred.FromProto(req.Sig); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	pubM := coconut.BigSliceFromByteSlices(req.PubM)
-// 	if !coconut.ValidateBigSlice(pubM) {
-// 		return code.INVALID_TX_PARAMS
-// 	}
+	theta := &coconut.ThetaTumbler{}
+	if err := theta.FromProto(req.Theta); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	// check if the merchant address is correctly formed
-// 	if err := merchantAddress.Compress(); err != nil {
-// 		return code.INVALID_MERCHANT_ADDRESS
-// 	}
+	if _, err := coconut.BigSliceFromByteSlices(req.PubM); err != nil {
+		return code.INVALID_TX_PARAMS
+	}
 
-// 	if !app.checkIfAccountExists(merchantAddress) {
-// 		if !createAccountOnDepositIfDoesntExist {
-// 			app.log.Error("Merchant's account doesnt exist")
-// 			return code.MERCHANT_DOES_NOT_EXIST
-// 		}
-
-// 		// checkTx will not try creating the account for obvious reasons
-// 	}
-
-// 	// don't verify the credential itself as it's rather expensive operation; it will only be done during deliverTx
-
-// 	return code.OK
-// }
+	return code.OK
+}
 
 func (app *NymApplication) checkCredentialRequestTx(tx []byte) uint32 {
 	// verify sigs and check if all structs can be unmarshalled

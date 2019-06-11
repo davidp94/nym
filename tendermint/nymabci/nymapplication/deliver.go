@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"0xacab.org/jstuczyn/CoconutGo/constants"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
@@ -169,214 +170,101 @@ func (app *NymApplication) handleCredentialRequest(reqb []byte) types.ResponseDe
 	}
 }
 
-// func (app *NymApplication) depositCoconutCredential(reqb []byte) types.ResponseDeliverTx {
-// 	req := &transaction.DepositCoconutCredentialRequest{}
+func (app *NymApplication) handleDepositCredential(reqb []byte) types.ResponseDeliverTx {
+	req := &transaction.DepositCoconutCredentialRequest{}
 
-// 	if err := proto.Unmarshal(reqb, req); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	if err := proto.Unmarshal(reqb, req); err != nil {
+		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	}
 
-// 	var merchantAddress account.ECPublicKey = req.MerchantAddress
+	if checkResult := app.checkDepositCoconutCredentialTx(reqb); checkResult != code.OK {
+		app.log.Info("handleDepositCredential failed checkTx")
+		return types.ResponseDeliverTx{Code: checkResult}
+	}
 
-// 	// start with checking for double spending -
-// 	// if credential was already spent, there is no point in any further checks
-// 	dbZetaEntry := prefixKey(tmconst.SpentZetaPrefix, req.Theta.Zeta)
-// 	_, zetaStatus := app.state.db.Get(dbZetaEntry)
-// 	if zetaStatus != nil {
-// 		return types.ResponseDeliverTx{Code: code.DOUBLE_SPENDING_ATTEMPT}
-// 	}
+	// the errors were checked at checkDepositCoconutCredentialTx call, so they can't by anything else but nil
+	// if it's not the case, we can't trust anything that is happening anyway so we can only panic
+	cred := &coconut.Signature{}
+	theta := &coconut.ThetaTumbler{}
+	pubM, err := coconut.BigSliceFromByteSlices(req.PubM)
+	mustNilErr(err)
+	mustNilErr(cred.FromProto(req.Sig))
+	mustNilErr(theta.FromProto(req.Theta))
 
-// 	cred := &coconut.Signature{}
-// 	if err := cred.FromProto(req.Sig); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	address := ethcommon.BytesToAddress(req.ProviderAddress)
 
-// 	theta := &coconut.ThetaTumbler{}
-// 	if err := theta.FromProto(req.Theta); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	if !app.checkIfAccountExists(address[:]) {
+		// if it doesn't exist we know the flag is set to create new account on deposit,
+		// otherwise checkTx would have failed
+		didSucceed := app.createNewAccountOp(address)
+		if !didSucceed {
+			app.log.Error("Could not create account for the provider")
+			return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
+		}
+		app.log.Debug(fmt.Sprintf("Created new account for %v", address.Hex()))
+	}
+	//
+	// Once verification is moved to separate entity, the below will be used
+	//
+	// protoSigB, err := proto.Marshal(req.Sig)
+	// if err != nil {
+	// 	app.log.Error("Failed to marshal the received credential")
+	// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	// }
+	// protoThetaB, err := proto.Marshal(req.Theta)
+	// if err != nil {
+	// 	app.log.Error("Failed to marshal the received crypto materials")
+	// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
+	// }
+	// key := make([]byte, ethcommon.AddressLength + len(protoSigB))
+	// i := copy(key, address)
+	// copy(key[i:], protoSigB)
+	// return types.ResponseDeliverTx{
+	// 	Code: code.OK,
+	// 	Tags: []cmn.KVPair{
+	// 		// [ Provider || credential --- required crypto materials ]
+	// 		{Key: key, Value: protoThetaB},
+	// 	},
+	// }
 
-// 	pubM := coconut.BigSliceFromByteSlices(req.PubM)
-// 	if !coconut.ValidateBigSlice(pubM) {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// 	}
+	// everything below this line will be moved to separate entity (in a way) it will be replaced by the commneted
+	// code above
+	//
+	//
+	// =======================================================================================================
+	//
+	//
+	// TODO: credential and proof verification will be moved to another 'verifier' entity
+	// but for test sake, let's just leave them here for a time being.
+	avk, err := app.retrieveAggregateVerificationKey()
+	if err != nil {
+		app.log.Error("Failed to retrieve verification key")
+		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	}
 
-// 	// check if the merchant address is correctly formed
-// 	if err := merchantAddress.Compress(); err != nil {
-// 		return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
-// 	}
+	// NOTE: TODO:
+	// if credentials were to be verified during delivertx rather than by separate entity, there's no
+	// point in generating those params every deliverTx. Just store them in state and generate them every time
+	// server restarts (or they are nil)
+	params := app.getSimpleCoconutParams()
+	if params == nil {
+		app.log.Error("Failed to generate coconut params")
+		return types.ResponseDeliverTx{Code: code.UNKNOWN}
+	}
+	// verify the credential
+	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, address[:])
 
-// 	if !app.checkIfAccountExists(merchantAddress) {
-// 		if !createAccountOnDepositIfDoesntExist {
-// 			app.log.Error("Merchant's account doesnt exist")
-// 			return types.ResponseDeliverTx{Code: code.MERCHANT_DOES_NOT_EXIST}
-// 		}
+	if isValid {
+		app.log.Debug("The received credential was valid")
+		if err := app.increaseBalanceBy(address[:], uint64(req.Value)); err != nil {
+			app.log.Error("failed to increase provider's balance? Critical failure")
+			panic(err)
+		}
+		// store the used credential
+		app.storeSpentZeta(req.Theta.Zeta)
+		return types.ResponseDeliverTx{Code: code.OK}
+	}
 
-// 		didSucceed := app.createNewAccountOp(merchantAddress)
-// 		if !didSucceed {
-// 			app.log.Error("Could not create account for the merchant")
-// 			return types.ResponseDeliverTx{Code: code.INVALID_MERCHANT_ADDRESS}
-// 		}
-// 	}
-
-// 	_, avkb := app.state.db.Get(tmconst.AggregateVkKey)
-// 	avk := &coconut.VerificationKey{}
-// 	if err := avk.UnmarshalBinary(avkb); err != nil {
-// 		app.log.Error("Failed to unarsmahl vk...")
-// 		return types.ResponseDeliverTx{Code: code.UNKNOWN}
-// 	}
-
-// 	// basically gets params without bpgroup
-// 	params := app.getSimpleCoconutParams()
-// 	// verify the credential
-// 	isValid := coconut.BlindVerifyTumbler(params, avk, cred, theta, pubM, merchantAddress)
-
-// 	if isValid {
-// 		retCode, data := app.transferFundsOp(tmconst.PipeAccountAddress, merchantAddress, uint64(req.Value))
-// 		// store the used credential
-// 		app.state.db.Set(dbZetaEntry, tmconst.SpentZetaPrefix)
-// 		return types.ResponseDeliverTx{Code: retCode, Data: data}
-// 	}
-// 	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
-// }
-
-// req := &transaction.TransferToPipeAccountRequest{}
-
-// if err := proto.Unmarshal(reqb, req); err != nil {
-// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// }
-
-// var sourcePublicKey account.ECPublicKey = req.SourcePublicKey
-// recoveredPipeAccountAddress := req.TargetAddress
-
-// // TODO: update once epochs, etc. are introduced
-// if bytes.Compare(recoveredPipeAccountAddress, tmconst.PipeAccountAddress) != 0 {
-// 	return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("PIPEACCOUNT")}
-// }
-// if retCode, data := app.validateTransfer(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount)); retCode != code.OK {
-// 	return types.ResponseDeliverTx{Code: retCode, Data: data}
-// }
-
-// msg := make([]byte, len(req.SourcePublicKey)+len(req.TargetAddress)+4+len(req.Nonce))
-// copy(msg, req.SourcePublicKey)
-// copy(msg[len(req.SourcePublicKey):], req.TargetAddress)
-// binary.BigEndian.PutUint32(msg[len(req.SourcePublicKey)+len(req.TargetAddress):], req.Amount)
-// copy(msg[len(req.SourcePublicKey)+len(req.TargetAddress)+4:], req.Nonce)
-
-// if !sourcePublicKey.VerifyBytes(msg, req.Sig) {
-// 	app.log.Info("Failed to verify signature on request")
-// 	return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE}
-// }
-
-// retCode, data := app.transferFundsOp(sourcePublicKey, recoveredPipeAccountAddress, uint64(req.Amount))
-// if retCode == code.OK {
-// 	// it can't fail as transferFunds already performed it
-// 	sourcePublicKey.Compress()
-// 	amountB := make([]byte, 4)
-// 	binary.BigEndian.PutUint32(amountB, req.Amount)
-// 	// only include tags if tx was successful
-// 	key := make([]byte, len(sourcePublicKey)+len(req.Nonce))
-// 	copy(key, sourcePublicKey)
-// 	copy(key[len(sourcePublicKey):], req.Nonce)
-// 	return types.ResponseDeliverTx{Code: retCode, Data: data, Tags: []cmn.KVPair{{Key: key, Value: amountB}}}
-// }
-// return types.ResponseDeliverTx{Code: retCode, Data: data}
-// }
-
-// old implementation, if initiated by IAs:
-// var IAPub account.ECPublicKey
-// var clientPub account.ECPublicKey
-
-// req := &transaction.TransferToPipeAccountRequest{}
-// if err := proto.Unmarshal(reqb, req); err != nil {
-// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
-// }
-
-// idb := make([]byte, 4)
-// binary.BigEndian.PutUint32(idb, req.IAID)
-// dbEntry := prefixKey(tmconst.IaKeyPrefix, idb)
-// _, IAPubb := app.state.db.Get(dbEntry)
-
-// // check if IA exists
-// if IAPubb == nil {
-// 	return types.ResponseDeliverTx{Code: code.ISSUING_AUTHORITY_DOES_NOT_EXIST}
-// }
-
-// IAPub = IAPubb
-// clientPub = req.ClientPublicKey
-
-// // error would be returned if address is malformed
-// if err := clientPub.Compress(); err != nil {
-// 	return types.ResponseDeliverTx{Code: code.MALFORMED_ADDRESS, Data: []byte("CLIENT")}
-// }
-
-// // Verify both sigs
-// clientMsg := make([]byte, len(req.ClientPublicKey)+4+len(req.Commitment))
-// copy(clientMsg, req.ClientPublicKey) // copy the original one in case the signature was on uncompressed key
-// binary.BigEndian.PutUint32(clientMsg[len(req.ClientPublicKey):], uint32(req.Amount))
-// copy(clientMsg[len(req.ClientPublicKey)+4:], req.Commitment)
-
-// if !clientPub.VerifyBytes(clientMsg, req.ClientSig) {
-// 	return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("CLIENT")}
-// }
-
-// msg := make([]byte, 4+len(clientMsg)+len(req.ClientSig))
-// copy(msg, idb)
-// copy(msg[4:], clientMsg)
-// copy(msg[4+len(clientMsg):], req.ClientSig)
-
-// if !IAPub.VerifyBytes(msg, req.IASig) {
-// 	return types.ResponseDeliverTx{Code: code.INVALID_SIGNATURE, Data: []byte("ISSUING AUTHORITY")}
-// }
-
-// // if cm wasn't seen before check balance and do the transfer
-// // else return the same error code as before  - to prevent inconsistency, ex:
-// // block N - IA1 sends the request - it fails due to insufficient funds
-// // block N+1 - client's funds are increased somehow or his account is now created, etc
-// // block N+2 - another IA sends the request
-
-// dbKey := prefixKey(tmconst.CommitmentsPrefix, req.Commitment)
-// _, previousCode := app.state.db.Get(dbKey)
-// if previousCode != nil {
-// 	// another IA already sent the request before - we return the same result
-// 	app.log.Info("This request was already completed")
-// 	return types.ResponseDeliverTx{Code: binary.BigEndian.Uint32(previousCode), Data: []byte("DUPLICATE")}
-// }
-
-// retCodeB := make([]byte, 4)
-
-// // check if client exists and has sufficient balance to actually transfer
-// clientBalanceB, retCode := app.queryBalance(clientPub)
-// if retCode != code.OK {
-// 	binary.BigEndian.PutUint32(retCodeB, retCode)
-// 	app.state.db.Set(dbKey, retCodeB)
-// 	return types.ResponseDeliverTx{Code: code.ACCOUNT_DOES_NOT_EXIST}
-// }
-
-// // balance is actually also checked when transferring funds, but since we have to query db to check if
-// // the account exists, we might as well get the balance and possibly terminate earlier if it's invalid
-// // so that we would not have to verify the below signatures
-// clientBalance := binary.BigEndian.Uint64(clientBalanceB)
-// if clientBalance < uint64(req.Amount) {
-// 	binary.BigEndian.PutUint32(retCodeB, code.INSUFFICIENT_BALANCE)
-// 	app.state.db.Set(dbKey, retCodeB)
-// 	return types.ResponseDeliverTx{Code: code.INSUFFICIENT_BALANCE}
-// }
-
-// // the request is valid, so transfer the amount
-// transferRetCode, data := app.transferFundsOp(clientPub, tmconst.PipeAccountAddress, uint64(req.Amount))
-// binary.BigEndian.PutUint32(retCodeB, transferRetCode)
-// app.state.db.Set(dbKey, retCodeB)
-
-// return types.ResponseDeliverTx{Code: transferRetCode, Data: data}
-// }
-
-// // currently for debug purposes to check if given g^s is in the spent set
-// func (app *NymApplication) lookUpZeta(zeta []byte) []byte {
-// 	_, val := app.state.db.Get(zeta)
-
-// 	if val != nil {
-// 		return []byte{1}
-// 	}
-// 	return []byte{}
-// }
+	app.log.Debug("The received credential was invalid")
+	return types.ResponseDeliverTx{Code: code.INVALID_CREDENTIAL}
+}

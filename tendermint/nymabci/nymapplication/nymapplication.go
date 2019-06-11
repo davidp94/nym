@@ -164,7 +164,7 @@ func (app *NymApplication) DeliverTx(tx []byte) types.ResponseDeliverTx {
 	case transaction.TxDepositCoconutCredential:
 		// deposits coconut credential and transforms appropriate amount from pipe to merchant
 		app.log.Info("Deposit Credential")
-		// return app.depositCoconutCredential(tx[1:])
+		return app.handleDepositCredential(tx[1:])
 	case transaction.TxCredentialRequest:
 		// removes given amount of tokens from user's account and writes crypto material to the chain
 		app.log.Info("Credential request")
@@ -224,12 +224,12 @@ func (app *NymApplication) CheckTx(tx []byte) types.ResponseCheckTx {
 	case transaction.TxDepositCoconutCredential:
 		app.log.Debug("CheckTx for TxDepositCoconutCredential")
 
-		// checkCode := app.checkDepositCoconutCredentialTx(tx[1:])
-		// if checkCode != code.OK {
-		// 	app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
-		// 		checkCode, code.ToString(checkCode)))
-		// }
-		// return types.ResponseCheckTx{Code: checkCode}
+		checkCode := app.checkDepositCoconutCredentialTx(tx[1:])
+		if checkCode != code.OK {
+			app.log.Info(fmt.Sprintf("checkTx for TxTransferBetweenAccounts failed with code: %v - %v",
+				checkCode, code.ToString(checkCode)))
+		}
+		return types.ResponseCheckTx{Code: checkCode}
 	case transaction.TxAdvanceBlock:
 		app.log.Debug("CheckTx for TxAdvanceBlock")
 	case transaction.TxCredentialRequest:
