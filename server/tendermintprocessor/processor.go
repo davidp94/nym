@@ -23,10 +23,10 @@ import (
 	"time"
 
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	monitor "0xacab.org/jstuczyn/CoconutGo/common/tendermintmonitor"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
-	"0xacab.org/jstuczyn/CoconutGo/server/monitor"
 	"0xacab.org/jstuczyn/CoconutGo/server/storage"
 	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
 	tmconst "0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/constants"
