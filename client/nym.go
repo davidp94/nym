@@ -141,6 +141,10 @@ func (c *Client) SendToPipeAccount(ctx context.Context, amount int64) error {
 	return nil
 }
 
+func (c *Client) WaitForERC20BalanceChangeWrapper(ctx context.Context, expectedBalance uint64) error {
+	return c.waitForERC20BalanceChange(ctx, expectedBalance)
+}
+
 // TODO: perhaps wait for N blocks to be more certain of it?
 func (c *Client) waitForERC20BalanceChange(ctx context.Context, expectedBalance uint64) error {
 	c.log.Info("Waiting for our transaction to reach the chain")

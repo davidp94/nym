@@ -18,8 +18,6 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"os"
@@ -30,29 +28,27 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/client/config"
 	"0xacab.org/jstuczyn/CoconutGo/crypto/bpgroup"
 	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/nym/token"
-	tmclient "0xacab.org/jstuczyn/CoconutGo/tendermint/client"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/code"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/query"
-	"0xacab.org/jstuczyn/CoconutGo/tendermint/nymabci/transaction"
-	ethcrypto "github.com/ethereum/go-ethereum/crypto"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	Curve "github.com/jstuczyn/amcl/version3/go/amcl/BLS381"
 )
 
 const onlyRunBasic = false
-const providerAddress = "127.0.0.1:4000"
-const providerAddressGrpc = "127.0.0.1:5000"
-const providerAcc = "AwYXtM4pa4WV47TozIi1gf6t/jdRQyQkPv6mAC0S/fyzdPP4Pr3DAtOP0h0BYcHQIQ=="
+const provider1IP = "127.0.0.1:4100"
+const provider1Address = "0x5F828924E58f98f3dA07596F392fCB094aC818ad"
+const provider2IP = "127.0.0.1:4101"
+const provider2Address = "0xEe45d746721633f37142EDa6bd99F115aEb2Ff2D"
 
 //nolint: gochecknoglobals
-var tendermintABCIAddresses = []string{
-	// "tcp://0.0.0.0:12345", // does not exist
-	"tcp://0.0.0.0:26657",
-	"tcp://0.0.0.0:26659",
-	"tcp://0.0.0.0:26661",
-	"tcp://0.0.0.0:26663",
-}
+var (
+	tendermintABCIAddresses = []string{
+		// "tcp://0.0.0.0:12345", // does not exist
+		"tcp://0.0.0.0:26657",
+		"tcp://0.0.0.0:26659",
+		"tcp://0.0.0.0:26661",
+		"tcp://0.0.0.0:26663",
+	}
+)
 
 // const tendermintABCIAddress = "tcp://0.0.0.0:26657"
 
@@ -95,16 +91,16 @@ func main() {
 		os.Exit(-1)
 	}
 
-	transferToPipe(cc)
+	// transferToPipe(cc)
 	nymFlow(cc)
 	return
 
-	// TODO: FIXME:
-	if onlyRunBasic {
-		basicIA(cc)
-	} else {
-		wholeSystem(cc)
-	}
+	// // TODO: FIXME:
+	// if onlyRunBasic {
+	// 	basicIA(cc)
+	// } else {
+	// 	wholeSystem(cc)
+	// }
 }
 
 func transferToPipe(cc *cclient.Client) {
@@ -130,15 +126,17 @@ func transferToPipe(cc *cclient.Client) {
 		panic(err)
 	}
 
-	pending2, err := cc.GetCurrentERC20PendingBalance()
+	cc.WaitForERC20BalanceChangeWrapper(context.TODO(), currentERC20Balance-1)
+}
+
+func nymFlow(cc *cclient.Client) {
+	currentBalance, err := cc.GetCurrentNymBalance()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println("Current pending", pending2)
-}
+	fmt.Println("current balance:", currentBalance)
 
-func nymFlow(cc *cclient.Client) {
 	params, err := coconut.Setup(1)
 	if err != nil {
 		panic(err)
@@ -154,165 +152,179 @@ func nymFlow(cc *cclient.Client) {
 		panic(err)
 	}
 	fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+
+	currentBalanceNew, err := cc.GetCurrentNymBalance()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("current balance:", currentBalanceNew)
+
+	didSucceed, err := cc.SpendCredential(token, cred, provider1IP, ethcommon.HexToAddress(provider1Address), nil)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("Did we spend the credential successfully: %v\n", didSucceed)
 }
 
-//nolint: errcheck
-func wholeSystem(cc *cclient.Client) {
-	currentBalance, err := cc.GetCurrentNymBalance()
-	if err != nil {
-		panic(err)
-	}
+// //nolint: errcheck
+// func wholeSystem(cc *cclient.Client) {
+// 	currentBalance, err := cc.GetCurrentNymBalance()
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	fmt.Println("current balance:", currentBalance)
+// 	fmt.Println("current balance:", currentBalance)
 
-	return
+// 	return
 
-	log, err := logger.New("", "DEBUG", false)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a logger: %v", err))
-	}
+// 	log, err := logger.New("", "DEBUG", false)
+// 	if err != nil {
+// 		panic(fmt.Sprintf("Failed to create a logger: %v", err))
+// 	}
 
-	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
-	}
+// 	tmclient, err := tmclient.New(tendermintABCIAddresses, log)
+// 	if err != nil {
+// 		panic(fmt.Sprintf("Failed to create a tmclient: %v", err))
+// 	}
 
-	// create new account
-	pk, err := ethcrypto.GenerateKey()
-	if err != nil {
-		panic(err)
-	}
-	newAccReq, err := transaction.CreateNewAccountRequest(pk, []byte("foo"))
-	if err != nil {
-		panic(err)
-	}
+// 	// create new account
+// 	pk, err := ethcrypto.GenerateKey()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	newAccReq, err := transaction.CreateNewAccountRequest(pk, []byte("foo"))
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	res, err := tmclient.Broadcast(newAccReq)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Created new account. Code: %v, additional data: %v\n",
-		code.ToString(res.DeliverTx.Code),
-		string(res.DeliverTx.Data),
-	)
+// 	res, err := tmclient.Broadcast(newAccReq)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	fmt.Printf("Created new account. Code: %v, additional data: %v\n",
+// 		code.ToString(res.DeliverTx.Code),
+// 		string(res.DeliverTx.Data),
+// 	)
 
-	debugAcc, lerr := ethcrypto.LoadECDSA("../tendermint/debugAccount.key")
-	if lerr != nil {
-		panic(lerr)
-	}
+// 	debugAcc, lerr := ethcrypto.LoadECDSA("../tendermint/debugAccount.key")
+// 	if lerr != nil {
+// 		panic(lerr)
+// 	}
 
-	newAccAddress := ethcrypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
-	debugAccAddress := ethcrypto.PubkeyToAddress(*debugAcc.Public().(*ecdsa.PublicKey))
+// 	newAccAddress := ethcrypto.PubkeyToAddress(*pk.Public().(*ecdsa.PublicKey))
+// 	debugAccAddress := ethcrypto.PubkeyToAddress(*debugAcc.Public().(*ecdsa.PublicKey))
 
-	queryRes, err := tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
-	if err != nil {
-		panic(err)
-	}
+// 	queryRes, err := tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	fmt.Println("Debug Account Balance: ", binary.BigEndian.Uint64(queryRes.Response.Value))
+// 	fmt.Println("Debug Account Balance: ", binary.BigEndian.Uint64(queryRes.Response.Value))
 
-	// transfer some funds to the new account
-	transferReq, err := transaction.CreateNewTransferRequest(debugAcc, newAccAddress, 42)
-	if err != nil {
-		panic(err)
-	}
+// 	// transfer some funds to the new account
+// 	transferReq, err := transaction.CreateNewTransferRequest(debugAcc, newAccAddress, 42)
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	// params, _ := coconut.Setup(5)
-	// G := params.G
-	// privM := getRandomAttributes(G, 2) // sequence and the key
-	// token := token.New(privM[0], privM[1], int32(1))
-	// _ = token
+// 	// params, _ := coconut.Setup(5)
+// 	// G := params.G
+// 	// privM := getRandomAttributes(G, 2) // sequence and the key
+// 	// token := token.New(privM[0], privM[1], int32(1))
+// 	// _ = token
 
-	// add some funds
-	res, err = tmclient.Broadcast(transferReq)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
-		code.ToString(res.DeliverTx.Code),
-		string(res.DeliverTx.Data),
-	)
+// 	// add some funds
+// 	res, err = tmclient.Broadcast(transferReq)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	fmt.Printf("Transferred funds from debug to new account. Code: %v, additional data: %v\n",
+// 		code.ToString(res.DeliverTx.Code),
+// 		string(res.DeliverTx.Data),
+// 	)
 
-	queryRes, err = tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
-	if err != nil {
-		panic(err)
-	}
+// 	queryRes, err = tmclient.Query(query.QueryCheckBalancePath, debugAccAddress[:])
+// 	if err != nil {
+// 		panic(err)
+// 	}
 
-	fmt.Println("Debug Account Balance after transfer: ", binary.BigEndian.Uint64(queryRes.Response.Value))
+// 	fmt.Println("Debug Account Balance after transfer: ", binary.BigEndian.Uint64(queryRes.Response.Value))
 
-	// b, err := utils.GenerateRandomBytes(10)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
-	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
-	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
-	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
-	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
+// 	// b, err := utils.GenerateRandomBytes(10)
+// 	// if err != nil {
+// 	// 	panic(err)
+// 	// }
+// 	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x01}, b...))
+// 	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x02}, b...))
+// 	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x03}, b...))
+// 	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x04}, b...))
+// 	// tmclient.SendAsync(append([]byte{transaction.TxAdvanceBlock, 0x05}, b...))
 
-	// fmt.Printf("Send some dummy transactions to advance block")
+// 	// fmt.Printf("Send some dummy transactions to advance block")
 
-	// cred, err := cc.GetCredential(token)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// fmt.Printf("Transferred %v to the pipe account\n", token.Value())
-	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
+// 	// cred, err := cc.GetCredential(token)
+// 	// if err != nil {
+// 	// 	panic(err)
+// 	// }
+// 	// fmt.Printf("Transferred %v to the pipe account\n", token.Value())
+// 	// fmt.Printf("Obtained Credential: %v %v\n", cred.Sig1().ToString(), cred.Sig2().ToString())
 
-	// addr, err := base64.StdEncoding.DecodeString(providerAcc)
-	// if err != nil {
-	// 	panic(err)
-	// }
-	// // spend credential:
-	// didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
-	// if err != nil {
-	// 	panic(err)
-	// }
+// 	// addr, err := base64.StdEncoding.DecodeString(providerAcc)
+// 	// if err != nil {
+// 	// 	panic(err)
+// 	// }
+// 	// // spend credential:
+// 	// didSucceed, err := cc.SpendCredential(token, cred, providerAddress, addr, nil)
+// 	// if err != nil {
+// 	// 	panic(err)
+// 	// }
 
-	// fmt.Println("Was credential spent: ", didSucceed)
-}
+// 	// fmt.Println("Was credential spent: ", didSucceed)
+// }
 
-//nolint: dupl, lll
-func basicIA(cc *cclient.Client) {
-	useGRPC := false
+// //nolint: dupl, lll
+// func basicIA(cc *cclient.Client) {
+// 	useGRPC := false
 
-	params, _ := coconut.Setup(5)
-	G := params.G
-	pubM := getRandomAttributes(G, 3)
-	privM := getRandomAttributes(G, 2)
-	// all possible interactions with the IAs/SPs
+// 	params, _ := coconut.Setup(5)
+// 	G := params.G
+// 	pubM := getRandomAttributes(G, 3)
+// 	privM := getRandomAttributes(G, 2)
+// 	// all possible interactions with the IAs/SPs
 
-	if useGRPC {
-		sigGrpc, _ := cc.SignAttributesGrpc(pubM)
-		sigBlindGrpc, _ := cc.BlindSignAttributesGrpc(pubM, privM)
-		vkGrpc, _ := cc.GetAggregateVerificationKeyGrpc()
+// 	if useGRPC {
+// 		// sigGrpc, _ := cc.SignAttributesGrpc(pubM)
+// 		// sigBlindGrpc, _ := cc.BlindSignAttributesGrpc(pubM, privM)
+// 		// vkGrpc, _ := cc.GetAggregateVerificationKeyGrpc()
 
-		isValidGrpc, _ := cc.SendCredentialsForVerificationGrpc(pubM, sigGrpc, providerAddressGrpc)
-		isValidBlind1Grpc, _ := cc.SendCredentialsForBlindVerificationGrpc(pubM, privM, sigBlindGrpc, providerAddressGrpc, nil)
-		isValidBlind2Grpc, _ := cc.SendCredentialsForBlindVerificationGrpc(pubM, privM, sigBlindGrpc, providerAddressGrpc, vkGrpc)
-		isValidBlind3Grpc, _ := cc.SendCredentialsForVerificationGrpc(append(privM, pubM...), sigBlindGrpc, providerAddressGrpc)
+// 		// isValidGrpc, _ := cc.SendCredentialsForVerificationGrpc(pubM, sigGrpc, providerAddressGrpc)
+// 		// isValidBlind1Grpc, _ := cc.SendCredentialsForBlindVerificationGrpc(pubM, privM, sigBlindGrpc, providerAddressGrpc, nil)
+// 		// isValidBlind2Grpc, _ := cc.SendCredentialsForBlindVerificationGrpc(pubM, privM, sigBlindGrpc, providerAddressGrpc, vkGrpc)
+// 		// isValidBlind3Grpc, _ := cc.SendCredentialsForVerificationGrpc(append(privM, pubM...), sigBlindGrpc, providerAddressGrpc)
 
-		fmt.Println("Is validGrpc:", isValidGrpc)
-		fmt.Println("Is valid localGrpc:", coconut.Verify(params, vkGrpc, pubM, sigGrpc))
+// 		// fmt.Println("Is validGrpc:", isValidGrpc)
+// 		// fmt.Println("Is valid localGrpc:", coconut.Verify(params, vkGrpc, pubM, sigGrpc))
 
-		fmt.Println("Is validBlind1Grpc:", isValidBlind1Grpc)
-		fmt.Println("Is validBlind2Grpc:", isValidBlind2Grpc)
-		fmt.Println("Is validBlind3Grpc:", isValidBlind3Grpc)
-	} else {
-		sig, _ := cc.SignAttributes(pubM)
-		sigBlind, _ := cc.BlindSignAttributes(pubM, privM)
-		vk, _ := cc.GetAggregateVerificationKey()
+// 		// fmt.Println("Is validBlind1Grpc:", isValidBlind1Grpc)
+// 		// fmt.Println("Is validBlind2Grpc:", isValidBlind2Grpc)
+// 		// fmt.Println("Is validBlind3Grpc:", isValidBlind3Grpc)
+// 	} else {
+// 		sig, _ := cc.SignAttributes(pubM)
+// 		sigBlind, _ := cc.BlindSignAttributes(pubM, privM)
+// 		vk, _ := cc.GetAggregateVerificationKey()
 
-		isValid, _ := cc.SendCredentialsForVerification(pubM, sig, providerAddress)
-		isValidBlind1, _ := cc.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, nil)
-		isValidBlind2, _ := cc.SendCredentialsForBlindVerification(pubM, privM, sigBlind, providerAddress, vk)
-		isValidBlind3, _ := cc.SendCredentialsForVerification(append(privM, pubM...), sigBlind, providerAddress)
+// 		isValid, _ := cc.SendCredentialsForVerification(pubM, sig, provider1Address)
+// 		isValidBlind1, _ := cc.SendCredentialsForBlindVerification(pubM, privM, sigBlind, provider1Address, nil)
+// 		isValidBlind2, _ := cc.SendCredentialsForBlindVerification(pubM, privM, sigBlind, provider1Address, vk)
+// 		isValidBlind3, _ := cc.SendCredentialsForVerification(append(privM, pubM...), sigBlind, provider1Address)
 
-		fmt.Println("Is valid", isValid)
-		fmt.Println("Is valid local:", coconut.Verify(params, vk, pubM, sig))
-
-		fmt.Println("Is validBlind1:", isValidBlind1)
-		fmt.Println("Is validBlind2:", isValidBlind2)
-		fmt.Println("Is validBlind3:", isValidBlind3)
-	}
-}
+// 		fmt.Println("Is valid", isValid)
+// 		fmt.Println("Is valid local:", coconut.Verify(params, vk, pubM, sig))
+// 		theta, _ := coconut.ShowBlindSignature(params, vk, sigBlind, privM)
+// 		fmt.Println("Is valid local blind:", coconut.BlindVerify(params, vk, sigBlind, theta, pubM))
+// 		fmt.Println("Is validBlind1:", isValidBlind1)
+// 		fmt.Println("Is validBlind2:", isValidBlind2)
+// 		fmt.Println("Is validBlind3:", isValidBlind3)
+// 	}
+// }
