@@ -27,7 +27,7 @@ import (
 	"0xacab.org/jstuczyn/CoconutGo/logger"
 	"0xacab.org/jstuczyn/CoconutGo/server"
 	"0xacab.org/jstuczyn/CoconutGo/server/config"
-	processor "0xacab.org/jstuczyn/CoconutGo/server/tendermintprocessor"
+	processor "0xacab.org/jstuczyn/CoconutGo/server/issuer/tendermintprocessor"
 	"gopkg.in/op/go-logging.v1"
 )
 
@@ -108,7 +108,7 @@ func New(cfg *config.Config) (*Issuer, error) {
 	processors := make([]*processor.Processor, cfg.Debug.NumProcessors)
 
 	if !cfg.Debug.DisableBlockchainMonitoring && !cfg.Debug.DisableAllBlockchainCommunication {
-		mon, err = monitor.New(log, baseServer.NymClient(), baseServer.Store(), tsk.ID())
+		mon, err = monitor.New(log, baseServer.NymClient(), baseServer.Store(), fmt.Sprintf("issur%v", tsk.ID()))
 		if err != nil {
 			// in theory we could still progress if chain comes back later on.
 			// We will just have to catch up on the blocks

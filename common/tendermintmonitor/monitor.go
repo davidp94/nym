@@ -521,7 +521,7 @@ func (m *Monitor) Halt() {
 }
 
 // New creates a new monitor.
-func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, id int64) (*Monitor, error) {
+func New(l *logger.Logger, tmClient *tmclient.Client, store *storage.Database, id string) (*Monitor, error) {
 	// read db with current state etc
 	subscriberStr := fmt.Sprintf("monitor%v", id)
 	log := l.GetLogger("Monitor")
