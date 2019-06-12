@@ -91,7 +91,7 @@ func main() {
 		os.Exit(-1)
 	}
 
-	// transferToPipe(cc)
+	transferToPipe(cc)
 	nymFlow(cc)
 	return
 

@@ -9,6 +9,7 @@ endef
 # TODO: just make each 'entity' have 1 of each: watcher, issuer, node
 # modifying this also requires updating docker-compose
 NUM_WATCHERS=2
+NUM_VERIFIERS=2
 NUM_ISSUERS=3
 NUM_NODES=4
 NUM_PROVIDERS=2
@@ -68,12 +69,24 @@ build_ethereum_watchers:
 	fi
 	docker build -t nym/ethereum-watcher -f ./DOCKER/ethereum_watcher/Dockerfile .
 
+build_verifiers:
+	@if ! [ -f build/verifiers/verifier1/config.toml ]; then \
+		i=1; while [ "$$i" -le $(NUM_VERIFIERS) ]; do \
+			mkdir -p build/verifiers/verifier$$i/issuerKeys ;\
+			cp localnetdata/verifiers/configs/config$$i.toml build/verifiers/verifier$$i/config.toml ;\
+			cp localnetdata/verifiers/keys/verifier$$i.key build/verifiers/verifier$$i/verifier.key ;\
+			cp localnetdata/issuers/keys/coconutkeys/threshold-verificationKey-* build/verifiers/verifier$$i/issuerKeys/ ;\
+ 			i=$$((i + 1));\
+		done ;\
+	fi
+	docker build -t nym/verifier -f ./DOCKER/verifier/Dockerfile .
 
 localnet-build:
 	make build_nym_nodes
 	make build_issuers
 	make build_ethereum_watchers
 	make build_providers
+	make build_verifiers
 
 # Run a 4-node testnet locally
 localnet-start:

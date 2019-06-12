@@ -540,10 +540,13 @@ func SpendCredentialRequestHandler(ctx context.Context, reqData HandlerData) *co
 		setErrorResponse(log, response, errMsg, commands.StatusCode_DOUBLE_SPENDING_ATTEMPT)
 	}
 
+	log.Debug("The received zeta seems to not have been spent before (THIS IS NOT A GUARANTEE)")
+
 	// TODO: now it's a question of whether we want to immediately try to deposit our credential or wait and do it later
 	// and possibly in bulk. In the former case: store the data in the database
 	// However, for the demo sake (since it's easier), deposit immediately
 	// TODO: in future we could just store that marshalled request (as below) rather than all attributes separately
+	log.Debug("Going to deposit the received credential")
 	blockchainRequest, err := transaction.CreateNewDepositCoconutCredentialRequest(
 		req.Sig,
 		req.PubM,

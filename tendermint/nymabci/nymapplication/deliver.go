@@ -216,13 +216,14 @@ func (app *NymApplication) handleDepositCredential(reqb []byte) types.ResponseDe
 	// 	app.log.Error("Failed to marshal the received crypto materials")
 	// 	return types.ResponseDeliverTx{Code: code.INVALID_TX_PARAMS}
 	// }
-	// key := make([]byte, ethcommon.AddressLength + len(protoSigB))
-	// i := copy(key, address)
+	// key := make([]byte, ethcommon.AddressLength + len(protoSigB) + len(tmconst.RedeemTokensRequestKeyPrefix))
+	// i := copy(key, tmconst.RedeemTokensRequestKeyPrefix)
+	// i += copy(key[i:], address)
 	// copy(key[i:], protoSigB)
 	// return types.ResponseDeliverTx{
 	// 	Code: code.OK,
 	// 	Tags: []cmn.KVPair{
-	// 		// [ Provider || credential --- required crypto materials ]
+	// 		// [ Prefix || Provider || credential --- required crypto materials ]
 	// 		{Key: key, Value: protoThetaB},
 	// 	},
 	// }

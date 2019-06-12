@@ -129,7 +129,6 @@ func New(cfg *config.Config, log *logger.Logger) (*BaseServer, error) {
 			Store:      store,
 		}
 		serverWorker, nerr := serverworker.New(serverWorkerCfg)
-
 		if nerr == nil {
 			serverWorkers = append(serverWorkers, serverWorker)
 		} else {

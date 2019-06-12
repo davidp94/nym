@@ -64,6 +64,10 @@ var (
 	// to a successful request to transfer tokens to the pipe account.
 	CredentialRequestKeyPrefix = []byte("GETCREDENTIAL")
 
+	// RedeemTokensRequestKeyPrefix represents prefix attached to key field of kvpair in the tags of response
+	// to a successful request to move tokens to the corresponding ERC20 account.
+	RedeemTokensRequestKeyPrefix = []byte("REDEEMTOKENS")
+
 	// EthereumWatcherNotificationPrefix represents prefix for database entry
 	// to indicate given watcher has already notified about particular transfer.
 	EthereumWatcherNotificationPrefix = []byte("HOLDTRANSFNOTIF")

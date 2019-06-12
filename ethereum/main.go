@@ -25,13 +25,13 @@ func main() {
 	}
 
 	cfg := client.NewConfig(privateKey,
-		[]string{"https://ropsten.infura.io/v3/5607a6494adb4ad4be814ec20f46ec5b"}, nymContract, pipeContract, log)
+		"https://ropsten.infura.io/v3/5607a6494adb4ad4be814ec20f46ec5b", nymContract, pipeContract, log)
 	c, err := client.New(cfg)
 	if err != nil {
 		panic(err)
 	}
 
-	if err := c.TransferERC20Tokens(context.TODO(), 1, nymContract, pipeContract); err != nil {
+	if err := c.TransferERC20Tokens(context.TODO(), 1, pipeContract); err != nil {
 		panic(err)
 	}
 }

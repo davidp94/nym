@@ -37,12 +37,15 @@ import (
 	"gopkg.in/op/go-logging.v1"
 )
 
-/// ServerWorker allows writing coconut actions to a shared job queue,
+// TODO: perhaps rename considering it is used by issuers and providers (servers)
+// and the verifiers (not entirely a server)?
+// ServerWorker allows writing coconut actions to a shared job queue,
 // so that they could be run concurrently.
 type ServerWorker struct {
 	worker.Worker
 	IssuerWorker
-	ProviderWorker
+	VerificationWorker
+	privateKey                   *ecdsa.PrivateKey
 	*coconutworker.CoconutWorker // TODO: since CoconutWorker does not have many attributes should we still use reference?
 	handlers                     commandhandler.HandlerRegistry
 	incomingCh                   <-chan *commands.CommandRequest
@@ -57,11 +60,18 @@ type IssuerWorker struct {
 	tvk *coconut.ThresholdVerificationKey
 }
 
-type ProviderWorker struct {
-	privateKey *ecdsa.PrivateKey
-	avk        *coconut.VerificationKey
+type VerificationWorker struct {
+	avk *coconut.VerificationKey
 }
 
+func (sw *ServerWorker) WithEcdsaKey(key *ecdsa.PrivateKey) {
+	if sw.privateKey != nil {
+		sw.log.Warningf("Worker already has an attached private key, it will be overwritten")
+	}
+	sw.privateKey = key
+}
+
+// Issuing authority functionality
 func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *coconut.ThresholdVerificationKey) error {
 	sw.log.Noticef("Registering ServerWorker%v as Issuer", sw.id)
 	if !coconut.ValidateKeyPair(tsk.SecretKey, tvk.VerificationKey) {
@@ -127,6 +137,24 @@ func (sw *ServerWorker) RegisterAsIssuer(tsk *coconut.ThresholdSecretKey, tvk *c
 	return nil
 }
 
+// Verifier functionality (monitors chain and checks credentials)
+func (sw *ServerWorker) RegisterAsVerifier(avk *coconut.VerificationKey, privateKey *ecdsa.PrivateKey) error {
+	sw.log.Noticef("Registering ServerWorker%v as Verifier", sw.id)
+	if !avk.Validate() {
+		sw.log.Error("Invalid verification key provided")
+		return errors.New("invalid verification key provided")
+	}
+	sw.WithEcdsaKey(privateKey)
+	sw.VerificationWorker = VerificationWorker{
+		avk: avk,
+	}
+
+	// TODO: handlers
+
+	return nil
+}
+
+// Service provider functionality
 func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey,
 	privateKey *ecdsa.PrivateKey,
 	disableVerification bool,
@@ -136,9 +164,9 @@ func (sw *ServerWorker) RegisterAsProvider(avk *coconut.VerificationKey,
 		sw.log.Error("Invalid verification key provided")
 		return errors.New("invalid verification key provided")
 	}
-	sw.ProviderWorker = ProviderWorker{
-		privateKey: privateKey,
-		avk:        avk,
+	sw.WithEcdsaKey(privateKey)
+	sw.VerificationWorker = VerificationWorker{
+		avk: avk,
 	}
 
 	address := ethcrypto.PubkeyToAddress(*privateKey.Public().(*ecdsa.PublicKey))

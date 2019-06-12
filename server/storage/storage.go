@@ -22,14 +22,16 @@ import (
 	"encoding/binary"
 	"path/filepath"
 
-	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
-
 	"0xacab.org/jstuczyn/CoconutGo/common/comm/commands"
+	coconut "0xacab.org/jstuczyn/CoconutGo/crypto/coconut/scheme"
 	"0xacab.org/jstuczyn/CoconutGo/server/issuer/utils"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
 	"github.com/syndtr/goleveldb/leveldb/util"
 )
+
+// TODO: move to different location since its shared between servers (issuer and provider) and other services
+// like the verifier?
 
 //
 // Currently issuers store the following:
@@ -107,6 +109,7 @@ func (db *Database) StoreIssuedSignature(height int64, gammaB []byte, cred utils
 	}
 }
 
+// TODO: rename as the storage is no longer exlusively bound to monitor/processor and the name is ambiguous
 // FinalizeHeight increases the height of the latest processed block.
 func (db *Database) FinalizeHeight(height int64) {
 	val := make([]byte, 8)
@@ -114,6 +117,7 @@ func (db *Database) FinalizeHeight(height int64) {
 	db.Set(latestStoredKey, val)
 }
 
+// TODO: rename as the storage is no longer exlusively bound to monitor/processor and the name is ambiguous
 // even though we might have already stored all txs from the target height, we should not allow to access them
 // unless we have processed all the blocks before it
 func (db *Database) checkHeight(height int64) bool {
@@ -122,6 +126,7 @@ func (db *Database) checkHeight(height int64) bool {
 	return cur >= height
 }
 
+// TODO: rename as the storage is no longer exlusively bound to monitor/processor and the name is ambiguous
 // GetHighest obtains the height of the latest stored block. It's required on server restart.
 func (db *Database) GetHighest() int64 {
 	return int64(binary.BigEndian.Uint64(db.Get(latestStoredKey)))

@@ -40,6 +40,7 @@ type Provider struct {
 	haltOnce sync.Once
 }
 
+// TODO: DUPLICATE CODE WITH verifier.go!!
 func checkDuplicateID(ids []*Curve.BIG, id *Curve.BIG) bool {
 	for _, el := range ids {
 		if el == nil {
@@ -52,6 +53,7 @@ func checkDuplicateID(ids []*Curve.BIG, id *Curve.BIG) bool {
 	return false
 }
 
+// TODO: DUPLICATE CODE WITH verifier.go!!
 func (prov *Provider) loadAndAggregateVerificationKeys(files, addresses []string, threshold int) (*coconut.VerificationKey, error) {
 	if len(files) == 0 {
 		if len(addresses) == 0 {
@@ -133,8 +135,8 @@ func New(cfg *config.Config) (*Provider, error) {
 	providerLog.Notice("Loaded Nym Blochain keys from the file.")
 
 	// TODO: actually use the key:
-	// - request/response to obtain address (required by client)
-	// - send request to tendermint to redeem credential
+	// - request/response to obtain address (required by client) _/
+	// - send request to tendermint to redeem credential _/
 	// - send request to tendermint to get paid
 
 	provider := &Provider{
